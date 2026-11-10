@@ -32,6 +32,8 @@ pub struct ProcurementSupplierBillMatch {
     pub variance_account_id: Option<String>,
     pub quantity_matches: bool,
     pub fulfillment_id: String,
+    pub branch_id: String,
+    pub department_id: Option<String>,
     pub receipts: Vec<ProcurementSupplierBillMatchReceipt>,
 }
 
@@ -77,7 +79,8 @@ pub async fn load_procurement_supplier_bill_match(
     let row = sqlx::query(
         "SELECT id,version,status,invoice_id,currency,chart_id,supplier_id,invoice_date,\
          due_date,expected_subtotal_minor,subtotal_minor,tax_minor,clearing_account_id,\
-         payable_account_id,tax_account_id,variance_account_id,quantity_matches,fulfillment_id \
+         payable_account_id,tax_account_id,variance_account_id,quantity_matches,fulfillment_id,\
+         branch_id,department_id \
          FROM procurement_bill_matches \
          WHERE company_id=$1 AND invoice_id=$2 FOR UPDATE",
     )
@@ -143,6 +146,8 @@ pub async fn load_procurement_supplier_bill_match(
             .map_err(|_| unavailable())?,
         quantity_matches: row.try_get("quantity_matches").map_err(|_| unavailable())?,
         fulfillment_id: row.try_get("fulfillment_id").map_err(|_| unavailable())?,
+        branch_id: row.try_get("branch_id").map_err(|_| unavailable())?,
+        department_id: row.try_get("department_id").map_err(|_| unavailable())?,
         receipts,
     }))
 }

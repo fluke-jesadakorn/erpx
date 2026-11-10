@@ -2003,6 +2003,13 @@ async fn supplier_bill_posts_a_matched_commerce_bill_with_price_variance() {
         let p = setup(system).await;
         let pool = &p.system.holdings[0];
         seed(pool).await;
+        sqlx::query(
+            "UPDATE assignments SET valid_from=0,valid_until=9999999999999 \
+             WHERE company_id='company'",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
         p.create("commerce-variance-goods", false).await.unwrap();
         p.review(
             "journal-commerce-variance-goods",
@@ -2125,6 +2132,15 @@ async fn supplier_bill_posts_a_matched_commerce_bill_with_price_variance() {
         .await
         .unwrap();
         assert_eq!(event, ("posted".into(), 2));
+        let notifications: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM staff_notifications \
+             WHERE record_type='supplier_bill' AND record_id='bill-match-variance' \
+             AND record_version=2",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert!(notifications > 0);
         let replay = service(&p)
             .post_supplier_bill(
                 "acme.example.test",
@@ -2306,6 +2322,13 @@ async fn supplier_bill_posted_void_reverses_a_matched_commerce_bill_and_releases
         let p = setup(system).await;
         let pool = &p.system.holdings[0];
         seed(pool).await;
+        sqlx::query(
+            "UPDATE assignments SET valid_from=0,valid_until=9999999999999 \
+             WHERE company_id='company'",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
         p.create("commerce-posted-void-goods", false).await.unwrap();
         p.review(
             "journal-commerce-posted-void-goods",
@@ -2475,6 +2498,15 @@ async fn supplier_bill_posted_void_reverses_a_matched_commerce_bill_and_releases
         .await
         .unwrap();
         assert_eq!(returned_event, ("returned".into(), 3));
+        let notifications: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM staff_notifications \
+             WHERE record_type='supplier_bill' AND record_id='bill-match-posted-void' \
+             AND record_version=3",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert!(notifications > 0);
         let receipt_active: bool = sqlx::query_scalar(
             "SELECT active FROM procurement_bill_match_receipts WHERE id='bill-match-posted-void-receipt'",
         )

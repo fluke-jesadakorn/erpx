@@ -730,6 +730,8 @@ impl PgSupplierBillMatch for FinanceSupplierBillMatch {
                 variance_account_id: matched.variance_account_id,
                 quantity_matches: matched.quantity_matches,
                 fulfillment_id: matched.fulfillment_id,
+                branch_id: matched.branch_id,
+                department_id: matched.department_id,
                 receipts: matched
                     .receipts
                     .into_iter()
@@ -753,6 +755,8 @@ impl PgSupplierBillMatch for FinanceSupplierBillMatch {
         actor_id: &str,
         command_id: &str,
         now: i64,
+        branch_id: &str,
+        department_id: Option<&str>,
     ) -> impl std::future::Future<Output = Result<(), Error>> + Send {
         Box::pin(async move {
             erpx_server_procurement::public::finance_supplier_bill_match::stage_procurement_supplier_bill_match_post(
@@ -762,6 +766,19 @@ impl PgSupplierBillMatch for FinanceSupplierBillMatch {
                 expected_version,
                 invoice_id,
                 actor_id,
+                command_id,
+                now,
+            )
+            .await
+            .map_err(PgTransactionError::Business)?;
+            erpx_server_collaboration::public::supplier_bill_match_notification::stage_supplier_bill_match_notification(
+                c,
+                company_id,
+                match_id,
+                expected_version + 1,
+                "posted",
+                branch_id,
+                department_id,
                 command_id,
                 now,
             )
@@ -780,6 +797,8 @@ impl PgSupplierBillMatch for FinanceSupplierBillMatch {
         command_id: &str,
         now: i64,
         reason: &str,
+        branch_id: &str,
+        department_id: Option<&str>,
     ) -> impl std::future::Future<Output = Result<(), Error>> + Send {
         Box::pin(async move {
             erpx_server_procurement::public::finance_supplier_bill_match::stage_procurement_supplier_bill_match_return(
@@ -792,6 +811,19 @@ impl PgSupplierBillMatch for FinanceSupplierBillMatch {
                 command_id,
                 now,
                 reason,
+            )
+            .await
+            .map_err(PgTransactionError::Business)?;
+            erpx_server_collaboration::public::supplier_bill_match_notification::stage_supplier_bill_match_notification(
+                c,
+                company_id,
+                match_id,
+                expected_version + 1,
+                "returned",
+                branch_id,
+                department_id,
+                command_id,
+                now,
             )
             .await
             .map_err(PgTransactionError::Business)
@@ -3076,6 +3108,19 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                                 command.as_str(),
                                 now.get(),
                                 "Matched payable voided",
+                            )
+                            .await
+                            .map_err(PgTransactionError::Business)?;
+                            erpx_server_collaboration::public::supplier_bill_match_notification::stage_supplier_bill_match_notification(
+                                c,
+                                &actor.company_id,
+                                &matched.match_id,
+                                matched.match_version + 1,
+                                "returned",
+                                &matched.branch_id,
+                                matched.department_id.as_deref(),
+                                command.as_str(),
+                                now.get(),
                             )
                             .await
                             .map_err(PgTransactionError::Business)?;

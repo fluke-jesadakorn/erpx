@@ -1702,6 +1702,8 @@ pub struct SupplierBillMatchFacts {
     pub variance_account_id: Option<String>,
     pub quantity_matches: bool,
     pub fulfillment_id: String,
+    pub branch_id: String,
+    pub department_id: Option<String>,
     pub receipts: Vec<SupplierBillMatchReceiptFacts>,
 }
 
@@ -1725,6 +1727,8 @@ pub trait PgSupplierBillMatch: Send {
         actor_id: &str,
         command_id: &str,
         now: i64,
+        branch_id: &str,
+        department_id: Option<&str>,
     ) -> impl Future<Output = Result<(), Error>> + Send;
     fn stage_return(
         &mut self,
@@ -1737,6 +1741,8 @@ pub trait PgSupplierBillMatch: Send {
         command_id: &str,
         now: i64,
         reason: &str,
+        branch_id: &str,
+        department_id: Option<&str>,
     ) -> impl Future<Output = Result<(), Error>> + Send;
 }
 
@@ -1765,6 +1771,8 @@ impl PgSupplierBillMatch for UnmountedSupplierBillMatch {
         _actor_id: &str,
         _command_id: &str,
         _now: i64,
+        _branch_id: &str,
+        _department_id: Option<&str>,
     ) -> impl Future<Output = Result<(), Error>> + Send {
         async move {
             Err(invalid(
@@ -1784,6 +1792,8 @@ impl PgSupplierBillMatch for UnmountedSupplierBillMatch {
         _command_id: &str,
         _now: i64,
         _reason: &str,
+        _branch_id: &str,
+        _department_id: Option<&str>,
     ) -> impl Future<Output = Result<(), Error>> + Send {
         async move {
             Err(invalid(
@@ -2784,6 +2794,8 @@ where
                 actor.user_id.as_str(),
                 command.as_str(),
                 plan.now().get(),
+                &matched.branch_id,
+                matched.department_id.as_deref(),
             )
             .await?;
     }
