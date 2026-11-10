@@ -142,6 +142,7 @@ pub async fn lock_account_work_roles(c: &mut PgConnection, write: bool) -> Resul
     lock_hierarchy_sources(c).await
 }
 async fn capture(
+    allow_empty: bool,
     c: &mut PgConnection,
     scope: &HoldingAccountWorkScope,
     now: i64,
@@ -353,7 +354,7 @@ async fn capture(
             department_slug: context.department().map(|n| n.slug.clone()),
         });
     }
-    if choices.is_empty() {
+    if choices.is_empty() && !allow_empty {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
             "WORKSPACE_UNAVAILABLE",
@@ -390,6 +391,7 @@ pub struct AccountWorkspaceChoice {
 pub struct CurrentAccountWorkRoles {
     unit: (String, i32, String, String),
     captured: Captured,
+    allow_empty: bool,
 }
 impl CurrentAccountWorkRoles {
     pub fn company_name(&self) -> &str {
@@ -495,10 +497,12 @@ impl CurrentAccountWorkRoles {
         now: i64,
     ) -> Result<(), Error> {
         scope.require_current(c, now).await?;
-        let actual = capture(c, scope, now).await.map_err(|e| match e {
-            Error::Business(_) => changed(),
-            other => other,
-        })?;
+        let actual = capture(self.allow_empty, c, scope, now)
+            .await
+            .map_err(|e| match e {
+                Error::Business(_) => changed(),
+                other => other,
+            })?;
         if super::selected_command_authority::selected_unit(c).await? != self.unit
             || actual.image != self.captured.image
         {
@@ -547,7 +551,7 @@ impl CurrentAccountWorkRoles {
         if updated.rows_affected() != 1 {
             return Err(changed());
         }
-        let after = capture(c, scope, now).await?;
+        let after = capture(false, c, scope, now).await?;
         let expected = json!({"session_id":request.session_id.as_str(),"user_id":request.user_id.as_str(),"company_id":request.company_id.as_str(),"assignment_id":id.as_str(),"assignment_version":version,"revision":revision+1,"expires_at":request.session_expires_at,"updated_at":now});
         if after.image.iam != self.captured.image.iam
             || after.image.organization != self.captured.image.organization
@@ -558,6 +562,7 @@ impl CurrentAccountWorkRoles {
         let current = CurrentAccountWorkRoles {
             unit: self.unit,
             captured: after,
+            allow_empty: false,
         };
         current.require_current(c, scope, now).await?;
         Ok(RetainedAccountWorkSelection {
@@ -603,9 +608,11 @@ pub async fn read_account_work_roles(
     c: &mut PgConnection,
     scope: &HoldingAccountWorkScope,
     now: i64,
+    allow_empty: bool,
 ) -> Result<CurrentAccountWorkRoles, Error> {
     Ok(CurrentAccountWorkRoles {
         unit: super::selected_command_authority::selected_unit(c).await?,
-        captured: capture(c, scope, now).await?,
+        captured: capture(allow_empty, c, scope, now).await?,
+        allow_empty,
     })
 }

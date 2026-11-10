@@ -53,9 +53,15 @@ pub fn parse_inbound_account_request(
             .holdings
             .iter()
             .find(|h| &h.audience == audience)
-            .ok_or_else(not_found)?
-            .origin
-            .clone(),
+            .map(|h| h.origin.clone())
+            .or_else(|| {
+                policy
+                    .products
+                    .iter()
+                    .find(|p| &p.audience == audience)
+                    .map(|p| p.origin.clone())
+            })
+            .ok_or_else(not_found)?,
     };
     // This function owns the existing 8192-byte aggregate Cookie budget, duplicate
     // rejection across every Cookie header and exact audience cookie selection.

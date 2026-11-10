@@ -135,9 +135,8 @@ async function profileAccount(id:string=randomUUID()) {
   const profileEmail = `${id}@example.test`, name = `Fictional profile ${id}`, instant = Date.now();
   await db.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?)')
     .bind(id, name, profileEmail, instant, instant).run();
-  const { nativeTestPasswordHash } = await import("../../support/native-account-sso");
   await db.prepare('INSERT INTO account(id,"accountId","providerId","userId",issuer,password,"createdAt","updatedAt") VALUES(?,?,\'credential\',?,\'local:credential\',?,?,?)')
-    .bind(randomUUID(), id, id, await nativeTestPasswordHash(fixturePassword), instant, instant).run();
+    .bind(randomUUID(), id, id, await hashPassword(fixturePassword), instant, instant).run();
   const signedIn = await nativeSignIn(profileEmail), cookie = signedIn.cookie, session = await nativeSession(cookie);
   return { id, name, email: profileEmail, cookie, sessionId: session!.session.id,
     input: { accountKey: createHash("sha256").update("account-profile:").update(id).digest("hex"), name: "Fictional updated name", expectedName: name, language: "th", appearance: "dark", expectedVersion: 0 } };

@@ -18,7 +18,6 @@ import { productLaunchChoices } from '@erpx/server-work_projection/adapters/prod
 import { adminLaunchChoices } from '@erpx/server-work_projection/adapters/admin-launcher';
 import { ApiError, errorResponse } from '@erpx/server-runtime/public/http';
 import type { SwitcherContext, SwitcherWorkspace } from '@erpx/feature-identity_access/lib/device-accounts';
-import { withCurrentWorkSelectionSession } from '@erpx/server-identity_access/public/private-session-read';
 import { providerContextSelection } from '@erpx/feature-identity_access/lib/provider-context';
 
 const responseHeaders = { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' };
@@ -91,17 +90,16 @@ export async function roleSelectionRequest(request: Request) {
     }
     const workspace = (await workspaces()).find(choice => choice.key === input.workspaceKey);
     if (!workspace || typeof input.version !== 'number') throw new ApiError(409,'WORK_CONTEXT_CHANGED','Your workspace access changed. Review the current choices.');
-    await withCurrentWorkSelectionSession({ userId: session.user.id, sessionId: session.session.id, email: session.user.email, audience }, async assertCurrent => {
-      await assertCurrent();
-      if (workspace.kind === 'front') {
-        const parts = frontParts(workspace), state = await frontRoleState(parts.holding, workspace.companyId, parts.app, parts.location);
-        const option = state.options.find(option => option.id === input.assignmentId && option.version === input.version);
-        if (!option) throw new ApiError(409,'WORK_CONTEXT_CHANGED','Review the current daily roles.');
-        await selectWorkRole(state.write, { userId: state.access.userId, sessionId: state.access.sessionId, companyId: workspace.companyId, assignmentId: option.id, assignmentVersion: option.version!, revision: input.revision, expiresAt: state.access.expiresAt });
-      } else if (workspace.kind === 'admin') await selectAdminWorkRole(adminWorkspaceTarget(workspace.companyId, workspace.target)!, input.assignmentId, input.revision, input.version as number);
-      else await selectProductWorkRole(workspace.productId as Parameters<typeof selectProductWorkRole>[0], productWorkspaceTarget(workspace.productId as Parameters<typeof selectProductWorkRole>[0], workspace.companyId, workspace.target)!, input.assignmentId, input.revision, input.version as number);
-      await assertCurrent();
-    });
+    // The native selection command revalidates the current session and owner
+    // authority in its own serializable unit. A second Control session lease
+    // here would hold session EXCLUSIVE while that native unit waits on it.
+    if (workspace.kind === 'front') {
+      const parts = frontParts(workspace), state = await frontRoleState(parts.holding, workspace.companyId, parts.app, parts.location);
+      const option = state.options.find(option => option.id === input.assignmentId && option.version === input.version);
+      if (!option) throw new ApiError(409,'WORK_CONTEXT_CHANGED','Review the current daily roles.');
+      await selectWorkRole(state.write, { userId: state.access.userId, sessionId: state.access.sessionId, companyId: workspace.companyId, assignmentId: option.id, assignmentVersion: option.version!, revision: input.revision, expiresAt: state.access.expiresAt });
+    } else if (workspace.kind === 'admin') await selectAdminWorkRole(adminWorkspaceTarget(workspace.companyId, workspace.target)!, input.assignmentId, input.revision, input.version as number);
+    else await selectProductWorkRole(workspace.productId as Parameters<typeof selectProductWorkRole>[0], productWorkspaceTarget(workspace.productId as Parameters<typeof selectProductWorkRole>[0], workspace.companyId, workspace.target)!, input.assignmentId, input.revision, input.version as number);
     // Same-host navigation keeps the selected session. Cross-host entry restores
     // the existing per-account Company role preference through normal SSO.
     const href = audience === workspace.productId ? workspace.target : configuredProductHandoff(workspace.productId as Parameters<typeof configuredProductHandoff>[0], workspace.target);

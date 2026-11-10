@@ -1,8 +1,8 @@
-use crate::domain::environment::valid_environment;
 use super::account_group_recovery::rotate_key;
 use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::account_revocation_postgres::invalidate_children;
 use crate::application::account_revocation::AccountWorkContextInvalidation;
+use crate::domain::environment::valid_environment;
 use crate::{
     adapters::{
         account_postgres::{
@@ -82,7 +82,11 @@ async fn cancel_proofs(
     sqlx::query("UPDATE native_account_proofs SET consumed_at=$3 WHERE user_id=$1 AND ($2::text IS NULL OR kind=$2) AND consumed_at IS NULL").bind(user_id).bind(kind).bind(now).execute(connection).await?;
     Ok(())
 }
-async fn queue(connection: &mut PgConnection, input: PreparedCredentialMail, queue_outbox: bool) -> TxResult<()> {
+async fn queue(
+    connection: &mut PgConnection,
+    input: PreparedCredentialMail,
+    queue_outbox: bool,
+) -> TxResult<()> {
     let Some(current) = credential(connection, &input.email)
         .await?
         .filter(|value| value.can_authenticate(false))
@@ -149,13 +153,14 @@ async fn revoke_all(
     user_id: &str,
     now: i64,
     environment: &str,
+    holdings: &ConfiguredHoldingRegistry,
     invalidation: &dyn AccountWorkContextInvalidation,
 ) -> TxResult<()> {
     let sessions = sqlx::query_scalar::<_, String>("SELECT id FROM session WHERE \"userId\"=$1")
         .bind(user_id)
         .fetch_all(&mut *connection)
         .await?;
-    invalidate_children(connection, &sessions, environment, invalidation).await?;
+    invalidate_children(connection, &sessions, environment, holdings, invalidation).await?;
     let browsers: Vec<String> = sqlx::query_scalar(
         "SELECT id FROM account_device_browsers WHERE active_session_id=ANY($1::text[])",
     )
@@ -169,7 +174,7 @@ async fn revoke_all(
         }
     }
     for session in sessions {
-        expire_family(connection, &session, environment, invalidation).await?;
+        expire_family(connection, &session, environment, holdings, invalidation).await?;
     }
     Ok(())
 }
@@ -179,13 +184,22 @@ async fn replace_password(
     new: &PasswordHash,
     now: i64,
     environment: &str,
+    holdings: &ConfiguredHoldingRegistry,
     invalidation: &dyn AccountWorkContextInvalidation,
 ) -> TxResult<()> {
     let changed=sqlx::query("UPDATE account SET password=$3,\"updatedAt\"=$4 WHERE \"userId\"=$1 AND \"accountId\"=$1 AND \"providerId\"='credential' AND issuer='local:credential' AND password=$2").bind(&current.user_id).bind(current.password_hash.as_str()).bind(new.as_str()).bind(now).execute(&mut *connection).await?.rows_affected();
     if changed != 1 {
         return Err(invalid_proof().into());
     }
-    revoke_all(connection, &current.user_id, now, environment, invalidation).await?;
+    revoke_all(
+        connection,
+        &current.user_id,
+        now,
+        environment,
+        holdings,
+        invalidation,
+    )
+    .await?;
     cancel_proofs(connection, &current.user_id, None, now).await
 }
 async fn authenticated_credential(
@@ -239,6 +253,34 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
             )
         })
     }
+    fn inspect_legacy_password_reset(&self, token: String, _now: i64) -> AccountFuture<'_, ()> {
+        Box::pin(async move {
+            finish(
+                self.unit
+                    .run(options(), |connection| {
+                        let token = token.clone();
+                        let clock = self.clock.clone();
+                        Box::pin(async move {
+                            let now = clock.now().get();
+                            let identifier = format!("reset-password:{token}");
+                            let retained = sqlx::query_scalar::<_, String>(
+                                "SELECT value FROM verification WHERE identifier=$1 AND \"expiresAt\">$2 \
+                                 ORDER BY \"createdAt\" DESC LIMIT 1",
+                            )
+                            .bind(&identifier)
+                            .bind(now)
+                            .fetch_optional(&mut *connection)
+                            .await?;
+                            if retained.is_none() {
+                                return Err(invalid_proof().into());
+                            }
+                            Ok(())
+                        })
+                    })
+                    .await,
+            )
+        })
+    }
     fn request_mail(&self, input: PreparedCredentialMail) -> AccountFuture<'_, ()> {
         Box::pin(async move {
             finish(
@@ -265,6 +307,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                         let environment = self.environment.clone();
                         let clock = self.clock.clone();
                         let invalidation = self.invalidation.clone();
+                        let holdings = self.holdings.clone();
                         Box::pin(async move {
                             locks(connection).await?;
                             let now = clock.now().get();
@@ -281,6 +324,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 &input.password_hash,
                                 now,
                                 &environment,
+                                &holdings,
                                 invalidation.as_ref(),
                             )
                             .await?;
@@ -390,6 +434,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 &input.password_hash,
                                 now,
                                 &environment,
+                                &holdings,
                                 invalidation.as_ref(),
                             )
                             .await?;

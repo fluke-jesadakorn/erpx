@@ -114,7 +114,13 @@ impl Password {
 pub struct PasswordHash(String);
 impl PasswordHash {
     pub fn new(value: String) -> Result<Self, BusinessError> {
-        if !value.starts_with("$argon2id$v=19$") || value.len() > 1024 {
+        let scrypt = value.split_once(':').is_some_and(|(salt, key)| {
+            salt.len() == 32
+                && salt.bytes().all(|b| b.is_ascii_hexdigit())
+                && key.len() == 128
+                && key.bytes().all(|b| b.is_ascii_hexdigit())
+        });
+        if !(value.starts_with("$argon2id$v=19$") || scrypt) || value.len() > 1024 {
             return Err(BusinessError::new(
                 FailureKind::Unavailable,
                 "CREDENTIAL_FORMAT_UNAVAILABLE",
@@ -125,6 +131,10 @@ impl PasswordHash {
     }
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+    /// Installed Better Auth credentials use scrypt as `salt:key` hex.
+    pub fn is_legacy_scrypt(&self) -> bool {
+        !self.0.starts_with("$argon2id$v=19$") && self.0.contains(':')
     }
 }
 

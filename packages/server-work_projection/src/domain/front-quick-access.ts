@@ -45,6 +45,10 @@ export function frontActionItems(app: FrontAppKind, actor: WorkContext, frontHre
     }));
 }
 
+export function frontActionIds(app: FrontAppKind): string[] {
+  return (app === "pos" ? posActions : pmsActions).map((action) => action.id);
+}
+
 export type FrontCompanyChoice = {
   id: string;
   label: string;

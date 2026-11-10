@@ -158,22 +158,25 @@ pub(crate) fn presented(
                 RequestAudience::Holding { .. } => PRODUCT_COOKIE,
             };
             if name == active_name {
-                proof.active = Some(OpaqueSecret::new(value.into())?);
+                // A malformed or retired legacy session cookie is not a
+                // credential. Treat it as absent; never authenticate or 500.
+                proof.active = OpaqueSecret::new(value.into()).ok();
             }
             if matches!(audience, RequestAudience::Account) {
                 if name == DEVICE_COOKIE {
                     proof.browser = Some(OpaqueSecret::new(value.into())?);
                 }
                 if let Some(handle) = name.strip_prefix(SAVED_PREFIX) {
-                    if handle.len() != 36
-                        || !handle.bytes().all(|c| c.is_ascii_hexdigit() || c == b'-')
-                        || proof.saved.len() >= 5
+                    // Legacy Better Auth stored a shorter multi-account
+                    // handle. Ignore an entry that cannot be a current saved
+                    // proof instead of rejecting the whole session read.
+                    if handle.len() == 36
+                        && handle.bytes().all(|c| c.is_ascii_hexdigit() || c == b'-')
+                        && proof.saved.len() < 5
+                        && let Ok(secret) = OpaqueSecret::new(value.into())
                     {
-                        return Err(invalid("INVALID_SAVED_ACCOUNT_PROOF"));
+                        proof.saved.push((handle.into(), secret));
                     }
-                    proof
-                        .saved
-                        .push((handle.into(), OpaqueSecret::new(value.into())?));
                 }
             }
         }
@@ -417,15 +420,21 @@ async fn sign_out(State(service): State<Arc<AccountAuthentication>>, request: Re
             one_header(&headers, "origin")?.ok_or_else(|| invalid("MISSING_REQUEST_ORIGIN"))?;
         let expected = match &audience {
             RequestAudience::Account => &service.policy.account_origin,
-            RequestAudience::Holding { audience: target } => {
-                &service
-                    .policy
-                    .holdings
-                    .iter()
-                    .find(|holding| &holding.audience == target)
-                    .ok_or_else(|| invalid("INVALID_REQUEST_AUTHORITY"))?
-                    .origin
-            }
+            RequestAudience::Holding { audience: target } => service
+                .policy
+                .holdings
+                .iter()
+                .find(|holding| &holding.audience == target)
+                .map(|holding| &holding.origin)
+                .or_else(|| {
+                    service
+                        .policy
+                        .products
+                        .iter()
+                        .find(|product| &product.audience == target)
+                        .map(|product| &product.origin)
+                })
+                .ok_or_else(|| invalid("INVALID_REQUEST_AUTHORITY"))?,
         };
         if origin != expected {
             return Err(BusinessError::new(

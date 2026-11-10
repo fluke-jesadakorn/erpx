@@ -1,4 +1,5 @@
-use crate::domain::environment::valid_environment;
+use crate::domain::{account_auth::RequestAudience, environment::valid_environment};
+use crate::public::account_holding_bindings::ConfiguredHoldingRegistry;
 use crate::{
     application::{
         account_ports::AccountFuture, account_revocation::AccountWorkContextInvalidation,
@@ -104,6 +105,7 @@ pub(crate) async fn invalidate_children(
     connection: &mut PgConnection,
     parents: &[String],
     environment: &str,
+    holdings: &ConfiguredHoldingRegistry,
     invalidator: &dyn AccountWorkContextInvalidation,
 ) -> Result<(), PgTransactionError<BusinessError>> {
     let rows=sqlx::query("SELECT s.id,s.\"userId\" user_id,p.\"userId\" parent_user,b.audience,b.environment FROM session s JOIN sso_session_bindings b ON b.session_id=s.id JOIN session p ON p.id=b.parent_session_id WHERE b.parent_session_id=ANY($1::text[]) ORDER BY s.id").bind(parents).fetch_all(&mut *connection).await?;
@@ -117,12 +119,20 @@ pub(crate) async fn invalidate_children(
         if user != row.try_get::<String, _>("parent_user")? || env != environment {
             return Err(reentry_required().into());
         }
-        children.push(RetiredAccountChild::from_binding(
-            row.try_get("id")?,
-            user,
-            &row.try_get::<String, _>("audience")?,
-            &env,
-        )?);
+        let audience: String = row.try_get("audience")?;
+        let child = match holdings.expected_for_audience(&RequestAudience::Holding {
+            audience: audience.clone(),
+        }) {
+            Ok(holding) => RetiredAccountChild::from_registered_binding(
+                row.try_get("id")?,
+                user,
+                &audience,
+                &env,
+                holding.holding_id.clone(),
+            )?,
+            Err(_) => RetiredAccountChild::from_binding(row.try_get("id")?, user, &audience, &env)?,
+        };
+        children.push(child);
     }
     let rows=sqlx::query("SELECT holding_id,write_binding FROM holding_bindings WHERE status='active' ORDER BY holding_id").fetch_all(&mut *connection).await?;
     let targets = rows

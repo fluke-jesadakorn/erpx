@@ -1,7 +1,7 @@
 import 'server-only';
 import type {NativeAccountPreferences} from '@erpx/contracts/field-service-reserve';
 import {nativeAccountPreferencesRequest} from '@erpx/native-sdk/field-service-parts';
-import {nativeHoldingConfiguration,type NativeHoldingConfiguration} from '@erpx/native-sdk/holding-target';
+import {nativeHoldingConfiguration,nativeHoldingTargetById,nativeHoldingTargetForHost,type NativeHoldingConfiguration} from '@erpx/native-sdk/holding-target';
 import {originProfile} from '@erpx/feature-runtime/lib/holding-hosts';
 import {ApiError} from '@erpx/server-runtime/public/http';
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
@@ -12,12 +12,12 @@ export function createNativeAccountPreferencesClient(raw:string,send:typeof nati
  const profile=originProfile();let config:NativeHoldingConfiguration;try{config=nativeHoldingConfiguration(raw,profile);}catch{return fail('NATIVE_ACCOUNT_PREFERENCE_CONFIGURATION_INVALID');}
  return async(incoming:Pick<Headers,'get'>,userId:string,method:'GET'|'POST',body?:string,holdingId?:string,holdingSlug?:string,workspace=false):Promise<NativeAccountPreferences>=>{
   const sourceHost=incoming.get('host'),loopback=profile==='loopback'&&sourceHost!==null&&/^127\.0\.0\.1:\d+$/.test(sourceHost);
-  const target=loopback?config.holdings[0]:config.holdings.find(h=>new URL(h.origin).host===sourceHost);
-  if(!target||holdingId!==undefined&&holdingId!==target.holdingId||holdingSlug!==undefined&&holdingSlug!==target.holdingSlug)return fail('NATIVE_ACCOUNT_PREFERENCE_TARGET_UNAVAILABLE');
+  const target=loopback?(holdingId?nativeHoldingTargetById(config,holdingId):holdingSlug?config.holdings.find(h=>h.holdingSlug===holdingSlug)??config.holdings[0]:config.holdings[0]):(nativeHoldingTargetForHost(config,sourceHost)??(holdingId?nativeHoldingTargetById(config,holdingId):undefined));
+  if(!target||holdingId!==undefined&&holdingId!==target.holdingId)return fail('NATIVE_ACCOUNT_PREFERENCE_TARGET_UNAVAILABLE');
   const sourceOrigin=incoming.get('origin');
-  if(loopback){if(sourceOrigin&&sourceOrigin!==`http://${sourceHost}`)return fail('ORIGIN_FORBIDDEN',403);}else if(sourceOrigin&&sourceOrigin!==target.origin||method==='POST'&&sourceOrigin!==target.origin)return fail('ORIGIN_FORBIDDEN',403);
+  if(loopback){if(sourceOrigin&&sourceOrigin!==`http://${sourceHost}`)return fail('ORIGIN_FORBIDDEN',403);}else{if(sourceOrigin&&new URL(sourceOrigin).host!==sourceHost)return fail('ORIGIN_FORBIDDEN',403);if(method==='POST'&&!sourceOrigin)return fail('ORIGIN_FORBIDDEN',403);}
   const origin=loopback?target.origin:sourceOrigin;
-  const headers=new Headers({host:new URL(target.origin).host,accept:'application/json'});if(origin)headers.set('origin',origin);
+  const headers=new Headers({host:loopback?new URL(target.origin).host:(sourceHost??new URL(target.origin).host),accept:'application/json'});if(origin)headers.set('origin',origin);
   const cookie=incoming.get('cookie');if(cookie){if(new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_ACCOUNT_PREFERENCE_COOKIE_LIMIT');headers.set('cookie',cookie);}
   if(method==='POST'){
    headers.set('content-type','application/json');

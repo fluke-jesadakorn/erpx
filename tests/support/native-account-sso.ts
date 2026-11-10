@@ -150,6 +150,13 @@ async function start(): Promise<Started> {
       ...(current.databases[slot.read] ? { readDatabase: { url: current.databases[slot.read] } } : {}),
     })),
     productOrigins: PRODUCT_HOSTS.map(([key, host]) => ({ host, key, holdingId: firstHolding })),
+    accountSecurityKeys: {
+      current: 'native-test-current',
+      keys: [
+        { id: 'native-test-current', keyHex: '11'.repeat(32) },
+        { id: 'native-test-previous', keyHex: '22'.repeat(32) },
+      ],
+    },
     accountBootstrap: true,
   };
   writeFileSync(path, JSON.stringify(configuration, null, 2) + '\n', { mode: 0o600 });
@@ -285,6 +292,16 @@ export async function startNativeAccountSsoProxy(): Promise<void> {
     accountOrigin: `https://${ACCOUNT_HOST}`,
     holdingOrigins,
     timeoutMs: 10_000,
+  });
+  process.env.ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG = JSON.stringify({
+    privateBaseUrl: proxyBaseUrl,
+    timeoutMs: 10_000,
+    holdings: holdings.map(slot => ({
+      holdingId: slot.id,
+      holdingSlug: slot.id === 'h003' ? 'erpx' : slot.id === 'h002' ? 'northstar' : 'acme',
+      origin: `https://${HOLDING_HOSTS[slot.id]}`,
+    })),
+    products: PRODUCT_HOSTS.map(([, host]) => ({ origin: `https://${host}`, holdingId: holdings[0].id })),
   });
 }
 

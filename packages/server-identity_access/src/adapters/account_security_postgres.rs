@@ -1,4 +1,3 @@
-use crate::domain::environment::valid_environment;
 use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::account_mfa_crypto::AccountMfaKeyring;
 use super::{
@@ -7,6 +6,7 @@ use super::{
     account_sessions::lock_session_writes,
 };
 use crate::domain::account_security_snapshot::*;
+use crate::domain::environment::valid_environment;
 use crate::{
     application::{
         account_ports::{AccountFuture, DeviceProof},
@@ -160,6 +160,7 @@ async fn invalidate(
     connection: &mut PgConnection,
     before: &Image,
     ids: &[String],
+    holdings: &ConfiguredHoldingRegistry,
     invalidation: &dyn AccountWorkContextInvalidation,
 ) -> TxResult<()> {
     let mut children = Vec::new();
@@ -173,12 +174,24 @@ async fn invalidate(
             .iter()
             .find(|s| s.id == binding.session_id)
             .ok_or_else(changed)?;
-        children.push(RetiredAccountChild::from_binding(
-            binding.session_id.clone(),
-            user.user_id.clone(),
-            &binding.audience,
-            &binding.environment,
-        )?);
+        let child = match holdings.expected_for_audience(&RequestAudience::Holding {
+            audience: binding.audience.clone(),
+        }) {
+            Ok(holding) => RetiredAccountChild::from_registered_binding(
+                binding.session_id.clone(),
+                user.user_id.clone(),
+                &binding.audience,
+                &binding.environment,
+                holding.holding_id.clone(),
+            )?,
+            Err(_) => RetiredAccountChild::from_binding(
+                binding.session_id.clone(),
+                user.user_id.clone(),
+                &binding.audience,
+                &binding.environment,
+            )?,
+        };
+        children.push(child);
     }
     if children.is_empty() {
         return Ok(());
@@ -270,7 +283,7 @@ impl AccountSecurityRepository for PostgresAccountSecurity {
             let ids=before.sessions.iter().filter(|s|s.id==parent||before.bindings.iter().any(|b|b.session_id==s.id&&b.parent_session_id.as_deref()==Some(parent.as_str())&&b.environment==environment)).map(|s|s.id.clone()).collect::<Vec<_>>();
             if ids.iter().any(|id|!own.iter().any(|s|&s.id==id)){return Err(changed().into());}ids
         }else{own.iter().map(|s|s.id.clone()).collect::<Vec<_>>()};
-        invalidate(connection,&before,&ids,invalidation.as_ref()).await?;
+        invalidate(connection,&before,&ids,&holdings,invalidation.as_ref()).await?;
         // Resample after any Holding wait, before the destructive Control effect.
         fresh.require_current(connection,clock.now().get()).await?;
         sqlx::query("DELETE FROM session WHERE id=ANY($1::text[])").bind(&ids).execute(&mut *connection).await?;

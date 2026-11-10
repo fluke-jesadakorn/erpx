@@ -27,9 +27,20 @@ type NativeIdentitySession = IdentitySession & {
 export function createIdentitySessionAuthenticator(
   client:(configuration:NativeSessionClientConfiguration)=>NativeSessionRead=createNativeSessionClient,
 ){
- return async(_origin:string|undefined,headers:Headers):Promise<NativeIdentitySession|null>=>{
+ return async(origin:string|undefined,headers:Headers):Promise<NativeIdentitySession|null>=>{
   const raw=process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;
   if(raw===undefined)throw new ApiError(503,'NATIVE_SESSION_CONFIGURATION_REQUIRED','The native Account session is not configured.');
+  // Declared legacy hosts still have installed Better Auth cookies until their
+  // consumers move. Only the real legacy cookie name is accepted here; native
+  // and copied native cookies always take the native path.
+  const legacy=/(?:^|;\s*)(?:(?:__Secure-)?better-auth|erpx-[a-z0-9_-]+)\.session_token/.test(headers.get('cookie')??'');
+  const allowed=[process.env.BETTER_AUTH_URL,process.env.ERPX_PUBLIC_ORIGIN,process.env.ERPX_FRONT_POS_ORIGIN,process.env.ERPX_FRONT_PMS_ORIGIN].filter((value):value is string=>!!value);
+  if(legacy&&origin&&allowed.includes(origin)){
+   const {createAuth}=await import('./auth');
+   const session=await (await createAuth(origin)).api.getSession({headers});
+   if(!session)return null;
+   return {session:{id:session.session.id,userId:session.user.id,expiresAt:session.session.expiresAt,createdAt:session.session.createdAt,updatedAt:session.session.updatedAt},user:{id:session.user.id,name:session.user.name,email:session.user.email,emailVerified:Boolean(session.user.emailVerified),image:session.user.image??null}};
+  }
   const result=await client(nativeAccountConfiguration(raw))(headers);
   if(result===null)return null;
   return {

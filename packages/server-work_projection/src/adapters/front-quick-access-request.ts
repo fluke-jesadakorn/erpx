@@ -6,7 +6,7 @@ import {withCurrentSelfAccountPreferences} from '@erpx/server-identity_access/pu
 import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import {frontAppForHost,type FrontHostApp} from '@erpx/feature-shared/lib/front-host';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {frontCompanyChoices,frontCompanyItems,frontActionItems} from '@erpx/server-work_projection/adapters/front-quick-access';
+import {frontCompanyChoices,frontCompanyItems,frontActionItems,frontActionIds} from '@erpx/server-work_projection/adapters/front-quick-access';
 import {readSessionQuickAccessPreferences,saveSessionQuickAccessPreferences} from '@erpx/server-work_projection/adapters/quick-access-preferences';
 
 type Change={pinnedIds:string[]|null;expectedVersion:number;requestKey:string};
@@ -16,7 +16,7 @@ export async function frontQuickAccessRequest(request:Request,app:FrontHostApp,r
  if(frontAppForHost(request.headers.get('host'))!==app)throw new ApiError(404,'NOT_FOUND','This Front picker is unavailable.');
  const {session,requestHeaders}=await currentSession(),image=()=>JSON.stringify({session,headers:[...requestHeaders.entries()],url:request.url,app}),captured=image(),change=readChange?await readChange():undefined,
   input=change?{pinnedIds:change.pinnedIds===null?null:[...change.pinnedIds],expectedVersion:change.expectedVersion,requestKey:change.requestKey}:undefined,
-  availableIds=frontCompanyItems(await frontCompanyChoices(app)).map(item=>item.id);
+  availableIds=input&&input.pinnedIds&&input.pinnedIds.length?frontCompanyItems(await frontCompanyChoices(app)).map(item=>item.id):[];
  const assertContext=()=>{if(image()!==captured)throw new ApiError(401,'SESSION_REVOKED','The current Front account changed.');};
  return withCurrentSelfAccountPreferences({userId:session.user.id,sessionId:session.session.id,audience:ssoAudienceForHost(requestHeaders.get('host'))},async database=>{
   assertContext();return input?saveSessionQuickAccessPreferences(database,{...input,userId:session.user.id,surface:'front-picker',contextKey:app,availableIds}):readSessionQuickAccessPreferences(database,session.user.id,'front-picker',app);
@@ -35,5 +35,17 @@ export async function frontCompanyQuickAccessRequest(request:Request,app:FrontHo
  const availableIds=frontActionItems(app,actor,'').map(item=>item.id),assertContext=()=>{if(image()!==captured)throw new ApiError(401,'SESSION_REVOKED','The current Front account changed.');};
  return withCurrentSelfAccountPreferences({userId:session.user.id,sessionId:session.session.id,audience:ssoAudienceForHost(requestHeaders.get('host'))},async database=>{
   assertContext();return input?saveSessionQuickAccessPreferences(database,{...input,userId:actor.userId,surface:'front-'+app,contextKey:actor.companyId,availableIds}):readSessionQuickAccessPreferences(database,actor.userId,'front-'+app,actor.companyId);
+ },assertContext);
+}
+
+/** Declared legacy Front sessions keep their personal picker preferences.
+ * They grant no Company role or business write; non-empty pins require the
+ * current Front role. */
+export async function frontLegacyQuickAccessRequest(request:Request,app:FrontHostApp,companyId:string,input?:Change){
+ const {session,requestHeaders}=await currentSession(),image=()=>JSON.stringify({session,headers:[...requestHeaders.entries()],url:request.url,app}),captured=image();
+ const assertContext=()=>{if(image()!==captured)throw new ApiError(401,'SESSION_REVOKED','The current Front account changed.');};
+ return withCurrentSelfAccountPreferences({userId:session.user.id,sessionId:session.session.id,audience:ssoAudienceForHost(requestHeaders.get('host'))},async database=>{
+  assertContext();
+  return input?saveSessionQuickAccessPreferences(database,{...input,userId:session.user.id,surface:'front-'+app,contextKey:companyId,availableIds:frontActionIds(app)}):readSessionQuickAccessPreferences(database,session.user.id,'front-'+app,companyId);
  },assertContext);
 }

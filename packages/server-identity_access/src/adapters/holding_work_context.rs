@@ -308,12 +308,13 @@ impl HoldingWorkContextInspector {
         let Some(RequestAudience::Holding { audience }) = self.policy.audience(host) else {
             return Err(missing().into());
         };
-        if audience
-            != format!(
-                "holding:{}:{}:{host}",
-                self.policy.environment,
-                self.holding_id.as_str()
-            )
+        if self
+            .holdings
+            .expected_for_audience(&RequestAudience::Holding {
+                audience: audience.clone(),
+            })
+            .map(|holding| &holding.holding_id)
+            != Ok(&self.holding_id)
         {
             return Err(missing().into());
         }

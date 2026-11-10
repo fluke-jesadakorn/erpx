@@ -83,7 +83,11 @@ export async function setupDatabases(){
   // Disposable suite databases start at baseline, so apply every current
   // migration before the proxy starts; production schema checks stay exact.
   if (process.env.ERPX_NATIVE_ACCOUNT_TEST_PROXY === '1') {
-    for (const name of selectedNames) await migrateDatabase(databases[name], databaseTracks[name]);
+    // The suite read-control slot is reserved for old-schema Control upgrade
+    // cases; those cases apply their own exact migration roots. The native
+    // Account fixture never reads this slot.
+    for (const name of selectedNames.filter(name => name !== 'CONTROL_READ_DB'))
+      await migrateDatabase(databases[name], databaseTracks[name]);
   }
   const manifestPath=join(directory,'databases.json'),manifestDatabases=Object.fromEntries(selectedNames.map(name=>{const url=new URL(adminUrl);url.pathname=`${prefix}_${name.toLowerCase()}`;return [name,url.href];}));
   const slots=['h001','h002','h003'].filter(id=>selectedNames.includes(`${id.toUpperCase()}_DB` as DatabaseSlot)&&selectedNames.includes(`${id.toUpperCase()}_READ_DB` as DatabaseSlot)).map(id=>({id,write:`${id.toUpperCase()}_DB`,read:`${id.toUpperCase()}_READ_DB`,files:`${id.toUpperCase()}_FILES`}));

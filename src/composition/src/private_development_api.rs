@@ -4856,6 +4856,33 @@ async fn assemble_checked(
             ),
         });
     }
+    // Product origins are registered aliases for one exact Holding. They use
+    // the same Holding inspector; the native Account proof keeps its product
+    // audience and the registry resolves it to the Holding binding.
+    let product_roles = config
+        .products
+        .iter()
+        .filter_map(|product| {
+            let holding = config
+                .holdings
+                .iter()
+                .find(|holding| holding.registration.holding_id == product.holding_id)?;
+            let target = work_roles
+                .iter()
+                .find(|target| target.host == holding.host)?;
+            Some(crate::native_work_roles_http::NativeWorkRoleTarget {
+                control: target.control.clone(),
+                host: product.host.clone(),
+                holding_slug: target.holding_slug.clone(),
+                inspector: target.inspector.clone(),
+            })
+        })
+        .collect::<Vec<_>>();
+    work_roles.extend(product_roles);
+    let work_role_targets: BTreeSet<(String, String)> = work_roles
+        .iter()
+        .map(|target| (target.host.clone(), target.holding_slug.clone()))
+        .collect();
     if !work_roles.is_empty() {
         router = router.merge(
             crate::native_work_roles_http::native_work_roles_router(
@@ -5312,6 +5339,7 @@ async fn assemble_checked(
             })
             .collect(),
         service_read_targets,
+        work_role_targets,
         service_workspace_targets,
         service_parts_posting_targets,
         service_parts_prerequisite_targets,
@@ -5465,6 +5493,7 @@ struct Boundary {
     generic_payment_targets: BTreeSet<(String, String)>,
     bank_workspace_targets: BTreeSet<(String, String)>,
     service_read_targets: BTreeSet<(String, String)>,
+    work_role_targets: BTreeSet<(String, String)>,
     service_workspace_targets: BTreeSet<(String, String)>,
     service_parts_posting_targets: BTreeSet<(String, String)>,
     service_parts_prerequisite_targets: BTreeSet<(String, String)>,
@@ -6686,7 +6715,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             | "access"
             | "context",
         ] => state
-            .service_read_targets
+            .work_role_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
@@ -6783,7 +6812,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         && request.method() == axum::http::Method::POST
         && request.uri().path() == "/api/v1/test/account-password-hash";
     let bootstrap = state.account_bootstrap
-        && match (request.method(), request.uri().path()) {
+        && (match (request.method(), request.uri().path()) {
             (&axum::http::Method::POST, "/api/auth/sign-in/email" | "/api/auth/sign-out")
             | (
                 &axum::http::Method::GET | &axum::http::Method::DELETE,
@@ -6801,7 +6830,11 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 | "/api/v1/account/device-accounts/initialize"
                 | "/api/v1/account/device-accounts/active"
                 | "/api/v1/account/device-accounts/sign-in",
-            ) => host == state.policy.account_host,
+            ) => {
+                host == state.policy.account_host
+                    || request.uri().path() == "/api/auth/sign-out"
+                        && state.policy.audience(host).is_some()
+            }
             (&axum::http::Method::POST, "/api/v1/account/legal-enrollment") => {
                 host == state.policy.account_host
             }
@@ -6818,7 +6851,12 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                         .any(|(target_host, _)| target_host == host)
             }
             _ => false,
-        };
+        } || request.method() == axum::http::Method::GET
+            && request
+                .uri()
+                .path()
+                .starts_with("/api/auth/reset-password/")
+            && host == state.policy.account_host);
     let support_ticket = request.method() == axum::http::Method::POST
         && match request
             .uri()

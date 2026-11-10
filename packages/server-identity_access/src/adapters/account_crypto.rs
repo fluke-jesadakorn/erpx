@@ -137,6 +137,29 @@ impl PasswordHashing for Argon2Passwords {
         let supplied = expected.is_some();
         let expected = expected.unwrap_or_else(|| self.dummy.clone());
         Box::pin(async move {
+            if expected.is_legacy_scrypt() {
+                let expected_text = expected.as_str().to_owned();
+                let (salt, key) = expected_text
+                    .split_once(':')
+                    .ok_or_else(|| unavailable("CREDENTIAL_PARAMETERS_UNAVAILABLE"))?;
+                let (salt, key) = (salt.to_owned(), key.to_owned());
+                let permit = self
+                    .permits
+                    .clone()
+                    .try_acquire_owned()
+                    .map_err(|_| unavailable("PASSWORD_WORK_LIMIT"))?;
+                return tokio::task::spawn_blocking(move || {
+                    let _permit = permit;
+                    let params = scrypt::Params::new(14, 16, 1)
+                        .map_err(|_| unavailable("CREDENTIAL_PARAMETERS_UNAVAILABLE"))?;
+                    let mut output = [0u8; 64];
+                    scrypt::scrypt(password.as_bytes(), salt.as_bytes(), &params, &mut output)
+                        .map_err(|_| unavailable("PASSWORD_WORK_UNAVAILABLE"))?;
+                    Ok(hex::encode(output) == key && supplied)
+                })
+                .await
+                .map_err(|_| unavailable("PASSWORD_WORK_UNAVAILABLE"))?;
+            }
             if !expected.as_str().starts_with(PASSWORD_PARAMETERS) {
                 return Err(unavailable("CREDENTIAL_PARAMETERS_UNAVAILABLE"));
             }

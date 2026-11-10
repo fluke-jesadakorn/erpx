@@ -5,7 +5,7 @@ use crate::{
     },
     domain::{account_auth::*, account_credentials::*},
 };
-use erpx_server_shared::public::{BusinessError, Clock};
+use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
 use std::sync::Arc;
 
 pub trait AccountMailCryptography: Send + Sync {
@@ -73,6 +73,9 @@ pub struct SignUpCredential {
 
 pub trait AccountCredentialRepository: Send + Sync {
     fn inspect_password_reset(&self, token: SecretDigest, now: i64) -> AccountFuture<'_, ()>;
+    /// Installed legacy recovery links live in Better Auth's `verification`
+    /// table. Opening one is a read-only proof check; the row is retained.
+    fn inspect_legacy_password_reset(&self, token: String, now: i64) -> AccountFuture<'_, ()>;
     fn request_mail(&self, input: PreparedCredentialMail) -> AccountFuture<'_, ()>;
     fn reset_password(&self, input: ResetCredential) -> AccountFuture<'_, ()>;
     fn verify_email(&self, input: VerifyCredential) -> AccountFuture<'_, VerifiedCredential>;
@@ -224,12 +227,31 @@ impl AccountCredentials {
             .await
     }
     pub async fn inspect_password_reset(&self, token: String) -> Result<(), BusinessError> {
-        let token = OpaqueSecret::new(token).map_err(|_| invalid_proof())?;
+        if token.len() <= 512
+            && token.len() == 64
+            && token
+                .bytes()
+                .all(|value| value.is_ascii_digit() || (b'a'..=b'f').contains(&value))
+        {
+            let opaque = OpaqueSecret::new(token.clone()).map_err(|_| invalid_proof())?;
+            match self
+                .repository
+                .inspect_password_reset(
+                    self.secrets.digest(SecretPurpose::PasswordReset, &opaque),
+                    self.clock.now().get(),
+                )
+                .await
+            {
+                Ok(()) => return Ok(()),
+                Err(error) if error.kind == FailureKind::Unavailable => return Err(error),
+                Err(_) => {}
+            }
+        }
+        if token.is_empty() || token.len() > 512 {
+            return Err(invalid_proof());
+        }
         self.repository
-            .inspect_password_reset(
-                self.secrets.digest(SecretPurpose::PasswordReset, &token),
-                self.clock.now().get(),
-            )
+            .inspect_legacy_password_reset(token, self.clock.now().get())
             .await
     }
     pub async fn verify_email(

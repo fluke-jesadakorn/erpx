@@ -34,6 +34,25 @@ impl RetiredAccountChild {
             environment: environment.into(),
         })
     }
+    /// A registered product audience resolves through the Holding registry;
+    /// its own key is not a holding audience.
+    pub(crate) fn from_registered_binding(
+        session: String,
+        user: String,
+        audience: &str,
+        environment: &str,
+        holding_id: HoldingId,
+    ) -> Result<Self, BusinessError> {
+        if !valid_environment(environment) || audience.is_empty() || audience.len() > 256 {
+            return Err(reentry_required());
+        }
+        Ok(Self {
+            session_id: RecordId::new(session)?,
+            user_id: UserId::new(user)?,
+            holding_id,
+            environment: environment.into(),
+        })
+    }
 }
 
 /// Current, locked Control metadata. Only trusted composition resolves its

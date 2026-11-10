@@ -112,7 +112,7 @@ fn status() -> Response {
         None,
     )
 }
-#[cfg_attr(feature="contracts",utoipa::path(get,path="/api/auth/reset-password/{token}",params(("token"=String,Path,description="Opaque one-use reset proof"),("callbackURL"=String,Query,description="Relative Account return path")),responses((status=303,description="Private redirect to the reset form; proof is not consumed"),(status=400,body=AccountAuthErrorResponse),(status=403,body=AccountAuthErrorResponse),(status=503,body=AccountAuthErrorResponse))))]
+#[cfg_attr(feature="contracts",utoipa::path(get,path="/api/auth/reset-password/{token}",params(("token"=String,Path,description="Opaque one-use reset proof"),("callbackURL"=String,Query,description="Relative Account return path")),responses((status=302,description="Private redirect to the reset form; proof is not consumed"),(status=400,body=AccountAuthErrorResponse),(status=403,body=AccountAuthErrorResponse),(status=503,body=AccountAuthErrorResponse))))]
 async fn reset_link(State(state): State<CredentialHttpState>, request: Request) -> Response {
     let (parts, body) = request.into_parts();
     drop(body);
@@ -128,7 +128,21 @@ async fn reset_link(State(state): State<CredentialHttpState>, request: Request) 
             .map_err(|_| {
                 BusinessError::invalid("INVALID_RETURN_PATH", "Use the current Account reset link.")
             })?;
-        let return_path = account_return_path(Some(&input.callback_url))?;
+        let callback = input.callback_url.as_str();
+        let same_origin_path = url::Url::parse(callback)
+            .ok()
+            .filter(|target| {
+                target.origin().ascii_serialization() == state.authentication.policy.account_origin
+            })
+            .map(|target| {
+                let mut path = target.path().to_owned();
+                if let Some(query) = target.query() {
+                    path.push('?');
+                    path.push_str(query);
+                }
+                path
+            });
+        let return_path = account_return_path(same_origin_path.as_deref().or(Some(callback)))?;
         let mut target = url::Url::parse(&state.authentication.policy.account_origin)
             .map_err(|_| BusinessError::invalid("INVALID_RETURN_PATH", "Use the Account origin."))?
             .join(&return_path)
@@ -169,7 +183,7 @@ async fn reset_link(State(state): State<CredentialHttpState>, request: Request) 
                     .append_pair("error", "INVALID_TOKEN");
             }
         }
-        let mut response = StatusCode::SEE_OTHER.into_response();
+        let mut response = StatusCode::FOUND.into_response();
         response.headers_mut().insert(
             header::LOCATION,
             HeaderValue::from_str(target.as_str()).map_err(|_| {

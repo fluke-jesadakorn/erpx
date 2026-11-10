@@ -328,7 +328,8 @@ async fn execute_in<C: Clock + Send + Sync + 'static>(
     audit: String,
 ) -> Result<NativeWorkRoleState, Error> {
     let now = clock.now().get();
-    let before = read_account_work_roles(c, scope, now).await?;
+    let before =
+        read_account_work_roles(c, scope, now, matches!(&*action, WorkRoleAction::Inspect)).await?;
     let r = scope.request();
     let preference = read_work_role_preference(c, &r.user_id, &r.company_id).await?;
     let plan = match &*action {

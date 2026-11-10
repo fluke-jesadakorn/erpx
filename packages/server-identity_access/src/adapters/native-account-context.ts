@@ -2,7 +2,8 @@ import 'server-only';
 import type {NativeWorkRoleState} from '@erpx/contracts/field-service-reserve';
 import type {HoldingWorkspaceScope} from '@erpx/feature-work_projection/lib/workspace';
 import {workspaceHref} from '@erpx/feature-work_projection/lib/workspace';
-import {nativeHoldingConfiguration} from '@erpx/native-sdk/holding-target';
+import {nativeHoldingConfiguration,nativeHoldingTargetById,nativeHoldingTargetForHost} from '@erpx/native-sdk/holding-target';
+import {holdingBindingBySlug} from '@erpx/server-runtime/public/runtime';
 import {originProfile} from '@erpx/feature-runtime/lib/holding-hosts';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {readNativeAccountPreferences} from '@erpx/server-work_projection/public/workspace-preferences';
@@ -50,9 +51,15 @@ export async function nativeCompanyHint(incoming:Headers,holdingId:string,reques
 export async function readNativeAccountContext(session:IdentitySession,incoming:Headers,requested:HoldingWorkspaceScope,options:WorkspaceResolutionOptions,context:boolean){
  const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG;
  if(!raw||!process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG)fail(503,'NATIVE_ACCOUNT_CONTEXT_CONFIGURATION_REQUIRED','The native Account context is not configured.');
- const profile=originProfile(),targets=nativeHoldingConfiguration(raw,profile).holdings,sourceHost=incoming.get('host'),loopback=profile==='loopback'&&sourceHost!==null&&/^127\.0\.0\.1:\d+$/.test(sourceHost);
- const target=loopback?targets.find(h=>h.holdingSlug===requested.holdingSlug):targets.find(h=>new URL(h.origin).host===sourceHost);
- if(!target||target.holdingSlug!==requested.holdingSlug)fail(404,'WORKSPACE_NOT_FOUND','Workspace not found.');
+ const profile=originProfile(),config=nativeHoldingConfiguration(raw,profile),sourceHost=incoming.get('host'),loopback=profile==='loopback'&&sourceHost!==null&&/^127\.0\.0\.1:\d+$/.test(sourceHost);
+ let target;
+ if(loopback){target=config.holdings.find(h=>h.holdingSlug===requested.holdingSlug);}
+ else{
+  let binding:{id:string}|undefined;
+  try{binding=await holdingBindingBySlug(requested.holdingSlug);}catch{binding=undefined;}
+  target=(binding?nativeHoldingTargetById(config,binding.id):undefined)??nativeHoldingTargetForHost(config,sourceHost);
+ }
+ if(!target)fail(404,'WORKSPACE_NOT_FOUND','Workspace not found.');
  const transport=new Headers(incoming);
  // Route selectors remain untrusted. Never leave a previous route's scope in
  // the request when resolving a different requested workspace.
@@ -62,7 +69,7 @@ export async function readNativeAccountContext(session:IdentitySession,incoming:
  const companyId=await nativeCompanyHint(incoming,target.holdingId,requested,options,async()=>{
   const pref=await readNativeAccountPreferences(incoming,session.user.id);if(pref.sessionId!==session.session.id)fail(409,'WORK_CONTEXT_CHANGED','The current account changed.');return pref.company?.companyId;
  },async()=>(await createNativeAccountCompaniesReader(raw)(incoming,{sessionId:session.session.id,userId:session.user.id},target.holdingId)).companies);
- const state=await createNativeWorkRoleTransport(raw)(transport,{sessionId:session.session.id,userId:session.user.id,...(companyId?{companyId}:{})},context?'context':'access');
+ const state=await createNativeWorkRoleTransport(raw)(transport,{sessionId:session.session.id,userId:session.user.id,...(companyId?{companyId}:{})},context?'context':'access',undefined,target.holdingId);
  const access=nativeAccountReadModel(state,session,incoming,requested);
  return {state,access};
 }

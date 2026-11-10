@@ -1,4 +1,3 @@
-use crate::domain::environment::valid_environment;
 use super::account_group_recovery::{
     BrowserDiscovery, browser_discovery, browser_key, create_key, recoverable_browser,
     recovery_snapshot, rotate_key,
@@ -6,6 +5,7 @@ use super::account_group_recovery::{
 use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::account_revocation_postgres::invalidate_children;
 use crate::application::account_revocation::AccountWorkContextInvalidation;
+use crate::domain::environment::valid_environment;
 use crate::{
     adapters::account_sessions::{
         device_snapshot, live_accounts, lock_session_reads, lock_session_writes, persistence,
@@ -230,6 +230,7 @@ pub(crate) async fn revoke_children(
     connection: &mut PgConnection,
     browser_id: &SecretDigest,
     environment: &str,
+    holdings: &ConfiguredHoldingRegistry,
     invalidation: &dyn AccountWorkContextInvalidation,
 ) -> TxResult<()> {
     let parents = sqlx::query_scalar::<_, String>(
@@ -238,7 +239,7 @@ pub(crate) async fn revoke_children(
     .bind(browser_id.as_str())
     .fetch_all(&mut *connection)
     .await?;
-    invalidate_children(connection, &parents, environment, invalidation).await?;
+    invalidate_children(connection, &parents, environment, holdings, invalidation).await?;
     sqlx::query("DELETE FROM session WHERE id IN (SELECT b.session_id FROM sso_session_bindings b JOIN account_device_accounts a ON a.session_id=b.parent_session_id WHERE a.browser_id=$1)").bind(browser_id.as_str()).execute(connection).await?;
     Ok(())
 }
@@ -248,9 +249,10 @@ pub(crate) async fn select_browser(
     active: Option<&str>,
     now: i64,
     environment: &str,
+    holdings: &ConfiguredHoldingRegistry,
     invalidation: &dyn AccountWorkContextInvalidation,
 ) -> TxResult<()> {
-    revoke_children(connection, id, environment, invalidation).await?;
+    revoke_children(connection, id, environment, holdings, invalidation).await?;
     let count = sqlx::query("UPDATE account_device_browsers SET active_session_id=$2,revision=revision+1,pending_nonce=NULL,pending_until=NULL,updated_at=$3 WHERE id=$1 AND revision<$4").bind(id.as_str()).bind(active).bind(now).bind(MAX_DEVICE_REVISION).execute(connection).await?.rows_affected();
     if count != 1 {
         return Err(stale_device().into());
@@ -261,12 +263,14 @@ pub(crate) async fn expire_family(
     connection: &mut PgConnection,
     session_id: &str,
     environment: &str,
+    holdings: &ConfiguredHoldingRegistry,
     invalidation: &dyn AccountWorkContextInvalidation,
 ) -> TxResult<()> {
     invalidate_children(
         connection,
         &[session_id.to_owned()],
         environment,
+        holdings,
         invalidation,
     )
     .await?;
@@ -455,7 +459,7 @@ impl AccountRepository for PostgresAccountRepository {
         Box::pin(async move {
             finish(self.unit.run_once(options(), |connection| {
                 let mut proof=proof.clone(); let candidate=candidate.clone();
-                let environment=self.environment.clone();let invalidation=self.invalidation.clone();let clock=self.clock.clone();
+                let environment=self.environment.clone();let invalidation=self.invalidation.clone();let clock=self.clock.clone();let holdings=self.holdings.clone();
                 Box::pin(async move {
                     lock_session_writes(connection).await?;
                     let now=clock.now().get();
@@ -463,7 +467,7 @@ impl AccountRepository for PostgresAccountRepository {
                     let row=browser(connection,&prepared.id).await?.ok_or_else(stale_device)?;
                     revision(&row,expected_revision,now)?;
                     if let Some(expiry)=prepared.recovery_expires_at {
-                        revoke_children(connection,&prepared.id,&environment,invalidation.as_ref()).await?;
+                        revoke_children(connection,&prepared.id,&environment,&holdings,invalidation.as_ref()).await?;
                         if expiry<=clock.now().get(){return Err(stale_device().into());}
                         let changed=sqlx::query("UPDATE account_device_browsers SET revision=revision+1,pending_nonce=NULL,pending_until=NULL,updated_at=$3 WHERE id=$1 AND revision=$2 AND revision<$4").bind(prepared.id.as_str()).bind(row.revision).bind(clock.now().get()).bind(MAX_DEVICE_REVISION).execute(&mut *connection).await?.rows_affected();
                         if changed!=1{return Err(stale_device().into());}
@@ -488,6 +492,7 @@ impl AccountRepository for PostgresAccountRepository {
                         let environment = self.environment.clone();
                         let invalidation = self.invalidation.clone();
                         let clock = self.clock.clone();
+                        let holdings = self.holdings.clone();
                         Box::pin(async move {
                             lock_session_writes(connection).await?;
                             let now = clock.now().get();
@@ -520,6 +525,7 @@ impl AccountRepository for PostgresAccountRepository {
                                 Some(&selected.session.id),
                                 now,
                                 &environment,
+                                &holdings,
                                 invalidation.as_ref(),
                             )
                             .await?;
@@ -566,6 +572,7 @@ impl AccountRepository for PostgresAccountRepository {
                         let environment = self.environment.clone();
                         let invalidation=self.invalidation.clone();
                         let clock=self.clock.clone();
+                        let holdings=self.holdings.clone();
                         Box::pin(async move {
                             lock_session_writes(connection).await?;
                             let now=clock.now().get();
@@ -578,9 +585,9 @@ impl AccountRepository for PostgresAccountRepository {
                                     .into_iter()
                                     .find(|account| account.handle == input.handle)
                                     .ok_or_else(denied)?;
-                            expire_family(connection, &target.session.id, &environment, invalidation.as_ref()).await?;
+                            expire_family(connection, &target.session.id, &environment, &holdings, invalidation.as_ref()).await?;
                             if row.active.as_deref() == Some(target.session.id.as_str()) {
-                                select_browser(connection, &id, None, now, &environment, invalidation.as_ref()).await?;
+                                select_browser(connection, &id, None, now, &environment, &holdings, invalidation.as_ref()).await?;
                             } else {
                                 // Removing an inactive family does not select another account.
                                 // Retain the current parent's children and advance only the CAS revision.
@@ -623,14 +630,14 @@ impl AccountRepository for PostgresAccountRepository {
                                 match audience {
                                     RequestAudience::Account => {
                                         let id = browser_key(connection,proof.browser.as_ref()).await?.ok_or_else(denied)?;
-                                        expire_family(connection, &session.id, &environment, invalidation.as_ref()).await?;
-                                        select_browser(connection, &id, None, now, &environment, invalidation.as_ref()).await?;
+                                        expire_family(connection, &session.id, &environment, &holdings, invalidation.as_ref()).await?;
+                                        select_browser(connection, &id, None, now, &environment, &holdings, invalidation.as_ref()).await?;
                                     }
                                     RequestAudience::Holding { .. } => {
                                         let parent:String=sqlx::query_scalar("SELECT parent_session_id FROM sso_session_bindings WHERE session_id=$1 AND environment=$2").bind(&session.id).bind(&environment).fetch_one(&mut *connection).await?;
                                         let browser:String=sqlx::query_scalar("SELECT browser_id FROM account_device_accounts WHERE session_id=$1").bind(&parent).fetch_one(&mut *connection).await?;
-                                        expire_family(connection,&parent,&environment,invalidation.as_ref()).await?;
-                                        select_browser(connection,&SecretDigest::new(browser)?,None,now,&environment,invalidation.as_ref()).await?;
+                                        expire_family(connection,&parent,&environment,&holdings,invalidation.as_ref()).await?;
+                                        select_browser(connection,&SecretDigest::new(browser)?,None,now,&environment,&holdings,invalidation.as_ref()).await?;
                                     }
                                 }
                             }
@@ -672,7 +679,7 @@ pub(crate) async fn issue_account_session(
     }
     let old=sqlx::query_scalar::<_,String>("SELECT a.session_id FROM account_device_accounts a JOIN session s ON s.id=a.session_id WHERE a.browser_id=$1 AND s.\"userId\"=$2").bind(input.browser.as_str()).bind(&input.user_id).fetch_all(&mut *connection).await?;
     for id in old {
-        expire_family(connection, &id, environment, invalidation).await?;
+        expire_family(connection, &id, environment, holdings, invalidation).await?;
     }
     let expires = input
         .now
@@ -694,6 +701,7 @@ pub(crate) async fn issue_account_session(
         Some(&input.session_id),
         input.now,
         environment,
+        holdings,
         invalidation,
     )
     .await?;

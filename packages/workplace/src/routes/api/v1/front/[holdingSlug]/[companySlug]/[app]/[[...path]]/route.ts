@@ -17,7 +17,7 @@ import { pmsReadSelectionFromSearch } from "@erpx/server-pms/public/rules/pms-re
 import { staffBookingSearch, bookingError } from "@erpx/server-pms/public/pms-booking";
 import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
-import {frontCompanyQuickAccessRequest} from '@erpx/server-work_projection/public/front-quick-access-request';
+import {frontCompanyQuickAccessRequest,frontLegacyQuickAccessRequest} from '@erpx/server-work_projection/public/front-quick-access-request';
 import {boundedBody} from '@erpx/server-legal/public/legal/body';
 import { pmsHomeRead, pmsHomeWrite } from "@erpx/server-pms/public/pms/home-api";
 import { posCustomers } from "@erpx/server-pos/public/pos-daily";
@@ -43,6 +43,9 @@ function assertOrigin(request: Request) {
   if (origin !== requestPublicOrigin(request))
     throw new ApiError(403, "ORIGIN_FORBIDDEN", "Use the application origin.");
 }
+function legacySessionCookie(request: Request) {
+  return /(?:^|;\s*)(?:(?:__Secure-)?better-auth|erpx-[a-z0-9_-]+)\.session_token/.test(request.headers.get("cookie") ?? "");
+}
 
 async function frontActor(
   request: Request,
@@ -62,8 +65,15 @@ async function frontActor(
   const scope = frontLocationScope(holdingSlug, location);
   if (!scope)
     throw new ApiError(404, "FRONT_LOCATION_NOT_FOUND", "This Front location is unavailable.");
-  await ensureFrontRole(holdingSlug, brand.companyId, app, location);
-  const actor = await requireWorkContext(scope);
+  let actor;
+  try {
+    await ensureFrontRole(holdingSlug, brand.companyId, app, location);
+    actor = await requireWorkContext(scope);
+  } catch (error) {
+    if (error && typeof error === 'object' && (error as { code?: unknown }).code === 'WORKSPACE_UNAVAILABLE')
+      throw new ApiError(403, 'FRONT_ACCESS_DENIED', 'No active assignment can open this Front workspace.');
+    throw error;
+  }
   if (actor.companyId !== brand.companyId)
     throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
   return actor;
@@ -125,6 +135,10 @@ export async function GET(request: Request, { params }: Context) {
       } }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if (path.length === 1 && path[0] === "quick-access") {
+      const brand = await frontCompanyBrand(holdingSlug, companySlug);
+      if (!brand) throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
+      if (legacySessionCookie(request))
+        return Response.json(canonicalDestinationLinks({ data: await frontLegacyQuickAccessRequest(request, app, brand.companyId) }), { headers: { "Cache-Control": "private, no-store" } });
       const actor = await frontActor(request, holdingSlug, companySlug, app);
       return Response.json(canonicalDestinationLinks({ data: await frontCompanyQuickAccessRequest(request,app,actor,()=>frontActor(request,holdingSlug,companySlug,app)) }), { headers: { "Cache-Control": "private, no-store" } });
     }
@@ -183,6 +197,14 @@ export async function POST(request: Request, { params }: Context) {
         expiresAt: state.access.expiresAt, rememberPreference: false,
       });
       return Response.json(canonicalDestinationLinks({ data: { assignmentId: assignment.id, revision: selected.revision } }), { headers: { "Cache-Control": "private, no-store" } });
+    }
+    if (path.length === 1 && path[0] === "quick-access" && legacySessionCookie(request)) {
+      const brand = await frontCompanyBrand(holdingSlug, companySlug);
+      if (!brand) throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
+      let raw:unknown;try{raw=JSON.parse(new TextDecoder().decode(await boundedBody(request,8192)));}catch(error){if(error instanceof SyntaxError)throw new ApiError(422,'INVALID_JSON','Use a JSON body.');throw error;}
+      const input = z.object({ pinnedIds: z.array(z.string().min(1).max(128)).max(6).nullable(), expectedVersion: z.number().int().nonnegative() }).parse(raw);
+      const preference = await frontLegacyQuickAccessRequest(request, app, brand.companyId, { ...input, requestKey: commandKey(request) });
+      return Response.json(canonicalDestinationLinks({ data: preference }), { headers: { "Cache-Control": "private, no-store" } });
     }
     const actor = await frontActor(request, holdingSlug, companySlug, app);
 
