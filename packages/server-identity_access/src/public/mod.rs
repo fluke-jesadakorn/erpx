@@ -106,3 +106,7 @@ pub mod platform_commercial_authority;
 pub mod account_work_presentation;
 pub mod quality_same_person;
 pub mod operations_recipients;
+
+pub mod iam_roles;
+pub mod iam_roles_http;
+pub mod directory_runtime;

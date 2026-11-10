@@ -23,3 +23,5 @@ pub(crate) mod directory_refresh;
 pub(crate) mod directory_source_admin;
 
 pub(crate) mod selected_command_authority;
+
+pub(crate) mod iam_roles;

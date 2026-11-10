@@ -35,3 +35,6 @@ pub(crate) mod directory_refresh;
 pub(crate) mod directory_provenance;
 #[cfg(feature = "directory-ldaps")]
 pub(crate) mod directory_source_review;
+
+pub(crate) mod iam_roles;
+pub(crate) mod directory_runtime;
