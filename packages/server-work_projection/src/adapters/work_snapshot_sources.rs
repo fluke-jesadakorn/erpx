@@ -226,6 +226,32 @@ pub fn customer_access_items(values: &[serde_json::Value]) -> Vec<WorkItemFact> 
     json_work_items(values, "customer_access")
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedWorkRow {
+    pub id: String,
+    pub source_type: String,
+    pub source_id: String,
+    pub queue: String,
+    pub updated_at: i64,
+}
+
+/// Maps the Workflow read-model rows without re-deriving their queue.
+pub fn projected_work_items(rows: &[ProjectedWorkRow]) -> Vec<WorkItemFact> {
+    rows.iter()
+        .map(|row| WorkItemFact {
+            id: format!("projected:{}", row.id),
+            kind: row.source_type.clone(),
+            queue: queue(&row.queue),
+            can_act: None,
+            action_kind: None,
+            relationships: Vec::new(),
+            updated_at: row.updated_at,
+            source_id: Some(row.source_id.clone()),
+            href: format!("/work/{}", row.id),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,6 +259,33 @@ mod tests {
     use erpx_server_support::public::incident::IncidentWorkItem;
     use erpx_server_support::public::session::SessionWorkItem;
     use erpx_server_support::public::ticket::TicketWorkItem;
+
+    #[test]
+    fn projected_work_rows_preserve_source_type_and_queue() {
+        let rows = [
+            ProjectedWorkRow {
+                id: "work-1".into(),
+                source_type: "staff_task".into(),
+                source_id: "task-1".into(),
+                queue: "todo".into(),
+                updated_at: 5,
+            },
+            ProjectedWorkRow {
+                id: "work-2".into(),
+                source_type: "leave_request".into(),
+                source_id: "leave-1".into(),
+                queue: "completed".into(),
+                updated_at: 6,
+            },
+        ];
+        let items = projected_work_items(&rows);
+        assert_eq!(items[0].id, "projected:work-1");
+        assert_eq!(items[0].kind, "staff_task");
+        assert_eq!(items[0].queue, WorkQueue::Todo);
+        assert_eq!(items[0].updated_at, 5);
+        assert_eq!(items[1].queue, WorkQueue::Completed);
+        assert_eq!(items[1].source_id.as_deref(), Some("leave-1"));
+    }
 
     #[test]
     fn maps_operations_collaboration_and_field_financial_values() {
