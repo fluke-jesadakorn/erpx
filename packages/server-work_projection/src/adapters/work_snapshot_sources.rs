@@ -7,6 +7,7 @@
 use crate::domain::work_card_availability::{WorkItemFact, WorkQueue};
 use erpx_server_benefits::public::workspace::BenefitElectionRow;
 use erpx_server_collaboration::public::collaboration_work::ActionWork;
+use erpx_server_customer_authority::public::duplicates::DuplicateReviewRow;
 use erpx_server_field_service::public::work::FieldServiceWorkItem;
 use erpx_server_learning::public::learning::AssignmentRow;
 use erpx_server_maintenance::public::read::{MaintenancePlanRow, MaintenanceWorkRow};
@@ -653,6 +654,57 @@ pub fn benefit_election_items(
         .collect()
 }
 
+pub struct CustomerDuplicateAuthority {
+    pub can_read: bool,
+    pub can_sales: bool,
+    pub can_review: bool,
+    pub can_merge: bool,
+}
+
+/// Mirrors `customerDuplicateWork`.
+pub fn customer_duplicate_items(
+    rows: &[DuplicateReviewRow],
+    actor_user_id: &str,
+    authority: &CustomerDuplicateAuthority,
+) -> Vec<WorkItemFact> {
+    if !authority.can_read || !authority.can_sales {
+        return Vec::new();
+    }
+    rows.iter()
+        .map(|row| {
+            let can_act = authority.can_review || authority.can_merge;
+            let completed = row.status != "pending";
+            WorkItemFact {
+                id: format!("customer_duplicate:{}", row.id),
+                kind: "customer_duplicate".into(),
+                queue: if can_act {
+                    WorkQueue::Todo
+                } else if !completed {
+                    WorkQueue::Waiting
+                } else {
+                    WorkQueue::Completed
+                },
+                can_act: Some(can_act),
+                action_kind: Some(if row.status == "pending" && authority.can_review {
+                    "approval".into()
+                } else {
+                    "work".into()
+                }),
+                relationships: vec![if row.created_by == actor_user_id {
+                    "requested".to_owned()
+                } else if can_act {
+                    "approval".to_owned()
+                } else {
+                    "team".to_owned()
+                }],
+                updated_at: row.updated_at,
+                source_id: Some(row.id.clone()),
+                href: format!("/customer-duplicates/{}", row.id),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1006,6 +1058,68 @@ mod tests {
             created_at: 1,
             updated_at: 9,
         }
+    }
+
+    fn duplicate_review(
+        status: &str,
+        created_by: &str,
+    ) -> erpx_server_customer_authority::public::duplicates::DuplicateReviewRow {
+        erpx_server_customer_authority::public::duplicates::DuplicateReviewRow {
+            id: "duplicate-1".into(),
+            company_id: "company".into(),
+            left_customer_id: "left".into(),
+            right_customer_id: "right".into(),
+            left_name: "Left".into(),
+            right_name: "Right".into(),
+            status: status.into(),
+            canonical_customer_id: None,
+            evidence: "Evidence".into(),
+            created_by: created_by.into(),
+            reviewed_by: None,
+            version: 1,
+            created_at: 1,
+            updated_at: 9,
+            actor_eligible: true,
+        }
+    }
+
+    #[test]
+    fn customer_duplicates_follow_review_and_merge_authority() {
+        let authority = CustomerDuplicateAuthority {
+            can_read: true,
+            can_sales: true,
+            can_review: true,
+            can_merge: false,
+        };
+        let reviewer = customer_duplicate_items(
+            &[duplicate_review("pending", "creator")],
+            "reviewer",
+            &authority,
+        );
+        assert_eq!(reviewer[0].queue, WorkQueue::Todo);
+        assert_eq!(reviewer[0].relationships, ["approval"]);
+        assert_eq!(reviewer[0].action_kind.as_deref(), Some("approval"));
+        let creator = customer_duplicate_items(
+            &[duplicate_review("pending", "creator")],
+            "creator",
+            &authority,
+        );
+        assert_eq!(creator[0].relationships, ["requested"]);
+        let closed = customer_duplicate_items(
+            &[duplicate_review("duplicate", "creator")],
+            "reviewer",
+            &authority,
+        );
+        assert_eq!(closed[0].queue, WorkQueue::Todo);
+        let denied = customer_duplicate_items(
+            &[duplicate_review("pending", "creator")],
+            "reviewer",
+            &CustomerDuplicateAuthority {
+                can_read: false,
+                ..authority
+            },
+        );
+        assert!(denied.is_empty());
     }
 
     #[test]

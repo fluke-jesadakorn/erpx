@@ -1341,6 +1341,7 @@ version = "0.1.0"
 dependencies = [
  "erpx-server-benefits",
  "erpx-server-collaboration",
+ "erpx-server-customer-authority",
  "erpx-server-field-service",
  "erpx-server-finance",
  "erpx-server-learning",
