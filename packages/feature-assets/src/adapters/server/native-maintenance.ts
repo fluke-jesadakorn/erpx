@@ -566,6 +566,22 @@ export function createNativeMaintenanceClient(
       planList(await boundedJson(await request(incoming, actor, input, '/maintenance/plans', undefined, undefined, undefined, signal)), actor, input),
     planDetail: async (incoming: Pick<Headers, 'get'>, actor: NativeMaintenancePageContext, input: NativeMaintenanceReadInput & { id: string }, signal?: AbortSignal) =>
       planDetail(await boundedJson(await request(incoming, actor, input, '/maintenance/plans', undefined, undefined, undefined, signal)), actor, input),
+    planCommand: async (incoming: Pick<Headers, 'get'>, actor: NativeMaintenancePageContext, input: NativeMaintenanceCommandInput) => {
+      const body = JSON.stringify(input.body);
+      const payload = await boundedJson(
+        await request(
+          incoming,
+          actor,
+          input,
+          '/maintenance/plans',
+          body,
+          input.idempotencyKey,
+          incoming.get('origin') ?? undefined,
+        ),
+      );
+      if (!record(payload) || !('data' in payload)) throw new NativeMaintenanceError('NATIVE_MAINTENANCE_RESPONSE_INVALID');
+      return (payload as { data: unknown }).data;
+    },
     command: async (incoming: Pick<Headers, 'get'>, actor: NativeMaintenancePageContext, input: NativeMaintenanceCommandInput) => {
       const body = JSON.stringify(input.body);
       return commandResult(

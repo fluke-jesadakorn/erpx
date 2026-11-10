@@ -123,6 +123,25 @@ export async function nativeMaintenanceCommand(
   });
 }
 
+export async function nativeMaintenancePlanCommand(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeMaintenancePageContext,
+  holdingSlug: string,
+  body: unknown,
+  idempotencyKey: string,
+): Promise<unknown | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug) throw new NativeMaintenanceError('NATIVE_MAINTENANCE_CONTEXT_CHANGED');
+  return native.planCommand(incoming, actor, {
+    holdingSlug,
+    ...scope(actor),
+    expected: expected(actor),
+    body,
+    idempotencyKey,
+  });
+}
+
 /** Bounded failure policy for the retained page/route error handling. */
 export function nativeMaintenanceFailure(
   error: unknown,
