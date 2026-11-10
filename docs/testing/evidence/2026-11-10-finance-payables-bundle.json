@@ -34,9 +34,9 @@
     "desktop": {
       "viewport": "1440x900",
       "bill": "invoice-fc2aedf23493e6a9152fcd875356ee2be4d2",
-      "result": "Void posted bill summary rendered, September 2026 selected, reversing journal submitted through the app route; no page error.",
+      "result": "Void posted bill summary rendered, September 2026 selected, reversing journal submitted through the app route; no page error observed.",
       "persisted": "invoice voided v3; match bill-match-dev-browser returned v3 with invoice_id NULL; receipt inactive; fulfillment invoice_id NULL, version 3.",
-      "log": ".scratch/dev/rust-migration/current/finance-matched-void-desktop2.log",
+      "log": "run output observed in the session; the persisted mobile log is .scratch/dev/rust-migration/current/finance-matched-void-mobile.log",
       "screenshot": ".scratch/dev/finance-matched-void-1440x900.png"
     },
     "mobile": {
