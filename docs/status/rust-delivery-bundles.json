@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 242,
+    "revision": 244,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T18:33:21.626Z",
-      "expiresAt": "2026-11-10T19:03:21.626Z",
+      "heartbeatAt": "2026-11-10T18:36:03.036Z",
+      "expiresAt": "2026-11-10T19:06:03.036Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10344,8 +10344,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T18:08:37.873Z",
-          "heartbeatAt": "2026-11-10T18:33:21.626Z",
-          "expiresAt": "2026-11-10T19:03:21.626Z",
+          "heartbeatAt": "2026-11-10T18:36:03.036Z",
+          "expiresAt": "2026-11-10T19:06:03.036Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11371,8 +11371,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:47:32.634Z",
-          "heartbeatAt": "2026-11-10T18:33:21.626Z",
-          "expiresAt": "2026-11-10T19:03:21.626Z",
+          "heartbeatAt": "2026-11-10T18:36:03.036Z",
+          "expiresAt": "2026-11-10T19:06:03.036Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11381,7 +11381,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead mounts legal_auxiliary_router, execute_retention and legal_trust_router; then switch feature-legal retained GET/retention routes and keep AI/signing fail-closed",
+        "nextAction": "Auxiliary read router is mounted (9b222b413). Remaining: retention command mount (pool-based execute_retention) and trust command backend (PgLegalTrustWorkflow bridge); keep PDF verifier unchanged; then switch feature-legal retained GET/retention routes",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-legal",
@@ -11928,8 +11928,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T18:33:21.626Z",
-          "expiresAt": "2026-11-10T19:03:21.626Z",
+          "heartbeatAt": "2026-11-10T18:36:03.036Z",
+          "expiresAt": "2026-11-10T19:06:03.036Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12118,8 +12118,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T18:33:21.626Z",
-          "expiresAt": "2026-11-10T19:03:21.626Z",
+          "heartbeatAt": "2026-11-10T18:36:03.036Z",
+          "expiresAt": "2026-11-10T19:06:03.036Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12216,8 +12216,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T18:33:21.626Z",
-          "expiresAt": "2026-11-10T19:03:21.626Z",
+          "heartbeatAt": "2026-11-10T18:36:03.036Z",
+          "expiresAt": "2026-11-10T19:06:03.036Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12795,8 +12795,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T18:33:21.626Z",
-          "expiresAt": "2026-11-10T19:03:21.626Z",
+          "heartbeatAt": "2026-11-10T18:36:03.036Z",
+          "expiresAt": "2026-11-10T19:06:03.036Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14898,7 +14898,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T18:33:21.626Z",
+    "updatedAt": "2026-11-10T18:36:03.036Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
