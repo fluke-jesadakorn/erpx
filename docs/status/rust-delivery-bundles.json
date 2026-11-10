@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 328,
+    "revision": 330,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g2",
       "agentId": "lead",
       "startedAt": "2026-11-10T22:49:18.933Z",
-      "heartbeatAt": "2026-11-10T22:49:50.873Z",
-      "expiresAt": "2026-11-10T23:19:50.873Z",
+      "heartbeatAt": "2026-11-10T22:57:12.719Z",
+      "expiresAt": "2026-11-10T23:27:12.719Z",
       "generation": 3,
       "tokenHash": "1c7f6e53dfb2427cfaf83ab6abbd9317a934d613494123e492d216e59d8be53d"
     },
@@ -11963,8 +11963,8 @@
           "runId": "run-20261110-g2",
           "agentId": "lead",
           "claimedAt": "2026-11-10T22:49:36.202Z",
-          "heartbeatAt": "2026-11-10T22:49:50.873Z",
-          "expiresAt": "2026-11-10T23:19:50.873Z",
+          "heartbeatAt": "2026-11-10T22:57:12.719Z",
+          "expiresAt": "2026-11-10T23:27:12.719Z",
           "generation": 3
         },
         "baseSha": null,
@@ -11973,7 +11973,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Planning crate registered + read composition re-pointed (decd2d8c7; scenario 7/7, capacity 9/9, http 2/2, postgres 2/2). Remaining: mount planning_command_router backend + release factory, move read test targets from manufacturing, switch production POST TS",
+        "nextAction": "Planning command backend/router mounted (9cf5c965f; scenario 7/7, http 2/2, postgres 2/2). Remaining: implement PlanningReleaseFactory for review approval (currently fail-closed), move read test targets from manufacturing, switch production POST TS",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
@@ -12654,8 +12654,8 @@
           "runId": "run-20261110-g2",
           "agentId": "lead",
           "claimedAt": "2026-11-10T22:49:36.230Z",
-          "heartbeatAt": "2026-11-10T22:49:50.873Z",
-          "expiresAt": "2026-11-10T23:19:50.873Z",
+          "heartbeatAt": "2026-11-10T22:57:12.719Z",
+          "expiresAt": "2026-11-10T23:27:12.719Z",
           "generation": 3
         },
         "baseSha": null,
@@ -15164,7 +15164,7 @@
       }
     },
     "lastCoordinatorGeneration": 3,
-    "updatedAt": "2026-11-10T22:49:50.873Z",
+    "updatedAt": "2026-11-10T22:57:12.720Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
