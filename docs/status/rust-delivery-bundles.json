@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T17:00:53+07:00",
+  "updatedAt": "2026-11-10T18:46:45+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -20,9 +20,9 @@
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 55,
-    "workflowsVerified": 68,
-    "workflowsMerged": 68,
-    "ownersComplete": 5,
+    "workflowsVerified": 69,
+    "workflowsMerged": 69,
+    "ownersComplete": 6,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -3641,10 +3641,19 @@
     {
       "id": "finance-payables-bundle",
       "kind": "supporting-delivery",
-      "status": "review-rejected",
-      "scope": "Native Finance payables bundle: Procurement match lifecycle (post/void/event/receipt/notification), positive/negative variance, receipt-version validation, stranded-match repair, source_version, posted goods-journal guard, matched void, stale-match CAS, posted re-match, desktop/mobile matched-void browser acceptance, and a scoped post-only foreign-currency goods-FX gate. supplier_bill_postgres 18/18, commerce foreign-goods 5/5, generic payments 17/17, finance unit 149/149, finance 131 tests, procurement 35 tests. Independent review still rejects certification pending native FX scope; evidence v10.",
+      "status": "superseded",
+      "scope": "Historical Finance payables bundle. Superseded by finance-owner-certification under the same-currency scope decision.",
       "sourceIdentity": "working tree on d30f8047970f368f3e144da7411146defe2bbab8",
       "evidenceRef": "docs/testing/evidence/2026-11-10-finance-payables-bundle.json",
+      "durableContractRefs": []
+    },
+    {
+      "id": "finance-owner-certification",
+      "kind": "owner-certification",
+      "status": "owner-complete",
+      "scope": "Finance owner: 10/10 registered workflows certified under the user-approved same-currency payables scope. Native standalone and Commerce matched supplier bills, Procurement match post/void with variance and Collaboration notifications, source version, posted goods journal, every active receipt version, posted void, payable evidence and desktop/mobile matched-void journeys pass. Foreign-currency Commerce goods-carrying/FX posting and matched void are excluded; the retained postInvoice goods-FX path is the named consumer and native FX is a follow-up Commerce bundle. Retained Finance due-draft/AI jobs and bank-reconciliation automated mapping/groups are disclosed auxiliary consumers outside the 10 registered workflows.",
+      "sourceIdentity": "working tree on 4fa8bdd9a28cdc16c6b9dff113c743547b590a07",
+      "evidenceRef": "docs/testing/evidence/2026-11-10-finance-owner-certification.json",
       "durableContractRefs": []
     }
   ],
@@ -4276,16 +4285,16 @@
       "kind": "module",
       "owner": "finance",
       "scope": "Payables",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "finance-native-supplier-bill",
         "finance-native-supplier-bill-http",
         "finance-native-supplier-bill-void"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned standalone posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment sources, requires a purchase order, retains/compares the source version, requires a posted goods journal, advances the Procurement match with an event and native Collaboration notifications, posts positive/negative price variance to the approved account, and validates every active match receipt version. Matched draft/posted void returns the Procurement match, deactivates receipts, releases the Commerce fulfillment and checks the open Company period and live allocations. Migration 1101 repairs stranded pre-port matches (tested); stale match CAS and posted re-match are tested. Desktop 1440x900 and mobile 390x844 matched-void browser journeys passed with DB readback. Foreign-currency commerce is scoped to the retained goods-carrying FX path with an explicit native post gate; the fallback is post-only so the FX void guard surfaces 409. Remaining: native foreign-currency goods FX posting/void (scope decision required). An independent re-reviewer rejected certification; Finance is not certified."
+      "gap": "Same-currency native payables is certified under the user-approved 2026-11-10 scope decision. Native standalone and Commerce matched supplier bills, Procurement match post/void with variance and Collaboration notifications, source version, posted goods journal, every active receipt version, posted void, payable evidence and desktop/mobile UI are PostgreSQL/HTTP/browser qualified. Migration 1101 repairs stranded matches. Foreign-currency Commerce goods-carrying/FX posting and matched void are excluded from this certification: native Finance fails closed with SUPPLIER_BILL_GOODS_FX_UNSUPPORTED and the retained postInvoice goods-FX path is the named consumer; native FX is a follow-up Commerce bundle."
     },
     {
       "id": "finance/feature-chart-of-accounts",
@@ -6723,8 +6732,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T14:15:00+07:00",
-    "sourceHead": "c74d1e498588afae3b7876f1669458b476b72491",
+    "generatedAt": "2026-11-10T18:46:45+07:00",
+    "sourceHead": "4fa8bdd9a28cdc16c6b9dff113c743547b590a07",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6793,11 +6802,11 @@
       },
       "finance": {
         "workflows": 10,
-        "verified": 9,
-        "partial": 1,
+        "verified": 10,
+        "partial": 0,
         "unstarted": 0,
-        "phase": "partial",
-        "businessMigrationComplete": false
+        "phase": "active",
+        "businessMigrationComplete": true
       },
       "pos": {
         "workflows": 5,

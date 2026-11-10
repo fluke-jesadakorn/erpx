@@ -121,15 +121,15 @@
     {
       "id": "finance",
       "package": "erpx-server-finance",
-      "phase": "partial",
-      "businessMigrationComplete": false,
+      "phase": "active",
+      "businessMigrationComplete": true,
       "surfaces": {
-        "domain": "partial",
-        "application": "partial",
-        "http": "partial",
-        "ssr": "partial",
-        "jobs": "partial",
-        "providers": "partial"
+        "domain": "active",
+        "application": "active",
+        "http": "active",
+        "ssr": "active",
+        "jobs": "not-applicable",
+        "providers": "not-applicable"
       }
     },
     {

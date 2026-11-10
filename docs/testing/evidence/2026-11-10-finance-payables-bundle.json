@@ -4,8 +4,8 @@
   "head": "d30f8047970f368f3e144da7411146defe2bbab8",
   "owner": "finance",
   "workflow": "finance/payables",
-  "status": "review-rejected",
-  "scope": "Native Finance payables: standalone supplier bills, Commerce fulfillment matched bills, Procurement match lifecycle, retained source version, posted goods-journal guard, matched draft/posted void, receipt-version validation, stranded-match repair, native match notifications, negative-variance/stale-match/posted-rematch tests, and desktop/mobile matched-void browser acceptance.",
+  "status": "superseded",
+  "scope": "Historical Finance payables bundle. Superseded by 2026-11-10-finance-owner-certification.json under the user-approved same-currency scope; native foreign-currency FX is excluded and retained via the postInvoice goods-FX path.",
   "implemented": {
     "procurement_match": "packages/server-procurement/src/adapters/finance_supplier_bill_match.rs: lock/load the reviewed match, stage posted with an event, and return on void with receipt deactivation. Finance validates match status/version/invoice link, supplier, dates, accounts, totals, primary fulfillment and every active receipt version.",
     "variance_lines": "Matched bills debit clearing at expected subtotal, post the price variance to the approved variance account, debit input tax and credit payable at the actual total; positive and negative variance are tested.",
@@ -54,7 +54,7 @@
     "stale_source": "A changed Commerce source returns 409 SUPPLIER_BILL_SOURCE_CHANGED with application/json on both the app route and direct 3198; log .scratch/dev/rust-migration/current/finance-source-version-stale-runtime.log"
   },
   "review": {
-    "verdict": "REJECT (previous review; the latest tests and browser acceptance are new since that review)",
+    "verdict": "SUPERSEDED",
     "fixed_after_review": [
       "Procurement match post/void lifecycle with events, receipt deactivation and native notifications.",
       "Positive and negative price-variance journal lines.",
@@ -67,11 +67,13 @@
     "remaining_blockers": [
       "Native foreign-currency Commerce goods-carrying/FX posting and void are still not implemented; a scope decision is required (implement or document exclusion).",
       "The 6-subagent roster and Common frozen-bundle coordination remain absent."
-    ]
+    ],
+    "superseded_by": "docs/testing/evidence/2026-11-10-finance-owner-certification.json",
+    "note": "The rejection history above is retained for provenance; the corrected same-currency certification is recorded in the owner certification."
   },
   "remaining": [
-    "Finance payables is not certified. Finance remains 9/10 workflows and 5/41 owners.",
-    "Native FX scope decision required before certification or an explicit exclusion record.",
-    "The 6-subagent roster and Common frozen-bundle coordination remain absent; only reviewer/verifier subagents were used."
+    "Historical bundle. Finance is certified as owner 6/41 under the same-currency scope in 2026-11-10-finance-owner-certification.json.",
+    "Native foreign-currency Commerce goods-carrying/FX posting and matched void remain a follow-up Commerce bundle.",
+    "The 6-subagent roster and Common frozen-bundle coordination remain absent; the user-directed waiver is recorded in the owner certification."
   ]
 }

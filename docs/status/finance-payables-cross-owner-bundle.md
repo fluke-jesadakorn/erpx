@@ -135,3 +135,32 @@ No Common frozen bundle, 6-subagent roster, reviewer/verification assignment,
 or Common evidence has been received in this session. Per the objective, Finance
 must not guess or edit those owner files without the agreed writer. This document
 is the exact request list for the coordinator.
+
+## Scope decision 2026-11-10
+
+The user explicitly approved certifying `finance/payables` for the same-currency
+scope and excluding native foreign-currency Commerce goods-carrying/FX posting
+and matched void from this certification.
+
+- Native Finance rejects a foreign-currency commerce invoice with
+  `SUPPLIER_BILL_GOODS_FX_UNSUPPORTED` before any journal writes.
+- The native client falls back to the retained Commerce goods-carrying FX
+  posting path only for the post command. The fallback is not used for void.
+- Foreign-currency matched void is blocked until a Commerce owner command can
+  reverse the goods-carrying/FX journal.
+- The retained legacy FX path is a named consumer and the native FX port is a
+  follow-up bundle; it is not counted as native payables evidence.
+- Procurement matched posting/void is now native: the Finance unit validates the
+  reviewed match and receipt versions, posts variance lines, advances the match
+  with an event and Collaboration notification, and returns the match on void.
+- People payroll expense-claim posting remains People-owned
+  (`people_payroll/feature-expenses`); Finance consumes only an existing linked
+  payable draft through its owner port.
+
+- Retained command: `postInvoice` in
+  `packages/server-finance/src/adapters/finance.ts`, reached through the
+  `payables/:id/post` route legacy branch. Removal condition: the native
+  Commerce goods-carrying/FX port.
+- Process waiver: the user directed continued execution without a 6-subagent
+  roster or Common frozen bundle. The gap is reported and is not used as
+  certification evidence.

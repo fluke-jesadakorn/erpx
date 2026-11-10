@@ -2568,6 +2568,30 @@ async fn supplier_bill_rejects_foreign_currency_commerce_before_writes() {
                 .await,
             "SUPPLIER_BILL_GOODS_FX_UNSUPPORTED",
         );
+        let invoice_row: (String, i64, Option<String>) = sqlx::query_as(
+            "SELECT status,version,journal_id FROM finance_invoices \
+             WHERE id='invoice-commerce-fx'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(invoice_row, ("draft".into(), 2, None));
+        let journals: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM finance_journals \
+             WHERE source_type='invoice' AND source_id='invoice-commerce-fx'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(journals, 0);
+        let fulfillment: (Option<String>, i64) = sqlx::query_as(
+            "SELECT invoice_id,version FROM commerce_fulfillments \
+             WHERE id='delivery-commerce-fx'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(fulfillment, (Some("invoice-commerce-fx".into()), 2));
     })
     .await;
 }
@@ -2612,6 +2636,22 @@ async fn supplier_bill_posted_void_rejects_foreign_currency_commerce() {
                 .await,
             "SUPPLIER_BILL_GOODS_FX_UNSUPPORTED",
         );
+        let invoice_row: (String, i64) = sqlx::query_as(
+            "SELECT status,version FROM finance_invoices \
+             WHERE id='invoice-commerce-fx-void'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(invoice_row, ("posted".into(), 2));
+        let reversals: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM finance_journals \
+             WHERE source_type='invoice_reversal' AND source_id='invoice-commerce-fx-void'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(reversals, 0);
     })
     .await;
 }
