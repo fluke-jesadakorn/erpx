@@ -137,6 +137,7 @@ async function command(
   expectedStatus: number,
   rejectEvidence = false,
   fallbackOn404 = true,
+  fxFallback = false,
 ): Promise<Response | undefined> {
   const settings = configuration();
   if (!settings) return undefined;
@@ -196,11 +197,12 @@ async function command(
     }
     const value = await reply(response, commandReplyLimit);
     if (
+      fxFallback &&
       (value as { error?: { code?: unknown } })?.error?.code ===
-      'SUPPLIER_BILL_GOODS_FX_UNSUPPORTED'
+        'SUPPLIER_BILL_GOODS_FX_UNSUPPORTED'
     ) {
       // Foreign-currency Commerce goods keep the retained goods-carrying FX
-      // posting path; only that scoped case falls through to the legacy route.
+      // posting path; only the post command may fall through to that route.
       return undefined;
     }
     if (response.status === expectedStatus) {
@@ -290,6 +292,7 @@ export async function nativeSupplierBillPost(
     200,
     false,
     false,
+    true,
   );
   return response;
 }
