@@ -1339,7 +1339,10 @@ dependencies = [
 name = "erpx-server-work-projection"
 version = "0.1.0"
 dependencies = [
+ "erpx-server-collaboration",
  "erpx-server-field-service",
+ "erpx-server-finance",
+ "erpx-server-operations",
  "erpx-server-runtime",
  "erpx-server-shared",
  "erpx-server-support",

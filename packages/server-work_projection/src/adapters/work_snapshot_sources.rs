@@ -5,7 +5,9 @@
 //! availability fact; they perform no SQL, authority or command work.
 
 use crate::domain::work_card_availability::{WorkItemFact, WorkQueue};
+use erpx_server_collaboration::public::collaboration_work::ActionWork;
 use erpx_server_field_service::public::work::FieldServiceWorkItem;
+use erpx_server_operations::public::field_exceptions::ExceptionWork;
 use erpx_server_support::public::incident::IncidentWorkItem;
 use erpx_server_support::public::session::SessionWorkItem;
 use erpx_server_support::public::ticket::TicketWorkItem;
@@ -144,6 +146,86 @@ pub fn approval_items(rows: &[ApprovalQueueRow]) -> Vec<WorkItemFact> {
         .collect()
 }
 
+pub fn operation_exception_items(items: &[ExceptionWork]) -> Vec<WorkItemFact> {
+    items
+        .iter()
+        .map(|value| {
+            let mut fact = item(
+                "operations_exception",
+                value.kind,
+                &value.id,
+                "",
+                value.queue,
+                value.can_act,
+                value.updated_at,
+            );
+            fact.relationships = value
+                .relationships
+                .iter()
+                .map(|v| (*v).to_owned())
+                .collect();
+            fact
+        })
+        .collect()
+}
+
+pub fn collaboration_action_items(items: &[ActionWork]) -> Vec<WorkItemFact> {
+    items
+        .iter()
+        .map(|value| {
+            let mut fact = item(
+                "collaboration_action",
+                value.kind,
+                &value.id,
+                value.href,
+                value.queue,
+                value.can_act,
+                value.updated_at,
+            );
+            fact.relationships = value
+                .relationships
+                .iter()
+                .map(|v| (*v).to_owned())
+                .collect();
+            fact.action_kind = Some(value.next_action.to_owned());
+            fact
+        })
+        .collect()
+}
+
+pub fn field_financial_items(values: &[serde_json::Value]) -> Vec<WorkItemFact> {
+    values
+        .iter()
+        .filter_map(|value| {
+            let id = value.get("id")?.as_str()?;
+            let kind = value.get("type")?.as_str()?;
+            let queue_value = value.get("queue")?.as_str()?;
+            let can_act = value.get("canAct")?.as_bool()?;
+            let updated_at = value.get("updatedAt")?.as_i64()?;
+            let href = value.get("href")?.as_str().unwrap_or("");
+            let mut fact = item(
+                "field_financial",
+                kind,
+                id,
+                href,
+                queue_value,
+                can_act,
+                updated_at,
+            );
+            if let Some(action) = value.get("actionKind").and_then(|v| v.as_str()) {
+                fact.action_kind = Some(action.to_owned());
+            }
+            if let Some(relationships) = value.get("relationships").and_then(|v| v.as_array()) {
+                fact.relationships = relationships
+                    .iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect();
+            }
+            Some(fact)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,6 +233,60 @@ mod tests {
     use erpx_server_support::public::incident::IncidentWorkItem;
     use erpx_server_support::public::session::SessionWorkItem;
     use erpx_server_support::public::ticket::TicketWorkItem;
+
+    #[test]
+    fn maps_operations_collaboration_and_field_financial_values() {
+        let exception = erpx_server_operations::public::field_exceptions::ExceptionWork {
+            id: "exception-1".into(),
+            kind: "operational_exception",
+            title: "Exception".into(),
+            detail: "Issue".into(),
+            status: "open".into(),
+            updated_at: 11,
+            due_at: 12,
+            can_act: true,
+            queue: "todo",
+            responsible_queue: "Assigned exception owner",
+            next_action: "Acknowledge the exception",
+            relationships: vec!["assigned"],
+        };
+        let action = erpx_server_collaboration::public::collaboration_work::ActionWork {
+            id: "action-1".into(),
+            kind: "collaboration_action",
+            title: "Action".into(),
+            detail: "Detail".into(),
+            href: "/field-service/collaboration",
+            status: "open".into(),
+            updated_at: 21,
+            due_at: 22,
+            queue: "todo",
+            can_act: true,
+            responsible_queue: "Assigned action owner",
+            next_action: "Complete with evidence",
+            blocker: None,
+            relationships: vec!["assigned"],
+        };
+        let field = serde_json::json!({
+            "id":"invoice-1","type":"invoice","actionKind":"work",
+            "title":"INV-1","href":"/finance/invoices/invoice-1","status":"draft",
+            "updatedAt":31,"queue":"todo","canAct":true,
+            "relationships":["requested","assigned"]
+        });
+        let operation = operation_exception_items(&[exception]);
+        assert_eq!(operation[0].queue, WorkQueue::Todo);
+        assert_eq!(operation[0].updated_at, 11);
+        let collaboration = collaboration_action_items(&[action]);
+        assert_eq!(
+            collaboration[0].action_kind.as_deref(),
+            Some("Complete with evidence")
+        );
+        assert_eq!(collaboration[0].relationships, ["assigned"]);
+        let financial = field_financial_items(&[field]);
+        assert_eq!(financial[0].id, "field_financial:invoice-1");
+        assert_eq!(financial[0].kind, "invoice");
+        assert_eq!(financial[0].action_kind.as_deref(), Some("work"));
+        assert_eq!(financial[0].relationships, ["requested", "assigned"]);
+    }
 
     #[test]
     fn approval_rows_become_actionable_approval_items() {
