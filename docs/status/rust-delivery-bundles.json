@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 274,
+    "revision": 276,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T20:01:24.740Z",
-      "expiresAt": "2026-11-10T20:31:24.740Z",
+      "heartbeatAt": "2026-11-10T20:02:49.302Z",
+      "expiresAt": "2026-11-10T20:32:49.303Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -11979,8 +11979,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T20:01:24.740Z",
-          "expiresAt": "2026-11-10T20:31:24.740Z",
+          "heartbeatAt": "2026-11-10T20:02:49.302Z",
+          "expiresAt": "2026-11-10T20:32:49.303Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12169,8 +12169,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T20:01:24.740Z",
-          "expiresAt": "2026-11-10T20:31:24.740Z",
+          "heartbeatAt": "2026-11-10T20:02:49.302Z",
+          "expiresAt": "2026-11-10T20:32:49.303Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12267,8 +12267,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T20:01:24.740Z",
-          "expiresAt": "2026-11-10T20:31:24.740Z",
+          "heartbeatAt": "2026-11-10T20:02:49.302Z",
+          "expiresAt": "2026-11-10T20:32:49.303Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12846,8 +12846,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T20:01:24.740Z",
-          "expiresAt": "2026-11-10T20:31:24.740Z",
+          "heartbeatAt": "2026-11-10T20:02:49.302Z",
+          "expiresAt": "2026-11-10T20:32:49.303Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14863,13 +14863,13 @@
         "resources": [
           "owner:organization"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": {
           "runId": "run-20261110-g1",
           "agentId": "lead",
           "claimedAt": "2026-11-10T19:59:26.353Z",
-          "heartbeatAt": "2026-11-10T20:01:24.740Z",
-          "expiresAt": "2026-11-10T20:31:24.740Z",
+          "heartbeatAt": "2026-11-10T20:02:49.302Z",
+          "expiresAt": "2026-11-10T20:32:49.303Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14878,7 +14878,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Native worker entrypoint committed (4fc340ba6): run `erpx-server position-move-worker --development-config <path>` in deployment/dev jobs, verify a scheduled move applies, then remove drainPositionMoves from people-lifecycle-jobs",
+        "nextAction": "Native drain + worker entrypoint committed (4fc340ba6); drain applies in leased-DB tests (5/5). Blocked on dev-process registration: the native dev config files under .scratch/dev/rust-migration/current were removed during cache cleanup, so a position-move-worker cannot be started against the running dev databases without regenerating the private development config (DB URLs/credentials). Operator must regenerate config and register the worker; then remove drainPositionMoves.",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
@@ -15013,16 +15013,16 @@
       "statusCounts": {
         "pending": 37,
         "in_progress": 0,
-        "ready_for_integration": 4,
+        "ready_for_integration": 3,
         "integrating": 0,
         "migrated": 8,
-        "blocked": 2,
+        "blocked": 3,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T20:01:24.741Z",
+    "updatedAt": "2026-11-10T20:02:49.303Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
