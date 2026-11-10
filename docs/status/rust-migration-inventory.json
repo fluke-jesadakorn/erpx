@@ -1,8 +1,8 @@
 {
   "version": 1,
   "planRef": "docs/production-plan.md#rust-migration-current",
-  "sourceSha": "8891b95ca6f2c9b21c756a2d205b2b1322bd073d",
-  "generatedAt": "2026-11-10T16:38:47+00:00",
+  "sourceSha": "22eb682d38b128b93493699985dd2a81b4cc6f2d",
+  "generatedAt": "2026-11-10T16:43:00+00:00",
   "interpretation": "G1 source inventory. Task records are read-only source findings; proposed packets are not implementation evidence. Catalogue qualification state is unchanged and acceptance stays deferred.",
   "owners": {
     "agent": {
@@ -10440,8 +10440,7 @@
             "packages/server-identity_access/src/adapters/account_sso_http.rs:21",
             "packages/server-identity_access/src/adapters/product-sso.ts",
             "packages/workplace/src/routes/sso/[action]/route.ts",
-            "packages/workplace/src/routes/api/auth/[...all]/route.ts",
-            "packages/native-sdk/src/session.ts:216"
+            "packages/workplace/src/routes/api/auth/[...all]/route.ts"
           ],
           "tsAuthoritative": [
             "packages/feature-account/src/routes/api/v1/account-invitations/route.ts",
@@ -10449,7 +10448,7 @@
             "packages/server-identity_access/src/adapters/directory-lookup.ts",
             "packages/workplace/src/routes/login/page.tsx"
           ],
-          "gap": "SSO start/authorize/callback and sign-in are native. Invitation inspect/accept still runs TS owner code with direct CONTROL_DB/Company SQL even though the native router already serves the same /api/v1/account-invitations path and is mounted by the production API assembly; that is a stale shadowing transport, not a missing port. Two Better Auth endpoints (list-sessions, update-user) and the directory connection lookup read remain TS."
+          "gap": "SSO start/authorize/callback and sign-in are native. Invitation inspect/accept still runs TS owner code with direct CONTROL_DB/Company SQL although the native router serves the same /api/v1/account-invitations path and is mounted by the production API assembly: stale shadowing transport, not a missing port. Two Better Auth endpoints (list-sessions, update-user) and the directory connection lookup read remain TS."
         },
         {
           "id": "account:profile-language-theme",
@@ -10464,7 +10463,7 @@
             "packages/server-identity_access/src/application/account-preferences.ts",
             "packages/server-identity_access/src/domain/account-preferences.ts"
           ],
-          "gap": "No Rust Account profile/preferences port. Name, language and appearance are read and written by x-www/JSON handlers that SELECT/INSERT/UPDATE user and account_preferences in CONTROL_DB with TS version checks. The same adapter feeds AccountHome, my-profile and the account preference snapshot used for SSR language/theme."
+          "gap": "No Rust Account profile/preferences port. Name, language and appearance are read/written by handlers that SELECT/INSERT/UPDATE user and account_preferences in CONTROL_DB with TS version checks. The same adapter feeds AccountHome, my-profile and the SSR language/theme snapshot."
         },
         {
           "id": "account:role-company-account-switch",
@@ -10483,7 +10482,7 @@
             "packages/server-identity_access/src/adapters/product-workspace.ts",
             "packages/workplace/src/routes/api/v1/account/work-context/route.ts"
           ],
-          "gap": "Work-role selection, workspace/company preference persistence and saved-device account switching are native (native work-roles router plus native account-preferences service). Workspace/role enumeration, admin/platform assignment reads and the switcher-context projection are still TS application code reading CONTROL_DB, so only the command half is native."
+          "gap": "Work-role selection, workspace/company preference persistence and saved-device switching are native. Workspace/role enumeration, admin/platform assignment reads and the switcher-context projection are TS application code reading CONTROL_DB, so only the command half is native."
         },
         {
           "id": "account:mfa-expiry-replay-family-all-device-revocation",
@@ -10500,7 +10499,7 @@
             "packages/workplace/src/routes/api/auth/[...all]/route.ts",
             "packages/server-identity_access/src/adapters/iam-recovery.ts"
           ],
-          "gap": "The security read/revoke route is a strict native-only delegate (currentAccountSecurity has no retained DB fallback). Residuals are the two Better Auth endpoints kept on the legacy handler and the Identity-owned emergency-access read. Ledger records registered iam.test.ts/product-sso-auth.ts still blocked by missing ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG in the host test runner."
+          "gap": "Security read/revoke is a strict native-only delegate (currentAccountSecurity has no retained DB fallback). Residuals: the two Better Auth endpoints kept on the legacy handler and the Identity-owned emergency-access read. Ledger records registered iam.test.ts/product-sso-auth.ts blocked by missing ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG in the host test runner."
         },
         {
           "id": "account:authorized-package-area",
@@ -10516,7 +10515,7 @@
             "packages/server-identity_access/src/adapters/private-session-preferences.ts",
             "packages/server-identity_access/src/adapters/iam-my-access.ts"
           ],
-          "gap": "Account host product entry renders AccountHome and the authorized product/workspace area from TS product selection plus quick-access, self-access and profile reads. quick_access_preferences.rs exists with a registered PostgreSQL suite but has no composition mount and no TS client, so the account quick-access route still commits personal shortcuts in TS."
+          "gap": "Account host product entry renders AccountHome and the authorized product/workspace area from TS product selection plus quick-access, self-access and profile reads. quick_access_preferences.rs exists with a registered PostgreSQL suite but has no composition mount and no TS client, so the quick-access route still commits personal shortcuts in TS."
         }
       ],
       "publicPorts": [
@@ -10577,7 +10576,7 @@
         {
           "id": "account-invitation-stale-transport",
           "kind": "retirement",
-          "detail": "The Next route serves TS inspectInvitation/acceptInvitation instead of the already-mounted native /api/v1/account-invitations. Proxy the public route to the native service, add the path to the native-session allowlist, and delete the TS invitation accept/activation branch only after the native suite proves token/tenant/authority semantics.",
+          "detail": "The Next route serves TS inspectInvitation/acceptInvitation instead of the already-mounted native /api/v1/account-invitations. Proxy the public route to the native service, add the path to the native-session allowlist, then delete the TS accept/activation branch after the native suite proves token/tenant/authority semantics.",
           "suggestedPaths": [
             "packages/feature-account/src/routes/api/v1/account-invitations/route.ts",
             "packages/native-sdk/src/session.ts",
@@ -10587,7 +10586,7 @@
         {
           "id": "account-profile-preferences-port",
           "kind": "command",
-          "detail": "No native owner port for profile name/language/appearance or time preference; both are TS handlers with direct CONTROL_DB SQL and TS version/CAS checks. Because the same read backs SSR language/theme, a native read+write port is required before retiring the TS application.",
+          "detail": "No native owner port for profile name/language/appearance or time preference; both are TS handlers with direct CONTROL_DB SQL and TS CAS. The same read backs SSR language/theme, so a native read+write port precedes retiring the TS application.",
           "suggestedPaths": [
             "packages/server-identity_access/src/domain/account_preferences.rs",
             "packages/server-identity_access/src/application/account_preferences.rs",
@@ -10622,7 +10621,7 @@
         {
           "path": "packages/server-identity_access/src/adapters/account-access.ts",
           "reason": "Authoritative invitation inspect/accept, credential creation, claims, assignment and revocation with direct SQL.",
-          "removalCondition": "Native invitation accept/inspect is the public route, the TS integration/unit cases move to native, and no TS caller imports acceptInvitation/inspectInvitation."
+          "removalCondition": "Native invitation accept/inspect is the public route, TS integration/unit cases move to native, and no TS caller imports acceptInvitation/inspectInvitation."
         },
         {
           "path": "packages/server-identity_access/src/adapters/account-preferences.ts",
@@ -10637,12 +10636,12 @@
         {
           "path": "packages/workplace/src/routes/api/auth/[...all]/route.ts",
           "reason": "Keeps list-sessions/update-user on Better Auth for declared installed consumers.",
-          "removalCondition": "Native session-list and user-update endpoints exist and pass the product-sso unit/integration cases; the legacy set becomes empty."
+          "removalCondition": "Native session-list and user-update endpoints exist and pass product-sso unit/integration; the legacy set becomes empty."
         },
         {
           "path": "packages/server-work_projection/src/adapters/account-switcher.ts",
           "reason": "Workspace/role enumeration, provider-context injection and switcher projection are TS; only selectWorkRole/selectAdminWorkRole reach native commands.",
-          "removalCondition": "Native Account entry projection returns authorized workspaces/roles and selection; TS enumeration branches removed while page-level presentation stays."
+          "removalCondition": "Native Account entry projection returns authorized workspaces/roles plus selection; TS enumeration branches removed while page presentation stays."
         }
       ],
       "packets": [
@@ -10683,9 +10682,7 @@
             "packages/workplace/src/routes/api/v1/account/preferences/route.ts",
             "packages/workplace/src/routes/api/v1/account/time-preference/route.ts",
             "packages/server-identity_access/src/adapters/account-preferences.ts",
-            "packages/server-identity_access/src/adapters/account-profile.ts",
-            "tests/unit/identity_access/rust-account-preferences.test.rs",
-            "tests/integration/identity_access/rust-account-preferences-postgres.test.rs"
+            "packages/server-identity_access/src/adapters/account-profile.ts"
           ],
           "resources": [
             "surface:account"
@@ -10707,15 +10704,795 @@
         }
       ],
       "a1Deferred": [
-        "Authenticated browser sign-in, directory/SSO and invitation-accept journeys on a frozen candidate (normal Account login; no bypass).",
+        "Authenticated browser sign-in, directory/SSO and invitation-accept journeys on a frozen candidate through normal Account login.",
         "Real directory provider/LDAP and mail delivery acceptance for invitation and sign-in links.",
         "Desktop and mobile visual checks for my-profile, security, my-access and account product entry."
       ],
       "limitations": [
-        "Read-only inventory: no cargo, bun, typecheck or browser command was executed.",
+        "Read-only inventory: no cargo, bun, typecheck or browser command was executed; no check is claimed.",
         "Source inspection only; partial means at least one native port exists for the workflow but a TS authority or fallback remains.",
-        "packages/workplace and packages/native-sdk are shared shells; any packet touching them needs the lead's shared-package co-sign, and src/composition mounts remain lead-owned.",
-        "The checkout already had unrelated modified tracked files (globals.css and Rust owner files) at this SHA; none were changed by this inventory."
+        "packages/workplace and packages/native-sdk are shared shells, so packet paths there need the lead's shared-package co-sign; src/composition mounts remain lead-owned.",
+        "Private-file, document and published-form consumers named in the S16 scope belong to the portal, legal-portal and forms surfaces and are inventoried there, not duplicated here.",
+        "The checkout already had unrelated modified tracked files (globals.css plus Rust owner files) at this SHA; this inventory changed none of them."
+      ]
+    },
+    "admin": {
+      "taskId": "inventory.surface.admin",
+      "owner": "admin",
+      "sourceSha": "3b56fa4a357106894777f35d79c677ed4333e3dd",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "admin:company-brand-organization-iam",
+          "qualification": "partial",
+          "native": [
+            "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/brand/route.ts",
+            "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/branding/[[...path]]/route.ts",
+            "packages/feature-brand/src/lib/native-brand-identity.ts",
+            "packages/feature-brand/src/lib/native-branding.ts",
+            "src/composition/src/brand_identity_http.rs",
+            "src/composition/src/organization_nodes_http.rs",
+            "packages/workplace/src/lib/native-admin-organization.ts:194",
+            "packages/feature-organization/src/lib/native-organization.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/iam-api.ts:239",
+            "packages/server-identity_access/src/adapters/iam-store.ts",
+            "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/technology/[[...path]]/route.ts",
+            "packages/server-identity_access/src/application/technology.ts",
+            "packages/server-identity_access/src/adapters/technology.ts",
+            "packages/server-organization/src/public/organization-access.ts"
+          ],
+          "gap": "Brand and branding routes are native-only. Company Organization is a dual read: the retained People projection is always read first and the native overlay activates only under ERPX_NATIVE_ORGANIZATION_CONFIG with people.manage. IAM user/role/assignment/directory management remains the TS iamApi with direct SQL (native assignment reads and revoke exist as a partial port), and Admin technology provisioning preview/apply/retry is TS."
+        },
+        {
+          "id": "admin:platform-only-entry",
+          "qualification": "partial",
+          "native": [
+            "packages/feature-admin/src/routes/admin/launch/route.ts",
+            "packages/server-identity_access/src/public/admin-workspace.ts",
+            "packages/server-work_projection/src/adapters/work-role-store.ts",
+            "src/composition/src/platform_administration.rs:197",
+            "packages/feature-platform_administration/src/adapters/server/native-platform-administration.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/admin-workspace.ts",
+            "packages/server-identity_access/src/application/admin-workspace.ts",
+            "packages/server-identity_access/src/adapters/authorization.ts:91",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts",
+            "packages/server-platform_administration/src/adapters/operations.ts"
+          ],
+          "gap": "Work-role selection is native, but Admin launch authority enumeration and the platform assignment/context reads are TS SQL. Platform operations/provision/migrate/recover call the native owner only when ERPX_NATIVE_PLATFORM_ADMIN(_ISTRATION)_CONFIG is set and otherwise execute the retained TS operations adapter, so a configured deployment can still run TS business logic."
+        },
+        {
+          "id": "admin:provider-authority-separation",
+          "qualification": "partial",
+          "native": [
+            "packages/feature-admin/src/routes/api/v1/platform/context/route.ts",
+            "packages/feature-admin/src/routes/provider/page.tsx",
+            "packages/feature-admin/src/routes/provider/commercial/page.tsx",
+            "packages/server-commercial/src/adapters/native-company-packages.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/provider-context-store.ts",
+            "packages/server-identity_access/src/adapters/provider-context.ts",
+            "packages/server-identity_access/src/adapters/provider-entry.ts",
+            "packages/server-identity_access/src/adapters/provider-context-selection.ts",
+            "packages/server-commercial/src/adapters/provider-commercial.ts:61"
+          ],
+          "gap": "Provider entry/commercial pages and Platform/Commercial host routing exist, but provider-context read/selection still locks and writes admin_provider_contexts, platform_assignments and iam audit in TS SQL. The commercial route is native only for the Service package lifecycle; every other provider operation is explicitly failed closed or retained TS."
+        },
+        {
+          "id": "admin:legacy-preview-apply-and-audit",
+          "qualification": "partial",
+          "native": [
+            "packages/server-commercial/src/adapters/postgres_grant_commands.rs:271",
+            "packages/server-commercial/src/adapters/package_review.rs",
+            "src/composition/src/field_service_package_settlement.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/feature-commercial/src/components/legacy-grant-review.tsx:50",
+            "packages/server-commercial/src/adapters/provider-commercial.ts:81",
+            "packages/server-commercial/src/adapters/legacy-grant-migration.ts",
+            "packages/server-commercial/src/adapters/package-grants.ts"
+          ],
+          "gap": "Legacy grant preview/apply and its review receipt evidence are TS: the route parses /legacy-grants/(preview|apply) and calls legacyGrantMigration, which locks Company access, builds a legacyPackagePreview and writes company_package_review_evidence in TS. Native package-grant batch preview/apply and the review signer exist inside the owner crate but no HTTP port mounts them for this path."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "brand_identity_http / branding native routes",
+          "path": "src/composition/src/brand_identity_http.rs",
+          "mountedAt": [
+            "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/brand/route.ts"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "organization_nodes_http native read",
+          "path": "src/composition/src/organization_nodes_http.rs",
+          "mountedAt": [
+            "packages/workplace/src/lib/native-admin-organization.ts:194"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "platform_administration native service (operations/provision/migrate/recover)",
+          "path": "src/composition/src/platform_administration.rs:197",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "native_work_roles_router (Admin role selection)",
+          "path": "src/composition/src/native_work_roles_http.rs:39",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4845"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "native IAM assignment read/revoke transport",
+          "path": "packages/server-identity_access/src/public/native-iam-assignments.ts",
+          "mountedAt": [
+            "packages/server-identity_access/src/adapters/iam-api.ts:115"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "commercial package-grant batch preview/apply",
+          "path": "packages/server-commercial/src/adapters/postgres_grant_commands.rs:271",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "native provider-context port (absent)",
+          "path": "packages/server-identity_access/src/adapters/provider-context-store.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "admin-platform-operations-fallback",
+          "kind": "retirement",
+          "detail": "Four Admin routes prefer the native platform service but fall back to summarizePlatformOperations/provisionHolding/runHoldingMigrations/recoverDeadLetterJob (TS, direct SQL across Holdings) whenever the native config env is unset. Replace the selector with fail-closed native-only selection and delete the retained adapters after the native suites cover provisioning/migration/recovery receipts.",
+          "suggestedPaths": [
+            "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts",
+            "packages/feature-platform_administration/src/lib/native-platform-administration.ts",
+            "packages/server-platform_administration/src/adapters/operations.ts"
+          ]
+        },
+        {
+          "id": "admin-provider-context-ts",
+          "kind": "command",
+          "detail": "Provider context read/select is TS with table locks, revocation checks, platform_assignments and iam receipt/audit writes; only downstream Admin role selection is native. A native provider-context port is required for provider-authority separation.",
+          "suggestedPaths": [
+            "packages/server-identity_access/src/domain/provider_context.rs",
+            "packages/server-identity_access/src/application/provider_context.rs",
+            "packages/server-identity_access/src/adapters/provider_context_postgres.rs",
+            "packages/server-identity_access/src/adapters/provider_context_http.rs",
+            "packages/server-identity_access/src/adapters/provider-context-store.ts"
+          ]
+        },
+        {
+          "id": "admin-legacy-grant-mount",
+          "kind": "mount",
+          "detail": "Native package-grant batch preview/apply and the lifecycle review signer exist in the Commercial owner, but /api/v1/platform/commercial/legacy-grants/(preview|apply) is served by TS legacyGrantMigration. Mount the native batch commands with current Commercial authority, review token, idempotency and audit retention; retire the TS route branch.",
+          "suggestedPaths": [
+            "packages/feature-admin/src/routes/api/v1/platform/commercial/[[...path]]/route.ts",
+            "packages/server-commercial/src/adapters/provider-commercial.ts",
+            "packages/server-commercial/src/adapters/legacy-grant-migration.ts",
+            "packages/server-commercial/src/adapters/package-grants.ts"
+          ]
+        },
+        {
+          "id": "admin-iam-technology-ts",
+          "kind": "command",
+          "detail": "IAM manage (users, roles, assignments, reviews, directory operations) and technology provisioning preview/apply/retry remain TS application code with SQL; native covers assignment read/revoke and directory-source preview/apply only. This is an Identity Access owner gap that the Admin transport must later target; no surface packet is proposed here to avoid claiming another owner's scope.",
+          "suggestedPaths": [
+            "packages/server-identity_access/src/adapters/iam-api.ts",
+            "packages/server-identity_access/src/application/technology.ts",
+            "packages/server-identity_access/src/adapters/technology.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-platform_administration/src/adapters/operations.ts",
+          "reason": "Retained provisioning/migration/recovery/operations summary with 20 direct SQL statements, selected whenever the native config is unset.",
+          "removalCondition": "All four Admin operations routes are native-only, the native Postgres suite passes on the frozen candidate, and no route imports the retained adapter."
+        },
+        {
+          "path": "packages/server-identity_access/src/adapters/provider-context-store.ts",
+          "reason": "Authoritative provider context read/select with table locks, platform assignments and IAM receipt/audit writes.",
+          "removalCondition": "Native provider-context read/select is mounted, provider/Admin switcher tests pass, and the TS store is deleted."
+        },
+        {
+          "path": "packages/server-commercial/src/adapters/legacy-grant-migration.ts",
+          "reason": "Authoritative legacy package preview/apply, review token and audit evidence writer.",
+          "removalCondition": "Native package-grant batch preview/apply serves the legacy-grants path with the same authority, replay and audit semantics; the component keeps transport only."
+        },
+        {
+          "path": "packages/server-identity_access/src/adapters/iam-api.ts",
+          "reason": "Authoritative IAM management API (users/roles/assignments/reviews/directory) with SQL; native assignment read/revoke is partial.",
+          "removalCondition": "Identity Access owner exposes native IAM management commands and the Admin routes proxy them; TS iam-api removed."
+        },
+        {
+          "path": "packages/workplace/src/lib/native-admin-organization.ts",
+          "reason": "Dual read: retained Organization/People projection is always read first; native overlay is optional and permission-gated.",
+          "removalCondition": "Native Organization read owns People/private redaction and Company-manage ceilings, the retained projection is no longer read, and the config gate is removed."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.surface.admin.platform-operations-native-only",
+          "title": "Make Admin platform operations native-only and retire the retained fallback",
+          "paths": [
+            "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts",
+            "packages/feature-platform_administration/src/lib/native-platform-administration.ts",
+            "packages/server-platform_administration/src/adapters/operations.ts"
+          ],
+          "resources": [
+            "surface:admin"
+          ],
+          "dependsOn": [
+            "inventory.surface.admin",
+            "migrate.platform_administration",
+            "ports.authority"
+          ],
+          "requiredPorts": [
+            "platform_administration:operations"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-platform-administration",
+            "cargo check -p erpx-service --features existing-business",
+            "bun run test:unit -- --suite=platform_administration.native-platform-administration-transport.unit",
+            "bun run test:integration -- --suite=platform_administration.rust-platform-administration-postgres.integration"
+          ]
+        },
+        {
+          "id": "migrate.surface.admin.provider-legacy-grants",
+          "title": "Mount native Commercial grant preview/apply for Admin legacy review",
+          "paths": [
+            "packages/feature-admin/src/routes/api/v1/platform/commercial/[[...path]]/route.ts",
+            "packages/feature-commercial/src/components/legacy-grant-review.tsx",
+            "packages/server-commercial/src/adapters/provider-commercial.ts",
+            "packages/server-commercial/src/adapters/legacy-grant-migration.ts",
+            "packages/server-commercial/src/adapters/package-grants.ts"
+          ],
+          "resources": [
+            "surface:admin"
+          ],
+          "dependsOn": [
+            "inventory.surface.admin",
+            "migrate.commercial",
+            "ports.trade"
+          ],
+          "requiredPorts": [
+            "commercial:package-grant.batch"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-commercial",
+            "cargo check -p erpx-service --features existing-business",
+            "bun run test:integration -- --suite=commercial.provider-legacy-grants.integration",
+            "bun run test:unit -- --suite=identity_access.iam-page-permissions.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Authenticated Admin browser journeys for Company/Provider entry, platform provisioning, IAM and legacy grant review on a frozen candidate.",
+        "Real Platform Commercial MFA/lease and external provider acceptance; only authority and fail-closed behavior can be implemented now.",
+        "Desktop/mobile visual checks for Admin settings, usage, approvals and pilot-feature pages."
+      ],
+      "limitations": [
+        "Read-only inventory: no cargo, bun, typecheck or browser command was executed; no check is claimed.",
+        "Admin is a product shell over IAM, Organization, Brand, Commercial, Billing, Platform and Manage ERPX owners; only routes inspected here are classified, and full owner completeness is owned by those owner inventories.",
+        "packages/workplace and src/composition are shared/lead-owned; admin packets outside apps/admin and feature-admin need the lead's mount work and co-sign.",
+        "The checkout already had unrelated modified tracked files at this SHA; this inventory changed none of them."
+      ]
+    },
+    "apps": {
+      "taskId": "inventory.surface.apps",
+      "owner": "apps",
+      "sourceSha": "3b56fa4a357106894777f35d79c677ed4333e3dd",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "work:company-executive-and-scoped-mcp",
+          "qualification": "unstarted",
+          "native": [
+            "src/composition/src/field_executive_read.rs",
+            "src/composition/src/field_executive_evidence.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
+            "packages/feature-apps/src/routes/api/mcp/executive/route.ts",
+            "packages/server-runtime/src/adapters/executive/reports.ts",
+            "packages/server-runtime/src/adapters/executive/mcp.ts",
+            "packages/server-runtime/src/adapters/executive/generation.ts",
+            "packages/server-runtime/src/adapters/executive/connections.ts",
+            "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx"
+          ],
+          "gap": "No generic Executive owner port. Report library/view/data, sharing, ownership transfer, generation jobs, connections and the scoped MCP tool surface are TS with direct SQL in server-runtime; the only native executive code is the Field-Service-specific evidence read, which does not satisfy this workflow. This surface also has no owner Cargo crate, so new native code needs a lead-owned workspace/composition decision."
+        },
+        {
+          "id": "apps:all-company-branch-department-product-selection",
+          "qualification": "partial",
+          "native": [
+            "src/composition/src/native_work_roles_http.rs:39",
+            "packages/server-identity_access/src/adapters/native-account-companies.ts",
+            "packages/server-work_projection/src/adapters/account_workspace_preferences.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/workplace/src/entries/workspace.tsx",
+            "packages/workplace/src/routes/product-entry/page.tsx",
+            "packages/workplace/src/routes/launch/route.ts",
+            "packages/server-work_projection/src/adapters/product-launcher.ts",
+            "packages/server-work_projection/src/application/product-launcher.ts",
+            "packages/server-work_projection/src/adapters/admin-launcher.ts",
+            "packages/server-organization/src/public/workspace-choices.ts",
+            "packages/server-commercial/src/public/package-grants.ts"
+          ],
+          "gap": "Selection commands (work role, workspace/company preference, saved device) are native, and legacy acceptance verified all-Company/branch/department coverage. The product/workspace enumeration and package-admission read that build the chooser are still TS application code reading each Holding DB, so the workflow's read source is not migrated even though its final selection commit is."
+        },
+        {
+          "id": "apps:single-product-direct-entry",
+          "qualification": "partial",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/workplace/src/lib/product-entry.ts",
+            "packages/workplace/src/routes/product-entry/page.tsx",
+            "apps/launcher/src/app/product-entry/page.tsx",
+            "apps/launcher/src/app/applications/page.tsx"
+          ],
+          "gap": "Transport-only routing/presentation: it filters the authorized choices returned by the TS product selection and redirects a single authorized product. No business logic lives in this path, so there is no backend implementation gap; the ledger's partial state is the missing authenticated product-host browser acceptance, which is A1-deferred."
+        },
+        {
+          "id": "apps:dirty-product-switch",
+          "qualification": "verified",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/workplace/src/components/product-account-provider.tsx",
+            "packages/workplace/src/components/apps-sidebar.tsx"
+          ],
+          "gap": "Transport/presentation only: a client-side dirty boundary opens the unsaved-work dialog across the product switch and Keep editing preserves the page. No backend execution; verified evidence covers desktop and explicitly excludes mobile."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "native_work_roles_router (role select + workspace/company prefs)",
+          "path": "src/composition/src/native_work_roles_http.rs:39",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4845"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "native Account companies reader",
+          "path": "packages/server-identity_access/src/adapters/native-account-companies.ts",
+          "mountedAt": [
+            "packages/server-identity_access/src/adapters/authorization.ts:38"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "native handbook client (Apps knowledge routes)",
+          "path": "packages/feature-collaboration/src/adapters/server/native-handbook-page.ts",
+          "mountedAt": [
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "native Operations workspace/detail/command client",
+          "path": "packages/workplace/src/lib/native-operations.ts",
+          "mountedAt": [
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "apps product-selection read",
+          "path": "packages/server-work_projection/src/application/product-launcher.ts",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "executive report/MCP owner port",
+          "path": "packages/server-runtime/src/adapters/executive/reports.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "apps-product-selection-read",
+          "kind": "read",
+          "detail": "The chooser read (holding/product/company/branch/department availability, purchase admission, module readiness, recovery links) is a TS application port with per-Holding SQL. Move it to a native owner read while keeping the HTML choice page as transport; the existing legacy acceptance already fixes the required coverage semantics.",
+          "suggestedPaths": [
+            "packages/server-work_projection/src/domain/product_selection.rs",
+            "packages/server-work_projection/src/application/product_selection.rs",
+            "packages/server-work_projection/src/adapters/product_selection_postgres.rs",
+            "packages/server-work_projection/src/adapters/product_selection_http.rs",
+            "packages/server-work_projection/src/adapters/product-launcher.ts"
+          ]
+        },
+        {
+          "id": "apps-executive-owner-port",
+          "kind": "read",
+          "detail": "Executive report library/view/data/evidence/recipients and the scoped MCP tools have no owner port or crate; they execute in server-runtime with SQL. A bounded native read first (library + report view + authorized evidence) is the smallest slice that removes authoritative TS reads without needing the full generation job or external MCP provider.",
+          "suggestedPaths": [
+            "src/composition/src/executive_reports.rs",
+            "packages/server-runtime/src/domain/executive_reports.rs",
+            "packages/server-runtime/src/application/executive_reports.rs",
+            "packages/server-runtime/src/adapters/executive/reports.ts",
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts"
+          ]
+        },
+        {
+          "id": "apps-executive-mcp-command",
+          "kind": "command",
+          "detail": "Scoped MCP tool execution, AI context, generation queue/cancel/drain and external connections are TS with provider-dependent behavior. Native implementation must preserve tool scoping, quota and private-session rules; real provider calls stay A1.",
+          "suggestedPaths": [
+            "packages/server-runtime/src/adapters/executive/mcp.ts",
+            "packages/server-runtime/src/adapters/executive/generation.ts",
+            "packages/server-runtime/src/adapters/executive/connections.ts",
+            "packages/feature-apps/src/routes/api/mcp/executive/route.ts"
+          ]
+        },
+        {
+          "id": "apps-executive-workspace-mount",
+          "kind": "mount",
+          "detail": "Any new Executive owner crate needs root Cargo membership and a composition mount; both are lead-owned. Without that decision the Apps worker cannot bind a native route and no stub/fallback may be counted as implementation.",
+          "suggestedPaths": [
+            "Cargo.toml",
+            "src/composition/src/module_assembly.rs",
+            "src/composition/src/private_development_api.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-work_projection/src/application/product-launcher.ts",
+          "reason": "Authoritative product/workspace/company selection projection and recovery-link policy.",
+          "removalCondition": "Native product-selection read returns the same authorized choices/admission labels and the workspace/product-entry pages select it; TS application removed."
+        },
+        {
+          "path": "packages/server-runtime/src/adapters/executive/reports.ts",
+          "reason": "Authoritative executive report library, view, data, sharing and ownership reads/writes with SQL.",
+          "removalCondition": "Native Executive report read/write port is mounted and the Apps executive route proxies it; retained suite assertions move to native."
+        },
+        {
+          "path": "packages/server-runtime/src/adapters/executive/mcp.ts",
+          "reason": "Scoped MCP tool schemas/execution and bounded result policy remain TS.",
+          "removalCondition": "Native MCP execution port preserves tool scoping/quota and the Apps MCP route proxies native only."
+        },
+        {
+          "path": "packages/server-runtime/src/adapters/executive/generation.ts",
+          "reason": "Report generation queue/cancel/history and drain worker are TS.",
+          "removalCondition": "Native durable generation job with lease/retry replaces drainExecutiveGeneration and the TS worker import is removed."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.surface.apps.product-selection-read",
+          "title": "Native Apps product/workspace selection read",
+          "paths": [
+            "packages/server-work_projection/src/domain/product_selection.rs",
+            "packages/server-work_projection/src/application/product_selection.rs",
+            "packages/server-work_projection/src/adapters/product_selection_postgres.rs",
+            "packages/server-work_projection/src/adapters/product_selection_http.rs",
+            "packages/server-work_projection/src/adapters/product-launcher.ts",
+            "packages/server-work_projection/src/application/product-launcher.ts",
+            "packages/workplace/src/routes/product-entry/page.tsx",
+            "packages/workplace/src/routes/launch/route.ts",
+            "tests/unit/shared.ui/product-launcher.test.ts",
+            "tests/integration/identity_access/product-workspace.test.ts"
+          ],
+          "resources": [
+            "surface:apps"
+          ],
+          "dependsOn": [
+            "inventory.surface.apps",
+            "migrate.work_projection",
+            "migrate.organization",
+            "ports.authority"
+          ],
+          "requiredPorts": [
+            "work_projection:product.selection.read",
+            "organization:workspace.choices",
+            "commercial:package.admission"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-work-projection",
+            "cargo check -p erpx-service --features existing-business",
+            "bun run test:unit -- --suite=shared.ui.product-launcher.unit",
+            "bun run test:unit -- --suite=identity_access.product-workspace.unit",
+            "bun run test:integration -- --suite=identity_access.product-workspace.integration"
+          ]
+        },
+        {
+          "id": "migrate.surface.apps.executive-report-mcp",
+          "title": "Native Executive report read and scoped MCP execution",
+          "paths": [
+            "packages/server-runtime/src/domain/executive_reports.rs",
+            "packages/server-runtime/src/application/executive_reports.rs",
+            "packages/server-runtime/src/adapters/executive/reports.ts",
+            "packages/server-runtime/src/adapters/executive/mcp.ts",
+            "packages/server-runtime/src/adapters/executive/generation.ts",
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
+            "packages/feature-apps/src/routes/api/mcp/executive/route.ts",
+            "tests/integration/shared.executive/executive-canvas.test.ts",
+            "tests/integration/shared.executive/executive-mcp.test.ts"
+          ],
+          "resources": [
+            "surface:apps"
+          ],
+          "dependsOn": [
+            "inventory.surface.apps",
+            "migrate.runtime",
+            "ports.common",
+            "ports.agent"
+          ],
+          "requiredPorts": [
+            "runtime:executive.reports",
+            "runtime:executive.mcp"
+          ],
+          "checks": [
+            "cargo check -p erpx-service --features existing-business",
+            "bun run test:integration -- --suite=shared.executive.executive-canvas.integration",
+            "bun run test:integration -- --suite=shared.executive.executive-mcp.integration",
+            "bun run test:unit -- --suite=runtime.executive-services.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Authenticated product-host browser acceptance for single-product direct entry (the only open part of apps:single-product-direct-entry).",
+        "Browser acceptance for Executive reports, sharing, connections and scoped MCP on a frozen candidate with normal Account/SSO entry.",
+        "Real AI provider credentials/quota and external MCP client acceptance; only fail-closed adapter behavior is in migration scope."
+      ],
+      "limitations": [
+        "Read-only inventory: no cargo, bun, typecheck or browser command was executed; no check is claimed.",
+        "Apps keeps the stable app identity in apps/launcher; its pages mostly re-export packages/workplace, which is a shared shell (lead co-sign required for edits).",
+        "The Apps surface hosts transports for many other owners (operations, collaboration, inbox, records, handbook); only the four assigned workflows are classified here.",
+        "The checkout already had unrelated modified tracked files at this SHA; this inventory changed none of them."
+      ]
+    },
+    "booking": {
+      "taskId": "inventory.surface.booking",
+      "owner": "booking",
+      "sourceSha": "3b56fa4a357106894777f35d79c677ed4333e3dd",
+      "nativePresent": false,
+      "workflows": [
+        {
+          "id": "booking:tenant-room-availability-reservation-consent-payment-callback",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/feature-booking/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts",
+            "packages/feature-booking/src/routes/book/[holdingSlug]/page.tsx",
+            "packages/feature-booking/src/routes/book/[holdingSlug]/[propertyId]/page.tsx",
+            "packages/feature-booking/src/routes/book/[holdingSlug]/manage/page.tsx",
+            "packages/server-pms/src/application/pms-booking.ts",
+            "packages/server-pms/src/adapters/pms-booking.ts",
+            "packages/server-pms/src/public/pms-booking-changes.ts",
+            "packages/server-pms/src/public/public-booking-body.ts",
+            "packages/server-pms/src/domain/booking.ts",
+            "packages/server-pms/src/application/pms-stripe.ts",
+            "packages/server-pms/src/adapters/pms-stripe.ts",
+            "packages/server-runtime/src/adapters/runtime/jobs.ts:166"
+          ],
+          "gap": "The whole public booking surface is TS: catalog/availability/quote, reservation create with Idempotency-Key, manage/cancel/recover, guest document, change/cancel proposals, and Stripe payment status/reconcile/drain all execute in server-pms application/adapters with direct SQL and provider calls. The native PMS crate exposes only room-board/front-desk reads and stay/room commands, and its public router (pms_http_router) has no booking/reservation or public route; there is no native booking port to mount."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "pms_http_router (room-board/front-desk only)",
+          "path": "packages/server-pms/src/adapters/pms_http.rs:306",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4162"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "native PMS board/front-desk SSR transport",
+          "path": "packages/feature-pms/src/adapters/server/native-pms.ts",
+          "mountedAt": [
+            "packages/workplace/src/lib/native-pms.ts"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "public booking catalog/availability/reservation router",
+          "path": "packages/feature-booking/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts",
+          "mountedAt": [
+            "packages/feature-booking/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts"
+          ],
+          "status": "missing"
+        },
+        {
+          "name": "booking payment reconcile/drain job",
+          "path": "packages/server-pms/src/application/pms-booking.ts:788",
+          "mountedAt": [
+            "packages/server-runtime/src/adapters/runtime/jobs.ts:166"
+          ],
+          "status": "missing"
+        },
+        {
+          "name": "booking refund provider adapter",
+          "path": "packages/server-pms/src/application/pms-stripe.ts",
+          "mountedAt": [
+            "packages/server-runtime/src/adapters/runtime/jobs.ts:167"
+          ],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "booking-public-reservation-command",
+          "kind": "command",
+          "detail": "Reservation creation, quote, catalog/availability, manage-token read, cancel/recover, guest document and change/cancel proposals are TS with the Holding DB and mail/Stripe side effects. A native owner port must preserve tenant isolation by holding slug, rate/policy/availability locking, Idempotency-Key/replay, consent capture, bounded body and privacy headers.",
+          "suggestedPaths": [
+            "packages/server-pms/src/domain/public_booking.rs",
+            "packages/server-pms/src/application/public_booking.rs",
+            "packages/server-pms/src/adapters/public_booking_postgres.rs",
+            "packages/server-pms/src/adapters/public_booking_http.rs",
+            "packages/server-pms/src/public/public_booking.rs",
+            "packages/feature-booking/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts"
+          ]
+        },
+        {
+          "id": "booking-payment-provider",
+          "kind": "provider",
+          "detail": "Stripe checkout creation, payment status, reconcile, refund request/approve/process and the drain loop are TS provider adapters invoked from server-runtime jobs. Native adapters must keep webhook/polling failure, retry/lease, refund approval separation and fail-closed configuration; live keys stay A1.",
+          "suggestedPaths": [
+            "packages/server-pms/src/domain/booking_payment.rs",
+            "packages/server-pms/src/application/booking_payment.rs",
+            "packages/server-pms/src/adapters/booking_payment_stripe.rs",
+            "packages/server-pms/src/adapters/booking_payment_worker.rs",
+            "packages/server-runtime/src/adapters/runtime/jobs.ts"
+          ]
+        },
+        {
+          "id": "booking-presentation-read",
+          "kind": "read",
+          "detail": "Booking catalog/property/manage pages read through bookingPresentationQueries/bookingPaymentPresentationQueries (TS) rather than an owner read port; the page is presentation but the query selection is authoritative TS business read. Keep the page, move the query behind a native read.",
+          "suggestedPaths": [
+            "packages/server-pms/src/domain/booking_presentation.rs",
+            "packages/server-pms/src/application/booking_presentation.rs",
+            "packages/server-pms/src/adapters/booking_presentation_http.rs",
+            "packages/server-pms/src/public/presentation-context-queries.ts",
+            "packages/feature-booking/src/routes/book/[holdingSlug]/[propertyId]/page.tsx"
+          ]
+        },
+        {
+          "id": "booking-composition-mount",
+          "kind": "mount",
+          "detail": "New public booking/payment routers and the worker must be assembled by the lead in composition; the surface worker cannot edit src/composition and must not invent a TS fallback for a configured native failure.",
+          "suggestedPaths": [
+            "src/composition/src/pms.rs",
+            "src/composition/src/private_development_api.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/feature-booking/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts",
+          "reason": "Authoritative public booking ingress: action dispatch, origin check, rate limits, token extraction, validation and error mapping around TS owner services.",
+          "removalCondition": "Native public booking router is mounted at the same path with equivalent origin/rate-limit/privacy behavior; this file becomes a thin proxy or is deleted."
+        },
+        {
+          "path": "packages/server-pms/src/application/pms-booking.ts",
+          "reason": "Authoritative reservation catalog/availability/quote/create/manage/cancel/recover/change and payment drain logic with SQL and mail effects.",
+          "removalCondition": "Native public booking and payment ports own each operation and pass pms.booking.integration plus the public e2e cases; TS application deleted."
+        },
+        {
+          "path": "packages/server-pms/src/application/pms-stripe.ts",
+          "reason": "Authoritative Stripe checkout/refund/reconcile and drain behavior.",
+          "removalCondition": "Native provider adapter preserves retry/lease/refund approval and the runtime worker selects it; TS provider deleted."
+        },
+        {
+          "path": "packages/server-pms/src/public/presentation-context-queries.ts",
+          "reason": "Authoritative booking presentation query selection (catalog, property, payment return) used by the booking pages.",
+          "removalCondition": "Native booking presentation read is mounted and the pages consume it; TS query module removed."
+        },
+        {
+          "path": "packages/server-runtime/src/adapters/runtime/jobs.ts",
+          "reason": "TS job loop invokes drainBookingPayments/drainPmsStripePayments (lines 166-167).",
+          "removalCondition": "Native booking payment worker is registered in the Rust jobs runtime and the TS imports/loop entries are removed."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.surface.booking.public-reservation",
+          "title": "Native public booking catalog, availability and reservation lifecycle",
+          "paths": [
+            "packages/server-pms/src/domain/public_booking.rs",
+            "packages/server-pms/src/application/public_booking.rs",
+            "packages/server-pms/src/adapters/public_booking_postgres.rs",
+            "packages/server-pms/src/adapters/public_booking_http.rs",
+            "packages/server-pms/src/public/public_booking.rs",
+            "packages/feature-booking/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts",
+            "packages/feature-booking/src/routes/book/[holdingSlug]/[propertyId]/page.tsx",
+            "packages/feature-booking/src/routes/book/[holdingSlug]/manage/page.tsx",
+            "tests/unit/pms/rust-pms-public-booking.test.rs",
+            "tests/integration/pms/rust-pms-public-booking-postgres.test.rs"
+          ],
+          "resources": [
+            "surface:booking"
+          ],
+          "dependsOn": [
+            "inventory.surface.booking",
+            "migrate.pms",
+            "ports.trade"
+          ],
+          "requiredPorts": [
+            "pms:public-booking.command",
+            "pms:public-booking.read"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-pms",
+            "cargo check -p erpx-service --features existing-business",
+            "bun run test:integration -- --suite=pms.booking.integration",
+            "bun run test:e2e -- --suite=pms.booking.e2e"
+          ]
+        },
+        {
+          "id": "migrate.surface.booking.payment-callback",
+          "title": "Native booking payment status, reconcile and refunds",
+          "paths": [
+            "packages/server-pms/src/domain/booking_payment.rs",
+            "packages/server-pms/src/application/booking_payment.rs",
+            "packages/server-pms/src/adapters/booking_payment_stripe.rs",
+            "packages/server-pms/src/adapters/booking_payment_worker.rs",
+            "packages/server-pms/src/public/pms-stripe.ts",
+            "packages/server-pms/src/application/pms-stripe.ts",
+            "packages/server-pms/src/adapters/pms-stripe.ts",
+            "packages/server-runtime/src/adapters/runtime/jobs.ts"
+          ],
+          "resources": [
+            "surface:booking"
+          ],
+          "dependsOn": [
+            "migrate.surface.booking.public-reservation",
+            "migrate.pms",
+            "ports.trade"
+          ],
+          "requiredPorts": [
+            "pms:booking.payment",
+            "finance:deferred.effects"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-pms",
+            "cargo check -p erpx-service --features existing-business",
+            "bun run test:integration -- --suite=pms.booking.integration",
+            "bun run test:e2e -- --suite=pms.booking-payment-recovery.e2e"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Real Stripe test/live keys, checkout return and refund settlement verification; only adapter behavior and fail-closed configuration are migration scope.",
+        "Booking confirmation/manage-link email delivery through a real provider.",
+        "Unauthenticated guest browser journeys for catalog, quote, reservation, change/cancel and payment return on a frozen candidate.",
+        "Desktop and mobile visual checks of the public booking pages."
+      ],
+      "limitations": [
+        "Read-only inventory: no cargo, bun, typecheck or browser command was executed; no check is claimed.",
+        "nativePresent is false for this surface workflow: the Rust PMS crate covers room-board/front-desk reads and stay/room commands, which are recorded under inventory.pms and do not implement public booking.",
+        "Some packet paths (payment test names, worker wiring) are proposed locations; the lead must confirm exact test-file registration before dispatch.",
+        "The checkout already had unrelated modified tracked files at this SHA; this inventory changed none of them."
       ]
     },
     "forms": {
@@ -15462,9 +16239,7 @@
         "packages/workplace/src/routes/api/v1/account/preferences/route.ts",
         "packages/workplace/src/routes/api/v1/account/time-preference/route.ts",
         "packages/server-identity_access/src/adapters/account-preferences.ts",
-        "packages/server-identity_access/src/adapters/account-profile.ts",
-        "tests/unit/identity_access/rust-account-preferences.test.rs",
-        "tests/integration/identity_access/rust-account-preferences-postgres.test.rs"
+        "packages/server-identity_access/src/adapters/account-profile.ts"
       ],
       "resources": [
         "surface:account"
@@ -15482,6 +16257,212 @@
         "cargo check -p erpx-service --features existing-business",
         "bun run test:unit -- --suite=identity_access.account-preferences.unit",
         "bun run test:integration -- --suite=identity_access.rust-account-security-postgres.integration"
+      ]
+    },
+    {
+      "owner": "admin",
+      "taskId": "inventory.surface.admin",
+      "id": "migrate.surface.admin.platform-operations-native-only",
+      "title": "Make Admin platform operations native-only and retire the retained fallback",
+      "paths": [
+        "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts",
+        "packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts",
+        "packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
+        "packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts",
+        "packages/feature-platform_administration/src/lib/native-platform-administration.ts",
+        "packages/server-platform_administration/src/adapters/operations.ts"
+      ],
+      "resources": [
+        "surface:admin"
+      ],
+      "dependsOn": [
+        "inventory.surface.admin",
+        "migrate.platform_administration",
+        "ports.authority"
+      ],
+      "requiredPorts": [
+        "platform_administration:operations"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-platform-administration",
+        "cargo check -p erpx-service --features existing-business",
+        "bun run test:unit -- --suite=platform_administration.native-platform-administration-transport.unit",
+        "bun run test:integration -- --suite=platform_administration.rust-platform-administration-postgres.integration"
+      ]
+    },
+    {
+      "owner": "admin",
+      "taskId": "inventory.surface.admin",
+      "id": "migrate.surface.admin.provider-legacy-grants",
+      "title": "Mount native Commercial grant preview/apply for Admin legacy review",
+      "paths": [
+        "packages/feature-admin/src/routes/api/v1/platform/commercial/[[...path]]/route.ts",
+        "packages/feature-commercial/src/components/legacy-grant-review.tsx",
+        "packages/server-commercial/src/adapters/provider-commercial.ts",
+        "packages/server-commercial/src/adapters/legacy-grant-migration.ts",
+        "packages/server-commercial/src/adapters/package-grants.ts"
+      ],
+      "resources": [
+        "surface:admin"
+      ],
+      "dependsOn": [
+        "inventory.surface.admin",
+        "migrate.commercial",
+        "ports.trade"
+      ],
+      "requiredPorts": [
+        "commercial:package-grant.batch"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-commercial",
+        "cargo check -p erpx-service --features existing-business",
+        "bun run test:integration -- --suite=commercial.provider-legacy-grants.integration",
+        "bun run test:unit -- --suite=identity_access.iam-page-permissions.unit"
+      ]
+    },
+    {
+      "owner": "apps",
+      "taskId": "inventory.surface.apps",
+      "id": "migrate.surface.apps.product-selection-read",
+      "title": "Native Apps product/workspace selection read",
+      "paths": [
+        "packages/server-work_projection/src/domain/product_selection.rs",
+        "packages/server-work_projection/src/application/product_selection.rs",
+        "packages/server-work_projection/src/adapters/product_selection_postgres.rs",
+        "packages/server-work_projection/src/adapters/product_selection_http.rs",
+        "packages/server-work_projection/src/adapters/product-launcher.ts",
+        "packages/server-work_projection/src/application/product-launcher.ts",
+        "packages/workplace/src/routes/product-entry/page.tsx",
+        "packages/workplace/src/routes/launch/route.ts",
+        "tests/unit/shared.ui/product-launcher.test.ts",
+        "tests/integration/identity_access/product-workspace.test.ts"
+      ],
+      "resources": [
+        "surface:apps"
+      ],
+      "dependsOn": [
+        "inventory.surface.apps",
+        "migrate.work_projection",
+        "migrate.organization",
+        "ports.authority"
+      ],
+      "requiredPorts": [
+        "work_projection:product.selection.read",
+        "organization:workspace.choices",
+        "commercial:package.admission"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-work-projection",
+        "cargo check -p erpx-service --features existing-business",
+        "bun run test:unit -- --suite=shared.ui.product-launcher.unit",
+        "bun run test:unit -- --suite=identity_access.product-workspace.unit",
+        "bun run test:integration -- --suite=identity_access.product-workspace.integration"
+      ]
+    },
+    {
+      "owner": "apps",
+      "taskId": "inventory.surface.apps",
+      "id": "migrate.surface.apps.executive-report-mcp",
+      "title": "Native Executive report read and scoped MCP execution",
+      "paths": [
+        "packages/server-runtime/src/domain/executive_reports.rs",
+        "packages/server-runtime/src/application/executive_reports.rs",
+        "packages/server-runtime/src/adapters/executive/reports.ts",
+        "packages/server-runtime/src/adapters/executive/mcp.ts",
+        "packages/server-runtime/src/adapters/executive/generation.ts",
+        "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
+        "packages/feature-apps/src/routes/api/mcp/executive/route.ts",
+        "tests/integration/shared.executive/executive-canvas.test.ts",
+        "tests/integration/shared.executive/executive-mcp.test.ts"
+      ],
+      "resources": [
+        "surface:apps"
+      ],
+      "dependsOn": [
+        "inventory.surface.apps",
+        "migrate.runtime",
+        "ports.common",
+        "ports.agent"
+      ],
+      "requiredPorts": [
+        "runtime:executive.reports",
+        "runtime:executive.mcp"
+      ],
+      "checks": [
+        "cargo check -p erpx-service --features existing-business",
+        "bun run test:integration -- --suite=shared.executive.executive-canvas.integration",
+        "bun run test:integration -- --suite=shared.executive.executive-mcp.integration",
+        "bun run test:unit -- --suite=runtime.executive-services.unit"
+      ]
+    },
+    {
+      "owner": "booking",
+      "taskId": "inventory.surface.booking",
+      "id": "migrate.surface.booking.public-reservation",
+      "title": "Native public booking catalog, availability and reservation lifecycle",
+      "paths": [
+        "packages/server-pms/src/domain/public_booking.rs",
+        "packages/server-pms/src/application/public_booking.rs",
+        "packages/server-pms/src/adapters/public_booking_postgres.rs",
+        "packages/server-pms/src/adapters/public_booking_http.rs",
+        "packages/server-pms/src/public/public_booking.rs",
+        "packages/feature-booking/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts",
+        "packages/feature-booking/src/routes/book/[holdingSlug]/[propertyId]/page.tsx",
+        "packages/feature-booking/src/routes/book/[holdingSlug]/manage/page.tsx",
+        "tests/unit/pms/rust-pms-public-booking.test.rs",
+        "tests/integration/pms/rust-pms-public-booking-postgres.test.rs"
+      ],
+      "resources": [
+        "surface:booking"
+      ],
+      "dependsOn": [
+        "inventory.surface.booking",
+        "migrate.pms",
+        "ports.trade"
+      ],
+      "requiredPorts": [
+        "pms:public-booking.command",
+        "pms:public-booking.read"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-pms",
+        "cargo check -p erpx-service --features existing-business",
+        "bun run test:integration -- --suite=pms.booking.integration",
+        "bun run test:e2e -- --suite=pms.booking.e2e"
+      ]
+    },
+    {
+      "owner": "booking",
+      "taskId": "inventory.surface.booking",
+      "id": "migrate.surface.booking.payment-callback",
+      "title": "Native booking payment status, reconcile and refunds",
+      "paths": [
+        "packages/server-pms/src/domain/booking_payment.rs",
+        "packages/server-pms/src/application/booking_payment.rs",
+        "packages/server-pms/src/adapters/booking_payment_stripe.rs",
+        "packages/server-pms/src/adapters/booking_payment_worker.rs",
+        "packages/server-pms/src/public/pms-stripe.ts",
+        "packages/server-pms/src/application/pms-stripe.ts",
+        "packages/server-pms/src/adapters/pms-stripe.ts",
+        "packages/server-runtime/src/adapters/runtime/jobs.ts"
+      ],
+      "resources": [
+        "surface:booking"
+      ],
+      "dependsOn": [
+        "migrate.surface.booking.public-reservation",
+        "migrate.pms",
+        "ports.trade"
+      ],
+      "requiredPorts": [
+        "pms:booking.payment",
+        "finance:deferred.effects"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-pms",
+        "cargo check -p erpx-service --features existing-business",
+        "bun run test:integration -- --suite=pms.booking.integration",
+        "bun run test:e2e -- --suite=pms.booking-payment-recovery.e2e"
       ]
     },
     {
@@ -16008,7 +16989,7 @@
     }
   ],
   "summary": {
-    "ownersInventoried": 45,
-    "packetsProposed": 120
+    "ownersInventoried": 48,
+    "packetsProposed": 126
   }
 }

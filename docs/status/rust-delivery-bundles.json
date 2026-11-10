@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 184,
+    "revision": 194,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T16:39:16.795Z",
-      "expiresAt": "2026-11-10T17:09:16.795Z",
+      "heartbeatAt": "2026-11-10T16:43:22.432Z",
+      "expiresAt": "2026-11-10T17:13:22.432Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -9320,7 +9320,7 @@
         "id": "G1",
         "title": "Inventory all backend consumers",
         "planRef": "docs/production-plan.md#rust-migration-current",
-        "status": "in_progress",
+        "status": "done",
         "successCriteria": "All 41 owners, 206 workflow IDs, seven surfaces and auxiliary APIs/jobs/providers have source inventory and bounded tasks.",
         "acceptance": false,
         "category": "migration"
@@ -9915,8 +9915,15 @@
         "resources": [
           "owner:organization"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-10T16:43:00.443Z",
+          "heartbeatAt": "2026-11-10T16:43:22.432Z",
+          "expiresAt": "2026-11-10T17:13:22.432Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10764,8 +10771,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:33:49.612Z",
-          "heartbeatAt": "2026-11-10T16:39:16.795Z",
-          "expiresAt": "2026-11-10T17:09:16.795Z",
+          "heartbeatAt": "2026-11-10T16:43:22.432Z",
+          "expiresAt": "2026-11-10T17:13:22.432Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11142,8 +11149,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T16:38:48.134Z",
-          "heartbeatAt": "2026-11-10T16:39:16.795Z",
-          "expiresAt": "2026-11-10T17:09:16.795Z",
+          "heartbeatAt": "2026-11-10T16:43:22.432Z",
+          "expiresAt": "2026-11-10T17:13:22.432Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13309,22 +13316,15 @@
         "resources": [
           "inventory:surface:account"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-10T16:27:32.314Z",
-          "heartbeatAt": "2026-11-10T16:39:16.795Z",
-          "expiresAt": "2026-11-10T17:09:16.795Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/feature-account/src and apps/account/src; map native owner dependencies and refine exact wiring paths excluding external CSS WIP.",
+        "nextAction": "Surface inventory recorded; refine the surface packet after its owner ports migrate",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -13343,14 +13343,14 @@
         "workstream": "S16",
         "kind": "migration",
         "title": "Wire account surface to native owners",
-        "scope": "Migrate central login/profile/switch/security/package entry, Admin settings/account/provisioning and Apps entry/Work/Executive routing; finish Booking reservation/payment callbacks and tenant/token/invitation/private-file/document/published-form consumers through their owner ports. Surfaces belong to the 206 workflow denominator, not seven additional certified owners. Keep presentation/transport; no UI redesign.",
+        "scope": "Bind the account surface to native account/SSO/invitation/profile/preferences/security/package ports; remove the stale TS invitation shadowing and the local product/quick-access fallbacks. Surface files only: apps/account/src/** and packages/feature-account/src/**; Better Auth transport and native owner routers stay as-is. No local TS fallback once the native port is selected; explicit 503 when the owner port is unavailable.",
         "dependsOn": [
-          "inventory.surface.account"
+          "inventory.surface.account",
+          "migrate.identity_access"
         ],
         "requiredPorts": [],
         "allowedPaths": [
-          "apps/account/src/app/page.tsx",
-          "apps/account/src/app/layout.tsx",
+          "apps/account/src/**",
           "packages/feature-account/src/**"
         ],
         "resources": [
@@ -13364,10 +13364,10 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refine exact HTTP/SSR files with lead, connect native owner ports, remove fallback and check tenant/token/private-file authority through focused transport/browser verification.",
+        "nextAction": "After its owner packets complete, bind the account surface routes to the native owner ports, run surface transport tests/typecheck and report the exact diff to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": true
+        "scopeRefinementRequired": false
       },
       {
         "id": "inventory.surface.admin",
@@ -13392,22 +13392,15 @@
         "resources": [
           "inventory:surface:admin"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-10T16:27:32.342Z",
-          "heartbeatAt": "2026-11-10T16:39:16.795Z",
-          "expiresAt": "2026-11-10T17:09:16.795Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/feature-admin/src and apps/admin/src; map native owner dependencies and refine exact wiring paths excluding external CSS WIP.",
+        "nextAction": "Surface inventory recorded; refine the surface packet after its owner ports migrate",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -13425,14 +13418,18 @@
         "workstream": "S16",
         "kind": "migration",
         "title": "Wire admin surface to native owners",
-        "scope": "Migrate central login/profile/switch/security/package entry, Admin settings/account/provisioning and Apps entry/Work/Executive routing; finish Booking reservation/payment callbacks and tenant/token/invitation/private-file/document/published-form consumers through their owner ports. Surfaces belong to the 206 workflow denominator, not seven additional certified owners. Keep presentation/transport; no UI redesign.",
+        "scope": "Bind Admin platform operations to the native platform router without the TS fallback, retire provider/legacy-grant TS authority in favour of the unmounted native grant commands, and keep Organization/IAM owner authority in their owner packages. Surface files only. No local TS fallback once the native port is selected; explicit 503 when the owner port is unavailable.",
         "dependsOn": [
-          "inventory.surface.admin"
+          "inventory.surface.admin",
+          "migrate.identity_access",
+          "migrate.platform_administration",
+          "migrate.commercial",
+          "migrate.brand"
         ],
         "requiredPorts": [],
         "allowedPaths": [
-          "apps/admin/src/app/page.tsx",
-          "apps/admin/src/app/layout.tsx"
+          "apps/admin/src/**",
+          "packages/feature-admin/src/**"
         ],
         "resources": [
           "surface:admin"
@@ -13445,10 +13442,10 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refine exact HTTP/SSR files with lead, connect native owner ports, remove fallback and check tenant/token/private-file authority through focused transport/browser verification.",
+        "nextAction": "After its owner packets complete, bind the admin surface routes to the native owner ports, run surface transport tests/typecheck and report the exact diff to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": true
+        "scopeRefinementRequired": false
       },
       {
         "id": "inventory.surface.apps",
@@ -13473,22 +13470,15 @@
         "resources": [
           "inventory:surface:apps"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-10T16:27:32.368Z",
-          "heartbeatAt": "2026-11-10T16:39:16.795Z",
-          "expiresAt": "2026-11-10T17:09:16.795Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/feature-apps/src and apps/launcher/src; map native owner dependencies and refine exact wiring paths excluding external CSS WIP.",
+        "nextAction": "Surface inventory recorded; refine the surface packet after its owner ports migrate",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -13506,14 +13496,15 @@
         "workstream": "S16",
         "kind": "migration",
         "title": "Wire apps surface to native owners",
-        "scope": "Migrate central login/profile/switch/security/package entry, Admin settings/account/provisioning and Apps entry/Work/Executive routing; finish Booking reservation/payment callbacks and tenant/token/invitation/private-file/document/published-form consumers through their owner ports. Surfaces belong to the 206 workflow denominator, not seven additional certified owners. Keep presentation/transport; no UI redesign.",
+        "scope": "Bind the launcher executive report/MCP and product-selection enumeration reads to native owner ports; keep single-product direct entry and dirty-product switch as transport-only. Surface files only: apps/launcher/src/** and packages/feature-apps/src/**. No local TS fallback once the native port is selected; explicit 503 when the owner port is unavailable.",
         "dependsOn": [
-          "inventory.surface.apps"
+          "inventory.surface.apps",
+          "migrate.platform_administration",
+          "migrate.customer_360"
         ],
         "requiredPorts": [],
         "allowedPaths": [
-          "apps/launcher/src/app/page.tsx",
-          "apps/launcher/src/app/layout.tsx",
+          "apps/launcher/src/**",
           "packages/feature-apps/src/**"
         ],
         "resources": [
@@ -13527,10 +13518,10 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refine exact HTTP/SSR files with lead, connect native owner ports, remove fallback and check tenant/token/private-file authority through focused transport/browser verification.",
+        "nextAction": "After its owner packets complete, bind the apps surface routes to the native owner ports, run surface transport tests/typecheck and report the exact diff to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": true
+        "scopeRefinementRequired": false
       },
       {
         "id": "inventory.surface.booking",
@@ -13552,22 +13543,15 @@
         "resources": [
           "inventory:surface:booking"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-10T16:27:32.396Z",
-          "heartbeatAt": "2026-11-10T16:39:16.795Z",
-          "expiresAt": "2026-11-10T17:09:16.795Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/feature-booking/src and apps/booking/src; map native owner dependencies and refine exact wiring paths excluding external CSS WIP.",
+        "nextAction": "Surface inventory recorded; refine the surface packet after its owner ports migrate",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -13582,14 +13566,15 @@
         "workstream": "S16",
         "kind": "migration",
         "title": "Wire booking surface to native owners",
-        "scope": "Migrate central login/profile/switch/security/package entry, Admin settings/account/provisioning and Apps entry/Work/Executive routing; finish Booking reservation/payment callbacks and tenant/token/invitation/private-file/document/published-form consumers through their owner ports. Surfaces belong to the 206 workflow denominator, not seven additional certified owners. Keep presentation/transport; no UI redesign.",
+        "scope": "Bind the public booking availability/reservation/consent, payment callback and refund/drain paths to native PMS reservation and Finance/provider ports; fail closed without provider credentials. Surface files only: apps/booking/src/** and packages/feature-booking/src/**. No local TS fallback once the native port is selected; explicit 503 when the owner port is unavailable.",
         "dependsOn": [
-          "inventory.surface.booking"
+          "inventory.surface.booking",
+          "migrate.pms",
+          "migrate.finance"
         ],
         "requiredPorts": [],
         "allowedPaths": [
-          "apps/booking/src/app/page.tsx",
-          "apps/booking/src/app/layout.tsx",
+          "apps/booking/src/**",
           "packages/feature-booking/src/**"
         ],
         "resources": [
@@ -13603,10 +13588,10 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refine exact HTTP/SSR files with lead, connect native owner ports, remove fallback and check tenant/token/private-file authority through focused transport/browser verification.",
+        "nextAction": "After its owner packets complete, bind the booking surface routes to the native owner ports, run surface transport tests/typecheck and report the exact diff to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": true
+        "scopeRefinementRequired": false
       },
       {
         "id": "inventory.surface.portal",
@@ -14574,8 +14559,8 @@
       "totalPackets": 48,
       "migratedPackets": 1,
       "statusCounts": {
-        "pending": 45,
-        "in_progress": 2,
+        "pending": 44,
+        "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 1,
@@ -14585,7 +14570,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T16:39:16.795Z",
+    "updatedAt": "2026-11-10T16:43:22.433Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
