@@ -64,7 +64,8 @@
     "./domain/duplicate-request": "./src/domain/duplicate-request.ts",
     "./domain/portal-invitation": "./src/domain/portal-invitation.ts",
     "./domain/access": "./src/domain/access.ts",
-    "./domain/duplicates": "./src/domain/duplicates.ts"
+    "./domain/duplicates": "./src/domain/duplicates.ts",
+    "./public/native-customer-authority": "./src/public/native-customer-authority.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
