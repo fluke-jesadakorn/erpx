@@ -195,6 +195,14 @@ async function command(
         : failure(value, 404);
     }
     const value = await reply(response, commandReplyLimit);
+    if (
+      (value as { error?: { code?: unknown } })?.error?.code ===
+      'SUPPLIER_BILL_GOODS_FX_UNSUPPORTED'
+    ) {
+      // Foreign-currency Commerce goods keep the retained goods-carrying FX
+      // posting path; only that scoped case falls through to the legacy route.
+      return undefined;
+    }
     if (response.status === expectedStatus) {
       const data = validate(value, key);
       if (!data) return closed(502, 'NATIVE_FINANCE_UNAVAILABLE', 'Unable to confirm the supplier bill.');

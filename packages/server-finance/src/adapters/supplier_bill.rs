@@ -610,6 +610,23 @@ async fn supplier_bill_posting_lines<M: PgSupplierBillMatch>(
     ),
     Error,
 > {
+    if source_type == "commerce_fulfillment" {
+        let base_currency: Option<String> = sqlx::query_scalar(
+            "SELECT c.base_currency FROM finance_accounts a \
+             JOIN finance_charts c ON c.id=a.chart_id \
+             WHERE a.id=$1 AND a.company_id=$2",
+        )
+        .bind(&invoice.debit_account_id)
+        .bind(&actor.company_id)
+        .fetch_optional(&mut *c)
+        .await?;
+        if base_currency.as_deref() != Some(invoice.currency.as_str()) {
+            return Err(conflict(
+                "SUPPLIER_BILL_GOODS_FX_UNSUPPORTED",
+                "Use the retained Commerce goods FX posting path for this foreign-currency matched bill.",
+            ));
+        }
+    }
     let matched = if source_type == "commerce_fulfillment" {
         matches.load(c, &actor.company_id, &invoice.id).await?
     } else {
