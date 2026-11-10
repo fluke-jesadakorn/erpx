@@ -13,7 +13,9 @@ use erpx_server_learning::public::learning::AssignmentRow;
 use erpx_server_maintenance::public::read::{MaintenancePlanRow, MaintenanceWorkRow};
 use erpx_server_marketing::public::lead_candidate::MarketingLeadCandidateRow;
 use erpx_server_operations::public::field_exceptions::ExceptionWork;
-use erpx_server_organization::public::organization_nodes::{ChangeRow, NodeChangeState};
+use erpx_server_organization::public::organization_nodes::{
+    ChangeRow, NodeChangeState, WorkspaceChange,
+};
 use erpx_server_quality::public::quality_read::{HoldStatus, InspectionResult, QualityHold};
 use erpx_server_support::public::incident::IncidentWorkItem;
 use erpx_server_support::public::session::SessionWorkItem;
@@ -600,6 +602,51 @@ pub fn organization_change_items(
         .collect()
 }
 
+/// Mirrors `organizationChangeWorkItems` from the owner workspace rows. The
+/// owner read already computed `can_review` with retained same-person facts.
+pub fn organization_workspace_change_items(
+    changes: &[WorkspaceChange],
+    actor_user_id: &str,
+    company_id: &str,
+) -> Vec<WorkItemFact> {
+    changes
+        .iter()
+        .map(|change| {
+            let own = change.requested_by == actor_user_id;
+            let review = change.can_review;
+            let correct = own && matches!(change.state.as_str(), "draft" | "rejected");
+            let completed = matches!(change.state.as_str(), "applied" | "cancelled");
+            let can_act = review || correct;
+            WorkItemFact {
+                id: format!("organization_change:{}", change.id),
+                kind: "organization_change".into(),
+                queue: if completed {
+                    WorkQueue::Completed
+                } else if can_act {
+                    WorkQueue::Todo
+                } else {
+                    WorkQueue::Waiting
+                },
+                can_act: Some(can_act),
+                action_kind: None,
+                relationships: vec![if own {
+                    "requested".to_owned()
+                } else if review {
+                    "approval".to_owned()
+                } else {
+                    "team".to_owned()
+                }],
+                updated_at: change.updated_at,
+                source_id: Some(change.id.clone()),
+                href: format!(
+                    "/people/organization?view=legacy&company={company_id}&tab=changes&changeId={}#organization-change-{}",
+                    change.id, change.id
+                ),
+            }
+        })
+        .collect()
+}
+
 pub struct BenefitElectionWorkRow {
     pub election: BenefitElectionRow,
     /// Owner read fact; the workspace election row does not carry it.
@@ -814,6 +861,63 @@ mod tests {
         assert_eq!(items[0].updated_at, 9);
         let waiting = maintenance_items(&[row], "someone", false);
         assert_eq!(waiting[0].queue, WorkQueue::Waiting);
+        assert_eq!(waiting[0].relationships, ["team"]);
+    }
+
+    #[test]
+    fn organization_workspace_rows_use_owner_review_and_requester_facts() {
+        let base = WorkspaceChange {
+            id: "change".into(),
+            target_node_id: None,
+            action: "create".into(),
+            node_kind: "branch".into(),
+            slug: Some("branch".into()),
+            display_name: "Branch".into(),
+            branch_id: None,
+            source_branch_id: None,
+            expected_node_version: None,
+            state: "submitted".into(),
+            version: 1,
+            requested_by: "other".into(),
+            reviewed_by: None,
+            reason: "reason".into(),
+            review_reason: None,
+            created_at: 1,
+            updated_at: 2,
+            reviewed_at: None,
+            applied_at: None,
+            can_review: true,
+            events: Vec::new(),
+        };
+        let review = organization_workspace_change_items(&[base.clone()], "user", "company");
+        assert_eq!(review[0].queue, WorkQueue::Todo);
+        assert_eq!(review[0].can_act, Some(true));
+        assert_eq!(review[0].relationships, ["approval"]);
+        assert!(review[0].href.contains("changeId=change"));
+
+        let own = organization_workspace_change_items(
+            &[WorkspaceChange {
+                requested_by: "user".into(),
+                can_review: false,
+                state: "draft".into(),
+                ..base.clone()
+            }],
+            "user",
+            "company",
+        );
+        assert_eq!(own[0].queue, WorkQueue::Todo);
+        assert_eq!(own[0].relationships, ["requested"]);
+
+        let waiting = organization_workspace_change_items(
+            &[WorkspaceChange {
+                can_review: false,
+                ..base
+            }],
+            "user",
+            "company",
+        );
+        assert_eq!(waiting[0].queue, WorkQueue::Waiting);
+        assert_eq!(waiting[0].can_act, Some(false));
         assert_eq!(waiting[0].relationships, ["team"]);
     }
 

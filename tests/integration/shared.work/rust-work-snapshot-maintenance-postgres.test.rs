@@ -50,8 +50,10 @@ async fn seed(pool: &DatabasePool) {
     facts::seed_work(pool).await;
     sqlx::raw_sql(
         "INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) \
-         VALUES('*','custom_native_authority',3,'[\"records.read\",\"records.write\",\"records.review\",\"module.maintenance.read\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0);\
-         UPDATE iam_roles SET published_revision=3 WHERE id='custom_native_authority';\
+         VALUES('*','custom_native_authority',4,'[\"records.read\",\"records.write\",\"records.review\",\"module.maintenance.read\",\"organization.manage\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0);\
+         UPDATE iam_roles SET published_revision=4 WHERE id='custom_native_authority';\
+         UPDATE assignments SET modules_json='[\"maintenance\",\"organization\"]' WHERE id='grant';\
+         INSERT INTO organization_node_changes(id,company_id,action,node_kind,slug,display_name,state,version,requested_by,reason,created_at,updated_at) VALUES('change-1','company','create','branch','newbranch','New Branch','submitted',1,'other','Synthetic change',0,0);\
          INSERT INTO maintenance_work_events(id,work_order_id,version,action,actor_id,reason,status,owner_id,scheduled_at,downtime_started_at,downtime_ended_at,created_at) \
          VALUES('work-event-1','work',1,'create','user','Synthetic work opened','in_progress','user',NULL,NULL,NULL,0);\
          INSERT INTO maintenance_preventive_plans(id,company_id,branch_id,department_id,asset_id,title,priority,owner_id,interval_days,time_zone,first_due_local,next_due_local,next_due_at,lead_days,created_by,edited_by,created_at,updated_at) \
@@ -98,7 +100,21 @@ async fn composes_real_maintenance_reads_and_reports_unavailable_sources() {
                                     .iter()
                                     .any(|item| item.id == "maintenance_plan:plan")
                             );
+                            let change = snapshot
+                                .items
+                                .iter()
+                                .find(|item| item.id == "organization_change:change-1")
+                                .expect("organization change item");
+                            assert_eq!(change.kind, "organization_change");
+                            assert_eq!(change.queue, WorkQueue::Todo);
+                            assert_eq!(change.can_act, Some(true));
+                            assert_eq!(change.relationships, vec!["approval".to_owned()]);
                             assert!(snapshot.unavailable_sources.contains(&"supportWork"));
+                            assert!(
+                                !snapshot
+                                    .unavailable_sources
+                                    .contains(&"organizationChangeWork")
+                            );
                             assert!(!snapshot.unavailable_sources.contains(&"maintenanceWork"));
                             assert!(!snapshot.unavailable_sources.contains(&"preventivePlanWork"));
                             Ok(())

@@ -4,17 +4,23 @@
 //! serializable Holding transaction. Sources without a native owner read are
 //! reported as unavailable; they are never replaced by an empty list.
 use crate::adapters::work_snapshot_sources::{
-    approval_items, maintenance_items, preventive_plan_items,
+    approval_items, maintenance_items, organization_workspace_change_items, preventive_plan_items,
 };
 use crate::domain::work_card_availability::WorkItemFact;
+use erpx_server_identity_access::public::command_metadata::project_command_iam;
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_identity_access::public::work_context::WorkScopeKind;
 use erpx_server_maintenance::public::read::{read_maintenance_plans, read_maintenance_workspace};
+use erpx_server_organization::public::organization_nodes::{
+    ChangeFilters, OrganizationAuthority, OrganizationCommand, OrganizationCommandActor,
+    PgOrganizationNodes, read_workspace,
+};
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, TimestampMillis};
 use erpx_server_workflow::public::approval_oversight::{
     ApprovalOversightActor, PgApprovalOversight, approval_queue,
 };
+use erpx_server_workflow::public::commands::CommandJson;
 use sqlx::PgConnection;
 
 type Error = PgTransactionError<BusinessError>;
@@ -25,7 +31,6 @@ const UNAVAILABLE_SOURCES: &[&str] = &[
     "fieldFinancialWork",
     "financeExpansionWork",
     "legalWork",
-    "organizationChangeWork",
     "companyBusinessAcceptanceWork",
     "posWork",
     "crmWork",
@@ -144,9 +149,73 @@ pub async fn read_native_work_snapshot(
         ));
     }
 
+    if current.has_permission("organization.manage")
+        && current.selection().assignment().scope_kind == WorkScopeKind::Holding
+        && current.selection().workspace().branch_id.is_none()
+        && current.selection().workspace().department_id.is_none()
+    {
+        let selected = current.selection();
+        let workspace = selected.workspace();
+        let assignment = selected.assignment();
+        let actor = OrganizationCommandActor {
+            holding_id: current.holding_id().clone(),
+            command: OrganizationCommand {
+                user_id: current.user_id().clone(),
+                assignment_id: assignment.id.clone(),
+                role: assignment.role.clone(),
+                company_id: workspace.company_id.clone(),
+                branch_id: workspace
+                    .branch_id
+                    .as_ref()
+                    .map(|id| id.as_str().to_owned()),
+                department_id: workspace
+                    .department_id
+                    .as_ref()
+                    .map(|id| id.as_str().to_owned()),
+                authority: Some(OrganizationAuthority {
+                    session_id: current.session_id().as_str().to_owned(),
+                    revision: selected.revision(),
+                    assignment_version: assignment.version,
+                }),
+                iam_json: CommandJson::from_serializable(&project_command_iam(current)?)
+                    .map_err(PgTransactionError::Business)?
+                    .as_str()
+                    .to_owned(),
+                assignment_scope_kind: match assignment.scope_kind {
+                    WorkScopeKind::Holding => "holding",
+                    WorkScopeKind::Branch => "branch",
+                    WorkScopeKind::Department => "department",
+                }
+                .to_owned(),
+                assignment_scope_node_id: assignment
+                    .scope_node_id
+                    .as_ref()
+                    .map(|id| id.as_str().to_owned()),
+            },
+            modules: current.modules().to_vec(),
+            permissions: current.command_iam_metadata().permissions.clone(),
+        };
+        let mut repository = PgOrganizationNodes::new(&mut *connection);
+        let workspace = read_workspace(&mut repository, &actor, &ChangeFilters::default())
+            .await
+            .map_err(|error| match error {
+                PgTransactionError::Business(error) => PgTransactionError::Business(error),
+                PgTransactionError::Persistence(error) => PgTransactionError::Persistence(error),
+            })?;
+        items.extend(organization_workspace_change_items(
+            &workspace.node_changes,
+            current.user_id().as_str(),
+            current.selection().workspace().company_id.as_str(),
+        ));
+    }
+
     let mut unavailable_sources = UNAVAILABLE_SOURCES.to_vec();
-    unavailable_sources
-        .retain(|source| !matches!(*source, "maintenanceWork" | "preventivePlanWork"));
+    unavailable_sources.retain(|source| {
+        !matches!(
+            *source,
+            "maintenanceWork" | "preventivePlanWork" | "organizationChangeWork"
+        )
+    });
     Ok(NativeWorkSnapshot {
         items,
         unavailable_sources,
@@ -210,7 +279,12 @@ mod tests {
         let expected = ALL_SOURCES
             .iter()
             .copied()
-            .filter(|source| !matches!(*source, "maintenanceWork" | "preventivePlanWork"))
+            .filter(|source| {
+                !matches!(
+                    *source,
+                    "maintenanceWork" | "preventivePlanWork" | "organizationChangeWork"
+                )
+            })
             .collect::<Vec<_>>();
         assert_eq!(UNAVAILABLE_SOURCES, expected.as_slice());
         let mut unique = std::collections::BTreeSet::new();
