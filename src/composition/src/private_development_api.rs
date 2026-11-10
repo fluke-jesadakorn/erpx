@@ -3426,26 +3426,6 @@ async fn assemble_checked(
                     );
                 }
                 #[cfg(feature = "existing-business")]
-                maintenance_targets.push(
-                    erpx_server_maintenance::public::http::MaintenanceHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::maintenance::MaintenanceBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::maintenance::MaintenanceService::new(
-                                authorizer.clone(),
-                                crate::maintenance::MaintenanceConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
-                #[cfg(feature = "existing-business")]
                 let sales_backend = Arc::new(crate::sales::SalesBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),

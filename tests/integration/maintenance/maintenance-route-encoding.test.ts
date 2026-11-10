@@ -9,6 +9,15 @@ import MaintenancePage from "@erpx/workplace/routes/holdings/[holdingSlug]/_pres
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
 vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
+// This suite owns presenter route decoding and current Company/branch source
+// guards. It binds the page's native detail boundary to the owner read over the
+// same disposable database; native HTTP reads are gated by
+// maintenance.rust-maintenance-read-postgres.integration and the browser journey.
+vi.mock("@erpx/feature-assets/public/native-assets", async importOriginal => {
+  const actual = await importOriginal<typeof import("@erpx/feature-assets/public/native-assets")>();
+  const { maintenanceDetail } = await import("@erpx/server-maintenance/public/asset-maintenance");
+  return { ...actual, ownedMaintenanceDetail: (actor: WorkContext, _holdingSlug: string, id: string) => maintenanceDetail(actor, id) };
+});
 vi.mock("@erpx/server-work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
 let actor: WorkContext, f: Awaited<ReturnType<typeof expenseFixture>>, workId: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
