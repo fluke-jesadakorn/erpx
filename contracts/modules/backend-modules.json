@@ -73,6 +73,10 @@
         {
           "name": "erpx-server-shared::public",
           "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-workflow::public",
+          "range": ">=0.1.0, <0.2.0"
         }
       ],
       "events": [],
@@ -149,6 +153,10 @@
         {
           "name": "erpx-server-workflow::public",
           "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-inventory::public",
+          "range": ">=0.1.0, <0.2.0"
         }
       ],
       "events": [],
@@ -181,6 +189,10 @@
         {
           "name": "erpx-server-shared::public",
           "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-records::public",
+          "range": ">=0.1.0, <0.2.0"
         }
       ],
       "events": [],
@@ -208,6 +220,10 @@
         },
         {
           "name": "erpx-server-workflow::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-platform-administration::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],
@@ -301,6 +317,10 @@
         {
           "name": "erpx-server-shared::public",
           "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-files::public",
+          "range": ">=0.1.0, <0.2.0"
         }
       ],
       "events": [],
@@ -384,6 +404,10 @@
         },
         {
           "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-workflow::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],
@@ -493,6 +517,10 @@
         {
           "name": "erpx-server-shared::public",
           "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-files::public",
+          "range": ">=0.1.0, <0.2.0"
         }
       ],
       "events": [],
@@ -547,6 +575,10 @@
       "requires": [
         {
           "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-runtime::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],
@@ -659,6 +691,58 @@
         },
         {
           "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-benefits::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-collaboration::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-customer-authority::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-field-service::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-finance::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-learning::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-maintenance::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-marketing::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-operations::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-organization::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-quality::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-support::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-workflow::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],
@@ -777,6 +861,58 @@
         },
         {
           "name": "erpx-server-work-projection::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-benefits::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-billing::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-crm::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-customer-360::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-customer-authority::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-ecommerce::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-learning::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-manufacturing::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-marketing::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-procurement::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-projects::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-sales::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-talent::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],
@@ -969,6 +1105,326 @@
         },
         {
           "name": "erpx-server-workflow::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-benefits",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-benefits::public",
+          "version": "0.1.0",
+          "source": "packages/server-benefits/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-billing",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-billing::public",
+          "version": "0.1.0",
+          "source": "packages/server-billing/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-crm",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-crm::public",
+          "version": "0.1.0",
+          "source": "packages/server-crm/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-customer-360",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-customer-360::public",
+          "version": "0.1.0",
+          "source": "packages/server-customer_360/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-customer-authority",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-customer-authority::public",
+          "version": "0.1.0",
+          "source": "packages/server-customer_authority/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-ecommerce",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-ecommerce::public",
+          "version": "0.1.0",
+          "source": "packages/server-ecommerce/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-learning",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-learning::public",
+          "version": "0.1.0",
+          "source": "packages/server-learning/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-manufacturing",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-manufacturing::public",
+          "version": "0.1.0",
+          "source": "packages/server-manufacturing/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-marketing",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-marketing::public",
+          "version": "0.1.0",
+          "source": "packages/server-marketing/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-procurement",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-procurement::public",
+          "version": "0.1.0",
+          "source": "packages/server-procurement/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-projects",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-projects::public",
+          "version": "0.1.0",
+          "source": "packages/server-projects/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-sales",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-sales::public",
+          "version": "0.1.0",
+          "source": "packages/server-sales/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-identity-access::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-people-payroll::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-talent",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-talent::public",
+          "version": "0.1.0",
+          "source": "packages/server-talent/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],
