@@ -4895,6 +4895,51 @@ async fn assemble_checked(
             .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
         );
     }
+    #[cfg(feature = "existing-business")]
+    {
+        let mut work_card_targets = Vec::new();
+        for (i, holding) in config.holdings.iter().enumerate() {
+            let authorizer = Arc::new(
+                HoldingWorkAuthorizer::new(
+                    pools[0].clone(),
+                    pools[i + 1].clone(),
+                    holding.registration.holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
+            );
+            work_card_targets.push(
+                erpx_server_work_projection::public::work_card_preferences_http::WorkCardPreferencesHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(
+                        crate::work_card_preferences::WorkCardPreferencesBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(
+                                crate::work_card_preferences::WorkCardPreferencesService::new(
+                                    authorizer,
+                                    holding.registration.holding_id.clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        ),
+                    ),
+                },
+            );
+        }
+        if !work_card_targets.is_empty() {
+            router = router.merge(
+                erpx_server_work_projection::public::work_card_preferences_http::work_card_preferences_router(
+                    work_card_targets,
+                )
+                .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
+            );
+        }
+    }
     if !config.support_ticket_writes.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue()
@@ -8220,6 +8265,27 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let work_card_preferences = matches!(
+        request.method(),
+        &axum::http::Method::GET | &axum::http::Method::POST
+    ) && match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "work",
+            "card-preferences",
+        ] if !slug.is_empty() => state.policy.audience(host).is_some(),
+        _ => false,
+    };
     let allowed = (matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
@@ -8252,6 +8318,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || customer_access
         || service_packages
         || field_work_roles
+        || work_card_preferences
         || field_operations
         || field_support
         || field_collaboration

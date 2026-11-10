@@ -1,25 +1,17 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
-import { errorResponse } from "@erpx/server-runtime/public/http";
+import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {
-  readWorkCardPreferences,
-  saveWorkCardPreferences,
-  workCardPreferenceSchema,
+  readNativeWorkCardPreferences,
+  saveNativeWorkCardPreferences,
 } from "@erpx/server-work_projection/public/work-card-preferences";
-import { getWorkSummary } from "@erpx/server-work_projection/public/work-summary";
-import { serviceCommandBody } from "@erpx/server-support/public/service-http";
 type Context = { params: Promise<{ holdingSlug: string }> };
-export async function GET(_request: Request, context: Context) {
+const BODY_LIMIT = 8 * 1024;
+export async function GET(request: Request, context: Context) {
   try {
     const actor = await requireWorkContext((await context.params).holdingSlug);
     return Response.json(
-      canonicalDestinationLinks({
-        data: await readWorkCardPreferences(
-          (await holdingResources(actor.holdingId)).write,
-          actor,
-        ),
-      }),
+      canonicalDestinationLinks({ data: await readNativeWorkCardPreferences(request.headers, actor) }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -28,17 +20,15 @@ export async function GET(_request: Request, context: Context) {
 }
 export async function POST(request: Request, context: Context) {
   try {
-    const actor = await requireWorkContext((await context.params).holdingSlug),
-      { input, key } = await serviceCommandBody(request);
-    const data = await saveWorkCardPreferences(
-      (await holdingResources(actor.holdingId)).write,
-      actor,
-      workCardPreferenceSchema.parse(input),
-      key,
-      async () => (await getWorkSummary(actor)).cards.map((c) => c.id),
-    );
+    const actor = await requireWorkContext((await context.params).holdingSlug);
+    const key = request.headers.get("Idempotency-Key");
+    if (!key || !/^[A-Za-z0-9:_.-]{8,180}$/.test(key))
+      throw new ApiError(422, "COMMAND_KEY_REQUIRED", "Use a valid Idempotency-Key for this action.");
+    const body = await request.text();
+    if (new TextEncoder().encode(body).length > BODY_LIMIT)
+      throw new ApiError(422, "WORK_CARD_PREFERENCES_INVALID", "Choose each shortcut at most once.");
     return Response.json(
-      canonicalDestinationLinks({ data }),
+      canonicalDestinationLinks({ data: await saveNativeWorkCardPreferences(request.headers, actor, body, key) }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
