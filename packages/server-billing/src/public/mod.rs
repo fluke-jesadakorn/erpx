@@ -14,3 +14,4 @@ pub mod target_provider_http;
 pub mod retry_job;
 pub mod retry_job_http;
 pub mod target_evidence_http;
+pub mod target_rate_http;

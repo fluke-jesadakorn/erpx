@@ -548,6 +548,34 @@ describe('native Billing transport', () => {
     );
   });
 
+  it('posts the exact target rating route and body', async () => {
+    const calls: Parameters<NativeBillingTransport>[] = [];
+    const client = createNativeBillingClient(configuration, async (...args) => {
+      calls.push(args);
+      return response({ data: { ok: true }, context: context() });
+    });
+    const input = {
+      holdingId: 'h001',
+      holdingSlug: 'acme',
+      action: 'rate-target' as const,
+      key: 'billing-rate-0001',
+      body: {
+        version: 2,
+        reason: 'Rated from reviewed target evidence',
+        targetMonth: '2027-01',
+      },
+    };
+    expect(await client.command(headers(), actor, input)).toEqual({ ok: true });
+    const [method, url, sent, body] = calls[0]!;
+    expect(method).toBe('POST');
+    expect(String(url)).toBe(
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/target/rate',
+    );
+    expect(sent.get('idempotency-key')).toBe('billing-rate-0001');
+    expect(sent.get('origin')).toBe('https://acme.example.test');
+    expect(JSON.parse(body!)).toEqual(input.body);
+  });
+
   it('posts the exact target-rollout approval route and body', async () => {
     const calls: Parameters<NativeBillingTransport>[] = [];
     const client = createNativeBillingClient(configuration, async (...args) => {

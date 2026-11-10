@@ -2451,6 +2451,7 @@ async fn assemble_checked(
         let mut billing_provider_targets = Vec::new();
         let mut billing_retry_targets = Vec::new();
         let mut billing_evidence_targets = Vec::new();
+        let mut billing_rate_targets = Vec::new();
         let mut pos_targets = Vec::new();
         let mut pos_command_targets = Vec::new();
         let mut commercial_targets = Vec::new();
@@ -3355,6 +3356,14 @@ async fn assemble_checked(
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
+                        backend: billing_backend.clone(),
+                    },
+                );
+                billing_rate_targets.push(
+                    erpx_server_billing::public::target_rate_http::BillingRateTargetHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
                         backend: billing_backend,
                     },
                 );
@@ -4019,6 +4028,14 @@ async fn assemble_checked(
                     billing_evidence_targets,
                 )
                 .map_err(|_| "PRIVATE_API_BILLING_EVIDENCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !billing_rate_targets.is_empty() {
+            router = router.merge(
+                erpx_server_billing::public::target_rate_http::billing_rate_target_router(
+                    billing_rate_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BILLING_RATE_CONFIGURATION_INVALID")?,
             );
         }
         if !pos_targets.is_empty() {

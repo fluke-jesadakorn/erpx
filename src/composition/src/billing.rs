@@ -27,6 +27,11 @@ use erpx_server_billing::public::target_provider_http::{
     BillingTargetProviderHttpBackend, BillingTargetProviderHttpFuture,
     BillingTargetProviderHttpRequest, BillingTargetProviderHttpResponse,
 };
+use erpx_server_billing::public::target_rate_command::{RateTarget, execute_rate_target};
+use erpx_server_billing::public::target_rate_http::{
+    BillingRateTargetHttpBackend, BillingRateTargetHttpFuture, BillingRateTargetHttpRequest,
+    BillingRateTargetHttpResponse,
+};
 use erpx_server_billing::public::target_rollout_http::{
     BillingTargetRolloutHttpBackend, BillingTargetRolloutHttpFuture,
     BillingTargetRolloutHttpRequest, BillingTargetRolloutHttpResponse,
@@ -460,6 +465,51 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
             .await
     }
 
+    pub async fn rate_target<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: RateTarget,
+    ) -> Result<BillingHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                BillingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now();
+                        let actor = billing_actor(current, connection, now).await?;
+                        execute_rate_target(connection, &actor, &holding, &command, now).await?;
+                        Ok(BillingHttpResponse {
+                            data: serde_json::json!({"ok": true}),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn target_provider<Input>(
         &self,
         host: &str,
@@ -690,6 +740,25 @@ impl<C: Clock + Send + Sync + 'static> BillingTargetEvidenceHttpBackend for Bill
                 .target_evidence(request.host, proof, move || Ok(selection), request.command)
                 .await
                 .map(|response| BillingTargetEvidenceHttpResponse {
+                    data: response.data,
+                    context: response.context,
+                })
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> BillingRateTargetHttpBackend for BillingBackend<C> {
+    fn rate<'a>(
+        &'a self,
+        request: BillingRateTargetHttpRequest<'a>,
+    ) -> BillingRateTargetHttpFuture<'a, BillingRateTargetHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .rate_target(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map(|response| BillingRateTargetHttpResponse {
                     data: response.data,
                     context: response.context,
                 })

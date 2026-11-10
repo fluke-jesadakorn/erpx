@@ -204,6 +204,13 @@ export async function nativeBillingCostCommand(
       note: input.note,
       evidenceId: input.evidenceId,
     };
+  } else if (input.action === 'rate-target') {
+    action = 'rate-target';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      targetMonth: input.targetMonth,
+    };
   } else {
     return undefined;
   }
