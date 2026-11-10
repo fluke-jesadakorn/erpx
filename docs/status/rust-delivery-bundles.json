@@ -7464,11 +7464,11 @@
       }
     ],
     "nextActions": [
-      "Read the active plan, status --json and validate; begin/join one central coordinator and preserve externalReservations.",
-      "Close coordination.bootstrap with registered tests/integrity checks and verified target push.",
-      "Claim disjoint inventory tasks including certified owners; map native code, all consumers and retained authoritative legacy.",
-      "Refine/add bounded packets and freeze only required public seams; shared-shell changes stay exact and lead-integrated.",
-      "Integrate/retire/check/commit/push ready packets without waiting for full acceptance."
+      "G0 is complete at the verified pushed coordination checkpoint. Read the active plan and run status --json plus validate; begin one new coordinator run.",
+      "Dispatch up to three disjoint G1 inventories, including certified residual TS and Agent/Planning missing owner crates. Inventory is read-only and ready without scope refinement.",
+      "Preserve external-wip-2026-11-10 until its holder handoff is reviewed. Use reviewed reservation narrowing/release; do not reset/stash or duplicate its work.",
+      "Refine migration packets to exact paths/resources and required native ports, or add bounded child tasks. Only the lead mutates shared integration and the tracked queue.",
+      "Mount, retire, targeted-check, commit and verify non-force pushes per ready native packet. Keep A1/full acceptance deferred."
     ],
     "integrationLog": [
       {
@@ -9146,6 +9146,26 @@
           "merged": 65,
           "total": 206
         }
+      },
+      {
+        "at": "2026-11-10T15:52:22+00:00",
+        "commit": "fdca3d3c29d54df27b173a9a732d813807fffbfb",
+        "bundles": [
+          "G0 portable migration plan, goals and atomic cross-AI task coordination"
+        ],
+        "evidence": "25 registered coordination cases, both TypeScript projects, targeted ESLint, architecture/structure/catalogue/docs and ledger validation pass. All41owners+7surfaces+206workflowIDs mapped; original42dirtyfiles preserved. Source/push verified; no business workflow/owner certification promoted. Two already-committed compatibility redirects refreshed the stale generated UAT inventory (942 to944).",
+        "counts": {
+          "qualifiedBusinessFlows": 112,
+          "qualifiedEntryFlows": 1,
+          "additionalInteropEvidence": 2,
+          "workflowsPartial": 44,
+          "workflowsVerified": 80,
+          "workflowsMerged": 80,
+          "ownersComplete": 8,
+          "bundleChecklistComplete": 18,
+          "bundleChecklistTotal": 18
+        },
+        "acceptance": false
       }
     ],
     "historicalExecutionPlans": [
@@ -9237,18 +9257,10 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6,
+    "revision": 9,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
-    "coordinator": {
-      "runId": "plan-20261110",
-      "agentId": "codex-lead",
-      "startedAt": "2026-11-10T15:44:09.535Z",
-      "heartbeatAt": "2026-11-10T15:47:54.699Z",
-      "expiresAt": "2026-11-10T16:17:54.699Z",
-      "generation": 1,
-      "tokenHash": "f306bae9a1b5c0cd9ef579b9250c6af30011ff35c57e9268c3e39a4658adb19c"
-    },
+    "coordinator": null,
     "coordinationPolicy": {
       "singleCheckout": true,
       "coordinatorOnlyTrackedWrites": true,
@@ -9291,7 +9303,7 @@
         "id": "G0",
         "title": "Establish durable coordination",
         "planRef": "docs/production-plan.md#rust-migration-current",
-        "status": "in_progress",
+        "status": "done",
         "successCriteria": "Plan, goals, protected WIP, atomic claims and registered checks are integrated and pushed.",
         "acceptance": false,
         "category": "migration"
@@ -9469,18 +9481,11 @@
           "coordination-ledger",
           "shared-git"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "plan-20261110",
-          "agentId": "codex-lead",
-          "claimedAt": "2026-11-10T15:44:09.575Z",
-          "heartbeatAt": "2026-11-10T15:47:54.699Z",
-          "expiresAt": "2026-11-10T16:17:54.699Z",
-          "generation": 1
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": "b9b2f147a759300de65507727fe4eb81493adf81",
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "fdca3d3c29d54df27b173a9a732d813807fffbfb",
+        "lastPushedSha": "fdca3d3c29d54df27b173a9a732d813807fffbfb",
         "checks": [
           {
             "command": "bun run test:unit -- --suite=shared.testing.rust-migration-work.unit",
@@ -9546,11 +9551,18 @@
             "sourceSha": "b9b2f147a759300de65507727fe4eb81493adf81",
             "sourceKind": "base-plus-scoped-working-diff",
             "note": "No whitespace errors."
+          },
+          {
+            "command": "git ls-remote --heads origin codex/rust-backend-migration",
+            "result": "passed",
+            "sourceSha": "fdca3d3c29d54df27b173a9a732d813807fffbfb",
+            "remoteSha": "fdca3d3c29d54df27b173a9a732d813807fffbfb",
+            "note": "Actual non-force push confirmed; scoped tested files match this committed source byte-for-byte."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Push the validated plan/coordination checkpoint, verify origin/codex/rust-backend-migration, then mark G0 done and release the coordinator.",
+        "nextAction": "Start G1 from the active plan: read status/validate, begin a new coordinator run, and claim disjoint inventory.<owner> or inventory.surface.<id> tasks. Preserve the external WIP reservation.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -14130,6 +14142,47 @@
       }
     },
     "lastCoordinatorGeneration": 1,
-    "updatedAt": "2026-11-10T15:50:13.146Z"
+    "updatedAt": "2026-11-10T15:52:23.374Z",
+    "handoff": {
+      "fromRun": "plan-20261110",
+      "completedTaskIds": [
+        "coordination.bootstrap"
+      ],
+      "verifiedPushedCheckpoint": "fdca3d3c29d54df27b173a9a732d813807fffbfb",
+      "remoteVerifiedAt": "2026-11-10T15:52:22+00:00",
+      "summary": "Portable plan/goals, 106 task templates and atomic local claims are implemented and checked; business migration implementation was not executed in this documentation/coordination task.",
+      "nextGoal": "G1",
+      "nextCommands": [
+        "bun scripts/testing/rust-migration-work.ts status --json",
+        "bun scripts/testing/rust-migration-work.ts validate",
+        "bun scripts/testing/rust-migration-work.ts begin --run=<new-unique-run> --agent=<lead>",
+        "bun scripts/testing/rust-migration-work.ts claim inventory.<owner> --run=<new-unique-run> --agent=<worker>"
+      ],
+      "externalWip": "42 original dirty files preserved byte-for-byte; no claim/holder handoff obtained. Keep reservation active.",
+      "environment": [
+        {
+          "url": "http://127.0.0.1:3100/api/health",
+          "status": 200
+        },
+        {
+          "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+          "status": 200
+        },
+        {
+          "url": "http://127.0.0.1:3101/api/health",
+          "status": 200
+        },
+        {
+          "url": "https://console-dev-erpx.jesadakorn.com/",
+          "status": 404
+        },
+        {
+          "url": "https://acme.jesadakorn.com/",
+          "status": 307
+        }
+      ],
+      "browserLimit": "Authenticated Holding journey was not verified in this documentation/tooling change.",
+      "acceptance": false
+    }
   }
 }
