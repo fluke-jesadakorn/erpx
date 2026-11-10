@@ -1,4 +1,33 @@
 import { iamApi } from "@erpx/server-identity_access/public/iam-api";
-export const dynamic="force-dynamic";
-async function handle(request:Request,{params}:{params:Promise<{holdingSlug:string;path?:string[]}>}){const p=await params;return iamApi(request,p.holdingSlug,p.path??[]);}
-export {handle as GET,handle as POST};
+import { nativeIamAvailable, nativeIamCommand } from "@erpx/server-identity_access/public/native-iam";
+
+export const dynamic = "force-dynamic";
+
+function nativePath(path: string[]): string | null {
+  if (path[0] === "roles" && path.length === 1) return "roles";
+  if (path[0] === "reviews" && path[2] === "decide" && typeof path[1] === "string")
+    return `reviews/${encodeURIComponent(path[1])}/decide`;
+  if (path[0] === "access-reviews") {
+    if (path.length === 1) return "access-reviews";
+    if (path[2] === "cancel" && typeof path[1] === "string")
+      return `access-reviews/${encodeURIComponent(path[1])}/cancel`;
+  }
+  if (path[0] === "access-review-items" && path[2] === "decide" && typeof path[1] === "string")
+    return `access-review-items/${encodeURIComponent(path[1])}/decide`;
+  return null;
+}
+
+async function handle(
+  request: Request,
+  { params }: { params: Promise<{ holdingSlug: string; path?: string[] }> },
+) {
+  const p = await params;
+  const native = p.path ? nativePath(p.path) : null;
+  if (request.method === "POST" && native && nativeIamAvailable()) {
+    const body = await request.json().catch(() => null);
+    const data = await nativeIamCommand(request, p.holdingSlug, native, body);
+    return Response.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
+  }
+  return iamApi(request, p.holdingSlug, p.path ?? []);
+}
+export { handle as GET, handle as POST };
