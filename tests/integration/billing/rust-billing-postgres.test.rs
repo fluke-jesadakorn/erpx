@@ -19,7 +19,13 @@ use erpx_server_shared::public::{
     AssignmentId, BusinessError, CommandKey, HoldingId, RecordId, TimestampMillis, UserId,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
-use std::{str::FromStr, time::Duration};
+use std::{
+    str::FromStr,
+    sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
+};
+
+static NEXT_DATABASE: AtomicU64 = AtomicU64::new(0);
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 const PERIOD_START: i64 = 1_778_000_000_000;
@@ -271,12 +277,13 @@ where
             .await
             .expect("test administrator unavailable");
         let token = format!(
-            "{}{}",
+            "{}{}{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_DATABASE.fetch_add(1, Ordering::Relaxed)
         );
         let name = format!("erpx_dev_rust_{token}");
         let lease = format!("erpx-rust-test:{token}");
@@ -2670,7 +2677,10 @@ fn retry_requeues_exactly_one_owned_job_or_legacy_event_and_replays_receipt() {
             actor: &BillingActor,
             target: &HoldingId,
             command: &RetryJob,
-        ) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+        ) -> Result<
+            erpx_server_billing::public::cost::CommandReceipt,
+            PgTransactionError<BusinessError>,
+        > {
             let pool = pool.clone();
             let actor = actor.clone();
             let target = target.clone();
@@ -2687,9 +2697,14 @@ fn retry_requeues_exactly_one_owned_job_or_legacy_event_and_replays_receipt() {
                 .await
         }
         let h001 = HoldingId::new("h001").unwrap();
-        let first = run(&pool, &owner("h001"), &h001, &retry("billing:retry:1", "job-1"))
-            .await
-            .unwrap();
+        let first = run(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &retry("billing:retry:1", "job-1"),
+        )
+        .await
+        .unwrap();
         assert_eq!(first.result_json, "{\"ok\":true}");
         assert_eq!(
             sqlx::query_as::<_, (String, Option<String>)>(
@@ -2723,9 +2738,14 @@ fn retry_requeues_exactly_one_owned_job_or_legacy_event_and_replays_receipt() {
                 .unwrap(),
             1
         );
-        let replay = run(&pool, &owner("h001"), &h001, &retry("billing:retry:1", "job-1"))
-            .await
-            .unwrap();
+        let replay = run(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &retry("billing:retry:1", "job-1"),
+        )
+        .await
+        .unwrap();
         assert_eq!(replay, first);
         assert_eq!(
             sqlx::query_scalar::<_, i64>(
@@ -2746,10 +2766,12 @@ fn retry_requeues_exactly_one_owned_job_or_legacy_event_and_replays_receipt() {
         .err()
         .expect("foreign job is not owned by h001");
         assert_eq!(business(foreign).code, "JOB_MISSING");
-        sqlx::query("UPDATE billing_jobs SET last_error='IDEMPOTENCY_WINDOW_EXPIRED' WHERE id='job-1'")
-            .execute(pool.raw())
-            .await
-            .unwrap();
+        sqlx::query(
+            "UPDATE billing_jobs SET last_error='IDEMPOTENCY_WINDOW_EXPIRED' WHERE id='job-1'",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
         let ambiguous = run(
             &pool,
             &owner("h001"),
