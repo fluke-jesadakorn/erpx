@@ -6,7 +6,7 @@ pub use crate::application::pipeline::{
     CrmPipelinePeopleDirectory, CrmPipelineRepository, crm_pipeline,
 };
 pub use crate::domain::pipeline::{
-    CrmForecastSourceRow, CrmForecastTotal, CrmPipelineActor, CrmPipelineCursor,
-    CrmPipelineEntitlement, CrmPipelinePage, CrmPipelinePageData, CrmPipelineQuery, CrmPipelineRow,
-    CrmPurchaseControls, PAGE_SIZE, validate_forecast,
+    CRM_PIPELINE_ENTITLEMENT_UNPROVEN, CrmForecastSourceRow, CrmForecastTotal, CrmPipelineActor,
+    CrmPipelineCursor, CrmPipelineEntitlement, CrmPipelinePage, CrmPipelinePageData,
+    CrmPipelineQuery, CrmPipelineRow, CrmPurchaseControls, PAGE_SIZE, validate_forecast,
 };

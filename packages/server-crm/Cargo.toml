@@ -46,6 +46,22 @@ name = "crm_command_http"
 path = "../../tests/integration/crm/rust-crm-command-http.test.rs"
 
 [[test]]
+name = "crm_account_http"
+path = "../../tests/integration/crm/rust-crm-account-http.test.rs"
+
+[[test]]
+name = "crm_activity_http"
+path = "../../tests/integration/crm/rust-crm-activity-http.test.rs"
+
+[[test]]
+name = "crm_lead_intake_http"
+path = "../../tests/integration/crm/rust-crm-lead-intake-http.test.rs"
+
+[[test]]
+name = "crm_pipeline_entitlement"
+path = "../../tests/unit/crm/rust-crm-pipeline-entitlement.test.rs"
+
+[[test]]
 name = "crm_pipeline_postgres"
 path = "../../tests/integration/crm/rust-crm-pipeline-postgres.test.rs"
 

@@ -1,5 +1,6 @@
 //! Native CRM account ports and the PostgreSQL owner adapter.
-//! `create-account` and `link-finance` are implemented. `create-contact`,
+//! `create-account` and `link-finance` are implemented and mounted at the
+//! owner HTTP ingress in `public::accounts_http`. `create-contact`,
 //! `link-guest` and `guest-sharing` remain TypeScript-owned for now.
 pub use crate::adapters::accounts::PgCrmAccountCreate;
 pub use crate::application::accounts::{

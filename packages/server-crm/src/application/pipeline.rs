@@ -60,9 +60,11 @@ pub trait CrmPipelineCustomerDirectory {
     ) -> CrmPipelineFuture<'a, BTreeMap<String, String>, Self::Error>;
 }
 
-/// Current Commercial package boundary. Disabled enforcement is the retained
-/// policy; when enforced the current `sales.crm` history entitlement is
-/// required before any owner row is read.
+/// Current Commercial package boundary. Composition must supply the current
+/// `sales.crm` facts and the Commercial entitlement revision; an empty
+/// revision fails closed with `CRM_PIPELINE_ENTITLEMENT_UNPROVEN`. Disabled
+/// enforcement is only accepted as an explicit Commercial policy fact, never
+/// as a missing-source default.
 pub trait CrmPipelineEntitlementPort {
     type Error: Send;
     fn entitlement<'a>(

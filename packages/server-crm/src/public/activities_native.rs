@@ -1,6 +1,7 @@
 //! Native CRM activity create / complete / cancel ports and the PostgreSQL
-//! owner adapter. `reassign` is staged by the owner adapter but remains
-//! unmounted: composition must supply selected authority, Workflow replay,
+//! owner adapter with the owner HTTP ingress in `public::activities_http`.
+//! `reassign` is staged by the owner adapter and exposed through a separate
+//! backend method: composition must supply selected authority, Workflow replay,
 //! Sales recipient eligibility, purchase and Collaboration notification in
 //! the same transaction. Purchase enforcement and the Workflow ledger remain
 //! in TypeScript until that mount lands.

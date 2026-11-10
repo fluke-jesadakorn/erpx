@@ -48,10 +48,10 @@ async fn qualification_owner_effect_retains_exact_value_and_both_events() {
         let link = inspect_crm_reviewed_account_link(&mut tx, CrmReviewedAccountLinkRequest { company_id: CompanyId::new("company").unwrap(), branch_id: Some("branch".into()), department_id: None, lead_id: "page-01".into(), finance_party_id: "customer".into() }).await.unwrap();
         let prepared = PgCrmLeadCommands::new(&mut tx).prepare_crm_qualification(&manager, "page-01", &input).await.unwrap();
         assert_eq!((prepared.plan.action.as_str(), prepared.record.branch_id.as_str(), prepared.record.department_id.as_deref(), prepared.record.version), ("qualify", "branch", None, 1));
-        let before:(String,i64,i64,Option<String>)=sqlx::query_as("SELECT status,version,(SELECT count(*) FROM public.crm_opportunities WHERE lead_id='page-01'),(SELECT opportunity_id::text FROM public.crm_case_events WHERE lead_id='page-01' AND action='qualify' LIMIT 1)").fetch_one(&mut *tx).await.unwrap();
+        let before:(String,i64,i64,Option<String>)=sqlx::query_as("SELECT status,version,(SELECT count(*) FROM public.crm_opportunities WHERE lead_id='page-01'),(SELECT opportunity_id::text FROM public.crm_case_events WHERE lead_id='page-01' AND action='qualify' LIMIT 1) FROM public.crm_leads WHERE id='page-01'").fetch_one(&mut *tx).await.unwrap();
         assert_eq!(before,("open".into(),1,0,None));
         let mut wrong_actor = manager.clone(); wrong_actor.user_id = "different".into(); wrong_actor.same_person_ids = vec!["owner".into()];
-        assert_eq!(business(PgCrmLeadCommands::new(&mut tx).prepare_crm_qualification(&wrong_actor, "page-01", &input).await.unwrap_err()).code, "CRM_OWNER_REQUIRED");
+        assert_eq!(business(PgCrmLeadCommands::new(&mut tx).prepare_crm_qualification(&wrong_actor, "page-01", &input).await.err().unwrap()).code, "CRM_OWNER_REQUIRED");
         assert_eq!(business(apply_crm_qualification(&mut tx, &wrong_actor, "page-01", "qualify-wrong", &input, "THB", &link, NOW.get()).await.unwrap_err()).code, "CRM_OWNER_REQUIRED");
         let retained = apply_crm_qualification_retained(&mut tx, &manager, "page-01", "qualify-date", &input, "THB", &link, NOW.get()).await.unwrap();
         retained.require_current(&mut tx).await.unwrap();
@@ -276,7 +276,7 @@ async fn native_lead_create_persists_identity_create_event_and_selected_departme
         .await
         .unwrap();
         committed.commit().await.unwrap();
-        let persisted: (String, String, String, i64) = sqlx::query_as(
+        let persisted: (String, String, String, String) = sqlx::query_as(
             "SELECT l.branch_id,l.department_id,a.kind,e.action FROM public.crm_leads l JOIN public.crm_accounts a ON a.id=l.account_id JOIN public.crm_case_events e ON e.lead_id=l.id WHERE l.id='lead-create-native'",
         )
         .fetch_one(pool.raw())

@@ -543,15 +543,35 @@ pub struct CrmPurchaseControls {
 
 #[derive(Clone, Debug)]
 pub struct CrmPipelineEntitlement {
+    /// Current Commercial catalogue says `sales.crm` enforcement applies to
+    /// this Company. `false` is only valid when composition has an explicit
+    /// Commercial fact for that policy; it is not a missing-source default.
     pub enforced: bool,
+    /// Current `sales.crm` acquisition for `CapabilityPurpose::History`.
     pub history_allowed: bool,
+    /// Current `sales.crm` acquisition for `CapabilityPurpose::NewWork`.
     pub new_work: bool,
+    /// Current `sales.crm` acquisition for
+    /// `CapabilityPurpose::SettleExisting`.
     pub settle_existing: bool,
+    /// Current Commercial entitlement revision. The pipeline never infers a
+    /// revision: an empty value means composition could not prove the current
+    /// Commercial facts, so the read fails closed with
+    /// [`CRM_PIPELINE_ENTITLEMENT_UNPROVEN`].
     pub revision: String,
 }
 
+pub const CRM_PIPELINE_ENTITLEMENT_UNPROVEN: &str = "CRM_PIPELINE_ENTITLEMENT_UNPROVEN";
+
 impl CrmPipelineEntitlement {
     pub fn require_history(&self) -> Result<(), BusinessError> {
+        if self.revision.trim().is_empty() {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                CRM_PIPELINE_ENTITLEMENT_UNPROVEN,
+                "The CRM pipeline entitlement is unavailable.",
+            ));
+        }
         if self.enforced && !self.history_allowed {
             return Err(BusinessError::new(
                 FailureKind::Forbidden,
