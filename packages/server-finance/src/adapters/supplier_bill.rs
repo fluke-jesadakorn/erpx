@@ -620,7 +620,13 @@ async fn supplier_bill_posting_lines<M: PgSupplierBillMatch>(
         .bind(&actor.company_id)
         .fetch_optional(&mut *c)
         .await?;
-        if base_currency.as_deref() != Some(invoice.currency.as_str()) {
+        let base_currency = base_currency.ok_or_else(|| {
+            invalid(
+                "SUPPLIER_BILL_ACCOUNTS_INVALID",
+                "Use an active clearing account on this Company ledger.",
+            )
+        })?;
+        if base_currency != invoice.currency {
             return Err(conflict(
                 "SUPPLIER_BILL_GOODS_FX_UNSUPPORTED",
                 "Use the retained Commerce goods FX posting path for this foreign-currency matched bill.",
@@ -1942,7 +1948,13 @@ pub async fn void_posted_supplier_bill(
         .bind(&actor.company_id)
         .fetch_optional(&mut *c)
         .await?;
-        if base_currency.as_deref() != Some(currency.as_str()) {
+        let base_currency = base_currency.ok_or_else(|| {
+            invalid(
+                "SUPPLIER_BILL_ACCOUNTS_INVALID",
+                "Use an active clearing account on this Company ledger.",
+            )
+        })?;
+        if base_currency != currency {
             return Err(conflict(
                 "SUPPLIER_BILL_GOODS_FX_UNSUPPORTED",
                 "Reverse the Commerce goods FX journal before voiding this foreign-currency matched bill.",
