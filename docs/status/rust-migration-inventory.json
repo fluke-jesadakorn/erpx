@@ -1,0 +1,1169 @@
+{
+  "version": 1,
+  "planRef": "docs/production-plan.md#rust-migration-current",
+  "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+  "generatedAt": "2026-11-10T16:13:21+00:00",
+  "interpretation": "G1 source inventory. Task records are read-only source findings; proposed packets are not implementation evidence. Catalogue qualification state is unchanged and acceptance stays deferred.",
+  "owners": {
+    "files": {
+      "taskId": "inventory.files",
+      "owner": "files",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [],
+      "publicPorts": [
+        {
+          "name": "attachment_http attachment_read_router (list/status)",
+          "path": "packages/server-files/src/adapters/attachment_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4279"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "field visit intake/upload/link/bind + field_files router",
+          "path": "packages/server-files/src/adapters/field_visit_intake.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api/field_files.rs:235",
+            "src/composition/src/field_attachment_intake_command.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "scan policy/ClamAV/preview/canonical original/sanitization; count_submission, payment_proof_binding, quality/legal/business evidence",
+          "path": "packages/server-files/src/public/mod.rs",
+          "mountedAt": [
+            "src/composition/src/files_scan_worker.rs",
+            "src/composition/src/files_system_scan.rs",
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/field_service_package_settlement.rs"
+          ],
+          "status": "partial"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "files.generic-upload-writer",
+          "kind": "command",
+          "detail": "The generic Next upload path is TS: packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/route.ts imports createAttachmentSet/reserveAttachmentFile from @erpx/server-files/public/attachments/service, and attachment-sets routes use adapters/attachments/service.ts/policy.ts (39 TS SQL files under packages/server-files/src/adapters). Native upload intake is mounted only for field-service and finance owners (private_development_api/field_files.rs).",
+          "suggestedPaths": [
+            "packages/server-files/src/adapters/attachments/service.ts",
+            "packages/server-files/src/adapters/attachments/upload.ts",
+            "packages/server-files/src/domain/mod.rs"
+          ]
+        },
+        {
+          "id": "files.scan-authority",
+          "kind": "provider",
+          "detail": "Two scan implementations coexist: TS adapters/attachments/scanner.ts drives scanAttachmentNow for Next upload completion and readiness (clamd), while Rust adapters/clamav.rs + files_scan_worker.rs run the native worker. The Next completion path does not consume native scan receipts.",
+          "suggestedPaths": [
+            "packages/server-files/src/adapters/attachments/scanner.ts",
+            "packages/server-files/src/adapters/clamav.rs",
+            "tests/provider/files/rust-clamav.test.rs"
+          ]
+        },
+        {
+          "id": "files.native-read-gate",
+          "kind": "retirement",
+          "detail": "Native attachment reads are used only when ERPX_NATIVE_ATTACHMENT_READ_CONFIG is present (packages/server-files/src/public/native-attachments.ts:549, packages/workplace/src/lib/native-attachments.ts:58); otherwise attachment-sets/status fall back to TS SQL (listAttachmentSets/attachmentLinkStatus), so two readers remain.",
+          "suggestedPaths": [
+            "packages/server-files/src/public/native-attachments.ts",
+            "packages/workplace/src/lib/native-attachments.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-files/src/adapters/attachments/service.ts",
+          "reason": "TS attachment set/file reservation and completion writer for generic owners.",
+          "removalCondition": "Native upload command covers every attachment ownerType in the workplace upload schema and the TS service import is removed."
+        },
+        {
+          "path": "packages/server-files/src/adapters/attachments/scanner.ts",
+          "reason": "Live ClamAV scan used by Next upload completion/readiness.",
+          "removalCondition": "Native scan receipt is the only completion gate and files.rust-clamav provider parity passes."
+        },
+        {
+          "path": "packages/server-files/src/adapters/attachments/policy.ts",
+          "reason": "TS target/purpose authorization used by uploads and reads.",
+          "removalCondition": "Native attachment policy/read port is bound for all owners (currently only field/finance intake)."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.files.generic-upload-intake",
+          "title": "Native generic attachment intake (create set, reserve file, complete upload, attest sanitization)",
+          "paths": [
+            "packages/server-files/src/application/mod.rs",
+            "packages/server-files/src/adapters/attachment_http.rs",
+            "packages/server-files/src/public/field_visit_upload.rs",
+            "packages/server-files/src/public/mod.rs",
+            "tests/integration/files/rust-attachment-scan-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:files"
+          ],
+          "dependsOn": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-files",
+            "cargo test -p erpx-server-files --test attachment_scan_postgres",
+            "bun run test:unit -- --suite=shared.attachments.attachments-v2.integration"
+          ]
+        },
+        {
+          "id": "migrate.files.scan-receipt-authority",
+          "title": "Make the native scan receipt the completion gate for Next uploads",
+          "paths": [
+            "packages/server-files/src/public/attachment_scan.rs",
+            "packages/server-files/src/public/native-attachments.ts",
+            "tests/unit/files/native-attachment-cutover.test.ts",
+            "tests/provider/files/rust-clamav.test.rs"
+          ],
+          "resources": [
+            "owner:files"
+          ],
+          "dependsOn": [
+            "migrate.files.generic-upload-intake"
+          ],
+          "requiredPorts": [
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-files --features preview-provider",
+            "cargo test -p erpx-server-files --test attachment_scan_policy",
+            "bun run test:unit -- --suite=files.native-attachment-cutover.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Live ClamAV signature-age/definition verification and preview rendering fidelity are provider acceptance items (A1).",
+        "Real PDF/image preview output and malware fixtures remain provider/browser acceptance."
+      ],
+      "limitations": [
+        "No catalogue workflow maps here: task.workflowIds is [] and 0 of 206 workflow rows have owner \"files\".",
+        "Workplace route paths are surface-owned evidence, not files-owner write scope.",
+        "Read-only inventory; no cargo or bun check was executed."
+      ]
+    },
+    "records": {
+      "taskId": "inventory.records",
+      "owner": "records",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [],
+      "publicPorts": [
+        {
+          "name": "record_registry + record_registry_http",
+          "path": "packages/server-records/src/adapters/record_registry_http.rs",
+          "mountedAt": [
+            "src/composition/src/records.rs:436",
+            "src/composition/src/private_development_api.rs:4263"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "record_context + record_context_http",
+          "path": "packages/server-records/src/adapters/record_context_http.rs",
+          "mountedAt": [
+            "src/composition/src/records.rs:220",
+            "src/composition/src/private_development_api.rs:4255"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "record_write (create/transition); source_record, business_evidence, employee_request_source, commerce links",
+          "path": "packages/server-records/src/public/mod.rs",
+          "mountedAt": [
+            "src/composition/src/records_command.rs:10",
+            "src/composition/src/field_inbox_read.rs",
+            "src/composition/src/finance_journal_detail.rs:34",
+            "src/composition/src/commerce_request_linkage.rs"
+          ],
+          "status": "partial"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "records.ts-fallback-authority",
+          "kind": "retirement",
+          "detail": "The Next generic records routes use native only when ERPX_NATIVE_RECORDS_CONFIG is set and otherwise run the TS writer/reader: packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/route.ts:11 ternary (listRecords/createRecord vs native client), records/[module]/[id]/route.ts:26/45/77, availability gates at packages/server-records/src/public/native-record-registry.ts:935 and native-record-context.ts:586.",
+          "suggestedPaths": [
+            "packages/server-records/src/public/native-record-registry.ts",
+            "packages/server-records/src/public/native-record-context.ts",
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records"
+          ]
+        },
+        {
+          "id": "records.ts-sql-readers",
+          "kind": "read",
+          "detail": "20 TS files under packages/server-records/src/adapters still run SQL, including adapters/records.ts (listRecords/getRecord/createRecord/transitionRecord/searchReferences) and adapters/record-details.ts (recordSupplementData used by the record-details route), so generic search/details remain TS-authoritative even with native configured.",
+          "suggestedPaths": [
+            "packages/server-records/src/adapters/records.ts",
+            "packages/server-records/src/adapters/record-details.ts"
+          ]
+        },
+        {
+          "id": "records.request-reads",
+          "kind": "read",
+          "detail": "Employee requests/self-service/AI suggestion reads have no native mount: adapters/employee-requests.ts, request-ai.ts, request-administration.ts and self-service.ts are TS SQL behind workplace requests/expenses routes; only employee_request_source.rs exists natively.",
+          "suggestedPaths": [
+            "packages/server-records/src/application/employee_request_source.rs",
+            "packages/server-records/src/adapters/request-ai.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-records/src/adapters/records.ts",
+          "reason": "TS generic record writer/reader used whenever ERPX_NATIVE_RECORDS_CONFIG is absent (explicit retained fallback).",
+          "removalCondition": "Native registry/context always configured for every Holding and the TS fallback branch plus env gate is deleted; requires lead composition/env change."
+        },
+        {
+          "path": "packages/server-records/src/adapters/record-details.ts",
+          "reason": "recordSupplementData powers the record-details drawer and has no native equivalent.",
+          "removalCondition": "Native record-details read is mounted and the route binds it without a TS branch."
+        },
+        {
+          "path": "packages/server-records/src/adapters/request-ai.ts",
+          "reason": "TS AI suggestion request flow (drainRequestAi) still used by the TS jobs loop.",
+          "removalCondition": "Native suggestion workflow port exists and the job pulse is native."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.records.retire-ts-registry-fallback",
+          "title": "Make native registry/context authoritative and delete the TS fallback branch",
+          "paths": [
+            "packages/server-records/src/public/native-record-registry.ts",
+            "packages/server-records/src/public/native-record-context.ts",
+            "tests/unit/shared.records/native-record-registry-route.test.ts",
+            "tests/unit/shared.records/native-record-registry-transport.test.ts",
+            "tests/unit/shared.records/native-record-context-transport.test.ts"
+          ],
+          "resources": [
+            "owner:records"
+          ],
+          "dependsOn": [
+            "ports.authority"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-records",
+            "cargo test -p erpx-server-records --test record_registry_http",
+            "bun run test:unit -- --suite=records.native-record-registry-route.unit"
+          ]
+        },
+        {
+          "id": "migrate.records.record-details-read",
+          "title": "Native record-details/supplement read to retire recordSupplementData SQL",
+          "paths": [
+            "packages/server-records/src/domain/mod.rs",
+            "packages/server-records/src/application/mod.rs",
+            "packages/server-records/src/adapters/mod.rs",
+            "packages/server-records/src/public/mod.rs",
+            "tests/integration/shared.records/record-details.test.ts"
+          ],
+          "resources": [
+            "owner:records"
+          ],
+          "dependsOn": [
+            "inventory.records"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-records",
+            "cargo test -p erpx-server-records --test record_context",
+            "bun run test:unit -- --suite=shared.records.record-details.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Records create/transition authenticated browser journey with native env configured is acceptance evidence, not an implementation gate."
+      ],
+      "limitations": [
+        "No catalogue workflow maps here: task.workflowIds is [] and 0 of 206 workflow rows have owner \"records\".",
+        "Route files under packages/workplace are surface-owned; listed paths are evidence, not this owner\u2019s write scope.",
+        "Read-only inventory; no cargo or bun check was executed."
+      ]
+    },
+    "runtime": {
+      "taskId": "inventory.runtime",
+      "owner": "runtime",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [],
+      "publicPorts": [
+        {
+          "name": "foundation_router",
+          "path": "packages/server-runtime/src/adapters/http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:2124",
+            "src/composition/src/module_assembly.rs:134"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "postgres::PgUnitOfWork / PgWorkFuture",
+          "path": "packages/server-runtime/src/adapters/postgres/unit_of_work.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/records_command.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "outbox jobs claim/complete/fail/renew + dead-letter; WorkerSupervisor",
+          "path": "packages/server-runtime/src/adapters/postgres/jobs.rs",
+          "mountedAt": [
+            "src/composition/src/service_count_worker.rs",
+            "src/composition/src/files_scan_worker.rs"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "worker attestation, request lease, migration inventory, executive_access, module_contracts",
+          "path": "packages/server-runtime/src/public/mod.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/module_assembly.rs"
+          ],
+          "status": "frozen"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "runtime.general-job-supervisor",
+          "kind": "job",
+          "detail": "Native worker loops are target-scoped: run_production_workers_file (src/composition/src/private_development_api.rs:8907) and run_outbox_worker_file (:8694) require field source-record enforcement or field_service_initial_counts, and only service-count/field-push/field-files workers are driven. The general outbox drain plus 9 domain pulses (support/legal/pms/pos/attachment/billing/directory/AI/customer-notification) still runs in TS: scripts/local/jobs.ts:77 runOne(...) and packages/server-runtime/src/adapters/runtime/jobs.ts (226 lines).",
+          "suggestedPaths": [
+            "packages/server-runtime/src/application/mod.rs",
+            "packages/server-runtime/src/adapters/postgres/worker.rs",
+            "src/composition/src/private_development_api.rs"
+          ]
+        },
+        {
+          "id": "runtime.ts-adapter-authority",
+          "kind": "retirement",
+          "detail": "13 TS files under packages/server-runtime/src/adapters execute SQL/HTTP for Next (runtime/postgres.ts 449 lines, runtime/jobs.ts 226, adapters/http.ts 44); every unmigrated TS owner adapter still gets holdingResources from this runtime.",
+          "suggestedPaths": [
+            "packages/server-runtime/src/adapters/runtime/postgres.ts",
+            "packages/server-runtime/src/adapters/runtime/jobs.ts"
+          ]
+        },
+        {
+          "id": "runtime.worker-shim",
+          "kind": "retirement",
+          "detail": "src/workers/jobs.ts:2 re-exports @erpx/server-workflow/public/job-projector while scripts/local/jobs.ts:8 imports adapters/runtime/jobs.ts directly, so the tracked workers entrypoint is a TS business shim.",
+          "suggestedPaths": [
+            "src/workers/jobs.ts",
+            "scripts/local/jobs.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-runtime/src/adapters/runtime/jobs.ts",
+          "reason": "Authoritative TS jobs loop (projector + 9 pulses) run by scripts/local/dev-jobs.ts.",
+          "removalCondition": "Native general worker drains the same outbox/scheduled work and scripts/local/jobs.ts is deleted."
+        },
+        {
+          "path": "packages/server-runtime/src/adapters/runtime/postgres.ts",
+          "reason": "TS pool/session adapter behind holdingResources for all remaining TS owner adapters.",
+          "removalCondition": "No TS adapter imports holdingResources/PostgresDatabase (currently 13 runtime, 37 workflow, 20 records, 39 files, 30 work_projection TS SQL files)."
+        },
+        {
+          "path": "src/workers/jobs.ts",
+          "reason": "Legacy source location retained for the jobs bundle.",
+          "removalCondition": "scripts/local/jobs.ts no longer imports @erpx/server-workflow/public/job-projector."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.runtime.general-outbox-supervisor",
+          "title": "Native general outbox supervisor for all registered holdings",
+          "paths": [
+            "packages/server-runtime/src/application/mod.rs",
+            "packages/server-runtime/src/adapters/postgres/worker.rs",
+            "packages/server-runtime/src/adapters/postgres/jobs.rs",
+            "tests/integration/shared.runtime/worker-attestation-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:runtime"
+          ],
+          "dependsOn": [
+            "migrate.workflow.event-projector",
+            "ports.common"
+          ],
+          "requiredPorts": [
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-runtime",
+            "cargo test -p erpx-server-runtime --test worker_attestation_postgres",
+            "cargo test -p erpx-server-runtime --test outbox_jobs_postgres"
+          ]
+        },
+        {
+          "id": "migrate.runtime.production-worker-entrypoint",
+          "title": "Extend the production-worker CLI to drain the general queue with lease/retry parity",
+          "paths": [
+            "src/composition/src/private_development_api.rs",
+            "tests/integration/shared.runtime/worker-attestation-postgres.test.rs",
+            "scripts/local/dev-container-native-start.ts"
+          ],
+          "resources": [
+            "owner:runtime"
+          ],
+          "dependsOn": [
+            "migrate.runtime.general-outbox-supervisor"
+          ],
+          "requiredPorts": [
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-service --features production-api",
+            "bun run test:unit -- --suite=shared.runtime.native-runtime.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Live lease recovery against production PostgreSQL and container supervisor behaviour is A1 release acceptance.",
+        "Queue backlog/latency measurement is acceptance-only."
+      ],
+      "limitations": [
+        "No catalogue workflow maps here: task.workflowIds is [] and 0 of 206 workflow rows have owner \"runtime\".",
+        "src/composition/** and scripts/** are lead-owned; those packet paths are integration requests, not worker writes.",
+        "Read-only inventory; no cargo or bun check was executed."
+      ]
+    },
+    "shared": {
+      "taskId": "inventory.shared",
+      "owner": "shared",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [],
+      "publicPorts": [
+        {
+          "name": "application::ports (Clock, IdentifierSource, UnitOfWork, CommandReceipts, AuditSink, Outbox, Authorization)",
+          "path": "packages/server-shared/src/application/ports.rs",
+          "mountedAt": [],
+          "status": "partial"
+        },
+        {
+          "name": "BusinessError / FailureKind",
+          "path": "packages/server-shared/src/domain/error.rs",
+          "mountedAt": [
+            "src/composition/src/records_command.rs",
+            "src/composition/src/work_card_preferences.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Domain identifiers and DecimalAmount",
+          "path": "packages/server-shared/src/domain/identity.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/finance_generic_payment.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "record_source_contract record-source.v1",
+          "path": "packages/server-shared/src/public/mod.rs",
+          "mountedAt": [
+            "src/composition/src/field_service_source_record.rs",
+            "src/composition/src/field_inbox_read.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "json_numbers canonical encoding",
+          "path": "packages/server-shared/src/public/json_numbers.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "shared.port-traits-unimplemented",
+          "kind": "command",
+          "detail": "ports.rs lines 7-52 declare Clock/IdentifierSource/UnitOfWork/CommandReceipts/AuditSink/Outbox/Authorization, but no Rust type implements the shared traits (grep for impl/FnMut shows only Clock impls and the unrelated runtime OutboxJobHandler at src/composition/src/service_count_worker.rs:123). Composition calls the concrete PgUnitOfWork::run instead (packages/server-runtime/src/adapters/postgres/unit_of_work.rs:46-60), so the transaction/receipt/outbox port is declared but not a published contract.",
+          "suggestedPaths": [
+            "packages/server-shared/src/application/ports.rs",
+            "packages/server-shared/src/public/mod.rs",
+            "tests/unit/shared.architecture/rust-shared-core.test.rs"
+          ]
+        },
+        {
+          "id": "shared.ts-ports-authoritative",
+          "kind": "retirement",
+          "detail": "530 TS files import @erpx/server-shared/* and 94 import application/{ports,command}; TS adapters implement those ports (runAtomicCommand in packages/server-shared/src/application/command.ts:4-15), so the TS port contract remains the live writer contract for unmigrated owners.",
+          "suggestedPaths": [
+            "packages/server-shared/src/application/ports.ts",
+            "packages/server-shared/src/application/command.ts",
+            "packages/server-shared/src/domain/source-record.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-shared/src/application/ports.ts",
+          "reason": "Live TypeScript port contract imported by 94 TS owner adapters; not transport.",
+          "removalCondition": "No @erpx/server-shared/application import remains after all TS owner adapters are replaced by native handlers."
+        },
+        {
+          "path": "packages/server-shared/src/application/command.ts",
+          "reason": "runAtomicCommand receipt wrapper still used by TS command adapters.",
+          "removalCondition": "packages/server-workflow/src/adapters/commands.ts and its 207 importers are retired."
+        },
+        {
+          "path": "packages/server-shared/src/domain/source-record.ts",
+          "reason": "TS mirror of native SourceRecord/ConsumptionLot read by TS record adapters.",
+          "removalCondition": "Records and consuming owners read through the native record_source_contract port (src/composition field source adapters) only."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.shared.port-adoption",
+          "title": "Publish and adopt the shared transaction/receipt/outbox port traits, or delete the unused surface",
+          "paths": [
+            "packages/server-shared/src/application/ports.rs",
+            "packages/server-shared/src/public/mod.rs",
+            "tests/unit/shared.architecture/rust-shared-core.test.rs"
+          ],
+          "resources": [
+            "owner:shared"
+          ],
+          "dependsOn": [
+            "ports.common"
+          ],
+          "requiredPorts": [
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-shared",
+            "cargo test -p erpx-server-shared --test shared_core",
+            "bun run test:unit -- --suite=shared.architecture.rust-shared-core.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "None: shared has no browser, provider or release surface."
+      ],
+      "limitations": [
+        "No catalogue workflow maps here: executionPlan task.workflowIds is [] and docs/status/rust-delivery-bundles.json workflows (206 rows) has 0 rows with owner \"shared\". Scope is the auxiliary library contract only.",
+        "Read-only inventory; no cargo or bun check was executed.",
+        "Line numbers are from the current working tree at the recorded sourceSha."
+      ]
+    },
+    "work_projection": {
+      "taskId": "inventory.work_projection",
+      "owner": "work_projection",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [],
+      "publicPorts": [
+        {
+          "name": "work_snapshot_read::read_native_work_snapshot",
+          "path": "packages/server-work_projection/src/adapters/work_snapshot_read.rs",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "work_card_preferences + work_card_preferences_http",
+          "path": "packages/server-work_projection/src/adapters/work_card_preferences_http.rs",
+          "mountedAt": [
+            "src/composition/src/work_card_preferences.rs",
+            "src/composition/src/private_development_api.rs:4899"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "work_capabilities, work_capability_probes, work_card_availability + work_role_store",
+          "path": "packages/server-work_projection/src/public/mod.rs",
+          "mountedAt": [
+            "src/composition/src/native_work_roles_http.rs:64-81",
+            "src/composition/src/private_development_api.rs:4845"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "account_workspace_preferences, identity_selection_preferences, quick_access_preferences, workspace_preference, navigation_destinations contract",
+          "path": "packages/server-work_projection/src/adapters/account_workspace_preferences.rs",
+          "mountedAt": [
+            "src/composition/src/native_account_preferences.rs",
+            "src/composition/src/native_work_roles.rs"
+          ],
+          "status": "partial"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "work_projection.snapshot-unmounted",
+          "kind": "mount",
+          "detail": "read_native_work_snapshot exists (297 lines) and declares 40 unavailable TS-only sources (packages/server-work_projection/src/adapters/work_snapshot_read.rs:30-33), but no composition file references it: grep for read_native_work_snapshot/NativeWorkSnapshot outside the adapter returns only tests/integration/shared.work/rust-work-snapshot-maintenance-postgres.test.rs:23,86. The live Work summary/navigation still runs packages/server-work_projection/src/adapters/work-summary.ts over TS SQL.",
+          "suggestedPaths": [
+            "packages/server-work_projection/src/adapters/work_snapshot_read.rs",
+            "packages/server-work_projection/src/public/work_snapshot_read.rs",
+            "src/composition/src"
+          ]
+        },
+        {
+          "id": "work_projection.ts-read-authority",
+          "kind": "read",
+          "detail": "30 TS files under packages/server-work_projection/src/adapters run SQL or holdingResources, including work-items.ts, work-reports.ts, navigation-snapshot.ts, navigation-counts.ts, staff-page.ts, daily-plan.ts and page-layouts.ts; the workplace work/summary, work/reports and navigation routes import these TS publics (work/summary/route.ts, work/reports/route.ts, navigation/route.ts).",
+          "suggestedPaths": [
+            "packages/server-work_projection/src/adapters/work-items.ts",
+            "packages/server-work_projection/src/adapters/work-reports.ts",
+            "packages/server-work_projection/src/adapters/navigation-counts.ts"
+          ]
+        },
+        {
+          "id": "work_projection.projection-write",
+          "kind": "job",
+          "detail": "Work projection writes are TS-only: adapters/workflow-projector.ts commitWorkflowProjection is called from the TS job projector (packages/server-workflow/src/adapters/job-projector.ts:29). No Rust crate exposes a projection write port, so native snapshot reads and TS-projected rows would diverge if the read were mounted without the projector.",
+          "suggestedPaths": [
+            "packages/server-work_projection/src/adapters/workflow-projector.ts",
+            "packages/server-work_projection/src/domain/mod.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-work_projection/src/adapters/work-summary.ts",
+          "reason": "Authoritative Work summary/page reader (createWorkSummary over TS SQL) used by the workplace work routes.",
+          "removalCondition": "Native snapshot read is mounted and the route calls it with no TS fallback; requires src/composition mount (lead)."
+        },
+        {
+          "path": "packages/server-work_projection/src/adapters/navigation-snapshot.ts",
+          "reason": "Live navigation snapshot + unread counts used by the navigation route and pages.",
+          "removalCondition": "Native navigation read covers the same counts and the route/presenter consume it."
+        },
+        {
+          "path": "packages/server-work_projection/src/adapters/work-reports.ts",
+          "reason": "Work report page/CSV search with no native counterpart.",
+          "removalCondition": "Native report read and CSV export exist and work/reports route retires the TS import."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.work_projection.work-snapshot-mount",
+          "title": "Mount native Work snapshot read for summary/navigation behind the existing port",
+          "paths": [
+            "packages/server-work_projection/src/adapters/work_snapshot_read.rs",
+            "packages/server-work_projection/src/adapters/work_snapshot_sources.rs",
+            "packages/server-work_projection/src/public/work_snapshot_read.rs",
+            "tests/integration/shared.work/rust-work-snapshot-maintenance-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:work_projection"
+          ],
+          "dependsOn": [
+            "migrate.workflow.event-projector",
+            "ports.authority"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-work_projection",
+            "cargo test -p erpx-server-work_projection --test work_snapshot_maintenance_postgres",
+            "bun run test:unit -- --suite=shared.work.work-read-model.integration"
+          ]
+        },
+        {
+          "id": "migrate.work_projection.work-reports-read",
+          "title": "Native Work report/read + navigation counts port",
+          "paths": [
+            "packages/server-work_projection/src/domain/mod.rs",
+            "packages/server-work_projection/src/application/mod.rs",
+            "packages/server-work_projection/src/adapters/mod.rs",
+            "packages/server-work_projection/src/public/mod.rs",
+            "tests/integration/shared.work/work-read-model.test.ts"
+          ],
+          "resources": [
+            "owner:work_projection"
+          ],
+          "dependsOn": [
+            "migrate.work_projection.work-snapshot-mount"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-work_projection",
+            "cargo test -p erpx-server-work_projection --test work_card_preferences_postgres",
+            "bun run test:unit -- --suite=shared.work.work-read-model.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Work page desktop/mobile browser journeys (shared.work.work-journeys) and paged Work search performance measurement are A1 acceptance."
+      ],
+      "limitations": [
+        "No catalogue workflow maps here: task.workflowIds is [] and 0 of 206 workflow rows have owner \"work_projection\".",
+        "Composition mount additions require the lead; the snapshot gap cannot be closed by an owner worker alone.",
+        "Read-only inventory; no cargo or bun check was executed."
+      ]
+    },
+    "workflow": {
+      "taskId": "inventory.workflow",
+      "owner": "workflow",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [],
+      "publicPorts": [
+        {
+          "name": "commands::PgCommandLedger / CommandJson / command_fingerprint",
+          "path": "packages/server-workflow/src/adapters/postgres_commands.rs",
+          "mountedAt": [
+            "src/composition/src/records_command.rs",
+            "src/composition/src/service_initial_physical_stock_action.rs",
+            "src/composition/src/support_ticket_command.rs"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "approval_oversight + approval_oversight_http",
+          "path": "packages/server-workflow/src/adapters/approval_oversight_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3918"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "record_origin hold/lock/verify; stock_count_flow, service invoice/parts, task cancel/decision/reroute/revise, work_role_audit",
+          "path": "packages/server-workflow/src/adapters/postgres_record_origin.rs",
+          "mountedAt": [
+            "src/composition/src/field_service_package_settlement.rs:596",
+            "src/composition/src/finance_generic_payment.rs",
+            "src/composition/src/service_count_worker.rs",
+            "src/composition/src/native_work_roles.rs"
+          ],
+          "status": "frozen"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "workflow.general-event-projector",
+          "kind": "job",
+          "detail": "The outbox projector that writes Work projections is TS-only: packages/server-workflow/src/adapters/job-projector.ts:18-31 composes createJobProjectorApplication with ownerSource only for task/people and project() = commitWorkflowProjection (@erpx/server_work_projection/public/workflow-projector). No Rust symbol performs this projection; native outbox projection is scoped to service count (packages/server-workflow/src/adapters/service_count_outbox.rs:2-5).",
+          "suggestedPaths": [
+            "packages/server-workflow/src/application/mod.rs",
+            "packages/server-workflow/src/adapters/mod.rs",
+            "packages/server-workflow/src/public/mod.rs"
+          ]
+        },
+        {
+          "id": "workflow.ts-command-framework",
+          "kind": "command",
+          "detail": "packages/server-workflow/src/adapters/commands.ts:26 executeCommand/replayCommand writes command_receipts/audit_events/outbox_events over TS SQL and is imported by 207 TS files; the native PgCommandLedger is used by 45 composition files only, so TS remains the ledger for most owners.",
+          "suggestedPaths": [
+            "packages/server-workflow/src/adapters/commands.ts",
+            "packages/server-workflow/src/adapters/command-policies.ts"
+          ]
+        },
+        {
+          "id": "workflow.flow-routing-read",
+          "kind": "read",
+          "detail": "Flow routing/attention reads are TS-only: packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/routing-attention/route.ts imports @erpx/server-workflow/public/routing-attention, and no flow-routing symbol exists in src/composition.",
+          "suggestedPaths": [
+            "packages/server-workflow/src/domain/flow-routing.ts",
+            "packages/server-workflow/src/adapters/routing-attention.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-workflow/src/adapters/commands.ts",
+          "reason": "TS command ledger executes receipts/audit/outbox for 207 owner TS adapters.",
+          "removalCondition": "Every importer of @erpx/server-workflow/public/commands is replaced by a native PgCommandLedger handler (native use currently 45 composition files)."
+        },
+        {
+          "path": "packages/server-workflow/src/adapters/job-projector.ts",
+          "reason": "Authoritative outbox projector for task/people/customer-notification/AI/social events.",
+          "removalCondition": "Native projector consumes the same outbox rows for all source kinds and scripts/local/jobs.ts stops importing it."
+        },
+        {
+          "path": "packages/server-workflow/src/adapters/routing-attention.ts",
+          "reason": "Live routing-attention read for the work routing screen.",
+          "removalCondition": "Native flow-routing read is mounted and the workplace routing screen/route consume it."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.workflow.event-projector",
+          "title": "Native outbox event projector with owner sources and Work projection commit",
+          "paths": [
+            "packages/server-workflow/src/application/mod.rs",
+            "packages/server-workflow/src/adapters/mod.rs",
+            "packages/server-workflow/src/public/mod.rs",
+            "packages/server-workflow/src/domain/mod.rs",
+            "tests/integration/shared.work/rust-work-snapshot-maintenance-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:workflow"
+          ],
+          "dependsOn": [
+            "inventory.work_projection",
+            "ports.common"
+          ],
+          "requiredPorts": [
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-workflow",
+            "cargo test -p erpx-server-workflow --test command_ledger_postgres",
+            "bun run test:unit -- --suite=shared.work.workflow-projection.integration"
+          ]
+        },
+        {
+          "id": "migrate.workflow.flow-routing-read",
+          "title": "Native flow routing/attention read port for the routing screen",
+          "paths": [
+            "packages/server-workflow/src/domain/mod.rs",
+            "packages/server-workflow/src/adapters/mod.rs",
+            "packages/server-workflow/src/public/mod.rs",
+            "tests/unit/workflow/rust-approval-oversight.test.rs"
+          ],
+          "resources": [
+            "owner:workflow"
+          ],
+          "dependsOn": [
+            "ports.authority"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-workflow",
+            "cargo test -p erpx-server-workflow --test approval_oversight",
+            "bun run test:unit -- --suite=workflow.rust-approval-oversight.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Approval decision provider/notification side effects are provider acceptance.",
+        "Approval queue desktop/mobile browser journeys belong to A1."
+      ],
+      "limitations": [
+        "No catalogue workflow maps here: task.workflowIds is [] and 0 of 206 workflow rows have owner \"workflow\".",
+        "Composition mount paths are lead-owned integration requests.",
+        "Counts are grep counts of the current tree, not runtime traces.",
+        "Read-only inventory; no cargo or bun check was executed."
+      ]
+    }
+  },
+  "packets": [
+    {
+      "owner": "files",
+      "taskId": "inventory.files",
+      "id": "migrate.files.generic-upload-intake",
+      "title": "Native generic attachment intake (create set, reserve file, complete upload, attest sanitization)",
+      "paths": [
+        "packages/server-files/src/application/mod.rs",
+        "packages/server-files/src/adapters/attachment_http.rs",
+        "packages/server-files/src/public/field_visit_upload.rs",
+        "packages/server-files/src/public/mod.rs",
+        "tests/integration/files/rust-attachment-scan-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:files"
+      ],
+      "dependsOn": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-files",
+        "cargo test -p erpx-server-files --test attachment_scan_postgres",
+        "bun run test:unit -- --suite=shared.attachments.attachments-v2.integration"
+      ]
+    },
+    {
+      "owner": "files",
+      "taskId": "inventory.files",
+      "id": "migrate.files.scan-receipt-authority",
+      "title": "Make the native scan receipt the completion gate for Next uploads",
+      "paths": [
+        "packages/server-files/src/public/attachment_scan.rs",
+        "packages/server-files/src/public/native-attachments.ts",
+        "tests/unit/files/native-attachment-cutover.test.ts",
+        "tests/provider/files/rust-clamav.test.rs"
+      ],
+      "resources": [
+        "owner:files"
+      ],
+      "dependsOn": [
+        "migrate.files.generic-upload-intake"
+      ],
+      "requiredPorts": [
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-files --features preview-provider",
+        "cargo test -p erpx-server-files --test attachment_scan_policy",
+        "bun run test:unit -- --suite=files.native-attachment-cutover.unit"
+      ]
+    },
+    {
+      "owner": "records",
+      "taskId": "inventory.records",
+      "id": "migrate.records.retire-ts-registry-fallback",
+      "title": "Make native registry/context authoritative and delete the TS fallback branch",
+      "paths": [
+        "packages/server-records/src/public/native-record-registry.ts",
+        "packages/server-records/src/public/native-record-context.ts",
+        "tests/unit/shared.records/native-record-registry-route.test.ts",
+        "tests/unit/shared.records/native-record-registry-transport.test.ts",
+        "tests/unit/shared.records/native-record-context-transport.test.ts"
+      ],
+      "resources": [
+        "owner:records"
+      ],
+      "dependsOn": [
+        "ports.authority"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-records",
+        "cargo test -p erpx-server-records --test record_registry_http",
+        "bun run test:unit -- --suite=records.native-record-registry-route.unit"
+      ]
+    },
+    {
+      "owner": "records",
+      "taskId": "inventory.records",
+      "id": "migrate.records.record-details-read",
+      "title": "Native record-details/supplement read to retire recordSupplementData SQL",
+      "paths": [
+        "packages/server-records/src/domain/mod.rs",
+        "packages/server-records/src/application/mod.rs",
+        "packages/server-records/src/adapters/mod.rs",
+        "packages/server-records/src/public/mod.rs",
+        "tests/integration/shared.records/record-details.test.ts"
+      ],
+      "resources": [
+        "owner:records"
+      ],
+      "dependsOn": [
+        "inventory.records"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-records",
+        "cargo test -p erpx-server-records --test record_context",
+        "bun run test:unit -- --suite=shared.records.record-details.integration"
+      ]
+    },
+    {
+      "owner": "runtime",
+      "taskId": "inventory.runtime",
+      "id": "migrate.runtime.general-outbox-supervisor",
+      "title": "Native general outbox supervisor for all registered holdings",
+      "paths": [
+        "packages/server-runtime/src/application/mod.rs",
+        "packages/server-runtime/src/adapters/postgres/worker.rs",
+        "packages/server-runtime/src/adapters/postgres/jobs.rs",
+        "tests/integration/shared.runtime/worker-attestation-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:runtime"
+      ],
+      "dependsOn": [
+        "migrate.workflow.event-projector",
+        "ports.common"
+      ],
+      "requiredPorts": [
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-runtime",
+        "cargo test -p erpx-server-runtime --test worker_attestation_postgres",
+        "cargo test -p erpx-server-runtime --test outbox_jobs_postgres"
+      ]
+    },
+    {
+      "owner": "runtime",
+      "taskId": "inventory.runtime",
+      "id": "migrate.runtime.production-worker-entrypoint",
+      "title": "Extend the production-worker CLI to drain the general queue with lease/retry parity",
+      "paths": [
+        "src/composition/src/private_development_api.rs",
+        "tests/integration/shared.runtime/worker-attestation-postgres.test.rs",
+        "scripts/local/dev-container-native-start.ts"
+      ],
+      "resources": [
+        "owner:runtime"
+      ],
+      "dependsOn": [
+        "migrate.runtime.general-outbox-supervisor"
+      ],
+      "requiredPorts": [
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-service --features production-api",
+        "bun run test:unit -- --suite=shared.runtime.native-runtime.integration"
+      ]
+    },
+    {
+      "owner": "shared",
+      "taskId": "inventory.shared",
+      "id": "migrate.shared.port-adoption",
+      "title": "Publish and adopt the shared transaction/receipt/outbox port traits, or delete the unused surface",
+      "paths": [
+        "packages/server-shared/src/application/ports.rs",
+        "packages/server-shared/src/public/mod.rs",
+        "tests/unit/shared.architecture/rust-shared-core.test.rs"
+      ],
+      "resources": [
+        "owner:shared"
+      ],
+      "dependsOn": [
+        "ports.common"
+      ],
+      "requiredPorts": [
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-shared",
+        "cargo test -p erpx-server-shared --test shared_core",
+        "bun run test:unit -- --suite=shared.architecture.rust-shared-core.unit"
+      ]
+    },
+    {
+      "owner": "work_projection",
+      "taskId": "inventory.work_projection",
+      "id": "migrate.work_projection.work-snapshot-mount",
+      "title": "Mount native Work snapshot read for summary/navigation behind the existing port",
+      "paths": [
+        "packages/server-work_projection/src/adapters/work_snapshot_read.rs",
+        "packages/server-work_projection/src/adapters/work_snapshot_sources.rs",
+        "packages/server-work_projection/src/public/work_snapshot_read.rs",
+        "tests/integration/shared.work/rust-work-snapshot-maintenance-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:work_projection"
+      ],
+      "dependsOn": [
+        "migrate.workflow.event-projector",
+        "ports.authority"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-work_projection",
+        "cargo test -p erpx-server-work_projection --test work_snapshot_maintenance_postgres",
+        "bun run test:unit -- --suite=shared.work.work-read-model.integration"
+      ]
+    },
+    {
+      "owner": "work_projection",
+      "taskId": "inventory.work_projection",
+      "id": "migrate.work_projection.work-reports-read",
+      "title": "Native Work report/read + navigation counts port",
+      "paths": [
+        "packages/server-work_projection/src/domain/mod.rs",
+        "packages/server-work_projection/src/application/mod.rs",
+        "packages/server-work_projection/src/adapters/mod.rs",
+        "packages/server-work_projection/src/public/mod.rs",
+        "tests/integration/shared.work/work-read-model.test.ts"
+      ],
+      "resources": [
+        "owner:work_projection"
+      ],
+      "dependsOn": [
+        "migrate.work_projection.work-snapshot-mount"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-work_projection",
+        "cargo test -p erpx-server-work_projection --test work_card_preferences_postgres",
+        "bun run test:unit -- --suite=shared.work.work-read-model.integration"
+      ]
+    },
+    {
+      "owner": "workflow",
+      "taskId": "inventory.workflow",
+      "id": "migrate.workflow.event-projector",
+      "title": "Native outbox event projector with owner sources and Work projection commit",
+      "paths": [
+        "packages/server-workflow/src/application/mod.rs",
+        "packages/server-workflow/src/adapters/mod.rs",
+        "packages/server-workflow/src/public/mod.rs",
+        "packages/server-workflow/src/domain/mod.rs",
+        "tests/integration/shared.work/rust-work-snapshot-maintenance-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:workflow"
+      ],
+      "dependsOn": [
+        "inventory.work_projection",
+        "ports.common"
+      ],
+      "requiredPorts": [
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-workflow",
+        "cargo test -p erpx-server-workflow --test command_ledger_postgres",
+        "bun run test:unit -- --suite=shared.work.workflow-projection.integration"
+      ]
+    },
+    {
+      "owner": "workflow",
+      "taskId": "inventory.workflow",
+      "id": "migrate.workflow.flow-routing-read",
+      "title": "Native flow routing/attention read port for the routing screen",
+      "paths": [
+        "packages/server-workflow/src/domain/mod.rs",
+        "packages/server-workflow/src/adapters/mod.rs",
+        "packages/server-workflow/src/public/mod.rs",
+        "tests/unit/workflow/rust-approval-oversight.test.rs"
+      ],
+      "resources": [
+        "owner:workflow"
+      ],
+      "dependsOn": [
+        "ports.authority"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-workflow",
+        "cargo test -p erpx-server-workflow --test approval_oversight",
+        "bun run test:unit -- --suite=workflow.rust-approval-oversight.unit"
+      ]
+    }
+  ],
+  "summary": {
+    "ownersInventoried": 6,
+    "packetsProposed": 11
+  }
+}

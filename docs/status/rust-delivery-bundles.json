@@ -9257,10 +9257,18 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9,
+    "revision": 49,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
-    "coordinator": null,
+    "coordinator": {
+      "runId": "run-20261110-g1",
+      "agentId": "lead",
+      "startedAt": "2026-11-10T16:01:48.750Z",
+      "heartbeatAt": "2026-11-10T16:14:11.756Z",
+      "expiresAt": "2026-11-10T16:44:11.756Z",
+      "generation": 2,
+      "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
+    },
     "coordinationPolicy": {
       "singleCheckout": true,
       "coordinatorOnlyTrackedWrites": true,
@@ -9312,7 +9320,7 @@
         "id": "G1",
         "title": "Inventory all backend consumers",
         "planRef": "docs/production-plan.md#rust-migration-current",
-        "status": "pending",
+        "status": "in_progress",
         "successCriteria": "All 41 owners, 206 workflow IDs, seven surfaces and auxiliary APIs/jobs/providers have source inventory and bounded tasks.",
         "acceptance": false,
         "category": "migration"
@@ -9673,8 +9681,15 @@
         "resources": [
           "inventory:commercial"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:03:24.550Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -9762,8 +9777,15 @@
         "resources": [
           "inventory:identity_access"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:03:24.447Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -9853,8 +9875,15 @@
         "resources": [
           "inventory:organization"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:03:24.475Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -9946,8 +9975,15 @@
         "resources": [
           "inventory:platform_administration"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:03:24.500Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10127,8 +10163,15 @@
         "resources": [
           "inventory:customer_authority"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:03:24.524Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10315,8 +10358,15 @@
         "resources": [
           "inventory:finance"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:03:24.676Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10409,8 +10459,15 @@
         "resources": [
           "inventory:pos"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-10T16:13:29.282Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10501,8 +10558,15 @@
         "resources": [
           "inventory:sales"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:03:24.701Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10593,8 +10657,15 @@
         "resources": [
           "inventory:assets"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-10T16:13:29.232Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10684,8 +10755,15 @@
         "resources": [
           "inventory:inventory"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:03:24.651Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10775,8 +10853,15 @@
         "resources": [
           "inventory:maintenance"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-10T16:13:29.257Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10958,8 +11043,15 @@
         "resources": [
           "inventory:procurement"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:03:24.725Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11049,8 +11141,15 @@
         "resources": [
           "inventory:quality"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:03:24.752Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11233,8 +11332,15 @@
         "resources": [
           "inventory:people_payroll"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:13:29.381Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11324,8 +11430,15 @@
         "resources": [
           "inventory:crm"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:13:29.482Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11415,8 +11528,15 @@
         "resources": [
           "inventory:marketing"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:13:29.507Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11506,8 +11626,15 @@
         "resources": [
           "inventory:manufacturing"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:13:29.355Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11597,8 +11724,15 @@
         "resources": [
           "inventory:planning"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:13:29.330Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11777,8 +11911,15 @@
         "resources": [
           "inventory:ecommerce"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-10T16:13:29.306Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11868,8 +12009,15 @@
         "resources": [
           "inventory:benefits"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:13:29.432Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11957,8 +12105,15 @@
         "resources": [
           "inventory:learning"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:13:29.457Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12048,8 +12203,15 @@
         "resources": [
           "inventory:talent"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:13:29.406Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12527,8 +12689,15 @@
         "resources": [
           "inventory:manage_erpx"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:03:24.600Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12606,8 +12775,15 @@
         "resources": [
           "inventory:commerce"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:03:24.626Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12684,8 +12860,15 @@
         "resources": [
           "inventory:billing"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:03:24.575Z",
+          "heartbeatAt": "2026-11-10T16:14:11.756Z",
+          "expiresAt": "2026-11-10T16:44:11.756Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12759,7 +12942,7 @@
         "resources": [
           "inventory:records"
         ],
-        "status": "pending",
+        "status": "done",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
@@ -12767,7 +12950,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-records/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.records to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when G2 ports.common freezes its seam",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12832,7 +13015,7 @@
         "resources": [
           "inventory:workflow"
         ],
-        "status": "pending",
+        "status": "done",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
@@ -12840,7 +13023,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-workflow/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.workflow to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when G2 ports.common freezes its seam",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12909,7 +13092,7 @@
         "resources": [
           "inventory:files"
         ],
-        "status": "pending",
+        "status": "done",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
@@ -12917,7 +13100,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-files/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.files to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when G2 ports.common freezes its seam",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12987,7 +13170,7 @@
         "resources": [
           "inventory:work_projection"
         ],
-        "status": "pending",
+        "status": "done",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
@@ -12995,7 +13178,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-work_projection/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.work_projection to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when G2 ports.common freezes its seam",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -13060,7 +13243,7 @@
         "resources": [
           "inventory:runtime"
         ],
-        "status": "pending",
+        "status": "done",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
@@ -13068,7 +13251,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-runtime/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.runtime to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when G2 ports.common freezes its seam",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -13133,7 +13316,7 @@
         "resources": [
           "inventory:shared"
         ],
-        "status": "pending",
+        "status": "done",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
@@ -13141,7 +13324,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-shared/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.shared to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when G2 ports.common freezes its seam",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -14141,8 +14324,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 1,
-    "updatedAt": "2026-11-10T15:52:23.374Z",
+    "lastCoordinatorGeneration": 2,
+    "updatedAt": "2026-11-10T16:14:11.756Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [

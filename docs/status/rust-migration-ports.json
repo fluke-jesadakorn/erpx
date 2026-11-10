@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "planRef": "docs/production-plan.md#rust-migration-current",
+  "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+  "generatedAt": "2026-11-10T16:15:00+00:00",
+  "interpretation": "G2 frozen producer/consumer seams. A frozen seam names the provider public symbol, its authority witness, transaction/lock order and actual composition mounts. Freezing is not acceptance and does not retire legacy consumers.",
+  "groups": {
+    "ports.common": {
+      "taskId": "ports.common",
+      "owners": [
+        "records",
+        "workflow",
+        "files",
+        "runtime",
+        "work_projection",
+        "shared"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "shared.record-source-v1",
+          "provider": "shared",
+          "symbols": [
+            "erpx_server_shared::public::record_source_contract (CONTRACT_VERSION record-source.v1)",
+            "RecordSourceReference/RecordSourceSnapshot/SourceRecordKind"
+          ],
+          "paths": [
+            "packages/server-shared/src/public/mod.rs",
+            "packages/server-shared/src/domain/source_record.rs"
+          ],
+          "authorityWitness": "Portable facts only. The reader rechecks the selecting owner context; the snapshot grants no authority and carries no owner write capability.",
+          "transaction": "No effects. Callers pass the already-authorized owner transaction/connection; no independent commit or retry.",
+          "consumers": [
+            "records",
+            "files",
+            "workflow",
+            "field_service",
+            "finance"
+          ],
+          "mounts": [
+            "src/composition/src/field_service_source_record.rs",
+            "src/composition/src/field_inbox_read.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-shared",
+            "cargo check -p erpx-service"
+          ],
+          "sourceDigest": {
+            "packages/server-shared/src/public/mod.rs": "6c3e8b79f43675cc9373de20d7cbd9c0e31b1783eb9ae5e40940cdd4c17e7d9a",
+            "packages/server-shared/src/domain/source_record.rs": "c119f5672ce92652bd7e73a6ade6d8eccc860d4020f3185ed2e92465b1e7b0d8"
+          }
+        },
+        {
+          "id": "workflow.command-ledger",
+          "provider": "workflow",
+          "symbols": [
+            "erpx_server_workflow::public::commands::PgCommandLedger",
+            "PgCommandLedger::replay",
+            "PgCommandLedger::execute",
+            "command_fingerprint",
+            "CommandOutcome"
+          ],
+          "paths": [
+            "packages/server-workflow/src/adapters/postgres_commands.rs",
+            "packages/server-workflow/src/public/commands.rs"
+          ],
+          "authorityWitness": "PgCommandAuthority::verify_command runs before effects and again before retain; a missing receipt never grants History or NewWork.",
+          "transaction": "Caller owns the Holding transaction and Control lease; the ledger never checks out a pool, commits independently, retries or calls externally. Receipt, owner effects and outbox retain commit in the same unit.",
+          "consumers": [
+            "all owner command adapters",
+            "records",
+            "support",
+            "finance",
+            "field_service",
+            "commerce"
+          ],
+          "mounts": [
+            "src/composition/src/records_command.rs",
+            "src/composition/src/support_ticket_command.rs",
+            "src/composition/src/service_initial_physical_stock_action.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-workflow",
+            "bun run test:integration -- --suite=workflow.rust-command-ledger-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-workflow/src/adapters/postgres_commands.rs": "1b32bd77896df3c89201ee97b5f390360fe7270b41072d97a26f8a6dd1c783cf",
+            "packages/server-workflow/src/public/commands.rs": "31aaf2fd987e64b456677aedd18d5039893dff02c3816c15ac685c5d57ee6499"
+          }
+        },
+        {
+          "id": "runtime.unit-of-work",
+          "provider": "runtime",
+          "symbols": [
+            "erpx_server_runtime::postgres::PgUnitOfWork::run",
+            "PgUnitOfWork::run_once",
+            "TransactionOptions::session_lock",
+            "PgWorkFuture"
+          ],
+          "paths": [
+            "packages/server-runtime/src/adapters/postgres/unit_of_work.rs"
+          ],
+          "authorityWitness": "No implicit actor. Each owner callback re-authorizes on the leased connection.",
+          "transaction": "run may replay its callback four times on serialization failure; effects belong in a durable outbox. run_once refuses callback replay and propagates serialization errors to the caller's explicit resumable protocol. Named session locks serialize shared writers in a fixed order before owner row locks.",
+          "consumers": [
+            "src/composition/**",
+            "all native command/read services"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/records_command.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-runtime",
+            "bun run test:unit -- --suite=shared.runtime.worker-attestation-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-runtime/src/adapters/postgres/unit_of_work.rs": "6a9be9131c7f9d29156e16e0250c6359c215c72e585fc7f7e52727580e37506b"
+          }
+        },
+        {
+          "id": "records.registry-context-http",
+          "provider": "records",
+          "symbols": [
+            "records_registry_http_router",
+            "RecordsRegistryHttpRequest",
+            "RecordsRegistryHttpResponse",
+            "record_context_http::record_context_http_router"
+          ],
+          "paths": [
+            "packages/server-records/src/adapters/record_registry_http.rs",
+            "packages/server-records/src/adapters/record_context_http.rs"
+          ],
+          "authorityWitness": "Router maps the authenticated Holding/assignment context into the owner read; Company scope is rechecked by the owner read, not by the transport.",
+          "transaction": "Read-only HTTP facade. Registry archive/update commands stay on the caller's owner transaction with the workflow ledger.",
+          "consumers": [
+            "workplace records routes",
+            "feature-records"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs:4255",
+            "src/composition/src/private_development_api.rs:4263",
+            "src/composition/src/records.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-service --features existing-business,private-development-api"
+          ],
+          "sourceDigest": {
+            "packages/server-records/src/adapters/record_registry_http.rs": "d40d7d28a681aacc2f79284ea226fd156bd802d4bca11615b1494c1ede0a560a",
+            "packages/server-records/src/adapters/record_context_http.rs": "fe486b2dbe0fa1231052d58ecc2150ec4de956587349023018f9bcdd9a2dc81b"
+          }
+        },
+        {
+          "id": "files.attachment-read",
+          "provider": "files",
+          "symbols": [
+            "attachment_read_router",
+            "AttachmentReadHttpTarget",
+            "AttachmentReadHttpReply",
+            "field_visit_intake router"
+          ],
+          "paths": [
+            "packages/server-files/src/adapters/attachment_http.rs",
+            "packages/server-files/src/adapters/field_visit_intake.rs"
+          ],
+          "authorityWitness": "The Files owner rechecks link/attachment set membership, legal hold and evidence lock; transport headers never substitute for the source check.",
+          "transaction": "Reads take the retaining source fence; intake writes bind the Files set/link/attachment rows and the owner version in one transaction.",
+          "consumers": [
+            "field_service",
+            "support",
+            "legal",
+            "finance",
+            "workplace uploads"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs:4279",
+            "src/composition/src/private_development_api/field_files.rs:235",
+            "src/composition/src/field_attachment_intake_command.rs"
+          ],
+          "status": "partial",
+          "note": "Generic /uploads and attachment-set writes remain in TypeScript; scan receipt authority is split between TS scanner and Rust ClamAV worker.",
+          "tests": [
+            "cargo check -p erpx-server-files",
+            "bun run test:unit -- --suite=files.rust-attachment-read-http.unit"
+          ],
+          "sourceDigest": {
+            "packages/server-files/src/adapters/attachment_http.rs": "ce8afc2a23f15c316c0ad5091fed765f8a12588c5d8fc59a8216ba63ff8b8c19",
+            "packages/server-files/src/adapters/field_visit_intake.rs": "cb7835fef88dd724dcd09195a7f437c0c6560c6fa86d4be7b34db32be14ef29d"
+          }
+        },
+        {
+          "id": "work_projection.snapshot-read",
+          "provider": "work_projection",
+          "symbols": [
+            "read_native_work_snapshot(&mut PgConnection,&AuthorizedWorkContext,TimestampMillis)"
+          ],
+          "paths": [
+            "packages/server-work_projection/src/adapters/work_snapshot_read.rs"
+          ],
+          "authorityWitness": "read_native_work_snapshot opens no transaction and grants no authority; each owner read rechecks selected context and scope.",
+          "transaction": "Caller must already hold the retained serializable Holding transaction. The snapshot is composed from current owner public reads in that transaction.",
+          "consumers": [
+            "workplace SSR work snapshot",
+            "feature-work_projection"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "Implemented but not mounted; composition has no HTTP/SSR route to the snapshot read.",
+          "tests": [
+            "cargo check -p erpx-server-work-projection"
+          ],
+          "sourceDigest": {
+            "packages/server-work_projection/src/adapters/work_snapshot_read.rs": "facc4da383186b256480b00edaf8eaefcc90cdfa08f9b43a7de7e5ca06b89d82"
+          }
+        }
+      ]
+    }
+  }
+}
