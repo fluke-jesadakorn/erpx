@@ -205,15 +205,15 @@
     {
       "id": "operations",
       "package": "erpx-server-operations",
-      "phase": "partial",
-      "businessMigrationComplete": false,
+      "phase": "active",
+      "businessMigrationComplete": true,
       "surfaces": {
         "domain": "active",
         "application": "active",
-        "http": "partial",
-        "ssr": "partial",
-        "jobs": "pending",
-        "providers": "pending"
+        "http": "active",
+        "ssr": "active",
+        "jobs": "not-applicable",
+        "providers": "not-applicable"
       }
     },
     {

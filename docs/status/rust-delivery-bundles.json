@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T21:20:29+07:00",
+  "updatedAt": "2026-11-10T21:53:41+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -19,10 +19,10 @@
     "qualifiedBusinessFlows": 112,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 51,
-    "workflowsVerified": 73,
-    "workflowsMerged": 73,
-    "ownersComplete": 7,
+    "workflowsPartial": 46,
+    "workflowsVerified": 78,
+    "workflowsMerged": 78,
+    "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -3664,6 +3664,15 @@
       "sourceIdentity": "working tree on e49e5b8784886aeb9e14545af7f938ba8972652c",
       "evidenceRef": "docs/testing/evidence/2026-11-10-maintenance-owner-certification.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "operations-owner-certification",
+      "kind": "owner-certification",
+      "status": "owner-complete",
+      "scope": "Operations owner: 6/6 registered workflows certified. The product policy/exception route is native-only for non-Field records and fails closed with 503 NATIVE_OPERATIONS_UNAVAILABLE; Field-owned records use the native Field transport. Historical browser lifecycle coverage for open/acknowledge/start/assign/escalate/resolve/approve/close/reopen/prioritize/reject/cancel and policy draft/publish/retire is retained. Native Rust queue-read (6), HTTP (3), commands (5) and TS exception (8) suites plus 88 TS unit tests and 26 Rust unit tests pass; the Operations page renders the native queue in the browser.",
+      "sourceIdentity": "working tree on 0f8f40f745314c8c927c8fd7511193d2b659af4d",
+      "evidenceRef": "docs/testing/evidence/2026-11-10-operations-owner-certification.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -4834,9 +4843,9 @@
       "kind": "module",
       "owner": "operations",
       "scope": "Exception queue",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-queue-read",
         "operations-native-commands",
@@ -4844,16 +4853,16 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Historical native slice. Source reads dispatch through the POS/Assets/Field owner record-source ports and recipient checks through the Identity owner port; the native command path is mounted and browser verified. Opened an exception from the completed POS sale adcdf454 and ran the full lifecycle: acknowledge v2, start v3, assign v4, escalate v5, resolve v6, independent approve v7, close v8, reopen v9, prioritize v10, resolve v11, reject v12, cancel v13 with persisted status/priority readback. Correction at e208578b4: The product Operations route retains TypeScript open/change fallback when native is unavailable. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. The product Operations route now delegates every non-Field policy/exception command to the native Operations transport and fails closed with 503 NATIVE_OPERATIONS_UNAVAILABLE when it is unset; the retained TypeScript open/change fallback was removed. Field-owned records keep the native Field transport. Source reads dispatch through the POS/Assets/Field owner record-source ports and recipient checks through the Identity owner port; the native command path is mounted and browser verified. Opened an exception from the completed POS sale adcdf454 and ran the full lifecycle: acknowledge v2, start v3, assign v4, escalate v5, resolve v6, independent approve v7, close v8, reopen v9, prioritize v10, resolve v11, reject v12, cancel v13 with persisted status/priority readback. The retained TypeScript application is no longer called by the product route; it remains a test/public-export consumer only."
     },
     {
       "id": "operations/feature-escalations",
       "kind": "module",
       "owner": "operations",
       "scope": "Escalations",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-escalations",
         "operations-native-commands",
@@ -4861,55 +4870,55 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Historical native slice. Native assign/escalate/prioritize run through the same owner ports and are browser verified on the exception above: assign 200 v4, escalate to usr_nisa 200 v5 (status escalated), prioritize high 200 v10. Correction at e208578b4: The product Operations route retains TypeScript change-exception fallback for escalation actions. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. The product Operations route now delegates every non-Field policy/exception command to the native Operations transport and fails closed with 503 NATIVE_OPERATIONS_UNAVAILABLE when it is unset; the retained TypeScript open/change fallback was removed. Field-owned records keep the native Field transport. Native assign/escalate/prioritize run through the same owner ports and are browser verified on the exception above: assign 200 v4, escalate to usr_nisa 200 v5 (status escalated), prioritize high 200 v10. The retained TypeScript application is no longer called by the product route; it remains a test/public-export consumer only."
     },
     {
       "id": "operations/feature-approval-decisions",
       "kind": "module",
       "owner": "operations",
       "scope": "Approval decisions",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-commands",
         "operations-native-transport",
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Historical native slice. Native approve/reject/close/reopen are browser verified by the independent reviewer and owner: approve 200 v7 (resolved, reviewed_by usr_nisa), close 200 v8, reopen 200 v9 (in_progress), reject 200 v12 (in_progress). Correction at e208578b4: The product Operations route retains TypeScript change-exception fallback for decision actions. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. The product Operations route now delegates every non-Field policy/exception command to the native Operations transport and fails closed with 503 NATIVE_OPERATIONS_UNAVAILABLE when it is unset; the retained TypeScript open/change fallback was removed. Field-owned records keep the native Field transport. Native approve/reject/close/reopen are browser verified by the independent reviewer and owner: approve 200 v7 (resolved, reviewed_by usr_nisa), close 200 v8, reopen 200 v9 (in_progress), reject 200 v12 (in_progress). The retained TypeScript application is no longer called by the product route; it remains a test/public-export consumer only."
     },
     {
       "id": "operations/feature-resolution",
       "kind": "module",
       "owner": "operations",
       "scope": "Resolution",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-commands",
         "operations-native-transport",
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Historical native slice. Native acknowledge/start/resolve/cancel are browser verified on the same exception: acknowledge 200 v2, start 200 v3, resolve 200 v6 and v11 (awaiting_review), cancel 200 v13 (cancelled). Correction at e208578b4: The product Operations route retains TypeScript change-exception fallback for resolution actions. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. The product Operations route now delegates every non-Field policy/exception command to the native Operations transport and fails closed with 503 NATIVE_OPERATIONS_UNAVAILABLE when it is unset; the retained TypeScript open/change fallback was removed. Field-owned records keep the native Field transport. Native acknowledge/start/resolve/cancel are browser verified on the same exception: acknowledge 200 v2, start 200 v3, resolve 200 v6 and v11 (awaiting_review), cancel 200 v13 (cancelled). The retained TypeScript application is no longer called by the product route; it remains a test/public-export consumer only."
     },
     {
       "id": "operations/feature-queue-policies",
       "kind": "module",
       "owner": "operations",
       "scope": "Queue policies",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-commands",
         "operations-native-transport",
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Historical native slice. Native policy draft/publish/reject/retire are mounted end to end: the HTTP backend forwards commands through OperationsService, derives the expected work-selection CAS, checks same-person through iam_same_person, and requires module.operations.read on reads. The Operations page, people directory and command transport are browser verified in the keyed workspace: the seeded draft was published (200 status=published version=2, reviewed_by=usr_mali) and then retired (200 status=retired version=3) with persisted readback. Correction at e208578b4: The product Operations route retains TypeScript draft/review policy fallback. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. The product Operations route now delegates every non-Field policy/exception command to the native Operations transport and fails closed with 503 NATIVE_OPERATIONS_UNAVAILABLE when it is unset; the retained TypeScript open/change fallback was removed. Field-owned records keep the native Field transport. Native policy draft/publish/reject/retire are mounted end to end: the HTTP backend forwards commands through OperationsService, derives the expected work-selection CAS, checks same-person through iam_same_person, and requires module.operations.read on reads. The Operations page, people directory and command transport are browser verified in the keyed workspace: the seeded draft was published (200 status=published version=2, reviewed_by=usr_mali) and then retired (200 status=retired version=3) with persisted readback. The retained TypeScript application is no longer called by the product route; it remains a test/public-export consumer only."
     },
     {
       "id": "operations/feature-operations-summary",
@@ -6741,8 +6750,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-10T21:20:29+07:00",
-    "sourceHead": "e49e5b8784886aeb9e14545af7f938ba8972652c",
+    "generatedAt": "2026-11-10T21:53:41+07:00",
+    "sourceHead": "0f8f40f745314c8c927c8fd7511193d2b659af4d",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6859,11 +6868,11 @@
       },
       "operations": {
         "workflows": 6,
-        "verified": 1,
-        "partial": 5,
+        "verified": 6,
+        "partial": 0,
         "unstarted": 0,
-        "phase": "partial",
-        "businessMigrationComplete": false
+        "phase": "active",
+        "businessMigrationComplete": true
       },
       "procurement": {
         "workflows": 5,
