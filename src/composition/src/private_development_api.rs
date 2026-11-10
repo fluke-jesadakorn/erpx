@@ -2486,6 +2486,10 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut legal_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut support_service_team_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut support_auxiliary_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_retention_targets = Vec::new();
@@ -2898,6 +2902,39 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+                }
+                {
+                    let support_workspace_backend =
+                        Arc::new(crate::support_workspace::SupportWorkspaceBackend::new(
+                            Arc::new(
+                                crate::support_workspace::SupportWorkspaceService::new(
+                                    config.policy.clone(),
+                                    Arc::new(FinanceJournalReadScopeHeaders),
+                                    authorizer.clone(),
+                                    crate::support_workspace::SupportWorkspaceConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        ));
+                    support_service_team_targets.push(
+                        erpx_server_support::public::service_teams_http::ServiceTeamHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: support_workspace_backend.clone(),
+                        },
+                    );
+                    support_auxiliary_targets.push(
+                        erpx_server_support::public::support_auxiliary_http::SupportAuxiliaryHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: support_workspace_backend.clone(),
+                        },
+                    );
                 }
                 procurement_targets.push(
                 erpx_server_procurement::public::supplier_promise_history_http::SupplierPromiseHistoryHttpTarget {
@@ -4346,6 +4383,24 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        #[cfg(feature = "existing-business")]
+        if !support_service_team_targets.is_empty() {
+            router = router.merge(
+                erpx_server_support::public::service_teams_http::service_teams_http_router(
+                    support_service_team_targets,
+                )
+                .map_err(|_| "PRIVATE_API_SUPPORT_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !support_auxiliary_targets.is_empty() {
+            router = router.merge(
+                erpx_server_support::public::support_auxiliary_http::support_auxiliary_http_router(
+                    support_auxiliary_targets,
+                )
+                .map_err(|_| "PRIVATE_API_SUPPORT_CONFIGURATION_INVALID")?,
+            );
+        }
         #[cfg(feature = "existing-business")]
         if !legal_trust_targets.is_empty() {
             router = router.merge(

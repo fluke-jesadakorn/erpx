@@ -111,6 +111,7 @@ pub mod manufacturing;
 pub mod marketing;
 pub mod operations;
 #[cfg(feature = "existing-business")]
+pub mod support_workspace;
 pub mod organization_nodes;
 #[cfg(feature = "existing-business")]
 pub mod organization_access;
