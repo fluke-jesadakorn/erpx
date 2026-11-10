@@ -23,6 +23,7 @@ erpx-server-support.workspace = true
 erpx-server-finance.workspace = true
 erpx-server-collaboration.workspace = true
 erpx-server-operations.workspace = true
+erpx-server-maintenance.workspace = true
 sqlx.workspace=true
 sha2.workspace=true
 [dev-dependencies]

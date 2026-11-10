@@ -1342,6 +1342,7 @@ dependencies = [
  "erpx-server-collaboration",
  "erpx-server-field-service",
  "erpx-server-finance",
+ "erpx-server-maintenance",
  "erpx-server-operations",
  "erpx-server-runtime",
  "erpx-server-shared",

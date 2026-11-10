@@ -7,6 +7,7 @@
 use crate::domain::work_card_availability::{WorkItemFact, WorkQueue};
 use erpx_server_collaboration::public::collaboration_work::ActionWork;
 use erpx_server_field_service::public::work::FieldServiceWorkItem;
+use erpx_server_maintenance::public::read::MaintenanceWorkRow;
 use erpx_server_operations::public::field_exceptions::ExceptionWork;
 use erpx_server_support::public::incident::IncidentWorkItem;
 use erpx_server_support::public::session::SessionWorkItem;
@@ -252,6 +253,45 @@ pub fn projected_work_items(rows: &[ProjectedWorkRow]) -> Vec<WorkItemFact> {
         .collect()
 }
 
+pub fn maintenance_items(
+    rows: &[MaintenanceWorkRow],
+    actor_user_id: &str,
+    can_review: bool,
+) -> Vec<WorkItemFact> {
+    rows.iter()
+        .map(|row| {
+            let terminal = matches!(row.status.as_str(), "completed" | "cancelled");
+            let manage = can_review && row.can_review > 0;
+            let own = row.owner_id == actor_user_id && row.owner_eligible > 0;
+            let can_act = !terminal && (own || manage);
+            let relationships = if row.owner_id == actor_user_id {
+                vec!["assigned".to_owned()]
+            } else if row.created_by == actor_user_id {
+                vec!["requested".to_owned()]
+            } else {
+                vec!["team".to_owned()]
+            };
+            WorkItemFact {
+                id: format!("maintenance:{}", row.id),
+                kind: "maintenance_work".into(),
+                queue: if terminal {
+                    WorkQueue::Completed
+                } else if can_act {
+                    WorkQueue::Todo
+                } else {
+                    WorkQueue::Waiting
+                },
+                can_act: Some(can_act),
+                action_kind: None,
+                relationships,
+                updated_at: row.updated_at,
+                source_id: Some(row.id.clone()),
+                href: format!("/maintenance/{}", row.id),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,6 +299,44 @@ mod tests {
     use erpx_server_support::public::incident::IncidentWorkItem;
     use erpx_server_support::public::session::SessionWorkItem;
     use erpx_server_support::public::ticket::TicketWorkItem;
+
+    #[test]
+    fn maintenance_rows_follow_schedule_owner_and_reviewer_rules() {
+        let row = erpx_server_maintenance::public::read::MaintenanceWorkRow {
+            id: "work-1".into(),
+            company_id: "company".into(),
+            branch_id: "branch".into(),
+            department_id: None,
+            asset_id: "asset-1".into(),
+            title: "Service".into(),
+            priority: "high".into(),
+            status: "scheduled".into(),
+            owner_id: "owner".into(),
+            scheduled_at: Some(1),
+            downtime_started_at: None,
+            downtime_ended_at: None,
+            blocked_reason: None,
+            completion_evidence: None,
+            resulting_condition: None,
+            version: 1,
+            created_by: "creator".into(),
+            created_at: 1,
+            updated_at: 9,
+            asset_code: "A-1".into(),
+            asset_name: "Asset".into(),
+            owner_name: None,
+            owner_eligible: 1,
+            can_review: 0,
+        };
+        let items = maintenance_items(&[row.clone()], "owner", false);
+        assert_eq!(items[0].id, "maintenance:work-1");
+        assert_eq!(items[0].queue, WorkQueue::Todo);
+        assert_eq!(items[0].relationships, ["assigned"]);
+        assert_eq!(items[0].updated_at, 9);
+        let waiting = maintenance_items(&[row], "someone", false);
+        assert_eq!(waiting[0].queue, WorkQueue::Waiting);
+        assert_eq!(waiting[0].relationships, ["team"]);
+    }
 
     #[test]
     fn projected_work_rows_preserve_source_type_and_queue() {
