@@ -80,6 +80,29 @@ export async function nativePlanningWorkspace(
   )({ holdingSlug, ...scope(actor), expected: expected(actor) });
 }
 
+
+export async function nativePlanningCommand(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativePlanningPageContext,
+  holdingSlug: string,
+  path: string,
+  body: unknown,
+  key: string,
+): Promise<unknown | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativePlanningError('NATIVE_PLANNING_CONTEXT_CHANGED');
+  return native.command(incoming, actor, {
+    holdingSlug,
+    path,
+    body,
+    key,
+    ...scope(actor),
+    expected: expected(actor),
+  });
+}
+
 /** Bounded failure policy for the retained page/route error handling. */
 export function nativePlanningFailure(
   error: unknown,

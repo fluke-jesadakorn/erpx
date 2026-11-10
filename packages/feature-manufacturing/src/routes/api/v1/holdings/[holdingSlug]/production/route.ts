@@ -14,6 +14,7 @@ import {
 } from "@erpx/server-manufacturing/public/production";
 import { createManufacturingAccountingProfile, reviewManufacturingAccountingProfile } from "@erpx/server-manufacturing/public/production-accounting";
 import { saveProductionResource, saveProductionResourceCalendar } from "@erpx/server-manufacturing/public/production-resources";
+import { nativePlanningCommand } from "@erpx/feature-manufacturing/public/native-planning-workspace-page";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
@@ -58,6 +59,36 @@ export async function POST(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       i = await r.json();
     let data;
+    const nativePlanning =
+      i.entity === "resource" ||
+      i.entity === "resource-calendar" ||
+      i.entity === "scenario" ||
+      i.entity === "recommendation";
+    if (nativePlanning) {
+      const path =
+        i.entity === "resource"
+          ? typeof i.id === "string"
+            ? `/planning/resources/${encodeURIComponent(i.id)}`
+            : "/planning/resources"
+          : i.entity === "resource-calendar"
+            ? `/planning/resources/${encodeURIComponent(i.id)}/calendar`
+            : i.entity === "scenario"
+              ? typeof i.id === "string"
+                ? `/planning/scenarios/${encodeURIComponent(i.id)}`
+                : "/planning/scenarios"
+              : `/planning/recommendations/${encodeURIComponent(i.id)}`;
+      const result = await nativePlanningCommand(
+        r.headers,
+        (await import("@erpx/feature-manufacturing/public/native-planning-workspace-page")).nativePlanningPageContext(a),
+        a.holdingSlug,
+        path,
+        i,
+        key,
+      );
+      if (result === undefined)
+        throw new ApiError(503, "NATIVE_PLANNING_UNAVAILABLE", "The native Planning service is unavailable.");
+      return Response.json(canonicalDestinationLinks({ data: result }), { headers });
+    }
     if (i.entity === "accounting")
       data = typeof i.id === "string" ? await reviewManufacturingAccountingProfile(a, i.id, i, key) : await createManufacturingAccountingProfile(a, i, key);
     else if (i.entity === "resource")

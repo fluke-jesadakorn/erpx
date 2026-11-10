@@ -544,6 +544,10 @@ function transportCall(
   holdingSlug: string,
   input: NativePlanningWorkspaceReadInput,
   timeout: number,
+  method: 'GET' | 'POST',
+  path: string,
+  body: string | undefined,
+  key: string | undefined,
   signal?: AbortSignal,
 ): Promise<Response> {
   const forwarded = incoming
@@ -584,10 +588,17 @@ function transportCall(
     headers.set('x-erpx-context-revision', String(input.expected.revision));
     headers.set('x-erpx-context-assignment-version', String(input.expected.assignmentVersion));
   }
-  const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/planning/workspace`,
-    base,
-  );
+  if (method === 'POST') {
+    if (!key || !/^[a-zA-Z0-9:_.-]{8,180}$/.test(key))
+      return Promise.reject(new NativePlanningError('NATIVE_PLANNING_REQUEST_INVALID'));
+    const origin = incoming.get('origin');
+    if (origin && origin !== `https://${host}`)
+      return Promise.reject(new NativePlanningError('ORIGIN_FORBIDDEN', 403, 'Use the application origin.'));
+    headers.set('content-type', 'application/json');
+    headers.set('idempotency-key', key);
+    headers.set('origin', `https://${host}`);
+  }
+  const url = new URL(path, base);
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal?.addEventListener('abort', cancel, { once: true });
@@ -714,6 +725,10 @@ export function createNativePlanningClient(
       input.holdingSlug,
       input,
       config.timeout,
+      'GET',
+      `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/planning/workspace`,
+      undefined,
+      undefined,
       signal,
     ).catch((error: unknown) => {
       if (error instanceof NativePlanningError) throw error;
@@ -721,6 +736,37 @@ export function createNativePlanningClient(
     });
   };
   return {
+    command: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePlanningPageContext,
+      input: NativePlanningWorkspaceReadInput & { path: string; body: unknown; key: string },
+      signal?: AbortSignal,
+    ) => {
+      if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+        return failure('NATIVE_PLANNING_CONTEXT_CHANGED');
+      const response = await transportCall(
+        transport,
+        config.base,
+        config.holdings,
+        incoming,
+        input.holdingSlug,
+        input,
+        config.timeout,
+        'POST',
+        `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}${input.path}`,
+        JSON.stringify(input.body),
+        input.key,
+        signal,
+      ).catch((error: unknown) => {
+        if (error instanceof NativePlanningError) throw error;
+        return failure('NATIVE_PLANNING_UNAVAILABLE');
+      });
+      const value = await boundedJson(response);
+      if (!exact(value, ['data', 'context']))
+        return failure('NATIVE_PLANNING_RESPONSE_INVALID');
+      context(value.context, actor, input);
+      return value.data;
+    },
     workspace: async (
       incoming: Pick<Headers, 'get'>,
       actor: NativePlanningPageContext,
