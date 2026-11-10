@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 287,
+    "revision": 291,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T20:43:07.439Z",
-      "expiresAt": "2026-11-10T21:13:07.439Z",
+      "heartbeatAt": "2026-11-10T20:54:31.847Z",
+      "expiresAt": "2026-11-10T21:24:31.847Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10026,8 +10026,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T20:03:18.253Z",
-          "heartbeatAt": "2026-11-10T20:43:07.439Z",
-          "expiresAt": "2026-11-10T21:13:07.439Z",
+          "heartbeatAt": "2026-11-10T20:54:31.847Z",
+          "expiresAt": "2026-11-10T21:24:31.847Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11224,15 +11224,22 @@
         "resources": [
           "owner:procurement"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "ready_for_integration",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T20:43:31.284Z",
+          "heartbeatAt": "2026-11-10T20:54:31.847Z",
+          "expiresAt": "2026-11-10T21:24:31.847Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried procurement packet (migrate.procurement.supplier-promise-command), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
+        "nextAction": "Supplier-promise command ingress committed (3526ac7f6), suite 5/5. Route switch is blocked on parity: attachmentSetIds rejected natively (Files port WIP), TS staff_notifications not replaced by an outbox consumer, and native GET detail lacks the order/lines/schedule/canRecord/purchase shape. Mount backend + resolve those before switching.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-procurement",
@@ -12029,8 +12036,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T20:43:07.439Z",
-          "expiresAt": "2026-11-10T21:13:07.439Z",
+          "heartbeatAt": "2026-11-10T20:54:31.847Z",
+          "expiresAt": "2026-11-10T21:24:31.847Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12219,8 +12226,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T20:43:07.439Z",
-          "expiresAt": "2026-11-10T21:13:07.439Z",
+          "heartbeatAt": "2026-11-10T20:54:31.847Z",
+          "expiresAt": "2026-11-10T21:24:31.847Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12317,8 +12324,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T20:43:07.439Z",
-          "expiresAt": "2026-11-10T21:13:07.439Z",
+          "heartbeatAt": "2026-11-10T20:54:31.847Z",
+          "expiresAt": "2026-11-10T21:24:31.847Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12896,8 +12903,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T20:43:07.439Z",
-          "expiresAt": "2026-11-10T21:13:07.439Z",
+          "heartbeatAt": "2026-11-10T20:54:31.847Z",
+          "expiresAt": "2026-11-10T21:24:31.847Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13053,8 +13060,15 @@
         "resources": [
           "owner:billing"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T20:44:03.238Z",
+          "heartbeatAt": "2026-11-10T20:54:31.847Z",
+          "expiresAt": "2026-11-10T21:24:31.847Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -14918,8 +14932,8 @@
           "runId": "run-20261110-g1",
           "agentId": "lead",
           "claimedAt": "2026-11-10T19:59:26.353Z",
-          "heartbeatAt": "2026-11-10T20:43:07.439Z",
-          "expiresAt": "2026-11-10T21:13:07.439Z",
+          "heartbeatAt": "2026-11-10T20:54:31.847Z",
+          "expiresAt": "2026-11-10T21:24:31.847Z",
           "generation": 2
         },
         "baseSha": null,
@@ -15061,9 +15075,9 @@
       "totalPackets": 51,
       "migratedPackets": 9,
       "statusCounts": {
-        "pending": 35,
-        "in_progress": 0,
-        "ready_for_integration": 4,
+        "pending": 33,
+        "in_progress": 1,
+        "ready_for_integration": 5,
         "integrating": 0,
         "migrated": 9,
         "blocked": 3,
@@ -15072,7 +15086,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T20:43:07.439Z",
+    "updatedAt": "2026-11-10T20:54:31.847Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
