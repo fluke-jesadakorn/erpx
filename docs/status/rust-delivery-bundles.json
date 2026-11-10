@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 200,
+    "revision": 205,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T16:46:34.474Z",
-      "expiresAt": "2026-11-10T17:16:34.475Z",
+      "heartbeatAt": "2026-11-10T17:05:30.409Z",
+      "expiresAt": "2026-11-10T17:35:30.409Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -9920,8 +9920,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:43:00.443Z",
-          "heartbeatAt": "2026-11-10T16:46:34.474Z",
-          "expiresAt": "2026-11-10T17:16:34.475Z",
+          "heartbeatAt": "2026-11-10T17:05:30.409Z",
+          "expiresAt": "2026-11-10T17:35:30.409Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11192,8 +11192,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T16:38:48.134Z",
-          "heartbeatAt": "2026-11-10T16:46:34.474Z",
-          "expiresAt": "2026-11-10T17:16:34.475Z",
+          "heartbeatAt": "2026-11-10T17:05:30.409Z",
+          "expiresAt": "2026-11-10T17:35:30.409Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12683,8 +12683,15 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T17:05:17.831Z",
+          "heartbeatAt": "2026-11-10T17:05:30.409Z",
+          "expiresAt": "2026-11-10T17:35:30.409Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12915,22 +12922,86 @@
         "resources": [
           "owner:records"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T16:46:22.082Z",
-          "heartbeatAt": "2026-11-10T16:46:34.474Z",
-          "expiresAt": "2026-11-10T17:16:34.475Z",
-          "generation": 2
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+        "lastPushedSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-records --locked",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "Records crate compiles with native detail read and fail-closed registry/context."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business --locked",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "Composition mount for records_details_http_router compiles in the business assembly."
+          },
+          {
+            "command": "bun run test:unit -- --suite=records.rust-record-details.unit",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "4/4 detail-read unit cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=records.rust-record-details-http.unit",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "3/3 detail HTTP ingress cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=records.rust-record-registry.unit",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "9/9 registry cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=records.rust-record-registry-http.unit",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "8/8 registry HTTP cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=records.rust-record-context.unit",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "7/7 context cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=records.rust-record-context-http.unit",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "3/3 context HTTP cases pass."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID with the two new Rust detail suites registered."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "2746b75b9dab2ff4f9a2ea64f7af314bd54f4792",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects pass with the native client and route changes."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Make the native registry/context reader authoritative and implement record-details reads; run cargo check/test for record_registry_http/record_context plus the registered records unit suites, and report retired TS adapters.",
+        "nextAction": "Non-support writers and cross-owner supplement families remain retained; ERPX_NATIVE_RECORDS_CONFIG is a fail-closed prerequisite",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-records",
@@ -14609,20 +14680,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 48,
-      "migratedPackets": 2,
+      "migratedPackets": 3,
       "statusCounts": {
-        "pending": 43,
+        "pending": 42,
         "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 2,
+        "migrated": 3,
         "blocked": 0,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T16:46:34.475Z",
+    "updatedAt": "2026-11-10T17:05:30.410Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
