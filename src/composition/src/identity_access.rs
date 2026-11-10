@@ -20,6 +20,16 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
+use erpx_server_identity_access::public::iam_roles::{
+    AccessReviewCampaignInput, AccessReviewCancelInput, AccessReviewDecisionInput, IamRoleActor,
+    PgIamRolesReviews, ReviewDecisionInput, RoleSaveInput, cancel_access_review_campaign,
+    decide_access_review_item, decide_review, save_role, start_access_review,
+};
+use erpx_server_identity_access::public::iam_roles_http::{
+    IamRolesReviewsHttpBackend, IamRolesReviewsHttpCommand, IamRolesReviewsHttpFuture,
+    IamRolesReviewsHttpRequest, IamRolesReviewsHttpResponse, IamRolesReviewsHttpTarget,
+};
+use erpx_server_identity_access::public::permission_catalog::permission_catalog;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, UserId,
@@ -109,6 +119,42 @@ fn assignment_actor(current: &AuthorizedWorkContext) -> Result<AssignmentActor, 
         authority_revision: Some(selected.revision()),
         permissions: iam.permissions.clone(),
         person_user_ids: iam.person_user_ids.clone(),
+        emergency_until: iam.emergency_until,
+        expires_at: current.expires_at(),
+    })
+}
+
+
+fn iam_role_actor(current: &AuthorizedWorkContext) -> Result<IamRoleActor, BusinessError> {
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    let iam = current.command_iam_metadata();
+    let scope_kind = match assignment.scope_kind {
+        WorkScopeKind::Holding => "holding",
+        WorkScopeKind::Branch => "branch",
+        WorkScopeKind::Department => "department",
+    };
+    Ok(IamRoleActor {
+        user_id: current.user_id().clone(),
+        session_id: current.session_id().clone(),
+        holding_id: current.holding_id().clone(),
+        company_id: workspace.company_id.clone(),
+        branch_id: workspace.branch_id.clone(),
+        department_id: workspace.department_id.clone(),
+        assignment_id: assignment.id.clone(),
+        scope_kind: scope_kind.to_owned(),
+        scope_node_id: assignment.scope_node_id.clone(),
+        role: Some(assignment.role.clone()),
+        role_revision: Some(iam.role_revision),
+        assignment_version: Some(assignment.version),
+        identity_version: Some(iam.identity_version),
+        authority_revision: Some(selected.revision()),
+        permissions: iam.permissions.clone(),
+        grantable_permissions: iam.grantable_permissions.clone(),
+        person_user_ids: iam.person_user_ids.clone(),
+        person_id: iam.person_id.clone(),
+        platform: false,
         emergency_until: iam.emergency_until,
         expires_at: current.expires_at(),
     })
@@ -304,6 +350,109 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
             )
             .await
     }
+
+    pub async fn iam_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: IamRolesReviewsHttpCommand,
+    ) -> Result<IamRolesReviewsHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "IDENTITY_SCOPE_REQUIRED",
+                    "Choose the current authorized Company workspace.",
+                ));
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: erpx_server_identity_access::public::effective_authority::WorkPermissionRequirement::AnyOf(vec![
+                        "iam.manage".into(),
+                        "iam.roles.manage".into(),
+                        "iam.review".into(),
+                    ]),
+                    module: Some("iam".into()),
+                    destination: "iam".into(),
+                    api: true,
+                },
+                IdentityAccessSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "IDENTITY_SCOPE_REQUIRED",
+                                "Choose the current authorized Company workspace.",
+                            )
+                            .into());
+                        }
+                        let actor = iam_role_actor(current)?;
+                        let catalog = permission_catalog()?;
+                        let now = clock.now().get();
+                        let mut repository = PgIamRolesReviews::new(connection);
+                        let key = match &command {
+                            IamRolesReviewsHttpCommand::SaveRole { idempotency_key, .. }
+                            | IamRolesReviewsHttpCommand::DecideReview { idempotency_key, .. }
+                            | IamRolesReviewsHttpCommand::StartAccessReview { idempotency_key, .. }
+                            | IamRolesReviewsHttpCommand::DecideAccessReviewItem { idempotency_key, .. }
+                            | IamRolesReviewsHttpCommand::CancelAccessReview { idempotency_key, .. } => {
+                                erpx_server_shared::public::CommandKey::new(idempotency_key.clone())
+                                    .map_err(PgTransactionError::Business)?
+                            }
+                        };
+                        let data = match command {
+                            IamRolesReviewsHttpCommand::SaveRole { input, .. } => {
+                                save_role(&mut repository, &actor, &catalog, &key, &input, now)
+                                    .await
+                            }
+                            IamRolesReviewsHttpCommand::DecideReview { review_id, input, .. } => {
+                                decide_review(&mut repository, &actor, &catalog, &key, &review_id, &input, now)
+                                    .await
+                            }
+                            IamRolesReviewsHttpCommand::StartAccessReview { input, .. } => {
+                                start_access_review(&mut repository, &actor, &key, &input, now).await
+                            }
+                            IamRolesReviewsHttpCommand::DecideAccessReviewItem { item_id, input, .. } => {
+                                decide_access_review_item(&mut repository, &actor, &key, &item_id, &input, now)
+                                    .await
+                            }
+                            IamRolesReviewsHttpCommand::CancelAccessReview { campaign_id, input, .. } => {
+                                cancel_access_review_campaign(&mut repository, &actor, &key, &campaign_id, &input, now)
+                                    .await
+                            }
+                        }?;
+                        Ok(IamRolesReviewsHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct IdentityAccessBackend<C> {
@@ -344,6 +493,22 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+
+impl<C: Clock + Send + Sync + 'static> IamRolesReviewsHttpBackend for IdentityAccessBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: IamRolesReviewsHttpRequest<'a>,
+    ) -> IamRolesReviewsHttpFuture<'a, IamRolesReviewsHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .iam_command(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map_err(business)
+        })
     }
 }
 

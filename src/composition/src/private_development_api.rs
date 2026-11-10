@@ -2469,6 +2469,7 @@ async fn assemble_checked(
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
         let mut identity_access_targets = Vec::new();
+        let mut iam_roles_targets = Vec::new();
         let mut billing_targets = Vec::new();
         let mut billing_invoice_targets = Vec::new();
         let mut billing_rollout_targets = Vec::new();
@@ -3015,23 +3016,34 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                let identity_backend = Arc::new(
+                    crate::identity_access::IdentityAccessBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::identity_access::IdentityAccessService::new(
+                            authorizer.clone(),
+                            crate::identity_access::IdentityAccessConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    ),
+                );
+                iam_roles_targets.push(
+                    erpx_server_identity_access::public::iam_roles_http::IamRolesReviewsHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: identity_backend.clone(),
+                    },
+                );
                 identity_access_targets.push(
                     erpx_server_identity_access::public::assignment_http::IamAssignmentHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::identity_access::IdentityAccessBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::identity_access::IdentityAccessService::new(
-                                authorizer.clone(),
-                                crate::identity_access::IdentityAccessConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        backend: identity_backend.clone(),
                     },
                 );
                 #[cfg(feature = "existing-business")]
@@ -4239,6 +4251,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_identity_access::public::assignment_http::iam_assignment_http_router(
                     identity_access_targets,
+                )
+                .map_err(|_| "PRIVATE_API_IDENTITY_ACCESS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !iam_roles_targets.is_empty() {
+            router = router.merge(
+                erpx_server_identity_access::public::iam_roles_http::iam_roles_reviews_http_router(
+                    iam_roles_targets,
                 )
                 .map_err(|_| "PRIVATE_API_IDENTITY_ACCESS_CONFIGURATION_INVALID")?,
             );
