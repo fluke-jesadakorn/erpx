@@ -8,7 +8,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_manufacturing::public::planning::{
+use erpx_server_planning::public::planning::{
     PgPlanningWorkspaceRead, PlanningActor, PlanningWorkspace, planning_workspace,
 };
 use erpx_server_runtime::public::postgres::{

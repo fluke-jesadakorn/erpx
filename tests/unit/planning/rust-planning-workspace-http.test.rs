@@ -1,5 +1,5 @@
 //! Actual owner-local HTTP router tests for the native Planning workspace read.
-use erpx_server_manufacturing::public::planning_http::{
+use erpx_server_planning::public::planning_http::{
     PlanningHttpBackend, PlanningHttpFuture, PlanningHttpRequest, PlanningHttpResponse,
     PlanningHttpTarget, planning_router,
 };

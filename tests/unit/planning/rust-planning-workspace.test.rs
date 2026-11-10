@@ -1,5 +1,5 @@
 //! Native Planning workspace policy, source validation and bounded read tests.
-use erpx_server_manufacturing::public::planning::{
+use erpx_server_planning::public::planning::{
     MAX_CALENDAR, MAX_RECOMMENDATIONS, MAX_SCENARIOS, PlanningActor, PlanningAllocation,
     PlanningCalendarDay, PlanningComparison, PlanningContext, PlanningContextAllocation,
     PlanningReadFuture, PlanningRecommendation, PlanningResource, PlanningScenario,

@@ -19,6 +19,9 @@ use erpx_server_planning::public::planning::{
     PgPlanningWorkspaceRead, PlanningActor, PlanningWorkspace, PlanningWorkspaceRepository,
     planning_workspace,
 };
+use erpx_server_planning::public::scenario::{
+    ManufacturingOrderPlan, PlanningReleaseFactory, PlanningReleasePort, ReleaseFuture,
+};
 use erpx_server_planning::public::planning_command_http::{
     PlanningCommandHttpBackend, PlanningCommandHttpCommand, PlanningCommandHttpFuture,
     PlanningCommandHttpRequest, PlanningCommandHttpResponse, PlanningCommandHttpTarget,
@@ -383,7 +386,8 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
                                         "PLANNING_REQUEST_INVALID",
                                         "Use one unambiguous Planning command.",
                                     )))?;
-                                let mut ports = PgPlanningScenarios::new(connection);
+                                let factory = PlanningReleaseFactoryImpl;
+                                let mut ports = PgPlanningScenarios::with_release(connection, &factory);
                                 review_recommendation(&mut ports, &actor, &key, &recommendation_id, request, now).await
                             }
                             PlanningCommandHttpCommand::CreateResource { body, .. } => {
@@ -422,6 +426,62 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
                 },
             )
             .await
+    }
+}
+
+
+struct PlanningReleasePortImpl<'a> {
+    connection: &'a mut PgConnection,
+}
+
+impl PlanningReleasePort for PlanningReleasePortImpl<'_> {
+    fn release<'a>(&'a mut self, plan: &'a ManufacturingOrderPlan) -> ReleaseFuture<'a, ()> {
+        Box::pin(async move {
+            sqlx::query(
+                "INSERT INTO manufacturing_orders(id,company_id,branch_id,warehouse_id,recommendation_id,specification_id,specification_version,planned_quantity_milli,status,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'planned',$9,$10,$10)",
+            )
+            .bind(&plan.order_id)
+            .bind(&plan.company_id)
+            .bind(&plan.branch_id)
+            .bind(&plan.warehouse_id)
+            .bind(&plan.recommendation_id)
+            .bind(&plan.specification_id)
+            .bind(plan.specification_version)
+            .bind(plan.planned_quantity_milli)
+            .bind(&plan.user_id)
+            .bind(plan.now)
+            .execute(&mut *self.connection)
+            .await
+            .map_err(|_| BusinessError::new(
+                FailureKind::Unavailable,
+                "PLANNING_RELEASE_UNAVAILABLE",
+                "The manufacturing release could not be recorded.",
+            ))?;
+            sqlx::query(
+                "INSERT INTO manufacturing_order_events VALUES($1,$2,1,'release',$3,$4,'planned','{}',$5)",
+            )
+            .bind(&plan.event_id)
+            .bind(&plan.order_id)
+            .bind(&plan.user_id)
+            .bind(&plan.reason)
+            .bind(plan.now)
+            .execute(&mut *self.connection)
+            .await
+            .map_err(|_| BusinessError::new(
+                FailureKind::Unavailable,
+                "PLANNING_RELEASE_UNAVAILABLE",
+                "The manufacturing release could not be recorded.",
+            ))?;
+            Ok(())
+        })
+    }
+}
+
+struct PlanningReleaseFactoryImpl;
+
+impl PlanningReleaseFactory for PlanningReleaseFactoryImpl {
+    fn create<'a>(&'a self, connection: &'a mut PgConnection) -> Box<dyn PlanningReleasePort + 'a> {
+        Box::new(PlanningReleasePortImpl { connection })
     }
 }
 

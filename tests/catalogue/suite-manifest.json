@@ -41127,7 +41127,7 @@
       },
       "framework": "cargo",
       "cargo": {
-        "package": "erpx-server-manufacturing",
+        "package": "erpx-server-planning",
         "targets": [
           "planning_workspace"
         ]
@@ -41136,7 +41136,7 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "packages/server-manufacturing/Cargo.toml"
+        "packages/server-planning/Cargo.toml"
       ],
       "apps": [
         "manufacturing"
@@ -41168,7 +41168,7 @@
       },
       "framework": "cargo",
       "cargo": {
-        "package": "erpx-server-manufacturing",
+        "package": "erpx-server-planning",
         "targets": [
           "planning_workspace_http"
         ]
@@ -41177,7 +41177,7 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "packages/server-manufacturing/Cargo.toml"
+        "packages/server-planning/Cargo.toml"
       ],
       "apps": [
         "manufacturing"
@@ -41209,7 +41209,7 @@
       },
       "framework": "cargo",
       "cargo": {
-        "package": "erpx-server-manufacturing",
+        "package": "erpx-server-planning",
         "targets": [
           "planning_workspace_postgres"
         ]
@@ -41218,7 +41218,7 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "packages/server-manufacturing/Cargo.toml"
+        "packages/server-planning/Cargo.toml"
       ],
       "apps": [
         "manufacturing"
