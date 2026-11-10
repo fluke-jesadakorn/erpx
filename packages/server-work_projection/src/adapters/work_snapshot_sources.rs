@@ -9,6 +9,7 @@ use erpx_server_collaboration::public::collaboration_work::ActionWork;
 use erpx_server_field_service::public::work::FieldServiceWorkItem;
 use erpx_server_maintenance::public::read::{MaintenancePlanRow, MaintenanceWorkRow};
 use erpx_server_operations::public::field_exceptions::ExceptionWork;
+use erpx_server_quality::public::quality_read::{HoldStatus, InspectionResult, QualityHold};
 use erpx_server_support::public::incident::IncidentWorkItem;
 use erpx_server_support::public::session::SessionWorkItem;
 use erpx_server_support::public::ticket::TicketWorkItem;
@@ -382,6 +383,96 @@ pub fn legal_work_items(
         .collect()
 }
 
+pub struct QualityWorkAuthority<'a> {
+    pub can_read: bool,
+    pub department_scope: bool,
+    pub can_inspect: bool,
+    pub can_release: bool,
+    /// The selected actor's exact user id and reviewed person aliases.
+    pub actor_user_ids: &'a [&'a str],
+    /// The owner read's independent-recipient availability fact.
+    pub eligible_independent: bool,
+}
+
+fn same_quality_person(authority: &QualityWorkAuthority<'_>, user: &str) -> bool {
+    authority
+        .actor_user_ids
+        .iter()
+        .any(|candidate| *candidate == user)
+}
+
+/// Mirrors the availability-affecting branches of `qualityWork`.
+pub fn quality_hold_items(
+    rows: &[QualityHold],
+    authority: &QualityWorkAuthority<'_>,
+) -> Vec<WorkItemFact> {
+    if !authority.can_read || authority.department_scope {
+        return Vec::new();
+    }
+    rows.iter()
+        .map(|row| {
+            let status = row.status.as_str();
+            let completed = row.status.is_terminal();
+            let quality_review = matches!(
+                row.status,
+                HoldStatus::AwaitingRelease | HoldStatus::CancelPending
+            );
+            let creator = same_quality_person(authority, &row.created_by);
+            let inspector = row
+                .last_inspector
+                .as_deref()
+                .is_some_and(|value| same_quality_person(authority, value));
+            let cancel_requester = row
+                .cancel_requested_by
+                .as_deref()
+                .is_some_and(|value| same_quality_person(authority, value));
+            let can_disposition = row.status == HoldStatus::Held
+                && row.last_result == Some(InspectionResult::Fail)
+                && authority.can_release
+                && !creator
+                && !inspector;
+            let can_act = !completed
+                && row.status != HoldStatus::DispositionPending
+                && !creator
+                && (if quality_review {
+                    authority.can_release
+                        && !inspector
+                        && (row.status != HoldStatus::CancelPending || !cancel_requester)
+                } else {
+                    can_disposition || authority.can_inspect
+                });
+            let relationships = if creator {
+                vec!["requested".to_owned()]
+            } else if can_act {
+                vec!["approval".to_owned()]
+            } else {
+                vec!["team".to_owned()]
+            };
+            WorkItemFact {
+                id: format!("quality_hold:{}", row.id),
+                kind: "quality_hold".into(),
+                queue: if completed {
+                    WorkQueue::Completed
+                } else if can_act {
+                    WorkQueue::Todo
+                } else {
+                    WorkQueue::Waiting
+                },
+                can_act: Some(can_act),
+                action_kind: if quality_review && can_act {
+                    Some("approval".into())
+                } else {
+                    Some("work".into())
+                },
+                relationships,
+                updated_at: row.updated_at,
+                source_id: Some(row.id.clone()),
+                href: format!("/quality/{}", row.id),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -581,6 +672,74 @@ mod tests {
         assert_eq!(access[0].id, "customer_access:access-1");
         assert_eq!(access[0].relationships, ["approval"]);
         assert_eq!(access[0].queue, WorkQueue::Todo);
+    }
+
+    fn quality_hold(status: HoldStatus) -> erpx_server_quality::public::quality_read::QualityHold {
+        erpx_server_quality::public::quality_read::QualityHold {
+            id: "hold-1".into(),
+            company_id: "company".into(),
+            branch_id: "branch".into(),
+            warehouse_id: "warehouse".into(),
+            product_id: "product".into(),
+            lot_id: None,
+            reason: "Reason".into(),
+            due_date: "2026-11-10".into(),
+            status,
+            created_by: "creator".into(),
+            last_inspector: None,
+            last_result: None,
+            released_by: None,
+            release_reason: None,
+            released_at: None,
+            version: 1,
+            created_at: 1,
+            updated_at: 9,
+            spec_id: None,
+            spec_version: None,
+            quantity_scope: "all".into(),
+            held_quantity_milli: Some(1000),
+            source_type: None,
+            source_id: None,
+            cancel_requested_by: None,
+            cancel_reason: None,
+            cancelled_by: None,
+            cancelled_at: None,
+            disposition_kind: None,
+            disposition_reason: None,
+            disposition_requested_by: None,
+            disposition_count_id: None,
+            disposition_quantity_milli: None,
+            disposed_by: None,
+            disposed_at: None,
+            inspection_count: 0,
+        }
+    }
+
+    #[test]
+    fn quality_holds_follow_independence_and_terminal_rules() {
+        let authority = QualityWorkAuthority {
+            can_read: true,
+            department_scope: false,
+            can_inspect: true,
+            can_release: true,
+            actor_user_ids: &["inspector"],
+            eligible_independent: true,
+        };
+        let items = quality_hold_items(&[quality_hold(HoldStatus::Held)], &authority);
+        assert_eq!(items[0].id, "quality_hold:hold-1");
+        assert_eq!(items[0].queue, WorkQueue::Todo);
+        assert_eq!(items[0].relationships, ["approval"]);
+        assert_eq!(items[0].action_kind.as_deref(), Some("work"));
+        let unreviewable = QualityWorkAuthority {
+            can_inspect: false,
+            can_release: false,
+            department_scope: true,
+            ..authority
+        };
+        assert!(quality_hold_items(&[quality_hold(HoldStatus::Held)], &unreviewable).is_empty());
+        let released = quality_hold_items(&[quality_hold(HoldStatus::Released)], &authority);
+        assert_eq!(released[0].queue, WorkQueue::Completed);
+        assert_eq!(released[0].can_act, Some(false));
     }
 
     #[test]
