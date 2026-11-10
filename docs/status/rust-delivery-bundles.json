@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 79,
+    "revision": 113,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T16:21:38.740Z",
-      "expiresAt": "2026-11-10T16:51:38.740Z",
+      "heartbeatAt": "2026-11-10T16:24:40.095Z",
+      "expiresAt": "2026-11-10T16:54:40.095Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -9596,8 +9596,15 @@
         "resources": [
           "inventory:brand"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:22:24.252Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -9713,9 +9720,11 @@
         "workstream": "S03",
         "kind": "migration",
         "title": "Migrate commercial backend residuals",
-        "scope": "Complete preview/apply, package/subscription/grace/entitlement/billing writers, onboarding/bootstrap and retained executive/IAM/billing views. Preserve purchase/expiry/draining/history/replay decisions; coordinate provider and owner-obligation ports rather than granting access through fixtures.",
+        "scope": "Implement the inventoried commercial migration slices: migrate.commercial.package_grant_http, migrate.commercial.entitlement_port, migrate.commercial.subscription_grace. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.commercial"
+          "inventory.commercial",
+          "ports.authority",
+          "ports.trade"
         ],
         "requiredPorts": [],
         "allowedPaths": [
@@ -9737,12 +9746,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.commercial, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried commercial packet (migrate.commercial.package_grant_http), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commercial",
         "plannedPackage": "erpx-server-commercial",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -9803,9 +9812,10 @@
         "workstream": "S02",
         "kind": "migration",
         "title": "Migrate identity_access backend residuals",
-        "scope": "Finish access review/principals/roles/Directory/conflicts, scoped organization lifecycle/sharing, authority changes/duplicate review, provisioning/connectors/audit/temporary access and retained recovery operations. Resolve source/current-authority ports before dependent command mounts.",
+        "scope": "Implement the inventoried identity_access migration slices: migrate.identity_access.iam_roles_reviews, migrate.identity_access.directory_runtime, migrate.identity_access.principals_emergency. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.identity_access"
+          "inventory.identity_access",
+          "ports.authority"
         ],
         "requiredPorts": [
           "workflow"
@@ -9830,12 +9840,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.identity_access, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried identity_access packet (migrate.identity_access.iam_roles_reviews), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-identity-access",
         "plannedPackage": "erpx-server-identity-access",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -9892,9 +9902,10 @@
         "workstream": "S02",
         "kind": "migration",
         "title": "Migrate organization backend residuals",
-        "scope": "Finish access review/principals/roles/Directory/conflicts, scoped organization lifecycle/sharing, authority changes/duplicate review, provisioning/connectors/audit/temporary access and retained recovery operations. Resolve source/current-authority ports before dependent command mounts.",
+        "scope": "Implement the inventoried organization migration slices: migrate.organization.access_projection, migrate.organization.position_moves. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.organization"
+          "inventory.organization",
+          "ports.authority"
         ],
         "requiredPorts": [
           "identity_access"
@@ -9918,12 +9929,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.organization, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried organization packet (migrate.organization.access_projection), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-organization",
         "plannedPackage": "erpx-server-organization",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -9990,9 +10001,10 @@
         "workstream": "S02",
         "kind": "migration",
         "title": "Migrate platform_administration backend residuals",
-        "scope": "Finish access review/principals/roles/Directory/conflicts, scoped organization lifecycle/sharing, authority changes/duplicate review, provisioning/connectors/audit/temporary access and retained recovery operations. Resolve source/current-authority ports before dependent command mounts.",
+        "scope": "Implement the inventoried platform_administration migration slices: migrate.platform_administration.executive_read, migrate.platform_administration.operations_retirement. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.platform_administration"
+          "inventory.platform_administration",
+          "ports.authority"
         ],
         "requiredPorts": [
           "organization"
@@ -10016,12 +10028,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.platform_administration, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried platform_administration packet (migrate.platform_administration.executive_read), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-platform-administration",
         "plannedPackage": "erpx-server-platform-administration",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -10047,8 +10059,15 @@
         "resources": [
           "inventory:customer_360"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:22:24.279Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10166,9 +10185,10 @@
         "workstream": "S02",
         "kind": "migration",
         "title": "Migrate customer_authority backend residuals",
-        "scope": "Finish access review/principals/roles/Directory/conflicts, scoped organization lifecycle/sharing, authority changes/duplicate review, provisioning/connectors/audit/temporary access and retained recovery operations. Resolve source/current-authority ports before dependent command mounts.",
+        "scope": "Implement the inventoried customer_authority migration slices: migrate.customer_authority.duplicate_decisions, migrate.customer_authority.identity_changes. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.customer_authority"
+          "inventory.customer_authority",
+          "ports.authority"
         ],
         "requiredPorts": [
           "identity_access"
@@ -10193,12 +10213,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.customer_authority, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried customer_authority packet (migrate.customer_authority.duplicate_decisions), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-customer-authority",
         "plannedPackage": "erpx-server-customer-authority",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -10226,8 +10246,15 @@
         "resources": [
           "inventory:support"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:22:24.304Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10323,22 +10350,15 @@
         "resources": [
           "inventory:finance"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T16:03:24.676Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-finance/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.finance to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet once ports.trade freezes transaction/lock order",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -10367,9 +10387,10 @@
         "workstream": "S04",
         "kind": "migration",
         "title": "Migrate finance backend residuals",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Implement the inventoried finance migration slices: migrate.finance.goods-journal-port, migrate.finance.bank-automation, migrate.finance.due-draft-jobs. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.finance"
+          "inventory.finance",
+          "ports.trade"
         ],
         "requiredPorts": [],
         "allowedPaths": [
@@ -10392,12 +10413,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.finance, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried finance packet (migrate.finance.goods-journal-port), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-finance",
         "plannedPackage": "erpx-server-finance",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -10429,8 +10450,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:13:29.282Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10523,22 +10544,15 @@
         "resources": [
           "inventory:sales"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T16:03:24.701Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-sales/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.sales to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet once ports.trade freezes transaction/lock order",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -10562,9 +10576,10 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Migrate sales backend residuals",
-        "scope": "Finish Sales source/replay/approval/cancellation/revenue handoff and Procurement requisition/order/receipt/match lifecycle. Reuse Quality inspection/cancellation retirement certified at the current baseline; complete its retained workspace/detail read overlay and auxiliary hold-create consumers. Consume S04 effects and Files/IAM/notification ports; do not duplicate their accounting or stock writers.",
+        "scope": "Implement the inventoried sales migration slices: migrate.sales.confirmed-cancellation, migrate.sales.revenue-handoff. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.sales"
+          "inventory.sales",
+          "ports.trade"
         ],
         "requiredPorts": [
           "inventory",
@@ -10590,12 +10605,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.sales, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried sales packet (migrate.sales.confirmed-cancellation), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-sales",
         "plannedPackage": "erpx-server-sales",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -10627,8 +10642,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:13:29.232Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10720,22 +10735,15 @@
         "resources": [
           "inventory:inventory"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T16:03:24.651Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-inventory/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.inventory to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet once ports.trade freezes transaction/lock order",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -10759,9 +10767,10 @@
         "workstream": "S04",
         "kind": "migration",
         "title": "Migrate inventory backend residuals",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Implement the inventoried inventory migration slices: migrate.inventory.receipt-quality-port, migrate.inventory.stock-write-bindings. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.inventory"
+          "inventory.inventory",
+          "ports.trade"
         ],
         "requiredPorts": [
           "commerce",
@@ -10786,12 +10795,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.inventory, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried inventory packet (migrate.inventory.receipt-quality-port), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-inventory",
         "plannedPackage": "erpx-server-inventory",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -10823,8 +10832,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:13:29.257Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10916,8 +10925,15 @@
         "resources": [
           "inventory:operations"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:22:24.328Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11008,22 +11024,15 @@
         "resources": [
           "inventory:procurement"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T16:03:24.725Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-procurement/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.procurement to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet once ports.trade freezes transaction/lock order",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -11047,9 +11056,10 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Migrate procurement backend residuals",
-        "scope": "Finish Sales source/replay/approval/cancellation/revenue handoff and Procurement requisition/order/receipt/match lifecycle. Reuse Quality inspection/cancellation retirement certified at the current baseline; complete its retained workspace/detail read overlay and auxiliary hold-create consumers. Consume S04 effects and Files/IAM/notification ports; do not duplicate their accounting or stock writers.",
+        "scope": "Implement the inventoried procurement migration slices: migrate.procurement.supplier-promise-command, migrate.procurement.purchase-order-lifecycle, migrate.procurement.invoice-match-capture. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.procurement"
+          "inventory.procurement",
+          "ports.trade"
         ],
         "requiredPorts": [
           "inventory",
@@ -11075,12 +11085,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.procurement, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried procurement packet (migrate.procurement.supplier-promise-command), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-procurement",
         "plannedPackage": "erpx-server-procurement",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -11106,22 +11116,15 @@
         "resources": [
           "inventory:quality"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T16:03:24.752Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-quality/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.quality to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet once ports.trade freezes transaction/lock order",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -11144,9 +11147,10 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Migrate quality backend residuals",
-        "scope": "Finish Sales source/replay/approval/cancellation/revenue handoff and Procurement requisition/order/receipt/match lifecycle. Reuse Quality inspection/cancellation retirement certified at the current baseline; complete its retained workspace/detail read overlay and auxiliary hold-create consumers. Consume S04 effects and Files/IAM/notification ports; do not duplicate their accounting or stock writers.",
+        "scope": "Implement the inventoried quality migration slices: migrate.quality.hold-create, migrate.quality.read-overlay. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.quality"
+          "inventory.quality",
+          "ports.trade"
         ],
         "requiredPorts": [
           "inventory",
@@ -11173,12 +11177,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.quality, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried quality packet (migrate.quality.hold-create), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -11205,8 +11209,15 @@
         "resources": [
           "inventory:legal"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:22:24.353Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11297,22 +11308,15 @@
         "resources": [
           "inventory:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:13:29.381Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-people_payroll/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.people_payroll to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet after ports.people/ports.trade and the missing crate decision",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -11400,8 +11404,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:13:29.482Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11498,8 +11502,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:13:29.507Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11591,22 +11595,15 @@
         "resources": [
           "inventory:manufacturing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:13:29.355Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-manufacturing/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.manufacturing to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet after ports.people/ports.trade and the missing crate decision",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -11689,22 +11686,15 @@
         "resources": [
           "inventory:planning"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:13:29.330Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-planning/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.planning to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet after ports.people/ports.trade and the missing crate decision",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -11788,8 +11778,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T16:17:54.671Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11888,8 +11878,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:13:29.306Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11986,8 +11976,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:13:29.432Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12082,8 +12072,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:13:29.457Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12175,22 +12165,15 @@
         "resources": [
           "inventory:talent"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:13:29.406Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-talent/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.talent to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet after ports.people/ports.trade and the missing crate decision",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12274,8 +12257,15 @@
         "resources": [
           "inventory:field_service"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:22:24.378Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12375,8 +12365,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T16:17:54.725Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12474,8 +12464,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T16:17:54.699Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12581,8 +12571,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T16:17:54.752Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
+          "heartbeatAt": "2026-11-10T16:24:40.095Z",
+          "expiresAt": "2026-11-10T16:54:40.095Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12713,9 +12703,10 @@
         "workstream": "S03",
         "kind": "migration",
         "title": "Migrate manage_erpx backend residuals",
-        "scope": "Complete preview/apply, package/subscription/grace/entitlement/billing writers, onboarding/bootstrap and retained executive/IAM/billing views. Preserve purchase/expiry/draining/history/replay decisions; coordinate provider and owner-obligation ports rather than granting access through fixtures.",
+        "scope": "Implement the inventoried manage_erpx migration slices: migrate.manage_erpx.onboarding_command. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.manage_erpx"
+          "inventory.manage_erpx",
+          "ports.authority"
         ],
         "requiredPorts": [],
         "allowedPaths": [
@@ -12735,12 +12726,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.manage_erpx, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried manage_erpx packet (migrate.manage_erpx.onboarding_command), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-manage-erpx",
         "plannedPackage": "erpx-server-manage-erpx",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -12761,22 +12752,15 @@
         "resources": [
           "inventory:commerce"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T16:03:24.626Z",
-          "heartbeatAt": "2026-11-10T16:21:38.740Z",
-          "expiresAt": "2026-11-10T16:51:38.740Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-commerce/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.commerce to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet once ports.trade freezes transaction/lock order",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12794,9 +12778,10 @@
         "workstream": "S04",
         "kind": "migration",
         "title": "Migrate commerce backend residuals",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Implement the inventoried commerce migration slices: migrate.commerce.goods-fulfillment, migrate.commerce.purchase-orders, migrate.commerce.returns. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.commerce"
+          "inventory.commerce",
+          "ports.trade"
         ],
         "requiredPorts": [
           "inventory",
@@ -12820,12 +12805,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.commerce, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried commerce packet (migrate.commerce.goods-fulfillment), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commerce",
         "plannedPackage": "erpx-server-commerce",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -12872,9 +12857,10 @@
         "workstream": "S03",
         "kind": "migration",
         "title": "Migrate billing backend residuals",
-        "scope": "Complete preview/apply, package/subscription/grace/entitlement/billing writers, onboarding/bootstrap and retained executive/IAM/billing views. Preserve purchase/expiry/draining/history/replay decisions; coordinate provider and owner-obligation ports rather than granting access through fixtures.",
+        "scope": "Implement the inventoried billing migration slices: migrate.billing.subscription_commands, migrate.billing.jobs, migrate.billing.invoice_commands. Owner-local Rust domain/application/adapters + public facade and registered tests only. Cross-owner console/product-shell edits, composition mounts, route selection and catalogue registration are lead integration and must be requested, not edited. Do not invent native behavior where TypeScript remains authoritative; retire TypeScript only after its native replacement passes the targeted gate.",
         "dependsOn": [
-          "inventory.billing"
+          "inventory.billing",
+          "ports.trade"
         ],
         "requiredPorts": [],
         "allowedPaths": [
@@ -12895,12 +12881,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.billing, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the first inventoried billing packet (migrate.billing.subscription_commands), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-billing",
         "plannedPackage": "erpx-server-billing",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -14077,15 +14063,58 @@
         "resources": [
           "shared-integration"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "258f4637765756bb289b4be998a2b0f98d8bee09",
+        "lastPushedSha": "258f4637765756bb289b4be998a2b0f98d8bee09",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-commerce --locked",
+            "result": "passed",
+            "sourceSha": "258f4637765756bb289b4be998a2b0f98d8bee09",
+            "sourceKind": "committed",
+            "note": "Trade provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --locked",
+            "result": "passed",
+            "sourceSha": "258f4637765756bb289b4be998a2b0f98d8bee09",
+            "sourceKind": "committed",
+            "note": "Trade provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --locked",
+            "result": "passed",
+            "sourceSha": "258f4637765756bb289b4be998a2b0f98d8bee09",
+            "sourceKind": "committed",
+            "note": "Trade provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-quality --locked",
+            "result": "passed",
+            "sourceSha": "258f4637765756bb289b4be998a2b0f98d8bee09",
+            "sourceKind": "committed",
+            "note": "Trade provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business --locked",
+            "result": "passed",
+            "sourceSha": "258f4637765756bb289b4be998a2b0f98d8bee09",
+            "sourceKind": "committed",
+            "note": "All recorded trade mounts compile."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.rust-commerce-goods-journal-postgres.integration",
+            "result": "passed",
+            "sourceSha": "258f4637765756bb289b4be998a2b0f98d8bee09",
+            "sourceKind": "committed",
+            "note": "2/2 PostgreSQL cases pass for the Commerce goods journal port (closed period/account rejection + posting)."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Choose the smallest public seam a ready consumer needs; freeze exact port/mount/lock order without broadening authority or creating an owner cycle.",
+        "nextAction": "Commerce->Inventory->Quality->Finance writers may proceed against the frozen order; receipt-quality and goods-journal consumers stay in their migrate packets",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -14424,7 +14453,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T16:21:38.740Z",
+    "updatedAt": "2026-11-10T16:24:40.095Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
