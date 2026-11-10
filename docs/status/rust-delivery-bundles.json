@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 317,
+    "revision": 319,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T22:09:19.225Z",
-      "expiresAt": "2026-11-10T22:39:19.225Z",
+      "heartbeatAt": "2026-11-10T22:13:00.983Z",
+      "expiresAt": "2026-11-10T22:43:00.983Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -9831,8 +9831,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T21:39:57.369Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -9841,7 +9841,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "IAM roles/reviews + directory contract committed (af1412d63; 9/3/2/4 suites). Remaining: construct IamRoleActor + serializable tx backend, mount 5 routes, switch TS iam-api/service branches; directory needs DirectoryAuthentication + source-admin instantiation; principals/emergency untouched",
+        "nextAction": "IAM roles/reviews router mounted (c8488fbf5) over IamRoleActor + serializable owner unit. Remaining: switch TS iam-api/iam-service role/review/campaign branches; directory auth/source-admin instantiation; principals/conflicts/emergency packet untouched",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-identity-access",
@@ -10033,8 +10033,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T20:03:18.253Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10130,8 +10130,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T21:12:25.795Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11243,8 +11243,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T20:43:31.284Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11683,8 +11683,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T21:12:08.910Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12057,8 +12057,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12247,8 +12247,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12345,8 +12345,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12445,8 +12445,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T21:40:13.060Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12931,8 +12931,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14989,8 +14989,8 @@
           "runId": "run-20261110-g1",
           "agentId": "lead",
           "claimedAt": "2026-11-10T19:59:26.353Z",
-          "heartbeatAt": "2026-11-10T22:09:19.225Z",
-          "expiresAt": "2026-11-10T22:39:19.225Z",
+          "heartbeatAt": "2026-11-10T22:13:00.983Z",
+          "expiresAt": "2026-11-10T22:43:00.983Z",
           "generation": 2
         },
         "baseSha": null,
@@ -15143,7 +15143,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T22:09:19.226Z",
+    "updatedAt": "2026-11-10T22:13:00.984Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
