@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 252,
+    "revision": 256,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T19:16:12.611Z",
-      "expiresAt": "2026-11-10T19:46:12.611Z",
+      "heartbeatAt": "2026-11-10T19:16:58.850Z",
+      "expiresAt": "2026-11-10T19:46:58.850Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10339,13 +10339,13 @@
         "resources": [
           "owner:support"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": {
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T18:08:37.873Z",
-          "heartbeatAt": "2026-11-10T19:16:12.611Z",
-          "expiresAt": "2026-11-10T19:46:12.611Z",
+          "heartbeatAt": "2026-11-10T19:16:58.850Z",
+          "expiresAt": "2026-11-10T19:46:58.850Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10354,7 +10354,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Production PgTicketPortal/PgServiceTeams/PgSupportAuxiliaryReads committed (847efdbbf). Lead: implement the three composition backends over the existing Account proof/HoldingWorkAuthorizer pattern (support_read_http.rs), mount routers, then switch Portal/Sales/Collaboration consumers",
+        "nextAction": "Blocked on portal customer-session resolution: TicketPortal customer projection/acknowledge require a verified external portal customer proof (PortalCustomer) that no composition subsystem provides yet. Staff workspace/prepare/decide/respond and ServiceTeam/auxiliary backends can be mounted once that seam is defined; record it as a new packet.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-support",
@@ -11950,8 +11950,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T19:16:12.611Z",
-          "expiresAt": "2026-11-10T19:46:12.611Z",
+          "heartbeatAt": "2026-11-10T19:16:58.850Z",
+          "expiresAt": "2026-11-10T19:46:58.850Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12140,8 +12140,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T19:16:12.611Z",
-          "expiresAt": "2026-11-10T19:46:12.611Z",
+          "heartbeatAt": "2026-11-10T19:16:58.850Z",
+          "expiresAt": "2026-11-10T19:46:58.850Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12238,8 +12238,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T19:16:12.611Z",
-          "expiresAt": "2026-11-10T19:46:12.611Z",
+          "heartbeatAt": "2026-11-10T19:16:58.850Z",
+          "expiresAt": "2026-11-10T19:46:58.850Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12817,8 +12817,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T19:16:12.611Z",
-          "expiresAt": "2026-11-10T19:46:12.611Z",
+          "heartbeatAt": "2026-11-10T19:16:58.850Z",
+          "expiresAt": "2026-11-10T19:46:58.850Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14898,6 +14898,57 @@
         "plannedPackage": "erpx-server-files",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.portalsession.customer-proof",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "customer_authority",
+        "workflowIds": [
+          "support/tickets",
+          "portal:tenant-token-invitation-document-and-private-files"
+        ],
+        "workstream": "S16",
+        "kind": "migration",
+        "title": "Native verified customer portal session proof",
+        "scope": "Supply a native, source-bound resolver that maps an external portal session (invitation/token exchange) to a verified PortalCustomer proof (user, email, optional holding) for Support portal projection/acknowledgement and portal private files. No TS fallback; fail closed when the session is absent.",
+        "dependsOn": [
+          "ports.authority",
+          "inventory.support"
+        ],
+        "requiredPorts": [
+          "identity_access.portal-session",
+          "customer_authority.portal-enrollment"
+        ],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "packages/server-customer_authority/Cargo.toml",
+          "packages/server-identity_access/src/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T19:17:12.574Z",
+          "heartbeatAt": "2026-11-10T19:17:12.574Z",
+          "expiresAt": "2026-11-10T19:47:12.574Z",
+          "generation": 2
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Define and implement the verified portal-session resolver + tests, then report the composition binding for Support portal customer reads.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -14906,21 +14957,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 50,
+      "totalPackets": 51,
       "migratedPackets": 6,
       "statusCounts": {
         "pending": 37,
-        "in_progress": 0,
-        "ready_for_integration": 5,
+        "in_progress": 1,
+        "ready_for_integration": 4,
         "integrating": 0,
         "migrated": 6,
-        "blocked": 2,
+        "blocked": 3,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T19:16:12.612Z",
+    "updatedAt": "2026-11-10T19:17:12.575Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
