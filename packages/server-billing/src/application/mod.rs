@@ -1,4 +1,5 @@
 pub mod cost;
+pub mod invoice;
 pub mod workspace;
 
 pub type BillingFuture<'a, T, E> =

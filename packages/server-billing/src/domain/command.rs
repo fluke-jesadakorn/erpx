@@ -222,7 +222,7 @@ fn multiline_control(character: char) -> bool {
     character.is_control() && !matches!(character, '\n' | '\r' | '\t')
 }
 
-fn valid_reason(value: &str) -> bool {
+pub(crate) fn valid_reason(value: &str) -> bool {
     let trimmed = js_trim(value);
     (3..=REASON_LIMIT).contains(&chars_len(trimmed)) && !trimmed.chars().any(multiline_control)
 }

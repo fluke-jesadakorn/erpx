@@ -34,6 +34,18 @@ name = "billing_http"
 path = "../../tests/unit/billing/rust-billing-http.test.rs"
 
 [[test]]
+name = "billing_invoice"
+path = "../../tests/unit/billing/rust-billing-invoice.test.rs"
+
+[[test]]
+name = "billing_invoice_http"
+path = "../../tests/unit/billing/rust-billing-invoice-http.test.rs"
+
+[[test]]
+name = "billing_invoice_postgres"
+path = "../../tests/integration/billing/rust-billing-invoice-postgres.test.rs"
+
+[[test]]
 name = "billing_postgres"
 path = "../../tests/integration/billing/rust-billing-postgres.test.rs"
 

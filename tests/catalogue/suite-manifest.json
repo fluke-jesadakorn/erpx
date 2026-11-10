@@ -89097,6 +89097,125 @@
         "rust-toolchain.toml",
         "packages/server-procurement/Cargo.toml"
       ]
+    },
+    {
+      "id": "billing.rust-billing-invoice.unit",
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
+        "commercial"
+      ],
+      "files": [
+        "tests/unit/billing/rust-billing-invoice.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native billing invoice lifecycle retains Company scope, authority, money and CAS invariants."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-billing",
+        "targets": [
+          "billing_invoice"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-billing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "billing.rust-billing-invoice-http.unit",
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
+        "commercial"
+      ],
+      "files": [
+        "tests/unit/billing/rust-billing-invoice-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native billing invoice lifecycle retains Company scope, authority, money and CAS invariants."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-billing",
+        "targets": [
+          "billing_invoice_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-billing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "billing.rust-billing-invoice-postgres.integration",
+      "lane": "integration",
+      "owner": "billing",
+      "modules": [
+        "commercial"
+      ],
+      "files": [
+        "tests/integration/billing/rust-billing-invoice-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native billing invoice lifecycle retains Company scope, authority, money and CAS invariants."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-billing",
+        "targets": [
+          "billing_invoice_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-billing/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

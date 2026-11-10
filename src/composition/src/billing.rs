@@ -48,6 +48,13 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
+use erpx_server_billing::public::invoice::{
+    BillingInvoiceCommand, PgBillingInvoiceRepository, execute_invoice_command,
+};
+use erpx_server_billing::public::invoice_http::{
+    BillingInvoiceHttpBackend, BillingInvoiceHttpFuture, BillingInvoiceHttpRequest,
+    BillingInvoiceHttpResponse, BillingInvoiceHttpTarget,
+};
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
@@ -602,6 +609,66 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
     }
 }
 
+
+impl<C: Clock + Send + Sync + 'static> BillingService<C> {
+    pub async fn invoice<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: BillingInvoiceCommand,
+    ) -> Result<BillingInvoiceHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                BillingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now();
+                        let actor = billing_actor(current, connection, now).await?;
+                        let mut repository = PgBillingInvoiceRepository::new(connection);
+                        let _receipt = execute_invoice_command(
+                            &actor,
+                            &holding,
+                            &command,
+                            &mut repository,
+                            now,
+                        )
+                        .await
+                        .map_err(|error| match error {
+                            PgTransactionError::Business(error) => error,
+                            PgTransactionError::Persistence(_) => unavailable(),
+                        })?;
+                        Ok(BillingInvoiceHttpResponse {
+                            data: serde_json::json!({"ok": true}),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
 pub struct BillingBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
@@ -640,6 +707,22 @@ impl<C: Clock + Send + Sync + 'static> BillingBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+
+impl<C: Clock + Send + Sync + 'static> BillingInvoiceHttpBackend for BillingBackend<C> {
+    fn command<'a>(
+        &'a self,
+        request: BillingInvoiceHttpRequest<'a>,
+    ) -> BillingInvoiceHttpFuture<'a, BillingInvoiceHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .invoice(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map_err(business)
+        })
     }
 }
 

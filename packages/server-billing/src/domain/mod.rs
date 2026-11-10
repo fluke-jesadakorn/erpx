@@ -1,6 +1,7 @@
 pub mod actor;
 pub mod command;
 pub mod forecast_read;
+pub mod invoice;
 pub mod target;
 pub mod target_assignment;
 pub mod target_command;

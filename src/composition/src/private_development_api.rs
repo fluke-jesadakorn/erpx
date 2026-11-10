@@ -2452,6 +2452,7 @@ async fn assemble_checked(
         let mut quality_targets = Vec::new();
         let mut identity_access_targets = Vec::new();
         let mut billing_targets = Vec::new();
+        let mut billing_invoice_targets = Vec::new();
         let mut billing_rollout_targets = Vec::new();
         let mut billing_provider_targets = Vec::new();
         let mut billing_retry_targets = Vec::new();
@@ -3519,6 +3520,14 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 ));
+                billing_invoice_targets.push(
+                    erpx_server_billing::public::invoice_http::BillingInvoiceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: billing_backend.clone(),
+                    },
+                );
                 billing_targets.push(
                     erpx_server_billing::public::billing_http::BillingHttpTarget {
                         host: holding.host.clone(),
@@ -4202,6 +4211,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_billing::public::billing_http::billing_router(billing_targets)
                     .map_err(|_| "PRIVATE_API_BILLING_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !billing_invoice_targets.is_empty() {
+            router = router.merge(
+                erpx_server_billing::public::invoice_http::billing_invoice_router(
+                    billing_invoice_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BILLING_INVOICE_CONFIGURATION_INVALID")?,
             );
         }
         if !billing_rollout_targets.is_empty() {
