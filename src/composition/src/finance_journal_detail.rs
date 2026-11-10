@@ -574,6 +574,12 @@ struct SupplierBillVoidSources;
 impl HoldingWorkSourcePreparation for SupplierBillVoidSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
+            // Match post and void take the same owner fences in the same order:
+            // Commerce -> Procurement -> Commercial -> Finance -> Files.
+            erpx_server_commerce::public::finance_payable_source::lock_commerce_payable_sources(c)
+                .await?;
+            erpx_server_procurement::public::finance_supplier_bill_match::lock_procurement_bill_match_sources(c)
+                .await?;
             lock_commercial_authority_sources(c).await?;
             lock_supplier_bill_write_sources(c).await?;
             // Posted voids insert and reverse journals in this unit; the table
@@ -596,6 +602,8 @@ impl HoldingWorkSourcePreparation for SupplierBillPostSources {
             // Source owners fence before the first Finance read. The global
             // order for this unit is Commerce -> Commercial -> Finance -> Files.
             erpx_server_commerce::public::finance_payable_source::lock_commerce_payable_sources(c)
+                .await?;
+            erpx_server_procurement::public::finance_supplier_bill_match::lock_procurement_bill_match_sources(c)
                 .await?;
             lock_commercial_authority_sources(c).await?;
             lock_supplier_bill_post_sources(c).await?;
@@ -684,6 +692,98 @@ impl PgSupplierBillSource for FinanceSupplierBillSource {
                 }
                 _ => Ok(None),
             }
+        })
+    }
+}
+
+struct FinanceSupplierBillMatch;
+impl PgSupplierBillMatch for FinanceSupplierBillMatch {
+    fn load(
+        &mut self,
+        c: &mut PgConnection,
+        company_id: &str,
+        invoice_id: &str,
+    ) -> impl std::future::Future<Output = Result<Option<SupplierBillMatchFacts>, Error>> + Send
+    {
+        Box::pin(async move {
+            let matched = erpx_server_procurement::public::finance_supplier_bill_match::load_procurement_supplier_bill_match(
+                c, company_id, invoice_id,
+            )
+            .await
+            .map_err(PgTransactionError::Business)?;
+            Ok(matched.map(|matched| SupplierBillMatchFacts {
+                match_id: matched.match_id,
+                match_version: matched.match_version,
+                status: matched.status,
+                invoice_id: matched.invoice_id,
+                currency: matched.currency,
+                chart_id: matched.chart_id,
+                supplier_id: matched.supplier_id,
+                invoice_date: matched.invoice_date,
+                due_date: matched.due_date,
+                expected_subtotal_minor: matched.expected_subtotal_minor,
+                subtotal_minor: matched.subtotal_minor,
+                tax_minor: matched.tax_minor,
+                clearing_account_id: matched.clearing_account_id,
+                payable_account_id: matched.payable_account_id,
+                tax_account_id: matched.tax_account_id,
+                variance_account_id: matched.variance_account_id,
+                quantity_matches: matched.quantity_matches,
+            }))
+        })
+    }
+    fn stage_post(
+        &mut self,
+        c: &mut PgConnection,
+        company_id: &str,
+        match_id: &str,
+        expected_version: i64,
+        invoice_id: &str,
+        actor_id: &str,
+        command_id: &str,
+        now: i64,
+    ) -> impl std::future::Future<Output = Result<(), Error>> + Send {
+        Box::pin(async move {
+            erpx_server_procurement::public::finance_supplier_bill_match::stage_procurement_supplier_bill_match_post(
+                c,
+                company_id,
+                match_id,
+                expected_version,
+                invoice_id,
+                actor_id,
+                command_id,
+                now,
+            )
+            .await
+            .map_err(PgTransactionError::Business)
+        })
+    }
+    fn stage_return(
+        &mut self,
+        c: &mut PgConnection,
+        company_id: &str,
+        match_id: &str,
+        expected_version: i64,
+        invoice_id: &str,
+        actor_id: &str,
+        command_id: &str,
+        now: i64,
+        reason: &str,
+    ) -> impl std::future::Future<Output = Result<(), Error>> + Send {
+        Box::pin(async move {
+            erpx_server_procurement::public::finance_supplier_bill_match::stage_procurement_supplier_bill_match_return(
+                c,
+                company_id,
+                match_id,
+                expected_version,
+                invoice_id,
+                actor_id,
+                command_id,
+                now,
+                reason,
+            )
+            .await
+            .map_err(PgTransactionError::Business)
         })
     }
 }
@@ -2917,6 +3017,13 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             )
                         })?;
                         let actor = command_actor(current)?;
+                        let matched = erpx_server_procurement::public::finance_supplier_bill_match::load_procurement_supplier_bill_match(
+                            c,
+                            &actor.company_id,
+                            &id,
+                        )
+                        .await
+                        .map_err(PgTransactionError::Business)?;
                         let data = if status == "posted" {
                             current.require_permission("finance.approve")?;
                             let mut same_person =
@@ -2947,6 +3054,21 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                         )
                         .await
                         .map_err(PgTransactionError::Business)?;
+                        if let Some(matched) = matched {
+                            erpx_server_procurement::public::finance_supplier_bill_match::stage_procurement_supplier_bill_match_return(
+                                c,
+                                &actor.company_id,
+                                &matched.match_id,
+                                matched.match_version,
+                                &id,
+                                actor.user_id.as_str(),
+                                command.as_str(),
+                                now.get(),
+                                "Matched payable voided",
+                            )
+                            .await
+                            .map_err(PgTransactionError::Business)?;
+                        }
                         Ok(FinanceSupplierBillVoidResponse { data })
                     })
                 },
@@ -3042,6 +3164,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             now,
                         };
                         let mut source = FinanceSupplierBillSource;
+                        let mut matches = FinanceSupplierBillMatch;
                         let data = post_supplier_bill_with_evidence(
                             c,
                             &actor,
@@ -3054,6 +3177,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             &mut authority,
                             &mut evidence,
                             &mut source,
+                            &mut matches,
                         )
                         .await?;
                         Ok(FinanceSupplierBillPostResponse { data })

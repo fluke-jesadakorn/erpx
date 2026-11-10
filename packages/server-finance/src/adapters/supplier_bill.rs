@@ -211,7 +211,9 @@ struct Invoice {
     source_id: Option<String>,
     source_version: Option<i64>,
     invoice_number: String,
+    party_id: String,
     invoice_date: String,
+    due_date: String,
     currency: String,
     subtotal_minor: i64,
     tax_minor: i64,
@@ -594,6 +596,229 @@ fn tax_allowed(account: &Account, chart: &str, currency: &str) -> bool {
         && account.control_kind == "none"
 }
 
+async fn supplier_bill_posting_lines<M: PgSupplierBillMatch>(
+    c: &mut PgConnection,
+    actor: &SalesInvoiceCommandActor,
+    invoice: &Invoice,
+    source_type: &str,
+    matches: &mut M,
+) -> Result<
+    (
+        String,
+        Vec<JournalLineInput>,
+        Option<SupplierBillMatchFacts>,
+    ),
+    Error,
+> {
+    let matched = if source_type == "commerce_fulfillment" {
+        matches.load(c, &actor.company_id, &invoice.id).await?
+    } else {
+        None
+    };
+    if let Some(matched) = matched.as_ref() {
+        let tax_account = invoice.tax_account_id.as_deref().unwrap_or("");
+        if matched.status != "invoiced"
+            || matched.invoice_id.as_deref() != Some(invoice.id.as_str())
+            || !matched.quantity_matches
+            || matched.currency != invoice.currency
+            || matched.supplier_id != invoice.party_id
+            || matched.invoice_date != invoice.invoice_date
+            || matched.due_date != invoice.due_date
+            || matched.clearing_account_id != invoice.debit_account_id
+            || matched.payable_account_id != invoice.credit_account_id
+            || matched.tax_account_id != tax_account
+            || matched.subtotal_minor != invoice.subtotal_minor
+            || matched.tax_minor != invoice.tax_minor
+            || matched.subtotal_minor + matched.tax_minor != invoice.total_minor
+        {
+            return Err(conflict(
+                "SUPPLIER_BILL_SOURCE_CHANGED",
+                "Review the matched invoice source before posting.",
+            ));
+        }
+        let chart = matched.chart_id.clone();
+        let clearing = account(
+            c,
+            &actor.company_id,
+            &chart,
+            &invoice.currency,
+            &matched.clearing_account_id,
+        )
+        .await?;
+        let payable = account(
+            c,
+            &actor.company_id,
+            &chart,
+            &invoice.currency,
+            &matched.payable_account_id,
+        )
+        .await?;
+        let tax = account(
+            c,
+            &actor.company_id,
+            &chart,
+            &invoice.currency,
+            &matched.tax_account_id,
+        )
+        .await?;
+        let variance_minor = matched.subtotal_minor - matched.expected_subtotal_minor;
+        let variance = match matched.variance_account_id.as_deref() {
+            Some(id) if variance_minor != 0 => {
+                Some(account(c, &actor.company_id, &chart, &invoice.currency, id).await?)
+            }
+            _ => None,
+        };
+        if !debit_allowed_for_source(&clearing, &chart, &invoice.currency, source_type)
+            || !payable_allowed(&payable, &chart, &invoice.currency)
+            || !tax_allowed(&tax, &chart, &invoice.currency)
+            || clearing.id == payable.id
+            || clearing.id == tax.id
+            || payable.id == tax.id
+            || variance.as_ref().is_some_and(|value| {
+                !debit_allowed(value, &chart, &invoice.currency)
+                    || value.id == clearing.id
+                    || value.id == payable.id
+                    || value.id == tax.id
+            })
+            || (variance_minor != 0 && variance.is_none())
+            || matched.expected_subtotal_minor < 0
+        {
+            return Err(invalid(
+                "SUPPLIER_BILL_ACCOUNTS_INVALID",
+                "Use active clearing, variance, tax and payable accounts on one Company ledger.",
+            ));
+        }
+        let description = Some(format!("Supplier bill {}", invoice.invoice_number));
+        let mut lines = Vec::new();
+        if matched.expected_subtotal_minor > 0 {
+            lines.push(JournalLineInput {
+                account_id: clearing.id.clone(),
+                description: description.clone(),
+                debit: minor_decimal(matched.expected_subtotal_minor),
+                credit: "0".into(),
+                dimensions: None,
+            });
+        }
+        if variance_minor != 0 {
+            lines.push(JournalLineInput {
+                account_id: variance
+                    .as_ref()
+                    .ok_or_else(|| {
+                        invalid(
+                            "SUPPLIER_BILL_VARIANCE_ACCOUNT_REQUIRED",
+                            "This matched bill needs a variance posting account.",
+                        )
+                    })?
+                    .id
+                    .clone(),
+                description: description.clone(),
+                debit: if variance_minor > 0 {
+                    minor_decimal(variance_minor)
+                } else {
+                    "0".into()
+                },
+                credit: if variance_minor < 0 {
+                    minor_decimal(-variance_minor)
+                } else {
+                    "0".into()
+                },
+                dimensions: None,
+            });
+        }
+        if matched.tax_minor > 0 {
+            lines.push(JournalLineInput {
+                account_id: tax.id.clone(),
+                description: description.clone(),
+                debit: minor_decimal(matched.tax_minor),
+                credit: "0".into(),
+                dimensions: None,
+            });
+        }
+        lines.push(JournalLineInput {
+            account_id: payable.id.clone(),
+            description,
+            debit: "0".into(),
+            credit: minor_decimal(matched.subtotal_minor + matched.tax_minor),
+            dimensions: None,
+        });
+        return Ok((chart, lines, Some(matched.clone())));
+    }
+    let chart = chart_for_debit(c, &actor.company_id, &invoice.debit_account_id).await?;
+    let debit = account(
+        c,
+        &actor.company_id,
+        &chart,
+        &invoice.currency,
+        &invoice.debit_account_id,
+    )
+    .await?;
+    let credit = account(
+        c,
+        &actor.company_id,
+        &chart,
+        &invoice.currency,
+        &invoice.credit_account_id,
+    )
+    .await?;
+    let tax = match invoice.tax_account_id.as_deref() {
+        Some(id) => Some(account(c, &actor.company_id, &chart, &invoice.currency, id).await?),
+        None => None,
+    };
+    if !debit_allowed_for_source(&debit, &chart, &invoice.currency, source_type)
+        || !payable_allowed(&credit, &chart, &invoice.currency)
+        || tax.as_ref().is_some_and(|value| {
+            !tax_allowed(value, &chart, &invoice.currency)
+                || value.id == debit.id
+                || value.id == credit.id
+        })
+        || (invoice.tax_minor > 0 && tax.is_none())
+        || invoice.subtotal_minor <= 0
+        || invoice.total_minor != invoice.subtotal_minor + invoice.tax_minor
+        || invoice.outstanding_minor != invoice.total_minor
+    {
+        return Err(invalid(
+            "SUPPLIER_BILL_ACCOUNTS_INVALID",
+            "Use active expense, asset and payable accounts on one Company ledger.",
+        ));
+    }
+    let description = Some(format!("Supplier bill {}", invoice.invoice_number));
+    let mut lines = vec![
+        JournalLineInput {
+            account_id: debit.id.clone(),
+            description: description.clone(),
+            debit: minor_decimal(invoice.subtotal_minor),
+            credit: "0".into(),
+            dimensions: None,
+        },
+        JournalLineInput {
+            account_id: credit.id.clone(),
+            description: description.clone(),
+            debit: "0".into(),
+            credit: minor_decimal(invoice.total_minor),
+            dimensions: None,
+        },
+    ];
+    if invoice.tax_minor > 0 {
+        lines.push(JournalLineInput {
+            account_id: tax
+                .as_ref()
+                .ok_or_else(|| {
+                    invalid(
+                        "TAX_ACCOUNT_REQUIRED",
+                        "This supplier bill needs a separate input tax posting account.",
+                    )
+                })?
+                .id
+                .clone(),
+            description,
+            debit: minor_decimal(invoice.tax_minor),
+            credit: "0".into(),
+            dimensions: None,
+        });
+    }
+    Ok((chart, lines, None))
+}
+
 fn account_json(account: &Account) -> Value {
     json!({
         "id": account.id,
@@ -970,8 +1195,9 @@ async fn existing_invoice(
 ) -> Result<Option<Invoice>, Error> {
     let row = sqlx::query(
         "SELECT id,kind,status,version,source_type,source_id,source_version,invoice_number,\
-         invoice_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,\
-         debit_account_id,credit_account_id,tax_account_id,line_revision,line_mode,created_by \
+         party_id,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,\
+         outstanding_minor,debit_account_id,credit_account_id,tax_account_id,line_revision,\
+         line_mode,created_by \
          FROM finance_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE",
     )
     .bind(id)
@@ -990,7 +1216,9 @@ async fn existing_invoice(
         source_id: row.try_get("source_id")?,
         source_version: row.try_get("source_version")?,
         invoice_number: row.try_get("invoice_number")?,
+        party_id: row.try_get("party_id")?,
         invoice_date: row.try_get("invoice_date")?,
+        due_date: row.try_get("due_date")?,
         currency: row.try_get("currency")?,
         subtotal_minor: row.try_get("subtotal_minor")?,
         tax_minor: row.try_get("tax_minor")?,
@@ -1415,6 +1643,116 @@ impl PgSupplierBillSource for UnmountedSupplierBillSource {
             Err(invalid(
                 "SUPPLIER_BILL_SOURCE_UNSUPPORTED",
                 "This supplier-bill source is unavailable in this assembly.",
+            ))
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SupplierBillMatchFacts {
+    pub match_id: String,
+    pub match_version: i64,
+    pub status: String,
+    pub invoice_id: Option<String>,
+    pub currency: String,
+    pub chart_id: String,
+    pub supplier_id: String,
+    pub invoice_date: String,
+    pub due_date: String,
+    pub expected_subtotal_minor: i64,
+    pub subtotal_minor: i64,
+    pub tax_minor: i64,
+    pub clearing_account_id: String,
+    pub payable_account_id: String,
+    pub tax_account_id: String,
+    pub variance_account_id: Option<String>,
+    pub quantity_matches: bool,
+}
+
+/// Procurement-owned matched-bill witness and lifecycle port. Finance consumes
+/// the reviewed match facts and asks Procurement to advance/return the match in
+/// the same serializable unit.
+pub trait PgSupplierBillMatch: Send {
+    fn load(
+        &mut self,
+        c: &mut PgConnection,
+        company_id: &str,
+        invoice_id: &str,
+    ) -> impl Future<Output = Result<Option<SupplierBillMatchFacts>, Error>> + Send;
+    fn stage_post(
+        &mut self,
+        c: &mut PgConnection,
+        company_id: &str,
+        match_id: &str,
+        expected_version: i64,
+        invoice_id: &str,
+        actor_id: &str,
+        command_id: &str,
+        now: i64,
+    ) -> impl Future<Output = Result<(), Error>> + Send;
+    fn stage_return(
+        &mut self,
+        c: &mut PgConnection,
+        company_id: &str,
+        match_id: &str,
+        expected_version: i64,
+        invoice_id: &str,
+        actor_id: &str,
+        command_id: &str,
+        now: i64,
+        reason: &str,
+    ) -> impl Future<Output = Result<(), Error>> + Send;
+}
+
+struct UnmountedSupplierBillMatch;
+impl PgSupplierBillMatch for UnmountedSupplierBillMatch {
+    fn load(
+        &mut self,
+        _c: &mut PgConnection,
+        _company_id: &str,
+        _invoice_id: &str,
+    ) -> impl Future<Output = Result<Option<SupplierBillMatchFacts>, Error>> + Send {
+        async move {
+            Err(invalid(
+                "SUPPLIER_BILL_MATCH_UNSUPPORTED",
+                "The Procurement supplier-bill match is unavailable in this assembly.",
+            ))
+        }
+    }
+    fn stage_post(
+        &mut self,
+        _c: &mut PgConnection,
+        _company_id: &str,
+        _match_id: &str,
+        _expected_version: i64,
+        _invoice_id: &str,
+        _actor_id: &str,
+        _command_id: &str,
+        _now: i64,
+    ) -> impl Future<Output = Result<(), Error>> + Send {
+        async move {
+            Err(invalid(
+                "SUPPLIER_BILL_MATCH_UNSUPPORTED",
+                "The Procurement supplier-bill match is unavailable in this assembly.",
+            ))
+        }
+    }
+    fn stage_return(
+        &mut self,
+        _c: &mut PgConnection,
+        _company_id: &str,
+        _match_id: &str,
+        _expected_version: i64,
+        _invoice_id: &str,
+        _actor_id: &str,
+        _command_id: &str,
+        _now: i64,
+        _reason: &str,
+    ) -> impl Future<Output = Result<(), Error>> + Send {
+        async move {
+            Err(invalid(
+                "SUPPLIER_BILL_MATCH_UNSUPPORTED",
+                "The Procurement supplier-bill match is unavailable in this assembly.",
             ))
         }
     }
@@ -2062,12 +2400,13 @@ where
         authority,
         &mut UnmountedSupplierBillEvidence,
         &mut UnmountedSupplierBillSource,
+        &mut UnmountedSupplierBillMatch,
     )
     .await
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn post_supplier_bill_with_evidence<A, C, E, S>(
+pub async fn post_supplier_bill_with_evidence<A, C, E, S, M>(
     c: &mut PgConnection,
     actor: &SalesInvoiceCommandActor,
     journal_actor: &FinanceActor,
@@ -2079,12 +2418,14 @@ pub async fn post_supplier_bill_with_evidence<A, C, E, S>(
     authority: &mut A,
     evidence: &mut E,
     source: &mut S,
+    matches: &mut M,
 ) -> Result<SupplierBillPostResult, Error>
 where
     A: JournalAuthority<Error = PgTransactionError<JournalError>> + Send,
     C: Clock + Sync,
     E: PgSupplierBillEvidence,
     S: PgSupplierBillSource,
+    M: PgSupplierBillMatch,
 {
     serializable(c).await?;
     company_actor(
@@ -2256,79 +2597,8 @@ where
                 .await?,
         )
     };
-    let chart = chart_for_debit(c, &actor.company_id, &invoice.debit_account_id).await?;
-    let debit = account(
-        c,
-        &actor.company_id,
-        &chart,
-        &invoice.currency,
-        &invoice.debit_account_id,
-    )
-    .await?;
-    let credit = account(
-        c,
-        &actor.company_id,
-        &chart,
-        &invoice.currency,
-        &invoice.credit_account_id,
-    )
-    .await?;
-    let tax = match invoice.tax_account_id.as_deref() {
-        Some(id) => Some(account(c, &actor.company_id, &chart, &invoice.currency, id).await?),
-        None => None,
-    };
-    if !debit_allowed_for_source(&debit, &chart, &invoice.currency, source_type)
-        || !payable_allowed(&credit, &chart, &invoice.currency)
-        || tax.as_ref().is_some_and(|value| {
-            !tax_allowed(value, &chart, &invoice.currency)
-                || value.id == debit.id
-                || value.id == credit.id
-        })
-        || (invoice.tax_minor > 0 && tax.is_none())
-        || invoice.subtotal_minor <= 0
-        || invoice.total_minor != invoice.subtotal_minor + invoice.tax_minor
-        || invoice.outstanding_minor != invoice.total_minor
-    {
-        return Err(invalid(
-            "SUPPLIER_BILL_ACCOUNTS_INVALID",
-            "Use active expense, asset and payable accounts on one Company ledger.",
-        ));
-    }
-    let description = Some(format!("Supplier bill {}", invoice.invoice_number));
-    let mut lines = vec![
-        JournalLineInput {
-            account_id: debit.id.clone(),
-            description: description.clone(),
-            debit: minor_decimal(invoice.subtotal_minor),
-            credit: "0".into(),
-            dimensions: None,
-        },
-        JournalLineInput {
-            account_id: credit.id.clone(),
-            description: description.clone(),
-            debit: "0".into(),
-            credit: minor_decimal(invoice.total_minor),
-            dimensions: None,
-        },
-    ];
-    if invoice.tax_minor > 0 {
-        lines.push(JournalLineInput {
-            account_id: tax
-                .as_ref()
-                .ok_or_else(|| {
-                    invalid(
-                        "TAX_ACCOUNT_REQUIRED",
-                        "This supplier bill needs a separate input tax posting account.",
-                    )
-                })?
-                .id
-                .clone(),
-            description,
-            debit: minor_decimal(invoice.tax_minor),
-            credit: "0".into(),
-            dimensions: None,
-        });
-    }
+    let (chart, lines, matched) =
+        supplier_bill_posting_lines(c, actor, &invoice, source_type, matches).await?;
     let draft = JournalDraft {
         chart_id: chart.clone(),
         period_id: input.period_id.trim().into(),
@@ -2445,6 +2715,20 @@ where
             "INVOICE_SOURCE_CHANGED",
             "The supplier bill changed. Refresh it before posting.",
         ));
+    }
+    if let Some(matched) = matched.as_ref() {
+        matches
+            .stage_post(
+                c,
+                &actor.company_id,
+                &matched.match_id,
+                matched.match_version,
+                id,
+                actor.user_id.as_str(),
+                command.as_str(),
+                plan.now().get(),
+            )
+            .await?;
     }
     let money = sqlx::query(
         "INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,\
