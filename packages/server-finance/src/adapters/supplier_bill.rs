@@ -559,6 +559,24 @@ fn debit_allowed(account: &Account, chart: &str, currency: &str) -> bool {
         && account.control_kind == "none"
 }
 
+/// A matched Commerce fulfillment debits the owner's goods-received/clearing
+/// liability account (control_kind none), not an expense account. Standalone
+/// and expense-claim bills retain the expense/asset-only rule.
+fn debit_allowed_for_source(
+    account: &Account,
+    chart: &str,
+    currency: &str,
+    source_type: &str,
+) -> bool {
+    debit_allowed(account, chart, currency)
+        || source_type == "commerce_fulfillment"
+            && account.status == "active"
+            && account.chart_id == chart
+            && account.currency == currency
+            && account.category == "liability"
+            && account.control_kind == "none"
+}
+
 fn payable_allowed(account: &Account, chart: &str, currency: &str) -> bool {
     account.status == "active"
         && account.chart_id == chart
@@ -2231,7 +2249,7 @@ where
         Some(id) => Some(account(c, &actor.company_id, &chart, &invoice.currency, id).await?),
         None => None,
     };
-    if !debit_allowed(&debit, &chart, &invoice.currency)
+    if !debit_allowed_for_source(&debit, &chart, &invoice.currency, source_type)
         || !payable_allowed(&credit, &chart, &invoice.currency)
         || tax.as_ref().is_some_and(|value| {
             !tax_allowed(value, &chart, &invoice.currency)

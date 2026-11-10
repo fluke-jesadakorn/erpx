@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T10:21:59+07:00",
+  "updatedAt": "2026-11-10T11:09:21+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3633,7 +3633,7 @@
       "id": "finance-matched-source-native-post",
       "kind": "supporting-delivery",
       "status": "partial",
-      "scope": "Native Finance posting for matched supplier bills: Commerce fulfillment and People expense-claim read-only owner ports, source locks before Finance/Files, and a Finance source witness that requires the current invoice link. finance.rust-supplier-bill-postgres.integration is 9/9. Browser acceptance remains blocked by the dev native API clone/shared DB split and the Finance approver flow primary; Finance stays partial.",
+      "scope": "Native Finance posting for matched supplier bills: Commerce/People owner source ports, Commerce clearing-liability debit, source locks before Finance/Files, and the native Finance API bound to the shared development databases. supplier_bill_postgres is 9/9 and the app native route posted a matched bill 200; the UI form submission returned 503 for one bill and remains unaccepted. Finance stays partial.",
       "sourceIdentity": "working tree on 0db8d9a05dd984f4df2781d8e6dd237eaa70e32a",
       "evidenceRef": "docs/testing/evidence/2026-11-10-finance-matched-source-native-post.json",
       "durableContractRefs": []
@@ -4276,7 +4276,7 @@
         "finance-native-supplier-bill-void"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned posted void and payable attachments are closed. Native matched posting now consumes Commerce fulfillment and People expense-claim owner witnesses through public ports and passes 9/9 supplier-bill PostgreSQL gates. Remaining: the Finance approver flow primary for the dev account, a native Finance API bound to the shared dev databases for browser acceptance, and expense-claim invoice creation when the claim has no invoice link. Finance is not certified."
+      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment and People expense-claim owner witnesses, supports the Commerce clearing-liability debit, and passes 9/9 supplier-bill PostgreSQL gates; the app native route returned 200 for a matched bill. Remaining: the Finance app native-client UI post returned 503 for one submission while the direct native route returned 200, some draft bills still report the flow-primary blocker, and expense-claim invoice creation is open. Finance is not certified."
     },
     {
       "id": "finance/feature-chart-of-accounts",

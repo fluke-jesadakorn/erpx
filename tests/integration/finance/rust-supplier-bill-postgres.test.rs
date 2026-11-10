@@ -64,6 +64,7 @@ async fn seed(pool: &DatabasePool) {
          ('bill-vat-in','company','chart','1300','Input VAT','asset','THB',0,'none','active',1,0,0),\
          ('bill-vat-in-2','company','chart','1350','Input VAT clearing','asset','THB',0,'none','active',1,0,0),\
          ('bill-ap','company','chart','2100','Trade payables','liability','THB',1,'payable','active',1,0,0),\
+         ('bill-clearing','company','chart','2150','Goods received not invoiced','liability','THB',0,'none','active',1,0,0),\
          ('bill-bank','company','chart','1000','Bank','asset','THB',1,'bank','active',1,0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,version,created_at,updated_at)VALUES\
          ('bill-supplier','company','supplier','SUP-BILL','Native supplier','THB','active',1,0,0),\
@@ -1283,7 +1284,7 @@ async fn supplier_bill_posts_a_commerce_fulfillment_source_with_its_owner_witnes
              debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,\
              version,line_revision,line_mode,created_by,created_at,updated_at) \
              VALUES($1,'company','bill-supplier','payable','BILL-COMMERCE','2026-01-02',\
-             '2026-02-01','THB',25000,1750,26750,26750,'bill-expense','bill-ap','bill-vat-in',\
+             '2026-02-01','THB',25000,1750,26750,26750,'bill-clearing','bill-ap','bill-vat-in',\
              'commerce_fulfillment',$2,'draft',1,1,'whole_document','fixture-a',0,0)",
         )
         .bind(invoice)
@@ -1345,7 +1346,7 @@ async fn supplier_bill_posts_a_commerce_fulfillment_source_with_its_owner_witnes
         assert_eq!(
             journal_lines,
             vec![
-                ("bill-expense".into(), 25_000, 0),
+                ("bill-clearing".into(), 25_000, 0),
                 ("bill-ap".into(), 0, 26_750),
                 ("bill-vat-in".into(), 1_750, 0),
             ]
