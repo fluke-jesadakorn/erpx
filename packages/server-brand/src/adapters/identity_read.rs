@@ -1,8 +1,8 @@
 //! PostgreSQL Brand identity reads. Every read runs on the caller's retained
 //! Holding transaction and never constructs an independent actor or grant.
 use crate::adapters::identity::{BrandError, PgBrandIdentity, authorize};
-use crate::application::identity::BrandActor;
-use crate::application::identity_read::{
+use crate::adapters::identity_use_cases::BrandActor;
+use crate::adapters::identity_read_use_cases::{
     BrandIdentityReadPorts, PublishedBrandIdentityPorts,
 };
 use crate::domain::identity::{

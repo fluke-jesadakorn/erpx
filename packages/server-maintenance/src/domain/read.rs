@@ -1,7 +1,7 @@
 //! Native Maintenance read facts for the owner workspace and HTTP ingress.
 //! These projections are presentation facts only. They are not a current
 //! authorization proof, purchase admission or command capability.
-use erpx_server_runtime::public::http_support::{Value, json};
+use serde_json::{Value, json};
 use erpx_server_shared::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis, UserId,
 };

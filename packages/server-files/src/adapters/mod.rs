@@ -10,6 +10,7 @@ pub mod preview_engine;
 pub mod preview_process;
 
 pub mod attachment_read_postgres;
+pub mod attachment_read_use_cases;
 pub mod attachment_http;
 pub mod postgres_attachment_scan;
 

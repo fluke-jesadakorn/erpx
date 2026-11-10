@@ -5,7 +5,7 @@
 //! `attachment_events`, `attachment_access_events`). The owning record's
 //! authority is supplied by the composition port; this adapter never reads
 //! another owner's table and never opens, commits or retries a transaction.
-use crate::application::attachment_read::{AttachmentReadPorts, AttachmentTargetAuthority};
+use crate::adapters::attachment_read_use_cases::{AttachmentReadPorts, AttachmentTargetAuthority};
 use crate::domain::attachment_read::{
     AttachmentListFilter, AttachmentReader, AttachmentSetFacts, AttachmentStatusFacts,
     AttachmentTarget, AttachmentTargetScope, MAX_SET_RESPONSE_BYTES, MAX_SETS,

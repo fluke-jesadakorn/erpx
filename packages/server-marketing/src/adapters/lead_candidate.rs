@@ -5,7 +5,7 @@
 //! through the existing assignments/functions. CRM handoff is injected through
 //! the public port; no CRM row is written here. The caller owns the serializable
 //! transaction and this adapter never commits.
-use crate::application::lead_candidate::{
+use crate::adapters::lead_candidate_use_cases::{
     MarketingAuditEntry, MarketingLeadRepository, MarketingOutboxEntry, MarketingReceiptEntry,
     MarketingStoredReceipt,
 };

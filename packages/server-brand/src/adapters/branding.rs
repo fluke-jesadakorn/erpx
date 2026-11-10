@@ -2,10 +2,10 @@
 //! serializable Holding transaction and keeps the retained guard, receipt,
 //! audit and outbox evidence in that same unit.
 use crate::adapters::identity::{authorize, read_active_brand_identity};
-use crate::application::branding::{
+use crate::adapters::branding_use_cases::{
     BrandingMutation, BrandingMutationAction, BrandingPorts,
 };
-use crate::application::identity::BrandActor;
+use crate::adapters::identity_use_cases::BrandActor;
 use crate::domain::branding::{
     BrandScopeKind, BrandVariant, BrandingAttachment, BrandingBranch, BrandingProfile,
     BrandingPublication, BrandingStorefront,

@@ -7,8 +7,8 @@
 //! read only for the Company base currency; no Finance row is written. The
 //! caller's serializable transaction is required and this adapter never
 //! commits, retries or opens a second connection.
+use crate::adapters::receipt_use_cases::CommerceReceiptRepository;
 use crate::application::order::{AuditEntry, OutboxEntry, ReceiptEntry};
-use crate::application::receipt::CommerceReceiptRepository;
 use crate::domain::order::{CommerceOrderActor, OrderCommandReceipt};
 use crate::domain::receipt::{
     ReceiptFulfillmentLineReadback, ReceiptFulfillmentPlan, ReceiptFulfillmentReadback,

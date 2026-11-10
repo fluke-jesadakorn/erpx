@@ -9,3 +9,5 @@ pub(crate) mod field_service_reference;
 pub(crate) mod field_service_workspace;
 
 pub (crate) mod record_source;
+
+pub mod retirement_work;

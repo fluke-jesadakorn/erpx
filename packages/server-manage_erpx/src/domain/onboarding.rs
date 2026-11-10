@@ -2,8 +2,8 @@
 //!
 //! The onboarding view is a pre-Company read: the verified Account selects the
 //! owner's reserved slot. It grants no Holding, Company or Platform authority.
-use erpx_server_runtime::public::http_support::{Value, json};
 use erpx_server_shared::public::{BusinessError, FailureKind, UserId};
+use serde_json::{Value, json};
 
 const SLUG_MAXIMUM: usize = 64;
 const NAME_MAXIMUM: usize = 200;

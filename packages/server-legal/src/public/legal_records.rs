@@ -10,7 +10,7 @@ pub use crate::adapters::postgres_legal_records::{
     execute_legal_command, legal_records_business_error, read_legal_detail, read_legal_export,
     read_legal_register,
 };
-pub use crate::application::legal_records::{
+pub use crate::adapters::legal_records_use_cases::{
     LegalRecordsError, LegalRecordsFuture, LegalRecordsPorts, legal_command, legal_detail,
     legal_export, legal_register,
 };

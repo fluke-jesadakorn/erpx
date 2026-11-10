@@ -1085,6 +1085,7 @@ version = "0.1.0"
 dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
+ "serde_json",
  "sqlx",
  "tokio",
  "uuid",

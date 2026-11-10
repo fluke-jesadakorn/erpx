@@ -5,7 +5,7 @@
 //! ports. This adapter re-checks visibility, version, membership and enabled
 //! state in that same unit.
 use crate::{
-    application::legal_records::{
+    adapters::legal_records_use_cases::{
         LegalRecordsError, LegalRecordsFuture, LegalRecordsPorts, legal_command, legal_detail,
         legal_export, legal_register,
     },

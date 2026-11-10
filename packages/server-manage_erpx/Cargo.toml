@@ -8,6 +8,7 @@ publish.workspace = true
 autotests = false
 
 [dependencies]
+serde_json.workspace = true
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
 sqlx.workspace = true

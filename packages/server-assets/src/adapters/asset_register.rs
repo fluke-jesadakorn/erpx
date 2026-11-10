@@ -10,7 +10,7 @@ use crate::{
         AssetWorkspaceData, FinanceAsset, FinanceCandidate, MaintenanceReference, NodeOption,
         PersonOption,
     },
-    application::retirement_work::{AssetRetirementWorkEffect, AssetRetirementWorkSource, prepare_asset_retirement_work},
+    adapters::retirement_work::{AssetRetirementWorkEffect, AssetRetirementWorkSource, prepare_asset_retirement_work},
     domain::asset::{
         AssetChange, AssetTransition, MAX_SAFE_INTEGER, NewAsset, require_expected_version,
     },

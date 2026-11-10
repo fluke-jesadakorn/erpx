@@ -233,3 +233,36 @@ fn crate_roots_export_only_the_named_public_facade() {
         );
     }
 }
+
+#[test]
+fn test_only_code_and_pure_json_values_do_not_expand_the_portable_core() {
+    for source in [
+        "fn x(){ let _ = json!({\"id\": id, \"status\": \"open\"}); }",
+        "fn x(){ let _ = serde_json::json!({\"nested\": {\"value\": 1}}); }",
+        "#[cfg(test)] mod tests { fn helper(){ std::fs::read(\"x\"); } #[test] fn run(){ let _ = sqlx::query(\"x\"); } }",
+        "#[cfg(test)] fn helper(){ std::env::var(\"X\"); }",
+        "#[test] fn run(){ let _ = tokio::runtime::Runtime::new(); }",
+    ] {
+        assert!(
+            architecture::inspect_source(source, "domain/model.rs")
+                .unwrap()
+                .is_empty(),
+            "rejected {source}"
+        );
+    }
+    for source in [
+        "fn x(){ let _ = json!({\"path\": std::env::var(\"SECRET\")}); }",
+        "fn x(){ let _ = json!({\"path\": sqlx::query(\"x\")}); }",
+        "fn x(){ let _ = json!({\"path\": erpx_server_workflow::public::commands::CommandJson::parse(\"x\")}); }",
+        "fn x(){ let _ = json!({\"path\": env!(\"HOME\")}); }",
+        "#[cfg(any(test, feature = \"x\"))] fn helper(){ std::env::var(\"X\"); }",
+        "#[cfg(not(test))] fn helper(){ std::env::var(\"X\"); }",
+    ] {
+        assert!(
+            !architecture::inspect_source(source, "domain/model.rs")
+                .unwrap()
+                .is_empty(),
+            "accepted {source}"
+        );
+    }
+}

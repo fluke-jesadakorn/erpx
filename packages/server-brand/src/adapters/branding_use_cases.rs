@@ -1,6 +1,6 @@
 //! Branding owner use cases. Ports own current authority, replay, snapshots and
 //! the transaction; this layer never opens a transaction or reads HTTP.
-use crate::application::identity::BrandActor;
+use crate::adapters::identity_use_cases::BrandActor;
 use crate::domain::branding::{
     BrandMediaInput, BrandScopeKind, BrandVariant, BrandingAttachment, BrandingBranch,
     BrandingProfile, BrandingPublication, BrandingStorefront, BrandingWorkspace, DocumentMode,
@@ -93,15 +93,12 @@ pub trait BrandingPorts {
         &mut self,
         id: &str,
     ) -> impl Future<Output = Result<Option<BrandingBranch>, Self::Error>> + Send;
-    fn branches(
-        &mut self,
-    ) -> impl Future<Output = Result<Vec<BrandingBranch>, Self::Error>> + Send;
+    fn branches(&mut self)
+    -> impl Future<Output = Result<Vec<BrandingBranch>, Self::Error>> + Send;
     fn storefront(
         &mut self,
     ) -> impl Future<Output = Result<Option<BrandingStorefront>, Self::Error>> + Send;
-    fn published(
-        &mut self,
-    ) -> impl Future<Output = Result<Option<Value>, Self::Error>> + Send;
+    fn published(&mut self) -> impl Future<Output = Result<Option<Value>, Self::Error>> + Send;
     fn attachment(
         &mut self,
         id: &str,
@@ -148,7 +145,10 @@ fn validate_attachment(
     attachment: Option<&BrandingAttachment>,
 ) -> Result<(), BusinessError> {
     let Some(attachment) = attachment else {
-        return Err(conflict("BRAND_MEDIA_NOT_FOUND", "Choose an existing approved Brand media source."));
+        return Err(conflict(
+            "BRAND_MEDIA_NOT_FOUND",
+            "Choose an existing approved Brand media source.",
+        ));
     };
     let owner_id = match scope {
         BrandScopeKind::Holding => actor_holding_id,
@@ -159,7 +159,10 @@ fn validate_attachment(
         || attachment.owner_id != owner_id
         || attachment.purpose != purpose
         || attachment.revoked_at.is_some()
-        || attachment.company_id.as_deref().is_some_and(|value| value != company_id)
+        || attachment
+            .company_id
+            .as_deref()
+            .is_some_and(|value| value != company_id)
     {
         return Err(conflict(
             "BRAND_MEDIA_NOT_AVAILABLE",
@@ -216,32 +219,50 @@ pub async fn update_brand_profile<P: BrandingPorts>(
         )
         .into());
     }
-    ports.authorize(true, input.scope_kind == BrandScopeKind::Holding).await?;
-    if input.scope_kind == BrandScopeKind::Branch && ports.branch(&input.scope_id).await?.is_none() {
+    ports
+        .authorize(true, input.scope_kind == BrandScopeKind::Holding)
+        .await?;
+    if input.scope_kind == BrandScopeKind::Branch && ports.branch(&input.scope_id).await?.is_none()
+    {
         return Err(conflict("BRANCH_NOT_FOUND", "The document Branch is unavailable.").into());
     }
     let operation = "organization.brand.update";
     let record_id = scope_label(input.scope_kind, &input.scope_id);
     let command_input = input_json(&input)?;
-    if let Some(prior) = ports.replay(key, operation, &record_id, &command_input).await? {
+    if let Some(prior) = ports
+        .replay(key, operation, &record_id, &command_input)
+        .await?
+    {
         return Ok(prior);
     }
     let current = ports.profile(input.scope_kind, &input.scope_id).await?;
     let previous_attachment_id = match input.remove {
-        Some(BrandVariant::Primary) => current.as_ref().and_then(|row| row.primary_attachment_id.clone()),
-        Some(BrandVariant::Inverse) => current.as_ref().and_then(|row| row.inverse_attachment_id.clone()),
+        Some(BrandVariant::Primary) => current
+            .as_ref()
+            .and_then(|row| row.primary_attachment_id.clone()),
+        Some(BrandVariant::Inverse) => current
+            .as_ref()
+            .and_then(|row| row.inverse_attachment_id.clone()),
         None => None,
     };
     let previous_publication_id = match input.remove {
-        Some(BrandVariant::Primary) => current.as_ref().and_then(|row| row.primary_publication_id.clone()),
-        Some(BrandVariant::Inverse) => current.as_ref().and_then(|row| row.inverse_publication_id.clone()),
+        Some(BrandVariant::Primary) => current
+            .as_ref()
+            .and_then(|row| row.primary_publication_id.clone()),
+        Some(BrandVariant::Inverse) => current
+            .as_ref()
+            .and_then(|row| row.inverse_publication_id.clone()),
         None => None,
     };
     let document_mode = match input.scope_kind {
         BrandScopeKind::Holding => DocumentMode::Holding,
         BrandScopeKind::Branch => input
             .document_mode
-            .or_else(|| current.as_ref().and_then(|row| DocumentMode::parse(&row.document_mode)))
+            .or_else(|| {
+                current
+                    .as_ref()
+                    .and_then(|row| DocumentMode::parse(&row.document_mode))
+            })
             .unwrap_or(DocumentMode::Branch),
     };
     let result = json!({
@@ -307,7 +328,10 @@ pub async fn update_storefront<P: BrandingPorts>(
     let operation = "organization.storefront-brand.update";
     let record_id = current.company_id.clone();
     let command_input = input_json(&input)?;
-    if let Some(prior) = ports.replay(key, operation, &record_id, &command_input).await? {
+    if let Some(prior) = ports
+        .replay(key, operation, &record_id, &command_input)
+        .await?
+    {
         return Ok(prior);
     }
     let result = json!({
@@ -316,8 +340,16 @@ pub async fn update_storefront<P: BrandingPorts>(
         "accentColor": input.accent_color.clone().or_else(|| current.accent_color.clone()).unwrap_or_else(|| "#3659c9".into()),
         "logoRemoved": input.remove_logo.unwrap_or(false),
     });
-    let previous_attachment_id = if input.remove_logo.unwrap_or(false) { current.logo_attachment_id.clone() } else { None };
-    let previous_publication_id = if input.remove_logo.unwrap_or(false) { current.logo_publication_id.clone() } else { None };
+    let previous_attachment_id = if input.remove_logo.unwrap_or(false) {
+        current.logo_attachment_id.clone()
+    } else {
+        None
+    };
+    let previous_publication_id = if input.remove_logo.unwrap_or(false) {
+        current.logo_publication_id.clone()
+    } else {
+        None
+    };
     let now = ports.now();
     let version = now_or_expected(Some(current.updated_at), input.expected_updated_at, now);
     ports
@@ -364,8 +396,11 @@ pub async fn attach_brand_media<P: BrandingPorts>(
         )
         .into());
     }
-    ports.authorize(true, input.scope_kind == BrandScopeKind::Holding).await?;
-    if input.scope_kind == BrandScopeKind::Branch && ports.branch(&input.scope_id).await?.is_none() {
+    ports
+        .authorize(true, input.scope_kind == BrandScopeKind::Holding)
+        .await?;
+    if input.scope_kind == BrandScopeKind::Branch && ports.branch(&input.scope_id).await?.is_none()
+    {
         return Err(conflict("BRANCH_NOT_FOUND", "The document Branch is unavailable.").into());
     }
     let attachment = match input.attachment_id.as_deref() {
@@ -388,7 +423,11 @@ pub async fn attach_brand_media<P: BrandingPorts>(
         Some(_) => expected_owner(input.scope_kind),
         None => "company_storefront_brand",
     };
-    let target_id: &str = if input.variant.is_some() { input.scope_id.as_str() } else { actor.company_id() };
+    let target_id: &str = if input.variant.is_some() {
+        input.scope_id.as_str()
+    } else {
+        actor.company_id()
+    };
     if input.publication_id.is_some() {
         validate_publication(
             publication.as_ref(),
@@ -409,7 +448,10 @@ pub async fn attach_brand_media<P: BrandingPorts>(
         actor.company_id().to_owned()
     };
     let command_input = input_json(&input)?;
-    if let Some(prior) = ports.replay(key, operation, &record_id, &command_input).await? {
+    if let Some(prior) = ports
+        .replay(key, operation, &record_id, &command_input)
+        .await?
+    {
         return Ok(prior);
     }
     let current_profile = if input.variant.is_some() {
@@ -423,14 +465,26 @@ pub async fn attach_brand_media<P: BrandingPorts>(
         None
     };
     let previous_attachment_id = match input.variant {
-        Some(BrandVariant::Primary) => current_profile.as_ref().and_then(|row| row.primary_attachment_id.clone()),
-        Some(BrandVariant::Inverse) => current_profile.as_ref().and_then(|row| row.inverse_attachment_id.clone()),
-        None => current_storefront.as_ref().and_then(|row| row.logo_attachment_id.clone()),
+        Some(BrandVariant::Primary) => current_profile
+            .as_ref()
+            .and_then(|row| row.primary_attachment_id.clone()),
+        Some(BrandVariant::Inverse) => current_profile
+            .as_ref()
+            .and_then(|row| row.inverse_attachment_id.clone()),
+        None => current_storefront
+            .as_ref()
+            .and_then(|row| row.logo_attachment_id.clone()),
     };
     let previous_publication_id = match input.variant {
-        Some(BrandVariant::Primary) => current_profile.as_ref().and_then(|row| row.primary_publication_id.clone()),
-        Some(BrandVariant::Inverse) => current_profile.as_ref().and_then(|row| row.inverse_publication_id.clone()),
-        None => current_storefront.as_ref().and_then(|row| row.logo_publication_id.clone()),
+        Some(BrandVariant::Primary) => current_profile
+            .as_ref()
+            .and_then(|row| row.primary_publication_id.clone()),
+        Some(BrandVariant::Inverse) => current_profile
+            .as_ref()
+            .and_then(|row| row.inverse_publication_id.clone()),
+        None => current_storefront
+            .as_ref()
+            .and_then(|row| row.logo_publication_id.clone()),
     };
     let result = json!({
         "scopeKind": input.scope_kind.as_str(),
@@ -486,7 +540,9 @@ pub async fn read_branding_workspace<P: BrandingPorts>(
         .storefront()
         .await?
         .ok_or_else(|| conflict("COMPANY_REQUIRED", "The Company storefront is unavailable."))?;
-    let holding_profile = ports.profile(BrandScopeKind::Holding, &actor.holding_id).await?;
+    let holding_profile = ports
+        .profile(BrandScopeKind::Holding, &actor.holding_id)
+        .await?;
     let branches = ports.branches().await?;
     let mut branch_rows = Vec::with_capacity(branches.len());
     for branch in branches {
@@ -511,6 +567,9 @@ pub fn branding_version(now: i64) -> Result<i64, BusinessError> {
     if (0..=9_007_199_254_740_991).contains(&now) {
         Ok(now)
     } else {
-        Err(unavailable("BRAND_VERSION_INVALID", "The Branding version is unavailable."))
+        Err(unavailable(
+            "BRAND_VERSION_INVALID",
+            "The Branding version is unavailable.",
+        ))
     }
 }

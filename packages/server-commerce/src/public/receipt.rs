@@ -10,10 +10,10 @@
 //! attachment binding remain composition steps for full
 //! `commerce.order.fulfill` parity.
 pub use crate::adapters::receipt::PgCommerceReceipt;
-pub use crate::application::receipt::{
+pub use crate::adapters::receipt_use_cases::{
     CommerceReceiptRepository, CommerceReceiptStock, receive_purchase_order,
 };
-pub use crate::domain::legacy_fulfillment::{normalize_legacy_fulfillment_input,legacy_fulfillment_workflow_input};
+pub use crate::adapters::legacy_fulfillment::{normalize_legacy_fulfillment_input,legacy_fulfillment_workflow_input};
 pub use crate::domain::receipt::{
     CommerceReceipt, CommerceReceiptLine, MAX_ALLOCATIONS, MAX_LINES, MAX_LOT_CODE, MAX_REASON,
     MAX_SAFE, MAX_SERIAL, PreparedStockReceipt, RECEIPT_OPERATION, ReceiptAllocationCommand,

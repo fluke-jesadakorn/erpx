@@ -204,6 +204,129 @@ fn paths(tree: &UseTree, prefix: Vec<String>, output: &mut Vec<Vec<String>>) {
     }
 }
 
+/// Items compiled only under the test harness are not part of the portable
+/// business core, so their fixtures do not constrain production layering.
+fn test_item(attributes: &[syn::Attribute]) -> bool {
+    test_only(attributes)
+        || attributes.iter().any(|attribute| {
+            let path = attribute.path();
+            path.is_ident("test")
+                || path
+                    .segments
+                    .last()
+                    .is_some_and(|segment| segment.ident == "test")
+        })
+}
+
+fn test_only(attributes: &[syn::Attribute]) -> bool {
+    attributes.iter().any(|attribute| {
+        let syn::Meta::List(list) = &attribute.meta else {
+            return false;
+        };
+        attribute.path().is_ident("cfg") && cfg_is_test_only(&list.tokens.to_string())
+    })
+}
+
+fn cfg_is_test_only(tokens: &str) -> bool {
+    let compact: String = tokens
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect();
+    if compact == "test" {
+        return true;
+    }
+    // `all(test, ...)` only exists with the test cfg enabled. `any(test, ...)`
+    // and `not(test)` still compile production code, so they stay inspected.
+    let Some(inner) = compact
+        .strip_prefix("all(")
+        .and_then(|value| value.strip_suffix(')'))
+    else {
+        return false;
+    };
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (index, character) in inner.char_indices() {
+        match character {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                if &inner[start..index] == "test" {
+                    return true;
+                }
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    &inner[start..] == "test"
+}
+
+/// `json!` builds a value from pure data. Its token stream is not a Rust
+/// expression, so inspect the tokens for effectful roots instead of dropping
+/// the macro unexamined. Quoted JSON strings are data and cannot introduce a
+/// path effect.
+fn json_argument_effect(tokens: &str) -> Option<String> {
+    let mut cleaned = String::with_capacity(tokens.len());
+    let mut characters = tokens.chars();
+    while let Some(character) = characters.next() {
+        if character == '"' {
+            cleaned.push('"');
+            let mut escaped = false;
+            for inner in characters.by_ref() {
+                if escaped {
+                    escaped = false;
+                } else if inner == '\\' {
+                    escaped = true;
+                } else if inner == '"' {
+                    break;
+                }
+            }
+            continue;
+        }
+        if !character.is_whitespace() {
+            cleaned.push(character);
+        }
+    }
+    for root in [
+        "std::",
+        "sqlx::",
+        "tokio::",
+        "axum::",
+        "reqwest::",
+        "openssl::",
+        "lopdf::",
+        "tower::",
+        "tracing::",
+        "rand::",
+        "getrandom::",
+        "uuid::",
+        "time::",
+        "chrono::",
+    ] {
+        if cleaned.contains(root) {
+            return Some(root.trim_end_matches("::").to_owned());
+        }
+    }
+    for macro_name in [
+        "env!",
+        "option_env!",
+        "include!",
+        "include_str!",
+        "include_bytes!",
+    ] {
+        if cleaned.contains(macro_name) {
+            return Some(macro_name.trim_end_matches('!').to_owned());
+        }
+    }
+    if let Some(index) = cleaned.find("erpx_server_") {
+        let rest = &cleaned[index..];
+        if !rest.starts_with("erpx_server_shared") {
+            return Some("erpx_server".to_owned());
+        }
+    }
+    None
+}
+
 struct BoundaryVisitor {
     module: Vec<String>,
     layer: Option<String>,
@@ -289,7 +412,70 @@ impl BoundaryVisitor {
 }
 
 impl<'ast> Visit<'ast> for BoundaryVisitor {
+    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_item_mod(self, item);
+    }
+    fn visit_item_fn(&mut self, item: &'ast syn::ItemFn) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_item_fn(self, item);
+    }
+    fn visit_impl_item_fn(&mut self, item: &'ast syn::ImplItemFn) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_impl_item_fn(self, item);
+    }
+    fn visit_item_impl(&mut self, item: &'ast syn::ItemImpl) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_item_impl(self, item);
+    }
+    fn visit_item_trait(&mut self, item: &'ast syn::ItemTrait) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_item_trait(self, item);
+    }
+    fn visit_item_struct(&mut self, item: &'ast syn::ItemStruct) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_item_struct(self, item);
+    }
+    fn visit_item_enum(&mut self, item: &'ast syn::ItemEnum) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_item_enum(self, item);
+    }
+    fn visit_item_const(&mut self, item: &'ast syn::ItemConst) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_item_const(self, item);
+    }
+    fn visit_item_static(&mut self, item: &'ast syn::ItemStatic) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_item_static(self, item);
+    }
+    fn visit_item_type(&mut self, item: &'ast syn::ItemType) {
+        if test_item(&item.attrs) {
+            return;
+        }
+        syn::visit::visit_item_type(self, item);
+    }
     fn visit_item_use(&mut self, item: &'ast syn::ItemUse) {
+        if test_item(&item.attrs) {
+            return;
+        }
         let mut imports = Vec::new();
         paths(&item.tree, Vec::new(), &mut imports);
         for path in imports {
@@ -331,6 +517,9 @@ impl<'ast> Visit<'ast> for BoundaryVisitor {
                     | "debug_assert_ne"
                     | "panic"
                     | "unreachable"
+                    | "json"
+                    | "serde_json::json"
+                    | "format_description"
             ) {
                 self.issues
                     .insert(format!("portable-core-macro-not-approved:{name}"));
@@ -354,6 +543,15 @@ impl<'ast> Visit<'ast> for BoundaryVisitor {
             {
                 for argument in arguments {
                     self.visit_expr(&argument);
+                }
+            } else if matches!(
+                name.as_str(),
+                "json" | "serde_json::json" | "format_description"
+            ) {
+                if let Some(effect) = json_argument_effect(&item.tokens.to_string()) {
+                    self.issues.insert(format!(
+                        "portable-core-macro-argument-effect:{name}:{effect}"
+                    ));
                 }
             } else if name == "vec" {
                 match syn::parse_str::<syn::Expr>(&format!("[{}]", item.tokens)) {

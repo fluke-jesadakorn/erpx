@@ -6,7 +6,7 @@ use crate::domain::read::{
     MaintenancePersonOption, MaintenancePlanDetail, MaintenancePlanEventRow, MaintenancePlanRow,
     MaintenanceReadActor, MaintenanceWorkEventRow, MaintenanceWorkRow, MaintenanceWorkspace,
 };
-use erpx_server_runtime::public::http_support::json;
+use serde_json::json;
 use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
 use std::future::Future;
 

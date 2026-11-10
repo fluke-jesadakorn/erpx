@@ -7,7 +7,7 @@ pub use crate::adapters::attachment_read_postgres::{
     StockCountAttachmentTarget, inspect_attachment_ownership, lock_attachment_ownership_sources,
     finance_attachment_target, revalidate_attachment_ownership, stock_count_attachment_target,
 };
-pub use crate::application::attachment_read::{
+pub use crate::adapters::attachment_read_use_cases::{
     AttachmentReadPorts, AttachmentTargetAuthority, attachment_link_status, list_attachment_sets,
 };
 pub use crate::domain::attachment_read::{

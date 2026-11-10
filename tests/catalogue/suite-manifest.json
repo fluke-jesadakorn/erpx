@@ -84605,7 +84605,7 @@
         "packages/server-files/Cargo.toml",
         "tests/support/rust-postgres.rs",
         "packages/server-files/src/adapters/attachment_read_postgres.rs",
-        "packages/server-files/src/application/attachment_read.rs"
+        "packages/server-files/src/adapters/attachment_read_use_cases.rs"
       ],
       "apps": [
         "apps",
@@ -86742,7 +86742,7 @@
         "packages/server-brand/Cargo.toml",
         "tests/support/rust-postgres.rs",
         "packages/server-brand/src/domain/branding.rs",
-        "packages/server-brand/src/application/branding.rs",
+        "packages/server-brand/src/adapters/branding_use_cases.rs",
         "packages/server-brand/src/adapters/branding.rs",
         "packages/server-brand/src/public/branding.rs"
       ],

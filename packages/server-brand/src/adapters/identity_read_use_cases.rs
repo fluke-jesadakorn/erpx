@@ -1,9 +1,9 @@
 //! Brand identity read use cases. The workspace is assembled from one retained
 //! authorization unit; no deserialized actor or cached authority is accepted.
-use crate::application::identity::BrandActor;
+use crate::adapters::identity_use_cases::BrandActor;
 use crate::domain::identity::{
-    ActiveBrandIdentity, ActiveBrandIdentityRow, BrandCategoryLock, BrandDraft,
-    BrandIdentityEvent, BrandIdentityWorkspace, BrandMediaOption, BrandPublished, LegacyBrand,
+    ActiveBrandIdentity, ActiveBrandIdentityRow, BrandCategoryLock, BrandDraft, BrandIdentityEvent,
+    BrandIdentityWorkspace, BrandMediaOption, BrandPublished, LegacyBrand,
 };
 use erpx_server_shared::public::BusinessError;
 use std::future::Future;
@@ -41,16 +41,18 @@ pub trait BrandIdentityReadPorts {
         &mut self,
         include_others: bool,
     ) -> impl Future<Output = Result<Vec<BrandDraft>, Self::Error>> + Send;
-    fn versions(&mut self) -> impl Future<Output = Result<Vec<BrandPublished>, Self::Error>> + Send;
-    fn locks(&mut self) -> impl Future<Output = Result<Vec<BrandCategoryLock>, Self::Error>> + Send;
-    fn history(&mut self) -> impl Future<Output = Result<Vec<BrandIdentityEvent>, Self::Error>> + Send;
+    fn versions(&mut self)
+    -> impl Future<Output = Result<Vec<BrandPublished>, Self::Error>> + Send;
+    fn locks(&mut self)
+    -> impl Future<Output = Result<Vec<BrandCategoryLock>, Self::Error>> + Send;
+    fn history(
+        &mut self,
+    ) -> impl Future<Output = Result<Vec<BrandIdentityEvent>, Self::Error>> + Send;
     fn active(
         &mut self,
     ) -> impl Future<Output = Result<Option<ActiveBrandIdentity>, Self::Error>> + Send;
     fn legacy(&mut self) -> impl Future<Output = Result<LegacyBrand, Self::Error>> + Send;
-    fn media(
-        &mut self,
-    ) -> impl Future<Output = Result<Vec<BrandMediaOption>, Self::Error>> + Send;
+    fn media(&mut self) -> impl Future<Output = Result<Vec<BrandMediaOption>, Self::Error>> + Send;
 }
 
 /// Read the Brand workspace exactly as the selected role may see it. History is

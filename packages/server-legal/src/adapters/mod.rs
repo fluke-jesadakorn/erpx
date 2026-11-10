@@ -34,4 +34,5 @@ pub(crate) mod postgres_legal_records;
 
 pub(crate) mod postgres_processing_queue;
 
+pub mod legal_records_use_cases;
 pub(crate) mod postgres_processing_status;

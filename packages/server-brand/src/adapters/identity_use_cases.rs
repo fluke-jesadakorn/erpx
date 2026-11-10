@@ -1,9 +1,9 @@
 //! Brand identity use cases. Ports own current authority, replay, snapshots and
 //! the commit; this layer never opens a transaction or reads HTTP.
 use crate::domain::identity::{
-    BrandCancelInput, BrandCategory, BrandCategoryLock, BrandCategoryLockInput, BrandDraft,
-    BrandDraftInput, BrandIdentity, BrandPublishInput, BrandPublished, BrandRollbackInput,
-    ActiveBrandIdentity,
+    ActiveBrandIdentity, BrandCancelInput, BrandCategory, BrandCategoryLock,
+    BrandCategoryLockInput, BrandDraft, BrandDraftInput, BrandIdentity, BrandPublishInput,
+    BrandPublished, BrandRollbackInput,
 };
 use crate::domain::policy::{assert_brand_category_locks, assert_brand_independent_publisher};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -81,7 +81,10 @@ impl BrandActor {
     fn scoped_scope(&self) -> bool {
         matches!(
             (&self.command.branch_id, &self.command.department_id),
-            (CommandField::Omitted | CommandField::Null, CommandField::Omitted | CommandField::Null)
+            (
+                CommandField::Omitted | CommandField::Null,
+                CommandField::Omitted | CommandField::Null
+            )
         )
     }
 
@@ -175,7 +178,8 @@ pub trait BrandIdentityPorts {
     fn active(
         &mut self,
     ) -> impl Future<Output = Result<Option<ActiveBrandIdentity>, Self::Error>> + Send;
-    fn locks(&mut self) -> impl Future<Output = Result<Vec<BrandCategoryLock>, Self::Error>> + Send;
+    fn locks(&mut self)
+    -> impl Future<Output = Result<Vec<BrandCategoryLock>, Self::Error>> + Send;
     fn draft(
         &mut self,
         id: &str,
@@ -378,10 +382,7 @@ pub async fn rollback_brand_identity<P: BrandIdentityPorts>(
     let operation = "brand.identity.rollback";
     let record_id = ports.actor().company_id().to_owned();
     let canonical = input_json(&input)?;
-    if let Some(prior) = ports
-        .replay(key, operation, &record_id, &canonical)
-        .await?
-    {
+    if let Some(prior) = ports.replay(key, operation, &record_id, &canonical).await? {
         return Ok(prior);
     }
     let published = ports.published(&input.published_id).await?;
@@ -436,21 +437,14 @@ pub async fn change_brand_category_lock<P: BrandIdentityPorts>(
 ) -> Result<Value, P::Error> {
     let input = BrandCategoryLockInput::parse(raw)?;
     ports.authorize(true, true).await?;
-    let record_id = format!(
-        "{}:{}",
-        ports.actor().company_id(),
-        input.category.as_str()
-    );
+    let record_id = format!("{}:{}", ports.actor().company_id(), input.category.as_str());
     let operation = if input.locked {
         "brand.category.lock"
     } else {
         "brand.category.unlock"
     };
     let canonical = input_json(&input)?;
-    if let Some(prior) = ports
-        .replay(key, operation, &record_id, &canonical)
-        .await?
-    {
+    if let Some(prior) = ports.replay(key, operation, &record_id, &canonical).await? {
         return Ok(prior);
     }
     let active = ports.active().await?;
