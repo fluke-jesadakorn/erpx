@@ -31,6 +31,10 @@ impl DatabaseConfig {
         }
         Ok(Self { options })
     }
+    /// Exact configured database identity for read-only worker attestation.
+    pub fn database_name(&self) -> Option<&str> {
+        self.options.get_database()
+    }
     /// A distinct process identity permits diagnostics and cancellation without
     /// changing the configured endpoint or credentials.
     pub fn with_application_name(&self, application: &str) -> Result<Self, PersistenceError> {

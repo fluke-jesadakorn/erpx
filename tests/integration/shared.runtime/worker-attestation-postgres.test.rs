@@ -30,7 +30,7 @@ async fn attests_exact_database_primary_role_and_reviewed_inventory() {
         let attested = attest_worker_database(
             &pool,
             WorkerAttestationRequest {
-                expected_database: &database,
+                expected_database: Some(&database),
                 track: MigrationTrack::HoldingWrite,
                 files: &files,
             },
@@ -47,7 +47,7 @@ async fn attests_exact_database_primary_role_and_reviewed_inventory() {
         let wrong = attest_worker_database(
             &pool,
             WorkerAttestationRequest {
-                expected_database: "some-other-database",
+                expected_database: Some("some-other-database"),
                 track: MigrationTrack::HoldingWrite,
                 files: &files,
             },
@@ -59,7 +59,7 @@ async fn attests_exact_database_primary_role_and_reviewed_inventory() {
         let unreviewed = attest_worker_database(
             &pool,
             WorkerAttestationRequest {
-                expected_database: &database,
+                expected_database: Some(&database),
                 track: MigrationTrack::HoldingWrite,
                 files: &[],
             },

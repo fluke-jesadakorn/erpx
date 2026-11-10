@@ -10,7 +10,8 @@ use super::pool::DatabasePool;
 use sqlx::Row;
 
 pub struct WorkerAttestationRequest<'a> {
-    pub expected_database: &'a str,
+    /// Exact durable database identity; `None` is only for an already-leased disposable database.
+    pub expected_database: Option<&'a str>,
     pub track: MigrationTrack,
     pub files: &'a [MigrationFile],
 }
@@ -37,7 +38,10 @@ pub async fn attest_worker_database(
     pool: &DatabasePool,
     request: WorkerAttestationRequest<'_>,
 ) -> Result<WorkerDatabaseAttestation, PersistenceError> {
-    if request.expected_database.trim().is_empty() || request.expected_database.len() > 128 {
+    if request
+        .expected_database
+        .is_some_and(|value| value.trim().is_empty() || value.len() > 128)
+    {
         return Err(invalid("WORKER_DATABASE_IDENTITY_INVALID"));
     }
     let row = sqlx::query(
@@ -48,7 +52,10 @@ pub async fn attest_worker_database(
     let database: String = row.try_get("database")?;
     let role: String = row.try_get("role")?;
     let recovery: bool = row.try_get("recovery")?;
-    if database != request.expected_database {
+    if request
+        .expected_database
+        .is_some_and(|expected| database != expected)
+    {
         return Err(invalid("WORKER_DATABASE_IDENTITY_MISMATCH"));
     }
     if role.trim().is_empty() {

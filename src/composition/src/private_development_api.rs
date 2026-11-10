@@ -86,7 +86,8 @@ use erpx_server_runtime::public::{
     foundation_router,
     postgres::{
         DatabaseConfig, DatabasePool, LeasedDevelopmentDatabase, MigrationTrack, PgRequestLease,
-        PoolLimits, load_migrations, verify_current_migration_inventory,
+        PoolLimits, WorkerAttestationRequest, attest_worker_database, load_migrations,
+        verify_current_migration_inventory,
     },
     validate_foundation_address,
 };
@@ -8789,7 +8790,11 @@ async fn run_outbox_worker_file(
     let mut worker_names = Vec::<String>::new();
     let run_id = uuid::Uuid::new_v4().simple().to_string();
     let result = async {
-        verify_current_migration_inventory(&control, MigrationTrack::Control, &control_files).await.map_err(|_| "COUNT_WORKER_SCHEMA_MISMATCH")?;
+        attest_worker_database(&control, WorkerAttestationRequest {
+            expected_database: config.control.durable_identity().map(|(database, _)| database.as_str()),
+            track: MigrationTrack::Control,
+            files: &control_files,
+        }).await.map_err(|_| "COUNT_WORKER_SCHEMA_MISMATCH")?;
         let registry = config.holdings_registry.clone();
         PgRequestLease::new(control.clone()).run(move |c| Box::pin(async move {
             lock_holding_binding_sources(c).await?;
@@ -8810,8 +8815,16 @@ async fn run_outbox_worker_file(
                 .connect_named(limits, &read_name).await.map_err(|_| "COUNT_WORKER_DATABASE_UNAVAILABLE")?;
             opened.push(read.clone());
             worker_names.push(read_name);
-            verify_current_migration_inventory(&write, MigrationTrack::HoldingWrite, &write_files).await.map_err(|_| "COUNT_WORKER_SCHEMA_MISMATCH")?;
-            verify_current_migration_inventory(&read, MigrationTrack::HoldingRead, &read_files).await.map_err(|_| "COUNT_WORKER_SCHEMA_MISMATCH")?;
+            attest_worker_database(&write, WorkerAttestationRequest {
+                expected_database: holding.database.durable_identity().map(|(database, _)| database.as_str()),
+                track: MigrationTrack::HoldingWrite,
+                files: &write_files,
+            }).await.map_err(|_| "COUNT_WORKER_SCHEMA_MISMATCH")?;
+            attest_worker_database(&read, WorkerAttestationRequest {
+                expected_database: holding.read_database.as_ref().and_then(|value| value.durable_identity()).map(|(database, _)| database.as_str()),
+                track: MigrationTrack::HoldingRead,
+                files: &read_files,
+            }).await.map_err(|_| "COUNT_WORKER_SCHEMA_MISMATCH")?;
             #[cfg(feature="field-push-worker")]
             if field {push_targets.push(crate::field_push_worker::FieldPushTarget{
                 control:control.raw().clone(),holding:write.raw().clone(),
