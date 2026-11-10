@@ -100,7 +100,10 @@ async function reply(response: Response, max: number): Promise<unknown> {
   }
   if (response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
     void response.body?.cancel().catch(() => undefined);
-    throw new NativeFinanceReadError('NATIVE_FINANCE_RESPONSE_INVALID', 502);
+    throw new NativeFinanceReadError(
+      'NATIVE_FINANCE_RESPONSE_INVALID',
+      response.status >= 400 && response.status <= 599 ? response.status : 502,
+    );
   }
   const payload = await nativeFinanceReplyBytes(response.body, max);
   try {
@@ -191,7 +194,10 @@ async function command(
       return Response.json({ data }, { status: expectedStatus, headers: { 'Cache-Control': 'private, no-store' } });
     }
     return failure(value, response.status);
-  } catch {
+  } catch (error) {
+    if (error instanceof NativeFinanceReadError && error.status && error.status >= 400 && error.status <= 599) {
+      return closed(error.status, error.code, 'Unable to confirm the supplier bill.');
+    }
     return closed(503, 'NATIVE_FINANCE_UNAVAILABLE', 'Unable to confirm the supplier bill.');
   } finally {
     clearTimeout(timer);

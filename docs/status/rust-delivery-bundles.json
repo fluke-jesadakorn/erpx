@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T11:09:21+07:00",
+  "updatedAt": "2026-11-10T11:28:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3633,8 +3633,8 @@
       "id": "finance-matched-source-native-post",
       "kind": "supporting-delivery",
       "status": "partial",
-      "scope": "Native Finance posting for matched supplier bills: Commerce/People owner source ports, Commerce clearing-liability debit, source locks before Finance/Files, and the native Finance API bound to the shared development databases. supplier_bill_postgres is 9/9 and the app native route posted a matched bill 200; the UI form submission returned 503 for one bill and remains unaccepted. Finance stays partial.",
-      "sourceIdentity": "working tree on 0db8d9a05dd984f4df2781d8e6dd237eaa70e32a",
+      "scope": "Native Finance posting for matched supplier bills: Commerce/People owner source ports, Commerce clearing-liability debit, source locks before Finance/Files, the native Finance API bound to the shared development databases, and a desktop 1440x900 UI form posting through the Finance app native client. supplier_bill_postgres is 9/9; the UI posted invoice-16e181b6... with journal-c0e33966... and the exact clearing/payable/input-tax lines. Finance stays partial pending expense-claim invoice creation.",
+      "sourceIdentity": "working tree on 2f6c549763ea4ee250f30abb72d5f929cc88dabf",
       "evidenceRef": "docs/testing/evidence/2026-11-10-finance-matched-source-native-post.json",
       "durableContractRefs": []
     }
@@ -4276,7 +4276,7 @@
         "finance-native-supplier-bill-void"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment and People expense-claim owner witnesses, supports the Commerce clearing-liability debit, and passes 9/9 supplier-bill PostgreSQL gates; the app native route returned 200 for a matched bill. Remaining: the Finance app native-client UI post returned 503 for one submission while the direct native route returned 200, some draft bills still report the flow-primary blocker, and expense-claim invoice creation is open. Finance is not certified."
+      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment and People expense-claim owner witnesses, supports the Commerce clearing-liability debit, and passes 9/9 supplier-bill PostgreSQL gates. The desktop UI form posted a matched commerce bill end-to-end (invoice-16e181b6..., journal-c0e33966..., approved_by usr_finance_approver, clearing/payable/input-tax lines). Remaining: expense-claim invoice creation when finance_expenses.invoice_id is null, and flow_routes/primary seeding for some legacy draft bills. Finance is not certified."
     },
     {
       "id": "finance/feature-chart-of-accounts",

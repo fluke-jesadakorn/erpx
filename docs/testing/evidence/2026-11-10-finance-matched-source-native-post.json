@@ -1,34 +1,38 @@
 {
-  "schema": "erpx.evidence/finance-matched-source-native-post/v2",
-  "recorded_at": "2026-11-10T12:00:00+07:00",
-  "head": "e30466c86e8f25b1dd9d4016e1f156ba9e7c180e",
+  "schema": "erpx.evidence/finance-matched-source-native-post/v3",
+  "recorded_at": "2026-11-10T13:05:00+07:00",
+  "head": "2f6c549763ea4ee250f30abb72d5f929cc88dabf",
   "owner": "finance",
   "workflow": "finance/payables",
   "status": "partial",
-  "scope": "Native Finance posting for matched supplier-bill sources: Commerce fulfillment and People expense-claim owner witnesses, clearing-liability debit support, and the native Finance API bound to the shared development databases.",
+  "scope": "Native Finance posting for matched supplier-bill sources: Commerce fulfillment and People expense-claim owner witnesses, clearing-liability debit support, the native Finance API bound to the shared development databases, and a successful desktop UI form posting through the Finance app native client.",
   "implemented": {
     "commerce_port": "packages/server-commerce/src/public/finance_payable_source.rs",
     "people_port": "packages/server-people_payroll/src/public/finance_expense_payable_source.rs",
     "finance": "post_supplier_bill_with_evidence accepts PgSupplierBillSource. commerce_fulfillment/expense_claim require a current owner witness whose invoice_id is the posted invoice. commerce_fulfillment may debit the owner goods-received/clearing liability account (control_kind none); standalone/expense claims keep the expense/asset rule.",
     "locks": "Commerce/People source locks precede Commercial authority, Finance and Files.",
-    "native_api": "3198/3199 now use the shared development databases. The shared erpx_migrations checksums for 0041_leave_self_service.sql and 0293_executive_evidence.sql were aligned with the current reviewed files, resolving PRIVATE_API_SCHEMA_MISMATCH."
+    "native_api": "3198/3199 now use the shared development databases. The shared erpx_migrations checksums for 0041_leave_self_service.sql and 0293_executive_evidence.sql were aligned with the current reviewed files, resolving PRIVATE_API_SCHEMA_MISMATCH.",
+    "native_client": "packages/feature-finance/src/adapters/server/native-supplier-bill.ts maps a non-JSON 4xx native reply to that status instead of masking it as 503; debug logging was removed before commit."
   },
   "gates": {
     "finance.rust-supplier-bill-postgres.integration": "9/9 pass in 43.14 s",
     "new_case": "supplier_bill_posts_a_commerce_fulfillment_source_with_its_owner_witness (clearing liability debit 25,000 / payable 26,750 / input tax 1,750)",
     "cargo_check": "private-field-api/existing-business; files-scan-worker/field-push-worker; legal-pdf-worker/legal-document-worker/legal-queue pass",
-    "typecheck": "tests/config pass",
+    "typecheck": "bun run typecheck (root + tests/config) pass",
     "catalogue": "33 modules, 1011 suites",
-    "format": "rustfmt check pass for the changed files"
+    "structure": "bun run structure:check pass",
+    "eslint": "packages/feature-finance/src/adapters/server/native-supplier-bill.ts pass",
+    "format": "rustfmt check pass for the changed Rust files"
   },
   "native_http": {
-    "app_route": "POST /api/v1/holdings/acme/finance/payables/invoice-3ad23075b3a00bb3940db9974b9cea3540b0/post returned 200 {status:posted,journalId:journal-browser-commerce-post-20261110} through the Finance app native client.",
-    "direct_3198": "POST the same native route with the finance-approver context returned 200 {status:posted,journalId:journal-finance-approver-direct-20261110} for invoice-1e204097c33391eec0f31629b4be8aa349e7.",
+    "app_route": "POST /api/v1/holdings/acme/finance/payables/<bill>/post returned 200 {status:posted,journalId:...} through the Finance app native client for invoice-3ad23075b3a00bb3940db9974b9cea3540b0, invoice-6ceccfa645c6497774d493dbe99bb98c6b09 and invoice-16e181b67028b0a8c6bc0df3fdc941635296.",
+    "direct_3198": "POST the same native route with the finance-approver context returned 200 for invoice-1e204097c33391eec0f31629b4be8aa349e7 (journal-finance-approver-direct-20261110) and invoice-835fa75c19d4385c27a32365712a1d379145 (journal-finance-approver-direct-835-20261110).",
     "persisted": "finance_invoices status=posted, journal source_type=invoice, journal lines debit clearing/payable/input tax as expected."
   },
   "browser": {
-    "result": "partial",
-    "detail": "The Finance invoice detail renders for a seeded finance-approver account after adding its staff person/engagement, finance_approver assignment and flow primary. The posting form appeared for BILL-A3AF221A2D1C95B6E8458BB4 and was submitted, but the app route returned 503 and the invoice stayed draft; the same native post then succeeded through the direct app/native route after the native API was bound to the shared DB. The second draft bill BILL-549144D19A157DD3B510CD14 still reported the flow primary blocker. UI form acceptance is therefore not claimed.",
+    "result": "desktop-pass",
+    "viewport": "1440x900",
+    "detail": "The Finance invoice detail renders for the seeded finance-approver account after adding its staff person/engagement, finance_approver assignment and flow primary. The Review invoice posting form opened for BILL-F765ECB9707E67DFE9E10936 (invoice-16e181b67028b0a8c6bc0df3fdc941635296), September 2026 was selected, and Approve and post invoice submitted through the app route. The earlier 503 was the retained UI defaulting to period-acme-hospitality-ui-2026-10 while the entry date was 2026-09-15; selecting the matching September period posts successfully. DB readback: status posted, version 2, journal journal-c0e33966-fcf4-4887-8b46-8de168177486, approved_by usr_finance_approver, lines clearing 2150 debit 160000, payable 2100 credit 171200, tax 1400 debit 11200.",
     "screenshots": [
       ".scratch/dev/finance-approver-browser.png",
       ".scratch/dev/finance-invoice-final.png"
@@ -38,13 +42,13 @@
     "company_package_grants acme-co finance/supply/sales active with reviewed grant events.",
     "flow_defaults acme-co invoice finance_approver primary usr_finance_approver.",
     "hr_people/hr_engagements person-acme-finance-approver + finance_approver assignment for usr_finance_approver.",
+    "flow_routes draft primary usr_finance_approver for the browser-acceptance bills.",
     "shared Control credential repaired to the native Argon2id hash for the development account; shared erpx_migrations checksums aligned for two reviewed files.",
-    "money_transaction_snapshots draft evidence seeded for the two draft commerce bills used in the browser/native checks."
+    "money_transaction_snapshots draft evidence seeded for the draft commerce bills used in the browser/native checks."
   ],
   "remaining": [
-    "The Finance app native-client post path returned 503 for the first UI submission while the same native route returned 200 directly; the app route/native client response validation needs review.",
-    "The flow primary/candidate resolution still blocks some draft commerce bills for the seeded finance-approver account.",
-    "Expense-claim invoice creation when finance_expenses.invoice_id is null.",
+    "Expense-claim invoice creation when finance_expenses.invoice_id is null is still open; the native post handles an existing draft invoice link only.",
+    "Some draft commerce bills still need a flow_routes row (or an eligible primary) before the posting form renders for the finance-approver account.",
     "Finance remains partial at 9/10 workflows and is not owner 6/41."
   ]
 }
