@@ -4,6 +4,7 @@
 //! every receipt source, re-reads the current purchase source, prepares the
 //! same-transaction plan and applies stock/lot evidence. The Quality port is
 //! injected by composition because Quality owns hold creation.
+use crate::adapters::quality_receipt_hold::QualityReceiptHoldPort;
 use crate::adapters::stock_receipt::{
     StockReceiptQualityPort, apply_stock_receipt, lock_stock_receipt_sources,
     read_stock_receipt_source, require_stock_receipt_applied,
@@ -57,6 +58,15 @@ pub struct InventoryStockReceipt<Q> {
 impl<Q> InventoryStockReceipt<Q> {
     pub fn new(quality: Q) -> Self {
         Self { quality }
+    }
+}
+
+impl InventoryStockReceipt<QualityReceiptHoldPort> {
+    /// Production binding used by composition: the Inventory receipt seam over
+    /// the Inventory-owned Quality receipt-hold port. No second warehouse,
+    /// stock or Quality writer is constructed.
+    pub fn production() -> Self {
+        Self::new(QualityReceiptHoldPort::new())
     }
 }
 

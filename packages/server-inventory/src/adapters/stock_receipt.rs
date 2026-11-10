@@ -81,7 +81,8 @@ pub async fn lock_stock_receipt_sources(c: &mut PgConnection) -> Result<(), Erro
     .execute(&mut *c)
     .await?;
     sqlx::query(
-        "LOCK TABLE commerce_products,commerce_warehouses,commerce_settings,finance_charts,         finance_parties IN SHARE MODE",
+        "LOCK TABLE commerce_products,commerce_warehouses,commerce_settings,finance_charts,\
+         finance_parties,inventory_quality_specs IN SHARE MODE",
     )
     .execute(&mut *c)
     .await?;
@@ -820,7 +821,11 @@ pub async fn apply_stock_receipt<Q: StockReceiptQualityPort>(
                     line,
                     allocation,
                     allocation_id.clone(),
-                    format!("{fulfillment_id}-{index}-{}", allocation.allocation_index),
+                    fulfillment_id,
+                    command_key,
+                    index,
+                    actor,
+                    now,
                     lot_id.clone(),
                 )
                 .expect("quarantine allocation has a quality request");

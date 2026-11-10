@@ -5,6 +5,7 @@ pub(crate) mod movement_read;
 pub(crate) mod stock_register_read;
 pub(crate) mod stock_receipt;
 pub(crate) mod commerce_receipt;
+pub(crate) mod quality_receipt_hold;
 pub(crate) mod stock_issue;
 pub(crate) mod availability_read;
 pub(crate) mod postgres_consumption;

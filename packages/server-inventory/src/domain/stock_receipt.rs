@@ -177,10 +177,16 @@ pub struct StockReceiptPlan {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StockReceiptQualityRequest {
     pub allocation_index: usize,
+    pub line_index: usize,
+    /// The Commerce command key that owns the receipt and therefore the hold ID.
+    pub command_key: String,
+    pub fulfillment_id: String,
     /// Inventory allocation row ID (`lot-allocation-...`).
     pub allocation_id: String,
     /// Legacy Quality hold source ID (without the allocation row prefix).
     pub source_id: String,
+    pub actor_id: String,
+    pub now: i64,
     pub company_id: String,
     pub branch_id: String,
     pub warehouse_id: String,
@@ -795,7 +801,11 @@ pub fn quality_request(
     line: &StockReceiptLinePlan,
     allocation: &StockReceiptAllocationPlan,
     allocation_id: String,
-    source_id: String,
+    fulfillment_id: &str,
+    command_key: &str,
+    line_index: usize,
+    actor_id: &str,
+    now: i64,
     lot_id: String,
 ) -> Option<StockReceiptQualityRequest> {
     if allocation.disposition != ReceiptDisposition::Quarantine {
@@ -803,8 +813,13 @@ pub fn quality_request(
     }
     Some(StockReceiptQualityRequest {
         allocation_index: allocation.allocation_index,
+        line_index,
+        command_key: command_key.to_owned(),
+        fulfillment_id: fulfillment_id.to_owned(),
         allocation_id,
-        source_id,
+        source_id: format!("{fulfillment_id}-{line_index}-{}", allocation.allocation_index),
+        actor_id: actor_id.to_owned(),
+        now,
         company_id: plan.company_id.clone(),
         branch_id: plan.branch_id.clone(),
         warehouse_id: plan.warehouse_id.clone(),

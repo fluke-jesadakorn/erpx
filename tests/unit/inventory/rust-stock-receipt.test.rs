@@ -147,13 +147,22 @@ fn prepares_a_mixed_available_and_quarantine_receipt() {
         &plan.lines[0],
         &plan.lines[0].allocations[1],
         "lot-allocation-1".into(),
-        "1".into(),
+        "delivery-key",
+        "receipt-key",
+        0,
+        "receiver",
+        7,
         "lot-1".into(),
     )
     .unwrap();
     assert_eq!(request.lot_identity, "L-B");
     assert_eq!(request.allocation_id, "lot-allocation-1");
-    assert_eq!(request.source_id, "1");
+    assert_eq!(request.source_id, "delivery-key-0-1");
+    assert_eq!(request.command_key, "receipt-key");
+    assert_eq!(request.fulfillment_id, "delivery-key");
+    assert_eq!(request.line_index, 0);
+    assert_eq!(request.actor_id, "receiver");
+    assert_eq!(request.now, 7);
     assert_eq!(request.reason, "Packaging inspection");
     assert_eq!(request.due_date, "2026-11-10");
 }
@@ -445,4 +454,17 @@ fn receipt_identities_use_utf16_bounds_like_the_transport() {
         ),
     )
     .is_ok());
+}
+
+#[test]
+fn public_stock_write_surface_exposes_one_receipt_writer_and_the_issue_writer() {
+    use erpx_server_inventory::public::stock_write::{
+        InventoryStockReceipt, ProductionInventoryStockReceipt, QualityReceiptHoldPort,
+        apply_stock_issue,
+    };
+    let _ = apply_stock_issue;
+    let receipt: ProductionInventoryStockReceipt = InventoryStockReceipt::production();
+    let _: InventoryStockReceipt<QualityReceiptHoldPort> = receipt;
+    let _constructed: ProductionInventoryStockReceipt =
+        InventoryStockReceipt::new(QualityReceiptHoldPort::new());
 }
