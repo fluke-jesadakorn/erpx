@@ -43,9 +43,9 @@ async function login(context: BrowserContext, who = "owner") {
 async function contextHeaders(context: BrowserContext) {
   const response = await context.request.get(`${api}/assignments/active`);
   expect(response.ok(), await response.text()).toBe(true);
-  const { data } = await response.json() as { data: { valid: boolean; companyId: string; assignmentId: string | null; revision: number } };
-  expect(data.valid).toBe(true); expect(data.assignmentId).toBeTruthy();
-  return { Origin: origin, "x-erpx-context-company": data.companyId, "x-erpx-context-assignment": data.assignmentId!, "x-erpx-context-revision": String(data.revision) };
+  const { data } = await response.json() as { data: { valid: boolean; companyId: string; assignmentId: string | null; revision: number; assignmentVersion: number | null } };
+  expect(data.valid).toBe(true); expect(data.assignmentId).toBeTruthy(); expect(data.assignmentVersion).toBeTruthy();
+  return { Origin: origin, "x-erpx-context-company": data.companyId, "x-erpx-context-assignment": data.assignmentId!, "x-erpx-context-revision": String(data.revision), "x-erpx-context-assignment-version": String(data.assignmentVersion) };
 }
 async function preferences(context: BrowserContext) {
   const response = await context.request.get(`${api}/work/card-preferences`);

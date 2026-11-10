@@ -641,6 +641,12 @@ if(mode==='prepare'||diagnostic){
   template.control={url:databases.CONTROL_DB,browser:true};
   template.financeJournalReads=[];template.posCompanies=[];template.crmCompanies=[];template.operationsCompanies=[];template.commerceCompanies=[];template.assetsCompanies=[];template.platformAdministrationCompanies=[];template.maintenanceCompanies=[];
   template.fieldServiceReads=[{holdingId:'h001',companyId:'acme-co'}];
+  // The native browser runtime requires exactly three declared Holdings. The
+  // module profiles seed h001/h002; add the internal Executable realm binding
+  // so the native startup check sees the same exact three.
+  const boundControl=new PostgresDatabase({connectionString:databases.CONTROL_DB,max:1});
+  try{await boundControl.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h003','erpx','ERPX browser realm','H003_DB','H003_READ_DB','H003_FILES','active') ON CONFLICT(holding_id) DO UPDATE SET slug=excluded.slug,display_name=excluded.display_name,write_binding=excluded.write_binding,read_binding=excluded.read_binding,files_binding=excluded.files_binding,status='active'").run();}
+  finally{await boundControl.close();}
   const account={privateBaseUrl:`http://127.0.0.1:${servicePort}`,accountOrigin:'http://account.erpxbrowser.test:3102',holdingOrigins:['http://holding.erpxbrowser.test:3102'],timeoutMs:5000};
   const work={privateBaseUrl:`http://127.0.0.1:${servicePort}`,timeoutMs:5000,holdings:[{origin:'http://holding.erpxbrowser.test:3102',holdingSlug:'acme',holdingId:'h001'}]};
   Object.assign(environment,{NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE:'loopback',ERPX_NATIVE_ORIGIN_PROFILE:'loopback',ERPX_NATIVE_ACCOUNT_SESSION_CONFIG:JSON.stringify(account),ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG:JSON.stringify(work)});
