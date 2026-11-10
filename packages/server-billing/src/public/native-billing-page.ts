@@ -225,6 +225,36 @@ export async function nativeBillingCostCommand(
   }
 }
 
+
+export async function nativeBillingInvoiceCommand(
+  actor: Omit<NativeBillingPageContext, 'holdingSlug'>,
+  holdingId: string,
+  route: string,
+  body: unknown,
+  key: string,
+): Promise<{ ok: boolean } | undefined> {
+  const instance = client();
+  if (!instance) return undefined;
+  const holding = instance.holding(holdingId);
+  if (!holding)
+    throw new ApiError(
+      503,
+      'NATIVE_BILLING_UNAVAILABLE',
+      'The native Billing Holding target is not configured.',
+    );
+  if (!/^(\/[a-zA-Z0-9_-]{1,80}\/void)?$/.test(route))
+    throw new ApiError(503, 'NATIVE_BILLING_REQUEST_INVALID', 'Invalid invoice route.');
+  try {
+    return await instance.invoice(
+      await headers(),
+      { ...actor, holdingSlug: holding.holdingSlug },
+      { holdingId: holding.holdingId, holdingSlug: holding.holdingSlug, route, body, key },
+    );
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
 /** Convert an owner/transport failure for a retained caller. */
 export function nativeBillingOwnedFailure(error: unknown): never {
   if (error instanceof NativeBillingError) ownedFailure(error);

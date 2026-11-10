@@ -812,12 +812,43 @@ export function createNativeBillingClient(
       return failure("NATIVE_BILLING_RESPONSE_INVALID");
     return { ok: true };
   };
+
+  const invoice = async (
+    incoming: Pick<Headers, "get">,
+    actor: NativeBillingPageContext,
+    input: NativeBillingReadInput & { route: string; key: string; body: unknown },
+    signal?: AbortSignal,
+  ) => {
+    const response = await ownerCall(
+      transport,
+      config,
+      incoming,
+      actor,
+      input,
+      "POST",
+      `/invoices${input.route}`,
+      JSON.stringify(input.body),
+      input.key,
+      signal,
+    ).catch((error: unknown) => {
+      if (error instanceof NativeBillingError) throw error;
+      return failure("NATIVE_BILLING_UNAVAILABLE");
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ["data", "context"]))
+      return failure("NATIVE_BILLING_RESPONSE_INVALID");
+    context(value.context, actor, input);
+    if (!exact(value.data, ["ok"]) || value.data.ok !== true)
+      return failure("NATIVE_BILLING_RESPONSE_INVALID");
+    return { ok: true };
+  };
+
   const holding = (holdingId: string) => {
     return [...config.holdings.values()].find(
       (candidate) => candidate.holdingId === holdingId,
     );
   };
-  return { billing, command, holding };
+  return { billing, command, invoice, holding };
 }
 
 /** Bounded failure policy for the retained page/route error handling. */
