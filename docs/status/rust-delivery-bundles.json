@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 322,
+    "revision": 328,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g1",
+      "runId": "run-20261110-g2",
       "agentId": "lead",
-      "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T22:13:59.826Z",
-      "expiresAt": "2026-11-10T22:43:59.826Z",
-      "generation": 2,
-      "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
+      "startedAt": "2026-11-10T22:49:18.933Z",
+      "heartbeatAt": "2026-11-10T22:49:50.873Z",
+      "expiresAt": "2026-11-10T23:19:50.873Z",
+      "generation": 3,
+      "tokenHash": "1c7f6e53dfb2427cfaf83ab6abbd9317a934d613494123e492d216e59d8be53d"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9827,22 +9827,22 @@
           "owner:identity_access"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-10T21:39:57.369Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "IAM roles/reviews router mounted (c8488fbf5) over IamRoleActor + serializable owner unit. Remaining: switch TS iam-api/iam-service role/review/campaign branches; directory auth/source-admin instantiation; principals/conflicts/emergency packet untouched",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "IAM roles/reviews router mounted (c8488fbf5) over IamRoleActor + serializable owner unit. Remaining: switch TS iam-api/iam-service role/review/campaign branches; directory auth/source-admin instantiation; principals/conflicts/emergency packet untouched"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-identity-access",
         "plannedPackage": "erpx-server-identity-access",
@@ -10029,22 +10029,22 @@
           "owner:platform_administration"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T20:03:18.253Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "Operations projection router mounted (9f3754e05) and admin route prefers it when configured. Remaining: Control-read pool/config for executive mount; then remove the retained operations fallback and switch the Manage ERPX executive screen",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Operations projection router mounted (9f3754e05) and admin route prefers it when configured. Remaining: Control-read pool/config for executive mount; then remove the retained operations fallback and switch the Manage ERPX executive screen"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-platform-administration",
         "plannedPackage": "erpx-server-platform-administration",
@@ -10126,22 +10126,22 @@
           "owner:customer_360"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T21:12:25.795Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "Sales directory route is native (ed65a3df1). Remaining: commerce executive metric engine composes SQL fragments, so the native grouped metric cannot be dropped in without a metric-engine adapter (recorded as integration work, not a route switch); portal stays Files-blocked.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Sales directory route is native (ed65a3df1). Remaining: commerce executive metric engine composes SQL fragments, so the native grouped metric cannot be dropped in without a metric-engine adapter (recorded as integration work, not a route switch); portal stays Files-blocked."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-customer-360",
         "plannedPackage": "erpx-server-customer-360",
@@ -11239,22 +11239,22 @@
           "owner:procurement"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T20:43:31.284Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "Supplier-promise command ingress committed (3526ac7f6), suite 5/5. Route switch is blocked on parity: attachmentSetIds rejected natively (Files port WIP), TS staff_notifications not replaced by an outbox consumer, and native GET detail lacks the order/lines/schedule/canRecord/purchase shape. Mount backend + resolve those before switching.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Supplier-promise command ingress committed (3526ac7f6), suite 5/5. Route switch is blocked on parity: attachmentSetIds rejected natively (Files port WIP), TS staff_notifications not replaced by an outbox consumer, and native GET detail lacks the order/lines/schedule/canRecord/purchase shape. Mount backend + resolve those before switching."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-procurement",
         "plannedPackage": "erpx-server-procurement",
@@ -11679,22 +11679,22 @@
           "owner:crm"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T21:12:08.910Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "Account/activity/lead ingress committed (ba3102f10). Remaining: replace CrmEntitlementImpl stub with real Commercial revision (pipeline now fails closed), wire purchase/workflow/Sales-recipient/Collaboration/Finance witnesses in composition backends, mount 3 routers + 5 POST classifiers, then switch feature-sales CRM routes; win-pms stays excluded (no PMS witness port)",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Account/activity/lead ingress committed (ba3102f10). Remaining: replace CrmEntitlementImpl stub with real Commercial revision (pipeline now fails closed), wire purchase/workflow/Sales-recipient/Collaboration/Finance witnesses in composition backends, mount 3 routers + 5 POST classifiers, then switch feature-sales CRM routes; win-pms stays excluded (no PMS witness port)"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-crm",
         "plannedPackage": "erpx-server-crm",
@@ -11958,14 +11958,14 @@
         "resources": [
           "owner:planning"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-10T22:13:26.463Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
+          "runId": "run-20261110-g2",
+          "agentId": "lead",
+          "claimedAt": "2026-11-10T22:49:36.202Z",
+          "heartbeatAt": "2026-11-10T22:49:50.873Z",
+          "expiresAt": "2026-11-10T23:19:50.873Z",
+          "generation": 3
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -11973,8 +11973,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried planning packet (migrate.planning.crate-workspace-read), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": null,
+        "nextAction": "Planning crate registered + read composition re-pointed (decd2d8c7; scenario 7/7, capacity 9/9, http 2/2, postgres 2/2). Remaining: mount planning_command_router backend + release factory, move read test targets from manufacturing, switch production POST TS",
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Implement the first inventoried planning packet (migrate.planning.crate-workspace-read), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-manufacturing",
         "plannedPackage": "erpx-server-planning",
@@ -12060,22 +12067,22 @@
           "owner:projects"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "Structure and actuals routers mounted with purchase/staff facts (cadc1aa2e). Remaining attachment packet needs a Files-side ProjectAttachmentFilesPort adapter (server-files paths are in the external-WIP reservation); after that mount and record migrated",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Structure and actuals routers mounted with purchase/staff facts (cadc1aa2e). Remaining attachment packet needs a Files-side ProjectAttachmentFilesPort adapter (server-files paths are in the external-WIP reservation); after that mount and record migrated"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-projects",
         "plannedPackage": "erpx-server-projects",
@@ -12250,22 +12257,22 @@
           "owner:benefits"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "Lead mounts the detail HTTP route and Files/Records evidence ports, switches People payroll to payroll_source, and waits for the Learning consumption writer before election-eligibility closes",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Lead mounts the detail HTTP route and Files/Records evidence ports, switches People payroll to payroll_source, and waits for the Learning consumption writer before election-eligibility closes"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-benefits",
         "plannedPackage": "erpx-server-benefits",
@@ -12348,22 +12355,22 @@
           "owner:learning"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "ConsumeBenefit is mounted. Remaining: Files LearningEvidencePort adapter (task migrate.files.learning-evidence-port is blocked by the external-WIP reservation on server-files paths), Benefits port binding + learning_certificate_id persistence, workplace continuation switch",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "ConsumeBenefit is mounted. Remaining: Files LearningEvidencePort adapter (task migrate.files.learning-evidence-port is blocked by the external-WIP reservation on server-files paths), Benefits port binding + learning_certificate_id persistence, workplace continuation switch"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-learning",
         "plannedPackage": "erpx-server-learning",
@@ -12448,22 +12455,22 @@
           "owner:talent"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T21:40:13.060Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "Talent lifecycle committed (2160e26fef85a0b803ac509e2ce83efaabd37159; 8/6/5/3/4 suites). Remaining: composition lifecycle backend/mount + feature-recruit route switch; Finance talent-offer money-snapshot producer missing (offers fail closed); People hire-intake must consume talent_hire_handoffs; keep Talent as sole candidate-privacy writer",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Talent lifecycle committed (2160e26fef85a0b803ac509e2ce83efaabd37159; 8/6/5/3/4 suites). Remaining: composition lifecycle backend/mount + feature-recruit route switch; Finance talent-offer money-snapshot producer missing (offers fail closed); People hire-intake must consume talent_hire_handoffs; keep Talent as sole candidate-privacy writer"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-talent",
         "plannedPackage": "erpx-server-talent",
@@ -12642,14 +12649,14 @@
         "resources": [
           "owner:agent"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T22:13:43.766Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
+          "runId": "run-20261110-g2",
+          "agentId": "lead",
+          "claimedAt": "2026-11-10T22:49:36.230Z",
+          "heartbeatAt": "2026-11-10T22:49:50.873Z",
+          "expiresAt": "2026-11-10T23:19:50.873Z",
+          "generation": 3
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -12657,8 +12664,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried agent packet (migrate.agent.crate_governance), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": null,
+        "nextAction": "Agent crate registered (decd2d8c7; governance 8/8, providers 7/7, quota 3/3, http 2/2). Remaining: mount governance + ai-provider routers, switch feature-admin routes, keep platform agent-evidence read; credential runtime A1",
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Implement the first inventoried agent packet (migrate.agent.crate_governance), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-agent",
         "plannedPackage": "erpx-server-agent",
@@ -12941,22 +12955,22 @@
           "owner:manage_erpx"
         ],
         "status": "blocked",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "Blocked on provisioning configuration: onboard_company/reserve_onboarding requires OnboardingCommandResource write/read/files bindings + OnboardingCommandLimits for the newly claimed slot, but composition has no source that allocates/registers physical bindings or pools for a not-yet-existing Holding. Needs an infrastructure decision (binding allocation scheme + pool lookup for a new slot) before the backend can be mounted safely.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "blocked",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Blocked on provisioning configuration: onboard_company/reserve_onboarding requires OnboardingCommandResource write/read/files bindings + OnboardingCommandLimits for the newly claimed slot, but composition has no source that allocates/registers physical bindings or pools for a not-yet-existing Holding. Needs an infrastructure decision (binding allocation scheme + pool lookup for a new slot) before the backend can be mounted safely."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-manage-erpx",
         "plannedPackage": "erpx-server-manage-erpx",
@@ -14999,28 +15013,21 @@
           "owner:organization"
         ],
         "status": "blocked",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "lead",
-          "claimedAt": "2026-11-10T19:59:26.353Z",
-          "heartbeatAt": "2026-11-10T22:13:59.826Z",
-          "expiresAt": "2026-11-10T22:43:59.826Z",
-          "generation": 2
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
         "nextAction": "Native drain + worker entrypoint committed (4fc340ba6); drain applies in leased-DB tests (5/5). Blocked on dev-process registration: the native dev config files under .scratch/dev/rust-migration/current were removed during cache cleanup, so a position-move-worker cannot be started against the running dev databases without regenerating the private development config (DB URLs/credentials). Operator must regenerate config and register the worker; then remove drainPositionMoves.",
         "handoff": {
           "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "at": "2026-11-10T17:26:46.367Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead mounts drain_due_position_moves in the native jobs tick for each Holding pool; then retire the TS drain oracle and the People catch-all branches"
+          "agentId": "lead",
+          "at": "2026-11-10T22:49:18.933Z",
+          "previousStatus": "blocked",
+          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "nextAction": "Native drain + worker entrypoint committed (4fc340ba6); drain applies in leased-DB tests (5/5). Blocked on dev-process registration: the native dev config files under .scratch/dev/rust-migration/current were removed during cache cleanup, so a position-move-worker cannot be started against the running dev databases without regenerating the private development config (DB URLs/credentials). Operator must regenerate config and register the worker; then remove drainPositionMoves."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-organization",
@@ -15147,8 +15154,8 @@
       "migratedPackets": 10,
       "statusCounts": {
         "pending": 27,
-        "in_progress": 2,
-        "ready_for_integration": 9,
+        "in_progress": 0,
+        "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 10,
         "blocked": 3,
@@ -15156,8 +15163,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T22:13:59.827Z",
+    "lastCoordinatorGeneration": 3,
+    "updatedAt": "2026-11-10T22:49:50.873Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15198,6 +15205,14 @@
       ],
       "browserLimit": "Authenticated Holding journey was not verified in this documentation/tooling change.",
       "acceptance": false
+    },
+    "lastRecovery": {
+      "previousRunId": "run-20261110-g1",
+      "runId": "run-20261110-g2",
+      "at": "2026-11-10T22:49:18.935Z",
+      "reason": "Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+      "wipReviewed": true,
+      "previousRunStopped": true
     }
   }
 }
