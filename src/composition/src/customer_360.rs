@@ -17,6 +17,21 @@ use erpx_server_customer_360::public::customer_timeline::{
     CustomerTimelineActor, CustomerTimelineQuery, CustomerTimelineSupportEntitlement,
     PgCustomerTimelineRead, customer_timeline,
 };
+use erpx_server_customer_360::public::directory::{
+    CustomerDirectoryPage, CustomerDirectoryQuery, PgCustomerDirectoryRead, customer_directory_page,
+};
+use erpx_server_customer_360::public::customer_activity_metric::{
+    CustomerActivityMetricGroup, CustomerActivityMetricQuery, PgCustomerActivityMetric,
+    customer_activity_metric,
+};
+use erpx_server_customer_360::public::customer_directory_http::{
+    CustomerDirectoryHttpBackend, CustomerDirectoryHttpFuture, CustomerDirectoryHttpReadRequest,
+    CustomerDirectoryHttpTarget,
+};
+use erpx_server_customer_360::public::customer_activity_metric_http::{
+    CustomerActivityMetricHttpBackend, CustomerActivityMetricHttpFuture,
+    CustomerActivityMetricHttpReadRequest, CustomerActivityMetricHttpTarget,
+};
 use erpx_server_customer_360::public::customer_timeline_http::{
     CustomerTimelineHttpBackend, CustomerTimelineHttpFuture, CustomerTimelineHttpResponse,
     CustomerTimelineHttpTarget, customer_timeline_http_router,
@@ -392,6 +407,91 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
             )
             .await
     }
+
+    pub async fn directory_page(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: HoldingWorkspaceRequest,
+        query: CustomerDirectoryQuery,
+    ) -> Result<CustomerDirectoryPage, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(input)),
+                Self::access(),
+                Customer360Sources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let query = query.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = customer_timeline_actor(current)?;
+                        let mut repository = PgCustomerDirectoryRead::new(connection);
+                        customer_directory_page(&actor, &query, &mut repository, clock.now())
+                            .await
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn activity_metric(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: HoldingWorkspaceRequest,
+        query: CustomerActivityMetricQuery,
+    ) -> Result<Vec<CustomerActivityMetricGroup>, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(input)),
+                Self::access(),
+                Customer360Sources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let query = query.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = customer_timeline_actor(current)?;
+                        let mut repository = PgCustomerActivityMetric::new(connection);
+                        let mut entitlement = SupportEntitlement { purchased: false };
+                        customer_activity_metric(
+                            &actor,
+                            &query,
+                            &mut repository,
+                            &mut entitlement,
+                            clock.now(),
+                        )
+                        .await
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct Customer360Backend<C> {
@@ -432,6 +532,39 @@ impl<C: Clock + Send + Sync + 'static> Customer360Backend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+
+impl<C: Clock + Send + Sync + 'static> CustomerDirectoryHttpBackend for Customer360Backend<C> {
+    fn read<'a>(
+        &'a self,
+        request: CustomerDirectoryHttpReadRequest<'a>,
+    ) -> CustomerDirectoryHttpFuture<'a, CustomerDirectoryPage> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .directory_page(request.host, proof, selection, request.query)
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerActivityMetricHttpBackend
+    for Customer360Backend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: CustomerActivityMetricHttpReadRequest<'a>,
+    ) -> CustomerActivityMetricHttpFuture<'a, Vec<CustomerActivityMetricGroup>> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .activity_metric(request.host, proof, selection, request.query)
+                .await
+                .map_err(business)
+        })
     }
 }
 

@@ -2483,6 +2483,8 @@ async fn assemble_checked(
         let mut commerce_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut customer_360_targets = Vec::new();
+        let mut customer_directory_targets = Vec::new();
+        let mut customer_metric_targets = Vec::new();
         let mut customer_notes_targets = Vec::new();
         let mut customer_activity_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3231,6 +3233,22 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 ));
+                customer_directory_targets.push(
+                    erpx_server_customer_360::public::customer_directory_http::CustomerDirectoryHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: customer_360_backend.clone(),
+                    },
+                );
+                customer_metric_targets.push(
+                    erpx_server_customer_360::public::customer_activity_metric_http::CustomerActivityMetricHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: customer_360_backend.clone(),
+                    },
+                );
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -4359,6 +4377,22 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        if !customer_directory_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_360::public::customer_directory_http::customer_directory_http_router(
+                    customer_directory_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_360_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !customer_metric_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_360::public::customer_activity_metric_http::customer_activity_metric_http_router(
+                    customer_metric_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_360_CONFIGURATION_INVALID")?,
+            );
+        }
         if !customer_360_targets.is_empty() {
             router = router.merge(
                 erpx_server_customer_360::public::customer_timeline_http::customer_timeline_http_router(
