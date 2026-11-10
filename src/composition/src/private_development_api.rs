@@ -8980,6 +8980,65 @@ pub async fn run_service_count_worker_file(
 ) -> Result<(), &'static str> {
     run_outbox_worker_file(path, shutdown, false, None, Profile::Development).await
 }
+/// Native position-move apply worker. Drains the reviewed scheduled moves for
+/// every registered Holding on a 5s tick; the retained TypeScript drain is
+/// retired only after this process is running in the deployment.
+pub async fn run_position_move_worker_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let config =
+        DevelopmentApiConfiguration::read_configuration_file(path, Profile::Development)?;
+    if config.holdings.is_empty() {
+        return Err("POSITION_MOVE_WORKER_TARGET_REQUIRED");
+    }
+    let limits = PoolLimits {
+        max_connections: 2,
+        acquire_timeout: Duration::from_secs(5),
+    };
+    let mut pools = Vec::new();
+    for holding in &config.holdings {
+        let pool = holding
+            .database
+            .connect(limits)
+            .await
+            .map_err(|_| "POSITION_MOVE_WORKER_DATABASE_UNAVAILABLE")?;
+        pools.push((holding.registration.holding_id.clone(), pool));
+    }
+    let mut shutdown = std::pin::pin!(shutdown);
+    loop {
+        tokio::select! {
+            _ = &mut shutdown => break,
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+        }
+        let now = SystemAccountClock.now().get();
+        for (holding, pool) in &pools {
+            match erpx_server_organization::public::position_moves::drain_due_position_moves(
+                pool.clone(),
+                now,
+            )
+            .await
+            {
+                Ok(processed) if processed > 0 => {
+                    eprintln!(
+                        "{{\"event\":\"position_move_drain\",\"holding\":\"{}\",\"processed\":{processed}}}",
+                        holding.as_str()
+                    );
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    eprintln!(
+                        "{{\"event\":\"position_move_drain_failed\",\"holding\":\"{}\",\"code\":\"{}\"}}",
+                        holding.as_str(),
+                        error.code
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub async fn run_field_dependency_worker_file(
     path: &Path,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
