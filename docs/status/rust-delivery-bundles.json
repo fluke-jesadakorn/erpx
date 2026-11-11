@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 380,
+    "revision": 382,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g6",
       "agentId": "lead",
       "startedAt": "2026-11-11T04:25:19.281Z",
-      "heartbeatAt": "2026-11-11T04:52:44.343Z",
-      "expiresAt": "2026-11-11T05:22:44.343Z",
+      "heartbeatAt": "2026-11-11T04:59:36.503Z",
+      "expiresAt": "2026-11-11T05:29:36.503Z",
       "generation": 7,
       "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
     },
@@ -12915,8 +12915,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T04:25:19.306Z",
-          "heartbeatAt": "2026-11-11T04:52:44.343Z",
-          "expiresAt": "2026-11-11T05:22:44.343Z",
+          "heartbeatAt": "2026-11-11T04:59:36.503Z",
+          "expiresAt": "2026-11-11T05:29:36.503Z",
           "generation": 7
         },
         "baseSha": null,
@@ -12925,7 +12925,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Workspace read committed (ec8fac05d; 4+1 suites). collaboration_work mount now needs a composition CollaborationSourcePort covering all 8 source kinds: only pos/pms/assets have owner record-source reads; commerce_order, support_ticket, maintenance_plan/work and staff_task need owner reads first (otherwise those rows hide -> regression). After those exist: implement CollaborationWorkBackend (workspace/card/relation replies per worker report), mount collaboration_work_router, switch feature-apps collaboration GET/POST keeping CSV TS. Inbox summary/notifications + state/notice writers and messaging history/channels still TS; attachments 503 (Files WIP).",
+        "nextAction": "Owner source port now carries the caller connection (52d616daa), unblocking a transactional composition resolver. Two workers are adding commerce_order + support_ticket and maintenance_plan/work + staff_task record-source reads. Next: implement the composition CollaborationSourcePort dispatch (pos/pms/assets ready), mount collaboration_work_router, switch feature-apps collaboration GET/POST keeping CSV TS; then inbox summary/notifications/messaging history remain.",
         "handoff": {
           "runId": "run-20261110-g5",
           "agentId": "lead",
@@ -15378,7 +15378,7 @@
       }
     },
     "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T04:52:44.343Z",
+    "updatedAt": "2026-11-11T04:59:36.504Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
