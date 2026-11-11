@@ -5,6 +5,11 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest,
 };
+use erpx_server_files::public::project_attachment::{
+    PROJECT_ATTACHMENT_PURPOSES, bind_project_attachment_with_current_facts,
+    project_attachment_bound_manifest, project_attachment_link_ids,
+    project_attachment_set_facts,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -47,6 +52,20 @@ use erpx_server_projects::public::project_actuals_http::{
     ProjectActualsHttpTarget, ProjectCostAllocationDecisionHttpRequest,
     ProjectCostAllocationHttpRequest, ProjectWorkLogDecisionHttpRequest, ProjectWorkLogHttpRequest,
 };
+use erpx_server_people_payroll::public::staff_facts as people_staff_facts;
+use erpx_server_projects::public::project_attachment::{
+    PROJECT_ATTACHMENT_BIND_OPERATION, PgProjectAttachmentCommandReceipts,
+    ProjectAttachmentActor, ProjectAttachmentBindingCommand, ProjectAttachmentBoundLink,
+    ProjectAttachmentCommandReceipt, ProjectAttachmentReceiptPlan, attachment_invalid,
+    attachment_set_changed, attachment_set_empty, attachment_set_locked,
+    attachment_set_not_found, project_attachment_authority_json,
+    project_attachment_command_receipt, project_attachment_fingerprint,
+    replay_project_attachment_binding,
+};
+use erpx_server_projects::public::project_attachment_http::{
+    ProjectAttachmentBindHttpBackend, ProjectAttachmentBindHttpRequest, ProjectAttachmentHttpFuture,
+    ProjectAttachmentHttpResponse, ProjectAttachmentHttpTarget, project_attachment_router,
+};
 use erpx_server_projects::public::project_wbs::PgProjectWbsRead;
 use erpx_server_projects::public::project_wbs::{ProjectReadActor, project_wbs};
 use erpx_server_projects::public::project_wbs_http::{
@@ -55,7 +74,9 @@ use erpx_server_projects::public::project_wbs_http::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -542,6 +563,203 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
             )
             .await
     }
+
+    pub async fn bind_project_attachment<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        set_id: String,
+        expected_version: i64,
+        key: String,
+    ) -> Result<ProjectAttachmentHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.command_input(input),
+                Self::command_access(),
+                ProjectsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let set_id = set_id.clone();
+                    let key = key.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let key = CommandKey::new(key)?;
+                        let now = clock.now();
+                        let active_staff = people_staff_facts::active_staff(
+                            connection,
+                            company.as_str(),
+                            current.user_id().as_str(),
+                        )
+                        .await?
+                        .is_some();
+                        // Retained project attachment writes require the current
+                        // `projects.wbs` new-work capability for the `project`
+                        // target (`authorizeProjectAttachmentPurchase`).
+                        let wbs_purchased = purchase_allowed(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            "projects.wbs",
+                            CapabilityPurpose::NewWork,
+                            now,
+                        )
+                        .await;
+                        let actor = ProjectAttachmentActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: company.clone(),
+                            branch_id: current.selection().workspace().branch_id.clone(),
+                            department_id: current.selection().workspace().department_id.clone(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                            active_staff,
+                            wbs_purchased,
+                        };
+                        let facts =
+                            project_attachment_set_facts(connection, company.as_str(), &set_id)
+                                .await?
+                                .ok_or_else(attachment_set_not_found)?;
+                        if facts.company_id != company.as_str() {
+                            return Err(attachment_set_not_found().into());
+                        }
+                        if facts.target_type != "project" {
+                            return Err(BusinessError::invalid(
+                                "ATTACHMENT_TARGET_UNSUPPORTED",
+                                "This attachment target has no native Projects policy.",
+                            )
+                            .into());
+                        }
+                        if facts.component_kind != "record" {
+                            return Err(BusinessError::invalid(
+                                "ACTION_EVIDENCE_DOMAIN_BIND_REQUIRED",
+                                "Action, line and event evidence must bind inside its domain command.",
+                            )
+                            .into());
+                        }
+                        if !PROJECT_ATTACHMENT_PURPOSES.contains(&facts.purpose_key.as_str()) {
+                            return Err(attachment_invalid().into());
+                        }
+                        // The Projects receipt is the replay authority. Check it
+                        // before reading the now-bound draft links or stepping the
+                        // project version a second time.
+                        let stored = {
+                            let mut receipts =
+                                PgProjectAttachmentCommandReceipts::new(connection);
+                            receipts.stored_receipt(key.as_str()).await?
+                        };
+                        if let Some(receipt) = replay_project_attachment_binding(
+                            stored,
+                            &actor,
+                            &set_id,
+                            expected_version,
+                        )? {
+                            let manifest = project_attachment_bound_manifest(
+                                connection,
+                                company.as_str(),
+                                &set_id,
+                                &facts.target_id,
+                            )
+                            .await?;
+                            let data = attachment_response_data(&receipt, &manifest)?;
+                            return Ok(ProjectAttachmentHttpResponse {
+                                data,
+                                context: context(current),
+                            });
+                        }
+                        if facts.expected_target_version != expected_version {
+                            return Err(attachment_set_changed().into());
+                        }
+                        if facts.state != "draft" {
+                            return Err(attachment_set_locked().into());
+                        }
+                        let link_ids =
+                            project_attachment_link_ids(connection, company.as_str(), &set_id)
+                                .await?;
+                        if link_ids.is_empty() {
+                            return Err(attachment_set_empty().into());
+                        }
+                        let command = ProjectAttachmentBindingCommand {
+                            target_type: "project".into(),
+                            target_id: facts.target_id.clone(),
+                            expected_version: facts.expected_target_version,
+                            // Retained project-target writes authorize `new-work`
+                            // and the exact `projects.wbs` capability.
+                            purpose: "new-work".into(),
+                            link_ids,
+                            caption: None,
+                        };
+                        let binding = bind_project_attachment_with_current_facts(
+                            connection,
+                            &actor,
+                            &command,
+                            now,
+                        )
+                        .await?;
+                        let manifest = project_attachment_bound_manifest(
+                            connection,
+                            company.as_str(),
+                            &set_id,
+                            &facts.target_id,
+                        )
+                        .await?;
+                        let bound = manifest
+                            .iter()
+                            .map(|item| ProjectAttachmentBoundLink {
+                                link_id: item.link_id.clone(),
+                                source_id: item.source_id.clone(),
+                            })
+                            .collect::<Vec<_>>();
+                        let receipt =
+                            project_attachment_command_receipt(&binding, &bound)?;
+                        let plan = ProjectAttachmentReceiptPlan {
+                            key: key.as_str().to_owned(),
+                            operation:
+                                PROJECT_ATTACHMENT_BIND_OPERATION
+                                    .to_owned(),
+                            company_id: company.as_str().to_owned(),
+                            actor_id: actor.user_id.clone(),
+                            request_fingerprint: project_attachment_fingerprint(
+                                &actor,
+                                &set_id,
+                                expected_version,
+                            )?,
+                            set_id: set_id.clone(),
+                            receipt: receipt.clone(),
+                            authority_json: project_attachment_authority_json(&actor)?,
+                            now: now.get(),
+                        };
+                        let mut receipts =
+                            PgProjectAttachmentCommandReceipts::new(connection);
+                        receipts.record_receipt(&plan).await?;
+                        let data = attachment_response_data(&receipt, &manifest)?;
+                        Ok(ProjectAttachmentHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 
@@ -885,6 +1103,39 @@ async fn purchase_allowed(
     }
 }
 
+/// One response image for both the fresh bind and an exact replay. The retained
+/// document client consumes `setId`/`version`/`manifest`; the Projects receipt
+/// fields stay present so callers can verify the owner-owned command result.
+fn attachment_response_data(
+    receipt: &ProjectAttachmentCommandReceipt,
+    manifest: &[erpx_server_files::public::project_attachment::ProjectAttachmentManifestItem],
+) -> Result<Value, BusinessError> {
+    let mut value = serde_json::to_value(receipt)
+        .map_err(|_| BusinessError::new(FailureKind::Unavailable, "PROJECTS_UNAVAILABLE", "The Projects workspace is unavailable."))?;
+    let Value::Object(ref mut object) = value else {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "PROJECTS_UNAVAILABLE",
+            "The Projects workspace is unavailable.",
+        ));
+    };
+    object.insert(
+        "setId".into(),
+        Value::String(receipt.attachment_set_id.clone()),
+    );
+    object.insert(
+        "manifest".into(),
+        serde_json::to_value(manifest).map_err(|_| {
+            BusinessError::new(
+                FailureKind::Unavailable,
+                "PROJECTS_UNAVAILABLE",
+                "The Projects workspace is unavailable.",
+            )
+        })?,
+    );
+    Ok(value)
+}
+
 fn structure_actor(
     current: &AuthorizedWorkContext,
     company: CompanyId,
@@ -1167,7 +1418,36 @@ impl<C: Clock + Send + Sync + 'static> ProjectMilestoneCommandHttpBackend for Pr
     }
 }
 
+impl<C: Clock + Send + Sync + 'static> ProjectAttachmentBindHttpBackend for ProjectsBackend<C> {
+    fn bind<'a>(
+        &'a self,
+        request: ProjectAttachmentBindHttpRequest<'a>,
+    ) -> ProjectAttachmentHttpFuture<'a, ProjectAttachmentHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .bind_project_attachment(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.set_id.to_owned(),
+                    request.expected_version,
+                    request.key.to_owned(),
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
 #[allow(dead_code)]
 fn _router(targets: Vec<ProjectWbsHttpTarget>) -> Result<axum::Router, BusinessError> {
     projects_router(targets)
+}
+
+#[allow(dead_code)]
+fn _project_attachment_router(
+    targets: Vec<ProjectAttachmentHttpTarget>,
+) -> Result<axum::Router, BusinessError> {
+    project_attachment_router(targets)
 }

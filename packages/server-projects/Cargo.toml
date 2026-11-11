@@ -61,5 +61,9 @@ name = "project_attachment_policy"
 path = "../../tests/unit/projects/rust-project-attachment.test.rs"
 
 [[test]]
+name = "project_attachment_http"
+path = "../../tests/unit/projects/rust-project-attachment-http.test.rs"
+
+[[test]]
 name = "staff_facts_postgres"
 path = "../../tests/integration/projects/rust-staff-facts-postgres.test.rs"

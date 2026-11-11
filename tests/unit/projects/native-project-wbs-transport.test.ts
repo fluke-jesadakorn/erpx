@@ -8,6 +8,7 @@ import {
   type NativeProjectsPageContext,
 } from '../../../packages/feature-projects/src/public/native-project-wbs';
 import { nativeProjectsFailure } from '../../../packages/feature-projects/src/public/native-project-wbs-page';
+import { createNativeProjectAttachmentClient } from '../../../packages/feature-projects/src/public/native-project-attachment';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44992',
@@ -161,5 +162,59 @@ describe('native Projects WBS transport',()=>{
   expect(nativeProjectsFailure(new NativeProjectsError('PROJECT_PACKAGE_CYCLE',409,'Reload current project.')))
     .toMatchObject({status:409,code:'PROJECT_PACKAGE_CYCLE'});
   expect(nativeProjectsFailure(new Error('other'))).toBeUndefined();
+ });
+});
+
+describe('native Projects attachment bind transport',()=>{
+ const manifest=[{linkId:'link-1',sourceId:'attachment-1',purposeKey:'project_document',checksumSha256:'a'.repeat(64),mediaType:'application/pdf',bytes:10}];
+ const data={id:'attachment-1',version:5,status:'bound',ownerVersion:5,attachmentSetId:'set-1',attachmentLinkId:'link-1',setId:'set-1',manifest};
+ const headers=()=>new Headers({
+  host:'acme.example.com',
+  origin:'https://acme.example.com',
+  cookie:'__Host-erpx-product=session',
+  'x-erpx-context-company':'company',
+  'x-erpx-context-assignment':'assignment',
+  'x-erpx-context-revision':'7',
+  'x-erpx-context-assignment-version':'3',
+ });
+ const client=(transport:Parameters<typeof createNativeProjectAttachmentClient>[1])=>createNativeProjectAttachmentClient(nativeProjectsConfiguration(config()),transport);
+
+ it('forwards the exact loopback path, key, origin and current context',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data,context}));
+  const result=await client(transport).bind(headers(),actor,'set-1',{key:'bind-key-0001',expectedVersion:4});
+  expect(result).toEqual({setId:'set-1',version:5,manifest});
+  const [method,url,outgoing,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/project-attachments/set-1/bind');
+  expect(outgoing.get('idempotency-key')).toBe('bind-key-0001');
+  expect(outgoing.get('origin')).toBe('https://acme.example.com');
+  expect(outgoing.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(outgoing.get('x-erpx-context-company')).toBe('company');
+  expect(outgoing.get('content-type')).toBe('application/json');
+  expect(new TextDecoder().decode(body)).toBe('{"expectedTargetVersion":4}');
+ });
+
+ it('fails closed with the owner status and code and never falls back',async()=>{
+  const transport=vi.fn().mockResolvedValue(new Response(
+   JSON.stringify({error:{code:'ATTACHMENT_SET_CHANGED',message:'Refresh before retrying.'}}),
+   {status:409,headers:{'content-type':'application/json'}},
+  ));
+  await expect(client(transport).bind(headers(),actor,'set-1',{key:'bind-key-0001',expectedVersion:4}))
+   .rejects.toMatchObject({code:'ATTACHMENT_SET_CHANGED',status:409});
+ });
+
+ it('rejects a receipt for another set or version before returning to the route',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:{...data,ownerVersion:6},context}));
+  await expect(client(transport).bind(headers(),actor,'set-1',{key:'bind-key-0001',expectedVersion:4}))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_RESPONSE_INVALID'});
+ });
+
+ it('requires the captured context headers and exact configured origin',async()=>{
+  const missing=headers();missing.delete('x-erpx-context-company');
+  await expect(client(vi.fn()).bind(missing,actor,'set-1',{key:'bind-key-0001',expectedVersion:4}))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_CONTEXT_CHANGED'});
+  const wrongOrigin=headers();wrongOrigin.set('origin','https://other.example.com');
+  await expect(client(vi.fn()).bind(wrongOrigin,actor,'set-1',{key:'bind-key-0001',expectedVersion:4}))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_AUTHORITY_INVALID'});
  });
 });

@@ -6,6 +6,7 @@ mod fixture;
 
 use erpx_server_files::public::project_attachment::{
     PgProjectAttachmentFiles, bind_project_attachment_with_current_facts,
+    project_attachment_bound_manifest, project_attachment_link_ids, project_attachment_set_facts,
 };
 use erpx_server_projects::public::project_attachment::{
     ProjectAttachmentActor, ProjectAttachmentBindingCommand, ProjectAttachmentFactsRepository,
@@ -144,6 +145,69 @@ async fn serial(connection: &mut PgConnection) {
         .execute(connection)
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn reads_scoped_set_facts_and_current_draft_links_without_bytes() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut tx = pool.raw().begin().await.unwrap();
+        serial(&mut tx).await;
+        let facts = project_attachment_set_facts(&mut tx, "company", "set-1")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(facts.set_id, "set-1");
+        assert_eq!(facts.company_id, "company");
+        assert_eq!(facts.target_type, "project");
+        assert_eq!(facts.target_id, "project-1");
+        assert_eq!(facts.component_kind, "record");
+        assert_eq!(facts.purpose_key, "project_document");
+        assert_eq!(facts.expected_target_version, 3);
+        assert_eq!(facts.state, "draft");
+        assert!(
+            project_attachment_set_facts(&mut tx, "other-company", "set-1")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            project_attachment_link_ids(&mut tx, "company", "set-1")
+                .await
+                .unwrap(),
+            ["link-1"]
+        );
+        assert!(
+            project_attachment_link_ids(&mut tx, "other-company", "set-1")
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        let receipt = bind_project_attachment_with_current_facts(
+            &mut tx,
+            &actor(),
+            &command(3, "link-1"),
+            TimestampMillis::new(NOW),
+        )
+        .await
+        .unwrap();
+        assert_eq!(receipt.target_version, 4);
+        assert!(
+            project_attachment_link_ids(&mut tx, "company", "set-1")
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        let manifest = project_attachment_bound_manifest(&mut tx, "company", "set-1", "project-1")
+            .await
+            .unwrap();
+        assert_eq!(manifest.len(), 1);
+        assert_eq!(manifest[0].link_id, "link-1");
+        assert_eq!(manifest[0].source_id, "attachment-1");
+        assert_eq!(manifest[0].media_type, "application/pdf");
+        tx.rollback().await.unwrap();
+    })
+    .await;
 }
 
 #[tokio::test]

@@ -12,6 +12,7 @@ use erpx_server_projects::public::project_attachment::{
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind, RecordId, TimestampMillis};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection, Row};
 use std::collections::BTreeSet;
@@ -170,6 +171,190 @@ pub async fn bind_project_attachment_with_current_facts(
     let mut repository = ProjectAttachmentFactsSnapshot::new(facts);
     let mut files = PgProjectAttachmentFiles::new(&mut *connection);
     bind_project_attachment(actor, &mut repository, &mut files, command, now).await
+}
+
+fn unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "FILES_PROJECT_ATTACHMENT_UNAVAILABLE",
+        "The Project file source is temporarily unavailable.",
+    )
+}
+
+/// Files-owned current set facts. Composition needs the exact target, purpose,
+/// version and state before it can route a bind; this read never exposes bytes
+/// or attachment source content.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectAttachmentSetFacts {
+    pub set_id: String,
+    pub company_id: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+    pub target_type: String,
+    pub target_id: String,
+    pub component_kind: String,
+    pub purpose_key: String,
+    pub expected_target_version: i64,
+    pub state: String,
+}
+
+pub async fn project_attachment_set_facts(
+    connection: &mut PgConnection,
+    company_id: &str,
+    set_id: &str,
+) -> Result<Option<ProjectAttachmentSetFacts>, BusinessError> {
+    serializable(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    let row: Option<(
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        String,
+        String,
+        String,
+        String,
+        i64,
+        String,
+    )> = sqlx::query_as(
+        "SELECT id,company_id,branch_id,department_id,target_type,target_id,component_kind,\
+         purpose_key,expected_target_version,state \
+         FROM attachment_sets WHERE id=$1 AND company_id=$2",
+    )
+    .bind(set_id)
+    .bind(company_id)
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|_| unavailable())?;
+    Ok(row.map(
+        |(
+            set_id,
+            company_id,
+            branch_id,
+            department_id,
+            target_type,
+            target_id,
+            component_kind,
+            purpose_key,
+            expected_target_version,
+            state,
+        )| ProjectAttachmentSetFacts {
+            set_id,
+            company_id,
+            branch_id,
+            department_id,
+            target_type,
+            target_id,
+            component_kind,
+            purpose_key,
+            expected_target_version,
+            state,
+        },
+    ))
+}
+
+/// Files-owned read of the links a current Project set may bind. Only draft
+/// links participate; the bind port rechecks Company, set, purpose, scan and
+/// source state for every selected link. Ordered deterministically and bounded
+/// by the same one-hundred link limit as the binding command.
+pub async fn project_attachment_link_ids(
+    connection: &mut PgConnection,
+    company_id: &str,
+    set_id: &str,
+) -> Result<Vec<String>, BusinessError> {
+    serializable(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    let rows: Vec<String> = sqlx::query_scalar(
+        "SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id \
+         WHERE s.id=$1 AND s.company_id=$2 AND l.state='draft' \
+         ORDER BY l.created_at,l.id LIMIT 101",
+    )
+    .bind(set_id)
+    .bind(company_id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|_| unavailable())?;
+    if rows.len() > MAX_LINKS {
+        return Err(attachment_invalid());
+    }
+    Ok(rows)
+}
+
+/// Files-owned metadata for the links this Project command bound. This is the
+/// existing record-document manifest shape without bytes or storage keys.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectAttachmentManifestItem {
+    pub link_id: String,
+    pub source_id: String,
+    pub purpose_key: String,
+    pub checksum_sha256: String,
+    pub media_type: String,
+    pub bytes: i64,
+}
+
+pub async fn project_attachment_bound_manifest(
+    connection: &mut PgConnection,
+    company_id: &str,
+    set_id: &str,
+    target_id: &str,
+) -> Result<Vec<ProjectAttachmentManifestItem>, BusinessError> {
+    serializable(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    let rows: Vec<(
+        String,
+        Option<String>,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+    )> = sqlx::query_as(
+        "SELECT l.id,l.attachment_id,s.purpose_key,a.checksum_sha256,a.media_type,a.bytes \
+             FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id \
+             LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id \
+             WHERE s.id=$1 AND s.company_id=$2 AND s.target_id=$3 AND l.state='bound' \
+               AND l.binding_type=$4 AND l.binding_id=$3 \
+             ORDER BY l.created_at,l.id LIMIT 101",
+    )
+    .bind(set_id)
+    .bind(company_id)
+    .bind(target_id)
+    .bind(PROJECT_ATTACHMENT_BINDING_TYPE)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|_| unavailable())?;
+    if rows.len() > MAX_LINKS {
+        return Err(attachment_invalid());
+    }
+    rows.into_iter()
+        .map(
+            |(link_id, source_id, purpose_key, checksum_sha256, media_type, bytes)| {
+                let source_id = source_id.filter(|value| !value.is_empty());
+                let checksum_sha256 = checksum_sha256.filter(|value| valid_hash(value));
+                let media_type = media_type.filter(|value| !value.is_empty());
+                let bytes = bytes.filter(|value| (1..=MAX_BYTES).contains(value));
+                match (source_id, checksum_sha256, media_type, bytes) {
+                    (Some(source_id), Some(checksum_sha256), Some(media_type), Some(bytes))
+                        if valid_purpose(&purpose_key) =>
+                    {
+                        Ok(ProjectAttachmentManifestItem {
+                            link_id,
+                            source_id,
+                            purpose_key,
+                            checksum_sha256,
+                            media_type,
+                            bytes,
+                        })
+                    }
+                    _ => Err(attachment_changed()),
+                }
+            },
+        )
+        .collect()
 }
 
 struct ProjectLinkRow {

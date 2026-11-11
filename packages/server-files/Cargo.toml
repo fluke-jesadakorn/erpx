@@ -162,5 +162,9 @@ name = "project_attachment_postgres"
 path = "../../tests/integration/files/rust-project-attachment-postgres.test.rs"
 
 [[test]]
+name = "project_attachment_bind_postgres"
+path = "../../tests/integration/projects/rust-project-attachment-postgres.test.rs"
+
+[[test]]
 name = "messaging_files_postgres"
 path = "../../tests/integration/files/rust-messaging-files-postgres.test.rs"

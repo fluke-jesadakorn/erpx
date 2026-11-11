@@ -4,10 +4,12 @@
 //! outsider read denial and the bound Files-port call order. They do not write
 //! attachment rows; Files owns that ledger.
 use erpx_server_projects::public::project_attachment::{
-    ProjectAttachmentActor, ProjectAttachmentBindingCommand, ProjectAttachmentBindingReceipt,
+    PROJECT_ATTACHMENT_BIND_OPERATION, ProjectAttachmentActor, ProjectAttachmentBindingCommand,
+    ProjectAttachmentBindingReceipt, ProjectAttachmentCommandReceipt,
     ProjectAttachmentFactsRepository, ProjectAttachmentFilesPort, ProjectAttachmentFuture,
-    ProjectAttachmentGrant, ProjectAttachmentTargetFacts, authorize_project_attachment_read,
-    bind_project_attachment,
+    ProjectAttachmentGrant, ProjectAttachmentTargetFacts, StoredProjectAttachmentReceipt,
+    authorize_project_attachment_read, bind_project_attachment, project_attachment_fingerprint,
+    replay_project_attachment_binding,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
 
@@ -219,15 +221,9 @@ async fn duplicate_or_empty_links_are_rejected_before_files() {
     assert!(!files.bound);
     let mut empty = command();
     empty.link_ids.clear();
-    let error = bind_project_attachment(
-        &actor("owner"),
-        &mut repository,
-        &mut files,
-        &empty,
-        NOW,
-    )
-    .await
-    .unwrap_err();
+    let error = bind_project_attachment(&actor("owner"), &mut repository, &mut files, &empty, NOW)
+        .await
+        .unwrap_err();
     assert_eq!(error.code, "PROJECT_ATTACHMENT_INVALID");
 }
 
@@ -261,15 +257,9 @@ async fn members_read_and_outsiders_are_hidden() {
             ..facts()
         }),
     };
-    authorize_project_attachment_read(
-        &actor("member"),
-        &mut repository,
-        "project",
-        "project",
-        NOW,
-    )
-    .await
-    .unwrap();
+    authorize_project_attachment_read(&actor("member"), &mut repository, "project", "project", NOW)
+        .await
+        .unwrap();
     repository.facts = Some(ProjectAttachmentTargetFacts {
         is_owner: false,
         is_member: false,
@@ -285,6 +275,82 @@ async fn members_read_and_outsiders_are_hidden() {
     .await
     .unwrap_err();
     assert_eq!(error.code, "ATTACHMENT_TARGET_NOT_FOUND");
+}
+
+fn retained_receipt() -> ProjectAttachmentCommandReceipt {
+    ProjectAttachmentCommandReceipt {
+        id: "attachment-1".into(),
+        version: 4,
+        status: "bound".into(),
+        owner_version: 4,
+        attachment_set_id: "set-1".into(),
+        attachment_link_id: "link-1".into(),
+    }
+}
+
+fn stored(
+    actor: &ProjectAttachmentActor,
+    set_id: &str,
+    expected_version: i64,
+) -> StoredProjectAttachmentReceipt {
+    StoredProjectAttachmentReceipt {
+        operation: PROJECT_ATTACHMENT_BIND_OPERATION.into(),
+        record_id: set_id.into(),
+        request_fingerprint: project_attachment_fingerprint(actor, set_id, expected_version)
+            .unwrap(),
+        result_json: Some(serde_json::to_string(&retained_receipt()).unwrap()),
+    }
+}
+
+#[test]
+fn replay_returns_the_prior_receipt_for_the_same_set_and_version() {
+    let actor = actor("owner");
+    let receipt =
+        replay_project_attachment_binding(Some(stored(&actor, "set-1", 3)), &actor, "set-1", 3)
+            .unwrap()
+            .unwrap();
+    assert_eq!(receipt, retained_receipt());
+}
+
+#[test]
+fn replay_refuses_a_changed_set_or_version() {
+    let actor = actor("owner");
+    assert_eq!(
+        replay_project_attachment_binding(Some(stored(&actor, "set-1", 3)), &actor, "set-1", 4,)
+            .unwrap_err()
+            .code,
+        "ATTACHMENT_SET_CHANGED"
+    );
+    assert_eq!(
+        replay_project_attachment_binding(Some(stored(&actor, "set-1", 3)), &actor, "set-2", 3,)
+            .unwrap_err()
+            .code,
+        "ATTACHMENT_SET_CHANGED"
+    );
+}
+
+#[test]
+fn replay_refuses_another_operation_or_actor() {
+    let owner = actor("owner");
+    let mut other_operation = stored(&owner, "set-1", 3);
+    other_operation.operation = "project.milestone.create".into();
+    assert_eq!(
+        replay_project_attachment_binding(Some(other_operation), &owner, "set-1", 3)
+            .unwrap_err()
+            .code,
+        "IDEMPOTENCY_CONFLICT"
+    );
+    assert_eq!(
+        replay_project_attachment_binding(
+            Some(stored(&actor("other"), "set-1", 3)),
+            &owner,
+            "set-1",
+            3,
+        )
+        .unwrap_err()
+        .code,
+        "IDEMPOTENCY_CONFLICT"
+    );
 }
 
 #[test]

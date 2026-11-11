@@ -213,6 +213,14 @@ pub struct ProjectAttachmentBindingReceipt {
     pub target_version: i64,
 }
 
+/// The Files-owned bound link identity the Projects receipt needs. No bytes,
+/// storage key, checksum or media type crosses into Projects.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProjectAttachmentBoundLink {
+    pub link_id: String,
+    pub source_id: String,
+}
+
 pub fn attachment_invalid() -> BusinessError {
     BusinessError::invalid(
         "PROJECT_ATTACHMENT_INVALID",
@@ -233,6 +241,50 @@ pub fn attachment_changed() -> BusinessError {
         FailureKind::Conflict,
         "PROJECT_ATTACHMENT_CHANGED",
         "The original Project file source or current authority changed.",
+    )
+}
+
+pub fn attachment_set_changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "ATTACHMENT_SET_CHANGED",
+        "The original file binding changed. Refresh before retrying.",
+    )
+}
+
+pub fn attachment_set_not_found() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "ATTACHMENT_SET_NOT_FOUND",
+        "The original file set is unavailable.",
+    )
+}
+
+pub fn attachment_set_locked() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "ATTACHMENT_SET_LOCKED",
+        "A file set was already bound or closed.",
+    )
+}
+
+pub fn attachment_set_empty() -> BusinessError {
+    BusinessError::invalid("ATTACHMENT_SET_EMPTY", "Bind at least one available file.")
+}
+
+pub fn idempotency_conflict() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "IDEMPOTENCY_CONFLICT",
+        "This command key was already used for a different Project request.",
+    )
+}
+
+pub fn invalid_receipt() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "PROJECT_ATTACHMENT_RECEIPT_INVALID",
+        "The original Project file receipt is invalid.",
     )
 }
 
@@ -278,7 +330,11 @@ pub fn authorize_binding(
     }
     Ok(ProjectAttachmentGrant {
         company_id: actor.company_id.clone(),
-        branch_id: actor.branch_id.as_ref().map(RecordId::as_str).map(str::to_owned),
+        branch_id: actor
+            .branch_id
+            .as_ref()
+            .map(RecordId::as_str)
+            .map(str::to_owned),
         department_id: actor
             .department_id
             .as_ref()
@@ -303,9 +359,7 @@ pub fn authorize_read(
     now: TimestampMillis,
 ) -> Result<(), BusinessError> {
     actor.require_read(now)?;
-    if facts.company_id != actor.company_id.as_str()
-        || (!facts.is_owner && !facts.is_member)
-    {
+    if facts.company_id != actor.company_id.as_str() || (!facts.is_owner && !facts.is_member) {
         return Err(attachment_not_found());
     }
     Ok(())
@@ -404,8 +458,7 @@ mod tests {
         let mut facts = facts();
         facts.is_owner = false;
         facts.is_member = false;
-        let error =
-            authorize_read(&actor, &facts, TimestampMillis::new(1_000)).unwrap_err();
+        let error = authorize_read(&actor, &facts, TimestampMillis::new(1_000)).unwrap_err();
         assert_eq!(error.code, "ATTACHMENT_TARGET_NOT_FOUND");
     }
 }

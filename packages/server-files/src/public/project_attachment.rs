@@ -9,6 +9,7 @@
 //! one connection.
 pub use crate::adapters::project_attachment::{
     PROJECT_ATTACHMENT_BINDING_TYPE, PROJECT_ATTACHMENT_PURPOSES, PgProjectAttachmentFiles,
-    ProjectAttachmentFactsSnapshot, bind_project_attachment_with_current_facts,
-    validate_project_attachment_binding,
+    ProjectAttachmentFactsSnapshot, ProjectAttachmentManifestItem, ProjectAttachmentSetFacts,
+    bind_project_attachment_with_current_facts, project_attachment_bound_manifest,
+    project_attachment_link_ids, project_attachment_set_facts, validate_project_attachment_binding,
 };

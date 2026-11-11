@@ -87700,6 +87700,92 @@
       ]
     },
     {
+      "id": "projects.rust-project-attachment-http.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/rust-project-attachment-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Projects attachment bind HTTP ingress retains exact targets, origin, key and bounded body."
+      },
+      "apps": [
+        "projects"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_attachment_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-projects/Cargo.toml"
+      ]
+    },
+    {
+      "id": "projects.rust-project-attachment-postgres.integration",
+      "lane": "integration",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/integration/projects/rust-project-attachment-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Projects attachment bind retains set/version refusal, one project version step and replay/conflict receipts."
+      },
+      "apps": [
+        "projects"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "project_attachment_bind_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "legal.rust-legal-auxiliary-postgres.integration",
       "lane": "integration",
       "owner": "legal",
