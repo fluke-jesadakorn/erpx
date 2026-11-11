@@ -126,6 +126,7 @@ pub(crate) mod platform_commercial_authority;
 pub mod account_work_presentation;
 pub(crate) mod quality_same_person;
 pub(crate) mod operations_recipients;
+pub(crate) mod staff_notifications;
 
 pub(crate) mod iam_roles_postgres;
 pub(crate) mod iam_roles_http;

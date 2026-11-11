@@ -7,6 +7,9 @@
 mod fixture;
 use erpx_server_operations::public::field_exceptions::*;
 use erpx_server_operations::public::field_policy::*;
+use erpx_server_operations::public::staff_tasks::{
+    notify_staff_record, notify_staff_task_approval,
+};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
@@ -387,6 +390,117 @@ async fn generic_open_rejects_policies_without_the_canonical_source_kind() {
         .await
         .unwrap_err();
         assert!(format!("{error:?}").contains("OPERATIONS_POLICY_UNAVAILABLE"));
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn staff_record_notification_is_idempotent_and_owned() {
+    fixture::with_database(2, |holding| async move {
+        migrate(&holding).await;
+        let mut tx = serializable(&holding).await;
+        notify_staff_record(
+            &mut tx,
+            "command-key-01",
+            "company",
+            "user-a",
+            "supplier_promise",
+            "order-1",
+            2,
+            "Supplier delivery confirmation changed: review remaining quantities and dates",
+            10,
+        )
+        .await
+        .unwrap();
+        // Same key/user/record is a no-op even with a later clock.
+        notify_staff_record(
+            &mut tx,
+            "command-key-01",
+            "company",
+            "user-a",
+            "supplier_promise",
+            "order-1",
+            2,
+            "Supplier delivery confirmation changed: review remaining quantities and dates",
+            20,
+        )
+        .await
+        .unwrap();
+        let rows: Vec<(String, String, String, String, i64, String, i64)> = sqlx::query_as(
+            "SELECT id,company_id,user_id,record_type,record_version,message,created_at \
+             FROM staff_notifications ORDER BY id",
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(
+            rows,
+            vec![(
+                "staff-record-notice-command-key-01-user-a".into(),
+                "company".into(),
+                "user-a".into(),
+                "supplier_promise".into(),
+                2,
+                "Supplier delivery confirmation changed: review remaining quantities and dates"
+                    .into(),
+                10,
+            )]
+        );
+
+        notify_staff_record(
+            &mut tx,
+            "command-key-02",
+            "company",
+            "user-b",
+            "supplier_promise",
+            "order-1",
+            2,
+            "Supplier delivery confirmation changed: review remaining quantities and dates",
+            11,
+        )
+        .await
+        .unwrap();
+        notify_staff_task_approval(
+            &mut tx,
+            "task-key-01",
+            "company",
+            "user-a",
+            "task-1",
+            3,
+            "start",
+            12,
+        )
+        .await
+        .unwrap();
+        let owners: Vec<String> =
+            sqlx::query_scalar("SELECT id FROM staff_notifications ORDER BY id")
+                .fetch_all(&mut *tx)
+                .await
+                .unwrap();
+        assert_eq!(
+            owners,
+            vec![
+                "staff-record-notice-command-key-01-user-a".to_string(),
+                "staff-record-notice-command-key-02-user-b".to_string(),
+                "staff-record-notice-task-key-01-user-a".to_string(),
+            ]
+        );
+
+        let error = notify_staff_record(
+            &mut tx,
+            "",
+            "company",
+            "user-a",
+            "supplier_promise",
+            "order-1",
+            2,
+            "Message",
+            10,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "STAFF_NOTIFICATION_INVALID");
         tx.rollback().await.unwrap();
     })
     .await;

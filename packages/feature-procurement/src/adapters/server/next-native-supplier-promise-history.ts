@@ -13,3 +13,22 @@ export function createNextNativeSupplierPromiseHistoryReader<T>(
   return async (orderId: string, input: NativeSupplierPromiseHistoryReadInput, signal?: AbortSignal) =>
     read(await headers(), orderId, input, signal);
 }
+
+export function createNextNativeSupplierPromiseCommandWriter<T>(
+  write: (
+    incoming: Pick<Headers, 'get'>,
+    orderId: string,
+    input: NativeSupplierPromiseHistoryReadInput,
+    key: string,
+    body: unknown,
+    signal?: AbortSignal,
+  ) => Promise<T>,
+) {
+  return async (
+    orderId: string,
+    input: NativeSupplierPromiseHistoryReadInput,
+    key: string,
+    body: unknown,
+    signal?: AbortSignal,
+  ) => write(await headers(), orderId, input, key, body, signal);
+}

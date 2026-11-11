@@ -9,8 +9,10 @@ import {
   nativeSupplierPromiseDetail,
   nativeSupplierPromiseHistory,
   nativeSupplierPromiseHistoryPageContext,
+  recordNativeSupplierPromise,
   type NativeSupplierPromiseDetail,
   type NativeSupplierPromiseHistory,
+  type NativeSupplierPromiseReceipt,
 } from './native-supplier-promise-history-page';
 
 function ownedFailure(error: unknown): never {
@@ -77,6 +79,33 @@ export async function ownedSupplierPromiseDetail(
     );
     if (!data) unavailable();
     return data;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+/** Native supplier-promise record with the same module/purchase preflight as
+ * the retained command. Once configured, a failure never falls back to the
+ * retained writer. */
+export async function ownedRecordSupplierPromise(
+  actor: WorkContext,
+  holdingSlug: string,
+  orderId: string,
+  body: unknown,
+  key: string,
+): Promise<NativeSupplierPromiseReceipt | undefined> {
+  if (!nativeProcurementAvailable()) return undefined;
+  await admission(actor);
+  try {
+    const receipt = await recordNativeSupplierPromise(
+      nativeSupplierPromiseHistoryPageContext(actor),
+      holdingSlug,
+      orderId,
+      key,
+      body,
+    );
+    if (!receipt) unavailable();
+    return receipt;
   } catch (error) {
     ownedFailure(error);
   }

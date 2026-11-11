@@ -2626,6 +2626,7 @@ async fn assemble_checked(
         let mut sales_price_lists_targets = Vec::new();
         let mut files_targets = Vec::new();
         let mut procurement_targets = Vec::new();
+        let mut procurement_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut projects_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3253,12 +3254,8 @@ async fn assemble_checked(
                         },
                     );
                 }
-                procurement_targets.push(
-                erpx_server_procurement::public::supplier_promise_history_http::SupplierPromiseHistoryHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::procurement::ProcurementBackend::new(
+                let procurement_backend =
+                    Arc::new(crate::procurement::ProcurementBackend::new(
                         config.policy.clone(),
                         Arc::new(FinanceJournalReadScopeHeaders),
                         Arc::new(crate::procurement::ProcurementService::new(
@@ -3269,9 +3266,23 @@ async fn assemble_checked(
                             ),
                             Arc::new(SharedClock(clock.clone())),
                         )),
-                    )),
-                },
-            );
+                    ));
+                procurement_targets.push(
+                    erpx_server_procurement::public::supplier_promise_history_http::SupplierPromiseHistoryHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: procurement_backend.clone(),
+                    },
+                );
+                procurement_command_targets.push(
+                    erpx_server_procurement::public::supplier_promise_command_http::SupplierPromiseCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: procurement_backend,
+                    },
+                );
                 #[cfg(feature = "existing-business")]
                 #[cfg(feature = "existing-business")]
                 #[cfg(feature = "existing-business")]
@@ -5103,6 +5114,12 @@ async fn assemble_checked(
         if !procurement_targets.is_empty() {
             router = router.merge(
                 erpx_server_procurement::public::supplier_promise_history_http::supplier_promise_history_router(procurement_targets)
+                    .map_err(|_| "PRIVATE_API_PROCUREMENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !procurement_command_targets.is_empty() {
+            router = router.merge(
+                erpx_server_procurement::public::supplier_promise_command_http::supplier_promise_command_http_router(procurement_command_targets)
                     .map_err(|_| "PRIVATE_API_PROCUREMENT_CONFIGURATION_INVALID")?,
             );
         }
@@ -8971,14 +8988,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             }
             _ => false,
         };
-    let procurement = request.method() == axum::http::Method::GET
-        && match request
+    let procurement = match (
+        request.method(),
+        request
             .uri()
             .path()
             .split('/')
             .collect::<Vec<_>>()
-            .as_slice()
-        {
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET,
             [
                 "",
                 "api",
@@ -8989,9 +9009,14 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 "purchase-orders",
                 order_id,
                 "supplier-promises",
-            ] if !order_id.is_empty() => state.policy.audience(host).is_some(),
-            _ => false,
-        };
+            ],
+        ) if !order_id.is_empty() => state.policy.audience(host).is_some(),
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", _, "supplier-promises", order_id],
+        ) if !order_id.is_empty() => state.policy.audience(host).is_some(),
+        _ => false,
+    };
     let manufacturing = request.method() == axum::http::Method::GET
         && match request
             .uri()

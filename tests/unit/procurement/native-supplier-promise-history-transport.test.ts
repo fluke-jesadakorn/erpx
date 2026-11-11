@@ -77,6 +77,43 @@ describe('native Procurement supplier promise history transport',()=>{
   expect(result).toEqual(data);
  });
 
+ it('records a supplied promise with origin, idempotency key, CAS and a verified receipt',async()=>{
+  const field='command-1';
+  const transport=vi.fn().mockResolvedValue(ok({data:{id:'order-1',promiseId:`supplier-promise-${field}`,version:2},context}));
+  const client=createNativeSupplierPromiseHistoryClient(nativeProcurementConfiguration(config()),transport);
+  const body={expectedVersion:1,kind:'confirmed',confirmationDate:'2026-11-01',supplierReference:'SUP-REF-1',evidence:'Supplier confirmation evidence',lines:[{orderLineId:'order-line-a',quantity:'4.000',promisedDate:'2026-11-08'}]};
+  const result=await client.record(incoming(),actor,'order-1',input,field,body);
+  expect(result).toEqual({id:'order-1',promiseId:`supplier-promise-${field}`,version:2});
+  const [method,url,headers,payload]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/supplier-promises/order-1');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('idempotency-key')).toBe(field);
+  expect(headers.get('content-type')).toBe('application/json');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(headers.get('x-erpx-context-assignment')).toBe('assignment');
+  expect(headers.get('x-erpx-context-revision')).toBe('7');
+  expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
+  expect(JSON.parse(payload!)).toEqual(body);
+ });
+
+ it('rejects an invalid command key or a receipt that does not match it',async()=>{
+  const body={expectedVersion:1,kind:'confirmed',confirmationDate:'2026-11-01',supplierReference:'SUP-REF-1',evidence:'Supplier confirmation evidence',lines:[]};
+  const transport=vi.fn();
+  const client=createNativeSupplierPromiseHistoryClient(nativeProcurementConfiguration(config()),transport);
+  await expect(client.record(incoming(),actor,'order-1',input,'short',body))
+    .rejects.toMatchObject({code:'NATIVE_PROCUREMENT_REQUEST_INVALID'});
+  expect(transport).not.toHaveBeenCalled();
+  const wrong=createNativeSupplierPromiseHistoryClient(nativeProcurementConfiguration(config()),vi.fn().mockResolvedValue(
+    ok({data:{id:'order-1',promiseId:'supplier-promise-foreign',version:2},context}),
+  ));
+  await expect(wrong.record(incoming(),actor,'order-1',input,'command-1',body))
+    .rejects.toMatchObject({code:'NATIVE_PROCUREMENT_RESPONSE_INVALID'});
+  const invalidBody=createNativeSupplierPromiseHistoryClient(nativeProcurementConfiguration(config()),vi.fn());
+  await expect(invalidBody.record(incoming(),actor,'order-1',input,'command-1',{...body,expectedVersion:0}))
+    .rejects.toMatchObject({code:'NATIVE_PROCUREMENT_REQUEST_INVALID'});
+ });
+
  it('forwards the selected branch workspace slug as context CAS input',async()=>{
   const branchActor={...actor,branchId:'branch',scope:{kind:'branch' as const,branchSlug:'north'}};
   const branchContext={...context,branchId:'branch',branchSlug:'north'};

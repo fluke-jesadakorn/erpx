@@ -50,12 +50,18 @@ export type NativeSupplierPromiseHistoryReadInput = Readonly<{
 }>;
 
 export type NativeProcurementTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
+
+export type NativeSupplierPromiseReceipt = Readonly<{
+  id: string;
+  promiseId: string;
+  version: number;
+}>;
 
 export class NativeProcurementError extends Error {
   readonly code: string;
@@ -98,6 +104,40 @@ const trimmed = (value: unknown, minimum: number, maximum: number): value is str
   [...value].length >= minimum &&
   value.trim() === value;
 const kinds = new Set(['confirmed', 'withdrawn']);
+const commandKey = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length >= 8 &&
+  value.length <= 180 &&
+  /^[A-Za-z0-9:_.-]+$/.test(value);
+const boundedCommand = (body: unknown): { body: string; expectedVersion: number } => {
+  if (!record(body) || !integer(body.expectedVersion, 1))
+    return failure('NATIVE_PROCUREMENT_REQUEST_INVALID');
+  let encoded: string;
+  try {
+    encoded = JSON.stringify(body);
+  } catch {
+    return failure('NATIVE_PROCUREMENT_REQUEST_INVALID');
+  }
+  if (new TextEncoder().encode(encoded).length > 64 * 1024)
+    return failure('NATIVE_PROCUREMENT_REQUEST_INVALID');
+  return { body: encoded, expectedVersion: body.expectedVersion };
+};
+const receiptData = (
+  value: unknown,
+  orderId: string,
+  key: string,
+  expectedVersion: number,
+): NativeSupplierPromiseReceipt => {
+  if (!exact(value, ['id', 'promiseId', 'version']))
+    return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
+  if (
+    value.id !== orderId ||
+    value.promiseId !== `supplier-promise-${key}` ||
+    value.version !== expectedVersion + 1
+  )
+    return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
+  return { id: value.id, promiseId: value.promiseId, version: value.version };
+};
 const orderStates = new Set([
   'draft',
   'submitted',
@@ -355,7 +395,10 @@ function configuration(raw: NativeProcurementConfiguration) {
     raw.holdings.length > 64
   )
     return failure('NATIVE_PROCUREMENT_CONFIGURATION_INVALID');
-  const holdings = new Map<string, { holdingId: string; holdingSlug: string }>();
+  const holdings = new Map<
+    string,
+    { holdingId: string; holdingSlug: string; origin: string }
+  >();
   for (const holding of raw.holdings) {
     let origin: URL;
     try {
@@ -374,7 +417,11 @@ function configuration(raw: NativeProcurementConfiguration) {
       holdings.has(origin.host)
     )
       return failure('NATIVE_PROCUREMENT_CONFIGURATION_INVALID');
-    holdings.set(origin.host, { holdingId: holding.holdingId, holdingSlug: holding.holdingSlug });
+    holdings.set(origin.host, {
+      holdingId: holding.holdingId,
+      holdingSlug: holding.holdingSlug,
+      origin: holding.origin,
+    });
   }
   return { base, holdings, timeout: raw.timeoutMs };
 }
@@ -382,12 +429,13 @@ function configuration(raw: NativeProcurementConfiguration) {
 function transportCall(
   transport: NativeProcurementTransport,
   base: URL,
-  holdings: Map<string, { holdingId: string; holdingSlug: string }>,
+  holdings: Map<string, { holdingId: string; holdingSlug: string; origin: string }>,
   incoming: Pick<Headers, 'get'>,
   orderId: string,
   holdingSlug: string,
   input: NativeSupplierPromiseHistoryReadInput,
   timeout: number,
+  command?: Readonly<{ key: string; body: string }>,
   signal?: AbortSignal,
 ): Promise<Response> {
   const host = incoming.get('host');
@@ -424,16 +472,33 @@ function transportCall(
     headers.set('x-erpx-context-revision', String(input.expected.revision));
     headers.set('x-erpx-context-assignment-version', String(input.expected.assignmentVersion));
   }
-  const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/procurement/purchase-orders/${encodeURIComponent(orderId)}/supplier-promises`,
-    base,
-  );
+  let url: URL;
+  if (command) {
+    headers.set('origin', holding.origin);
+    headers.set('idempotency-key', command.key);
+    headers.set('content-type', 'application/json');
+    url = new URL(
+      `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/supplier-promises/${encodeURIComponent(orderId)}`,
+      base,
+    );
+  } else {
+    url = new URL(
+      `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/procurement/purchase-orders/${encodeURIComponent(orderId)}/supplier-promises`,
+      base,
+    );
+  }
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal?.addEventListener('abort', cancel, { once: true });
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(cancel, timeout);
-  return transport('GET', url, headers, undefined, controller.signal).finally(() => {
+  return transport(
+    command ? 'POST' : 'GET',
+    url,
+    headers,
+    command?.body,
+    controller.signal,
+  ).finally(() => {
     clearTimeout(timer);
     signal?.removeEventListener('abort', cancel);
   });
@@ -543,6 +608,7 @@ export function createNativeSupplierPromiseHistoryClient(
     actor: NativeProcurementPageContext,
     orderId: string,
     input: NativeSupplierPromiseHistoryReadInput,
+    command?: Readonly<{ key: string; body: string }>,
     signal?: AbortSignal,
   ) => {
     if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
@@ -558,6 +624,7 @@ export function createNativeSupplierPromiseHistoryClient(
       input.holdingSlug,
       input,
       config.timeout,
+      command,
       signal,
     ).catch((error: unknown) => {
       if (error instanceof NativeProcurementError) throw error;
@@ -571,7 +638,9 @@ export function createNativeSupplierPromiseHistoryClient(
     input: NativeSupplierPromiseHistoryReadInput,
     signal?: AbortSignal,
   ): Promise<NativeSupplierPromiseHistory> => {
-    const value = await boundedJson(await request(incoming, actor, orderId, input, signal));
+    const value = await boundedJson(
+      await request(incoming, actor, orderId, input, undefined, signal),
+    );
     if (!exact(value, ['data', 'context']))
       return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
     context(value.context, actor, input);
@@ -584,21 +653,43 @@ export function createNativeSupplierPromiseHistoryClient(
     input: NativeSupplierPromiseHistoryReadInput,
     signal?: AbortSignal,
   ): Promise<NativeSupplierPromiseDetail> => {
-    const value = await boundedJson(await request(incoming, actor, orderId, input, signal));
+    const value = await boundedJson(
+      await request(incoming, actor, orderId, input, undefined, signal),
+    );
     if (!exact(value, ['data', 'context']))
       return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
     context(value.context, actor, input);
     return detailData(value.data, orderId, actor.companyId);
   };
-  return { history: historyDataFor, detail: detailFor };
+  const recordFor = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeProcurementPageContext,
+    orderId: string,
+    input: NativeSupplierPromiseHistoryReadInput,
+    key: string,
+    body: unknown,
+    signal?: AbortSignal,
+  ): Promise<NativeSupplierPromiseReceipt> => {
+    if (!commandKey(key) || !identifier(orderId) || orderId.includes('/') || orderId.includes('\\'))
+      return failure('NATIVE_PROCUREMENT_REQUEST_INVALID');
+    const command = boundedCommand(body);
+    const value = await boundedJson(
+      await request(incoming, actor, orderId, input, { key, body: command.body }, signal),
+    );
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
+    context(value.context, actor, input);
+    return receiptData(value.data, orderId, key, command.expectedVersion);
+  };
+  return { history: historyDataFor, detail: detailFor, record: recordFor };
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */
 export function directHttp(
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ): Promise<Response> {
   return new Promise((resolve, reject) => {
@@ -630,6 +721,6 @@ export function directHttp(
       agent.destroy();
       reject(error);
     });
-    outgoing.end();
+    outgoing.end(body);
   });
 }

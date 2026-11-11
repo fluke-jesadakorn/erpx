@@ -7,9 +7,13 @@ import {
   NativeProcurementError,
   type NativeProcurementPageContext,
   type NativeSupplierPromiseDetail,
+  type NativeSupplierPromiseReceipt,
 } from './native-supplier-promise-history';
 import type { NativeSupplierPromiseHistory } from '../lib/native-supplier-promise-history-types';
-import { createNextNativeSupplierPromiseHistoryReader } from '../adapters/server/next-native-supplier-promise-history';
+import {
+  createNextNativeSupplierPromiseCommandWriter,
+  createNextNativeSupplierPromiseHistoryReader,
+} from '../adapters/server/next-native-supplier-promise-history';
 
 export { nativeProcurementAvailable };
 export type {
@@ -21,6 +25,7 @@ export type {
 export type {
   NativeProcurementPageContext,
   NativeSupplierPromiseDetail,
+  NativeSupplierPromiseReceipt,
 } from './native-supplier-promise-history';
 
 /** Retained WorkContext render input; the native owner still re-checks scope. */
@@ -79,6 +84,23 @@ export async function nativeSupplierPromiseDetail(
   return createNextNativeSupplierPromiseHistoryReader((incoming, id, input, signal) =>
     native.detail(incoming, actor, id, input, signal),
   )(orderId, { holdingSlug, ...scope(actor), expected: expected(actor) });
+}
+
+export async function recordNativeSupplierPromise(
+  actor: NativeProcurementPageContext,
+  holdingSlug: string,
+  orderId: string,
+  key: string,
+  body: unknown,
+): Promise<NativeSupplierPromiseReceipt | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeProcurementError('NATIVE_PROCUREMENT_CONTEXT_CHANGED');
+  return createNextNativeSupplierPromiseCommandWriter(
+    (incoming, id, input, commandKey, commandBody, signal) =>
+      native.record(incoming, actor, id, input, commandKey, commandBody, signal),
+  )(orderId, { holdingSlug, ...scope(actor), expected: expected(actor) }, key, body);
 }
 
 export async function nativeSupplierPromiseHistory(

@@ -316,6 +316,60 @@ async fn notify(
     Ok(())
 }
 
+/// Generic idempotent staff notification writer. Operations owns
+/// `staff_notifications`; other owners and composition must not write it
+/// directly. The deterministic id makes a retried command a no-op.
+#[allow(clippy::too_many_arguments)]
+pub async fn notify_staff_record(
+    connection: &mut PgConnection,
+    key: &str,
+    company_id: &str,
+    user_id: &str,
+    record_type: &str,
+    record_id: &str,
+    record_version: i64,
+    message: &str,
+    now: i64,
+) -> Result<(), BusinessError> {
+    if key.is_empty()
+        || company_id.is_empty()
+        || user_id.is_empty()
+        || record_type.is_empty()
+        || record_id.is_empty()
+        || message.is_empty()
+        || record_version < 0
+        || now < 0
+    {
+        return Err(BusinessError::invalid(
+            "STAFF_NOTIFICATION_INVALID",
+            "Use one bounded staff notification.",
+        ));
+    }
+    sqlx::query(
+        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+         record_version,message,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(format!("staff-record-notice-{key}-{user_id}"))
+    .bind(company_id)
+    .bind(user_id)
+    .bind(record_type)
+    .bind(record_id)
+    .bind(record_version)
+    .bind(message)
+    .bind(now)
+    .execute(&mut *connection)
+    .await
+    .map_err(|_| {
+        BusinessError::new(
+            FailureKind::Unavailable,
+            "STAFF_NOTIFICATION_UNAVAILABLE",
+            "The staff notification could not be written.",
+        )
+    })?;
+    Ok(())
+}
+
 /// Write the approver notification for one opened Staff Work approval step.
 /// Operations owns `staff_notifications`; Workflow/Composition must not write
 /// it directly. Idempotent per command and user.
@@ -334,28 +388,18 @@ pub async fn notify_staff_task_approval(
         "completion" => "Completion",
         _ => "Request",
     };
-    sqlx::query(
-        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
-         record_version,message,created_at) VALUES($1,$2,$3,'task',$4,$5,$6,$7) \
-         ON CONFLICT DO NOTHING",
+    notify_staff_record(
+        connection,
+        key,
+        company_id,
+        user_id,
+        "task",
+        task_id,
+        version,
+        &format!("{label} approval needs your decision"),
+        now,
     )
-    .bind(format!("staff-task-notice-{key}-{user_id}"))
-    .bind(company_id)
-    .bind(user_id)
-    .bind(task_id)
-    .bind(version)
-    .bind(format!("{label} approval needs your decision"))
-    .bind(now)
-    .execute(&mut *connection)
     .await
-    .map_err(|_| {
-        BusinessError::new(
-            FailureKind::Unavailable,
-            "STAFF_TASK_NOTIFICATION_UNAVAILABLE",
-            "The Staff Work notification could not be written.",
-        )
-    })?;
-    Ok(())
 }
 
 async fn readback_task(

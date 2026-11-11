@@ -4,7 +4,8 @@ pub use crate::adapters::staff_task_sources::{
     FailClosedStaffTaskFactDelegates, PgStaffTaskSources, StaffTaskFactDelegates,
 };
 pub use crate::adapters::staff_tasks::{
-    PgStaffTasks, lock_staff_task_sources, notify_staff_task_approval, read_staff_task,
+    PgStaffTasks, lock_staff_task_sources, notify_staff_record, notify_staff_task_approval,
+    read_staff_task,
 };
 pub use crate::application::staff_tasks::{
     AlertPlan, DelegateTaskPlan, DelegationFact, PostFact, ProjectFact, RevokeDelegationPlan,
