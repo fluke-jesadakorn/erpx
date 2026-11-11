@@ -67,3 +67,4 @@ pub(crate) mod benefit_evidence;
 pub(crate) mod project_attachment;
 
 pub(crate) mod messaging_files;
+pub(crate) mod staff_task_attachments;

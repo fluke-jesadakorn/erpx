@@ -42,3 +42,4 @@ pub mod benefit_evidence;
 pub mod project_attachment;
 
 pub mod messaging_files;
+pub mod staff_task_attachments;
