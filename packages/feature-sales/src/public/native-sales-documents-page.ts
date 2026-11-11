@@ -1,19 +1,27 @@
 import 'server-only';
+import { headers } from 'next/headers';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import {
   createNativeSalesDocumentsClient,
+  createNativeSalesCancellationClient,
   nativeSalesDocumentsAvailable,
   nativeSalesDocumentsConfiguration,
+  nativeSalesConfirmedCancellationEligible,
+  nativeSalesOrderCancellationAvailable,
+  nativeSalesOrderCancellationConfiguration,
   NativeSalesDocumentsError,
+  type NativeSalesCancellationReceipt,
   type NativeSalesDocumentsKind,
   type NativeSalesDocumentsPage,
   type NativeSalesDocumentsPageContext,
   type NativeSalesDocumentsReadInput,
 } from './native-sales-documents';
 import { createNextNativeSalesDocumentsReader } from '../adapters/server/next-native-sales-documents';
+import { commerceEntrypointFacts } from '@erpx/server-commerce/public/entrypoint-facts';
+import { holdingResources } from '@erpx/server-runtime/public/runtime';
 
-export { nativeSalesDocumentsAvailable };
+export { nativeSalesDocumentsAvailable, nativeSalesOrderCancellationAvailable };
 export type {
   NativeSalesDocumentRow,
   NativeSalesDocumentsKind,
@@ -93,6 +101,68 @@ export async function nativeSalesDocuments(
     return await createNextNativeSalesDocumentsReader(
       (incoming, readInput, signal) => native.documents(incoming, pageContext, readInput, signal),
     )(input);
+  } catch (error) {
+    const failure = nativeSalesDocumentsFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
+
+/** Sales-owned native confirmed-cancellation gate for the retained route.
+ * Unset configuration or an order outside the confirmed-sale packet returns
+ * undefined so the retained TypeScript command remains authoritative. Once the
+ * order is native-eligible, a configured native failure is surfaced and never
+ * replaced by the retained writer. */
+export async function nativeSalesConfirmedCancellation(
+  actor: WorkContext,
+  id: string,
+  expectedVersion: number,
+  key: string,
+): Promise<NativeSalesCancellationReceipt | undefined> {
+  const raw = process.env.ERPX_NATIVE_SALES_CANCELLATION_CONFIG;
+  if (raw === undefined) return undefined;
+  let client: ReturnType<typeof createNativeSalesCancellationClient>;
+  let pageContext: NativeSalesDocumentsPageContext;
+  try {
+    client = createNativeSalesCancellationClient(
+      nativeSalesOrderCancellationConfiguration(raw),
+    );
+    pageContext = nativeSalesDocumentsPageContext(actor);
+  } catch (error) {
+    if (error instanceof NativeSalesDocumentsError)
+      throw new ApiError(
+        503,
+        'NATIVE_SALES_UNAVAILABLE',
+        'The native Sales service is unavailable.',
+      );
+    throw error;
+  }
+  let facts: { kind: string; state: string } | null;
+  try {
+    const write = (await holdingResources(actor.holdingId)).write;
+    facts = await commerceEntrypointFacts(write).orderFacts(id, actor.companyId);
+  } catch {
+    throw new ApiError(
+      503,
+      'NATIVE_SALES_UNAVAILABLE',
+      'The native Sales service is unavailable.',
+    );
+  }
+  if (!facts || !nativeSalesConfirmedCancellationEligible(facts.kind, facts.state))
+    return undefined;
+  try {
+    return await client.cancel(
+      await headers(),
+      pageContext,
+      id,
+      {
+        holdingSlug: actor.holdingSlug,
+        expectedVersion,
+        ...scope(pageContext),
+        expected: expected(pageContext),
+      },
+      key,
+    );
   } catch (error) {
     const failure = nativeSalesDocumentsFailure(error);
     if (failure) throw new ApiError(failure.status, failure.code, failure.message);

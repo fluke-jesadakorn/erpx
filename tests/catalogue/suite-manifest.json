@@ -91035,6 +91035,125 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "sales.rust-sales-order-cancellation.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/rust-sales-order-cancellation.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native confirmed-sale cancellation retains independent authority, CAS and reservation release."
+      },
+      "apps": [
+        "sales"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_order_cancellation"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-order-cancellation-http.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/rust-sales-order-cancellation-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native confirmed-sale cancellation retains independent authority, CAS and reservation release."
+      },
+      "apps": [
+        "sales"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_order_cancellation_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-order-cancellation-postgres.integration",
+      "lane": "integration",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/integration/sales/rust-sales-order-cancellation-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native confirmed-sale cancellation retains independent authority, CAS and reservation release."
+      },
+      "apps": [
+        "sales"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_order_cancellation_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

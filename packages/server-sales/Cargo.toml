@@ -47,5 +47,17 @@ path = "../../tests/unit/sales/rust-sales-price-lists-http.test.rs"
 name = "sales_price_lists_postgres"
 path = "../../tests/integration/sales/rust-sales-price-lists-postgres.test.rs"
 
+[[test]]
+name = "sales_order_cancellation"
+path = "../../tests/unit/sales/rust-sales-order-cancellation.test.rs"
+
+[[test]]
+name = "sales_order_cancellation_http"
+path = "../../tests/unit/sales/rust-sales-order-cancellation-http.test.rs"
+
+[[test]]
+name = "sales_order_cancellation_postgres"
+path = "../../tests/integration/sales/rust-sales-order-cancellation-postgres.test.rs"
+
 [lints]
 workspace = true

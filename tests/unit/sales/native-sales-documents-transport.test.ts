@@ -2,9 +2,13 @@ import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 import {
   createNativeSalesDocumentsClient,
+  createNativeSalesCancellationClient,
   nativeSalesDocumentsAvailable,
   nativeSalesDocumentTransitionEligible,
+  nativeSalesConfirmedCancellationEligible,
   nativeSalesDocumentsConfiguration,
+  nativeSalesOrderCancellationAvailable,
+  nativeSalesOrderCancellationConfiguration,
   NativeSalesDocumentsError,
   type NativeSalesDocumentsPageContext,
 } from '../../../packages/feature-sales/src/public/native-sales-documents';
@@ -17,6 +21,7 @@ const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
 });
 const incoming=(overrides:Record<string,string>={})=>new Headers({
   host:'acme.example.com',
+  origin:'https://acme.example.com',
   cookie:'__Host-erpx-product=session',
   ...overrides,
 });
@@ -162,5 +167,68 @@ describe('native Sales document transport',()=>{
   expect(nativeSalesDocumentsFailure(new NativeSalesDocumentsError('WORK_CONTEXT_CHANGED',409,'Reload.')))
     .toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
   expect(nativeSalesDocumentsFailure(new Error('other'))).toBeUndefined();
+ });
+
+ it('selects and forwards one exact native confirmed cancellation',async()=>{
+  expect(nativeSalesConfirmedCancellationEligible('sales','confirmed')).toBe(true);
+  for(const [kind,state] of [['sales','draft'],['sales','partially_fulfilled'],['quote','confirmed'],['purchase','confirmed']] as const)
+   expect(nativeSalesConfirmedCancellationEligible(kind,state)).toBe(false);
+
+  const okReceipt=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
+  const transport=vi.fn().mockResolvedValue(okReceipt({
+    data:{id:'order-1',state:'cancelled',version:4,salesId:null},context,
+  }));
+  const client=createNativeSalesCancellationClient(
+    nativeSalesOrderCancellationConfiguration(config()),transport,
+  );
+  const receipt=await client.cancel(incoming(),actor,'order-1',{
+    holdingSlug:'acme',expectedVersion:3,
+    expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3},
+  },'sales-cancel-0001');
+  expect(receipt).toEqual({id:'order-1',state:'cancelled',version:4,salesId:null});
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/sales/orders/order-1/cancel');
+  expect(headers.get('idempotency-key')).toBe('sales-cancel-0001');
+  expect(headers.get('content-type')).toBe('application/json');
+  expect(headers.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(body).toBe(JSON.stringify({expectedVersion:3}));
+ });
+
+ it('rejects malformed cancellation receipts, keys and held context',async()=>{
+  const response=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json'}});
+  const client=(value:unknown)=>createNativeSalesCancellationClient(
+    nativeSalesOrderCancellationConfiguration(config()),
+    vi.fn().mockResolvedValue(response(value)),
+  );
+  const input={holdingSlug:'acme',expectedVersion:3,
+    expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3}} as const;
+  for(const data of [
+    {id:'order-1',state:'confirmed',version:4,salesId:null},
+    {id:'order-1',state:'cancelled',version:3,salesId:null},
+    {id:'other',state:'cancelled',version:4,salesId:null},
+    {id:'order-1',state:'cancelled',version:4,salesId:'order-2'},
+    {id:'order-1',state:'cancelled',version:4,salesId:null,extra:true},
+  ])
+   await expect(client({data,context}).cancel(incoming(),actor,'order-1',input,'sales-cancel-0001'))
+    .rejects.toMatchObject({code:'NATIVE_SALES_DOCUMENTS_RESPONSE_INVALID'});
+  await expect(client({data:{id:'order-1',state:'cancelled',version:4,salesId:null},context:{...context,revision:8}})
+    .cancel(incoming(),actor,'order-1',input,'sales-cancel-0001'))
+    .rejects.toMatchObject({code:'NATIVE_SALES_DOCUMENTS_CONTEXT_CHANGED'});
+  const clientOk=createNativeSalesCancellationClient(nativeSalesOrderCancellationConfiguration(config()),vi.fn());
+  await expect(clientOk.cancel(incoming({host:'evil.example.com'}),actor,'order-1',input,'sales-cancel-0001'))
+    .rejects.toMatchObject({code:'NATIVE_SALES_DOCUMENTS_AUTHORITY_INVALID'});
+  for(const key of ['short','bad key value'])
+   await expect(clientOk.cancel(incoming(),actor,'order-1',input,key))
+    .rejects.toMatchObject({code:'NATIVE_SALES_DOCUMENTS_REQUEST_INVALID'});
+ });
+
+ it('fails closed when the native cancellation configuration is absent',()=>{
+  const previous=process.env.ERPX_NATIVE_SALES_CANCELLATION_CONFIG;
+  delete process.env.ERPX_NATIVE_SALES_CANCELLATION_CONFIG;
+  expect(nativeSalesOrderCancellationAvailable()).toBe(false);
+  if(previous!==undefined)process.env.ERPX_NATIVE_SALES_CANCELLATION_CONFIG=previous;
  });
 });

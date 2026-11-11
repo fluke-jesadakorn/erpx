@@ -65,6 +65,16 @@ export function nativeSalesDocumentTransitionEligible(
   );
 }
 
+/** Sales-owned selector for the native confirmed-cancellation command. Draft
+ * cancellation keeps the Commerce port; confirmed sales cancellation is the
+ * one action this Sales ingress owns. */
+export function nativeSalesConfirmedCancellationEligible(
+  kind: string,
+  state: string,
+): boolean {
+  return kind === 'sales' && state === 'confirmed';
+}
+
 export type NativeSalesDocumentsReadInput = Readonly<{
   holdingSlug: string;
   kind: NativeSalesDocumentsKind;
@@ -122,6 +132,34 @@ export type NativeSalesDocumentsTransport = (
   body: undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
+
+export type NativeSalesCancellationTransport = (
+  method: 'POST',
+  url: URL,
+  headers: Headers,
+  body: string,
+  signal: AbortSignal,
+) => Promise<Response>;
+
+export type NativeSalesCancellationInput = Readonly<{
+  holdingSlug: string;
+  expectedVersion: number;
+  branchSlug?: string;
+  departmentSlug?: string;
+  expected?: Readonly<{
+    companyId: string;
+    assignmentId: string;
+    revision: number;
+    assignmentVersion: number;
+  }>;
+}>;
+
+export type NativeSalesCancellationReceipt = Readonly<{
+  id: string;
+  state: 'cancelled';
+  version: number;
+  salesId: null;
+}>;
 
 export class NativeSalesDocumentsError extends Error {
   readonly code: string;
@@ -552,6 +590,218 @@ export function createNativeSalesDocumentsClient(
     return pageData(value.data, input, actor);
   };
   return { documents };
+}
+
+function cancellationTransportCall(
+  transport: NativeSalesCancellationTransport,
+  base: URL,
+  holdings: Map<string, { holdingId: string; holdingSlug: string }>,
+  incoming: Pick<Headers, 'get'>,
+  orderId: string,
+  input: NativeSalesCancellationInput,
+  actor: NativeSalesDocumentsPageContext,
+  key: string,
+  timeout: number,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const host = incoming.get('host');
+  const holding = host ? holdings.get(host) : undefined;
+  if (!holding || holding.holdingSlug !== input.holdingSlug || holding.holdingId !== actor.holdingId)
+    return Promise.reject(new NativeSalesDocumentsError('NATIVE_SALES_DOCUMENTS_AUTHORITY_INVALID'));
+  const headers = new Headers({
+    host: host!,
+    accept: 'application/json',
+    'cache-control': 'no-cache',
+    'content-type': 'application/json',
+    'idempotency-key': key,
+  });
+  const cookie = incoming.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192)
+      return Promise.reject(new NativeSalesDocumentsError('NATIVE_SALES_DOCUMENTS_COOKIE_LIMIT'));
+    headers.set('cookie', cookie);
+  }
+  const origin = incoming.get('origin');
+  if (origin) {
+    if (!text(origin, 2048))
+      return Promise.reject(new NativeSalesDocumentsError('NATIVE_SALES_DOCUMENTS_REQUEST_INVALID'));
+    headers.set('origin', origin);
+  }
+  for (const [name, slug] of [
+    ['x-erpx-workspace-branch', input.branchSlug],
+    ['x-erpx-workspace-department', input.departmentSlug],
+  ] as const) {
+    if (slug !== undefined) {
+      if (!text(slug, 128) || !/^[a-z0-9_-]+$/.test(slug))
+        return Promise.reject(new NativeSalesDocumentsError('NATIVE_SALES_DOCUMENTS_REQUEST_INVALID'));
+      headers.set(name, slug);
+    }
+  }
+  if (input.expected) {
+    if (
+      !identifier(input.expected.companyId) ||
+      !identifier(input.expected.assignmentId) ||
+      !integer(input.expected.revision) ||
+      !integer(input.expected.assignmentVersion, 1)
+    )
+      return Promise.reject(new NativeSalesDocumentsError('NATIVE_SALES_DOCUMENTS_REQUEST_INVALID'));
+    headers.set('x-erpx-context-company', input.expected.companyId);
+    headers.set('x-erpx-context-assignment', input.expected.assignmentId);
+    headers.set('x-erpx-context-revision', String(input.expected.revision));
+    headers.set('x-erpx-context-assignment-version', String(input.expected.assignmentVersion));
+  }
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/sales/orders/${encodeURIComponent(orderId)}/cancel`,
+    base,
+  );
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal?.addEventListener('abort', cancel, { once: true });
+  if (signal?.aborted) controller.abort();
+  const timer = setTimeout(cancel, timeout);
+  return transport(
+    'POST',
+    url,
+    headers,
+    JSON.stringify({ expectedVersion: input.expectedVersion }),
+    controller.signal,
+  ).finally(() => {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
+  });
+}
+
+function cancellationData(
+  value: unknown,
+  actor: NativeSalesDocumentsPageContext,
+  orderId: string,
+  input: NativeSalesCancellationInput,
+): NativeSalesCancellationReceipt {
+  if (!exact(value, ['id', 'state', 'version', 'salesId']))
+    return failure('NATIVE_SALES_DOCUMENTS_RESPONSE_INVALID');
+  if (
+    value.id !== orderId ||
+    !identifier(value.id) ||
+    value.state !== 'cancelled' ||
+    !integer(value.version, input.expectedVersion + 1) ||
+    !integer(value.version, 2) ||
+    value.salesId !== null ||
+    actor.holdingSlug !== input.holdingSlug
+  )
+    return failure('NATIVE_SALES_DOCUMENTS_RESPONSE_INVALID');
+  return value as NativeSalesCancellationReceipt;
+}
+
+export function nativeSalesOrderCancellationAvailable(): boolean {
+  return process.env.ERPX_NATIVE_SALES_CANCELLATION_CONFIG !== undefined;
+}
+
+export function nativeSalesOrderCancellationConfiguration(
+  raw: string,
+): NativeSalesDocumentsConfiguration {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new NativeSalesDocumentsError('NATIVE_SALES_DOCUMENTS_CONFIGURATION_INVALID');
+  }
+  return nativeSalesDocumentsConfiguration(JSON.stringify(value));
+}
+
+export function createNativeSalesCancellationClient(
+  raw: NativeSalesDocumentsConfiguration,
+  transport: NativeSalesCancellationTransport = directPostHttp,
+) {
+  const config = configuration(raw);
+  const cancelOrder = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeSalesDocumentsPageContext,
+    orderId: string,
+    input: NativeSalesCancellationInput,
+    key: string,
+    signal?: AbortSignal,
+  ): Promise<NativeSalesCancellationReceipt> => {
+    if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+      return failure('NATIVE_SALES_DOCUMENTS_CONTEXT_CHANGED');
+    if (
+      !identifier(orderId) ||
+      !integer(input.expectedVersion, 1) ||
+      !integer(input.expectedVersion) ||
+      !text(key, 180) ||
+      !/^[A-Za-z0-9:_.-]{8,180}$/.test(key)
+    )
+      return failure('NATIVE_SALES_DOCUMENTS_REQUEST_INVALID');
+    const contextInput: NativeSalesDocumentsReadInput = {
+      holdingSlug: input.holdingSlug,
+      kind: 'sales',
+      branchSlug: input.branchSlug,
+      departmentSlug: input.departmentSlug,
+      expected: input.expected,
+    };
+    const response = await cancellationTransportCall(
+      transport,
+      config.base,
+      config.holdings,
+      incoming,
+      orderId,
+      input,
+      actor,
+      key,
+      config.timeout,
+      signal,
+    ).catch((error: unknown) => {
+      if (error instanceof NativeSalesDocumentsError) throw error;
+      return failure('NATIVE_SALES_DOCUMENTS_UNAVAILABLE');
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_SALES_DOCUMENTS_RESPONSE_INVALID');
+    context(value.context, actor, contextInput);
+    return cancellationData(value.data, actor, orderId, input);
+  };
+  return { cancel: cancelOrder };
+}
+
+/** Fresh bounded socket for one command. Bypasses patched fetch/HMR and
+ * ambient proxies. */
+export function directPostHttp(
+  method: 'POST',
+  url: URL,
+  headers: Headers,
+  body: string,
+  signal: AbortSignal,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({ keepAlive: false, maxSockets: 1, maxTotalSockets: 1, proxyEnv: {} as import('node:http').ProxyEnv });
+    const outgoing = request(
+      url,
+      { method, agent, headers: { ...Object.fromEntries(headers) }, signal, maxHeaderSize: 8192 },
+      (incoming) => {
+        incoming.once('close', () => agent.destroy());
+        try {
+          const status = incoming.statusCode ?? 502;
+          const values = new Headers();
+          for (let index = 0; index < incoming.rawHeaders.length; index += 2)
+            values.append(incoming.rawHeaders[index]!, incoming.rawHeaders[index + 1]!);
+          resolve(
+            new Response(Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>, {
+              status: status >= 200 && status <= 599 ? status : 502,
+              headers: values,
+            }),
+          );
+        } catch (error) {
+          incoming.destroy();
+          agent.destroy();
+          reject(error);
+        }
+      },
+    );
+    outgoing.once('error', (error) => {
+      agent.destroy();
+      reject(error);
+    });
+    outgoing.end(body);
+  });
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */
