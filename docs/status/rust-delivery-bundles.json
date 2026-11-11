@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 417,
+    "revision": 420,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g7",
       "agentId": "lead",
       "startedAt": "2026-11-11T06:43:23.643Z",
-      "heartbeatAt": "2026-11-11T07:01:45.321Z",
-      "expiresAt": "2026-11-11T07:31:45.321Z",
+      "heartbeatAt": "2026-11-11T07:01:58.960Z",
+      "expiresAt": "2026-11-11T07:31:58.960Z",
       "generation": 8,
       "tokenHash": "ec111e50cf441c619cd31c308824ec2f216e1caa3f69083545c35ad9762badc4"
     },
@@ -10682,22 +10682,58 @@
         "resources": [
           "owner:sales"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g7",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T06:43:52.891Z",
-          "heartbeatAt": "2026-11-11T07:01:45.321Z",
-          "expiresAt": "2026-11-11T07:31:45.321Z",
-          "generation": 8
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "208eb75cf0150c74074e917da0854a1426e582ca",
+        "lastPushedSha": "208eb75cf0150c74074e917da0854a1426e582ca",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-sales --locked",
+            "result": "passed",
+            "sourceSha": "208eb75cf0150c74074e917da0854a1426e582ca",
+            "sourceKind": "committed",
+            "note": "Sales crate compiles with the confirmed-cancellation command."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "208eb75cf0150c74074e917da0854a1426e582ca",
+            "sourceKind": "committed",
+            "note": "Composition mounts sales_order_cancellation_router."
+          },
+          {
+            "command": "bun run test:unit -- --suite=sales.rust-sales-order-cancellation.unit",
+            "result": "passed",
+            "sourceSha": "208eb75cf0150c74074e917da0854a1426e582ca",
+            "sourceKind": "committed",
+            "note": "8/8 domain cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=sales.rust-sales-order-cancellation-http.unit",
+            "result": "passed",
+            "sourceSha": "208eb75cf0150c74074e917da0854a1426e582ca",
+            "sourceKind": "committed",
+            "note": "6/6 HTTP ingress cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=sales.rust-sales-order-cancellation-postgres.integration",
+            "result": "passed",
+            "sourceSha": "208eb75cf0150c74074e917da0854a1426e582ca",
+            "sourceKind": "committed",
+            "note": "3/3 PostgreSQL cancellation cases pass."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "208eb75cf0150c74074e917da0854a1426e582ca",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects pass with the native cancellation client and route switch."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Confirmed-sale cancellation owner slice committed (a67782d58). Remaining: composition backend + sales_order_cancellation_router mount, workplace commerce cancel route switch via nativeSalesConfirmedCancellation, then retire the confirmed path.",
+        "nextAction": "Confirmed-sale cancellation is native and switched. Retained: draft/quote cancel, returns/reversals and revenue handoff remain TS packets.",
         "handoff": {
           "runId": "run-20261110-g6",
           "agentId": "worker-sales",
@@ -11164,8 +11200,8 @@
           "runId": "run-20261110-g7",
           "agentId": "lead",
           "claimedAt": "2026-11-11T06:43:52.865Z",
-          "heartbeatAt": "2026-11-11T07:01:45.321Z",
-          "expiresAt": "2026-11-11T07:31:45.321Z",
+          "heartbeatAt": "2026-11-11T07:01:58.960Z",
+          "expiresAt": "2026-11-11T07:31:58.960Z",
           "generation": 8
         },
         "baseSha": null,
@@ -15442,20 +15478,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 53,
-      "migratedPackets": 13,
+      "migratedPackets": 14,
       "statusCounts": {
         "pending": 25,
         "in_progress": 0,
-        "ready_for_integration": 11,
+        "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 13,
+        "migrated": 14,
         "blocked": 4,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 8,
-    "updatedAt": "2026-11-11T07:01:45.321Z",
+    "updatedAt": "2026-11-11T07:01:58.960Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
