@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 439,
+    "revision": 441,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g10",
       "agentId": "lead",
       "startedAt": "2026-11-11T09:58:45.487Z",
-      "heartbeatAt": "2026-11-11T09:58:45.678Z",
-      "expiresAt": "2026-11-11T10:28:45.678Z",
+      "heartbeatAt": "2026-11-11T10:01:52.564Z",
+      "expiresAt": "2026-11-11T10:31:52.564Z",
       "generation": 11,
       "tokenHash": "0ced6e75701f162f2f68f201fdf9c79e87ba9ec9b4123f4befa42ff035f3ee6c"
     },
@@ -12334,8 +12334,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.567Z",
-          "heartbeatAt": "2026-11-11T09:58:45.678Z",
-          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "heartbeatAt": "2026-11-11T10:01:52.564Z",
+          "expiresAt": "2026-11-11T10:31:52.564Z",
           "generation": 11
         },
         "baseSha": null,
@@ -12531,8 +12531,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.591Z",
-          "heartbeatAt": "2026-11-11T09:58:45.678Z",
-          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "heartbeatAt": "2026-11-11T10:01:52.564Z",
+          "expiresAt": "2026-11-11T10:31:52.564Z",
           "generation": 11
         },
         "baseSha": null,
@@ -12636,8 +12636,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.615Z",
-          "heartbeatAt": "2026-11-11T09:58:45.678Z",
-          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "heartbeatAt": "2026-11-11T10:01:52.564Z",
+          "expiresAt": "2026-11-11T10:31:52.564Z",
           "generation": 11
         },
         "baseSha": null,
@@ -13099,8 +13099,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.542Z",
-          "heartbeatAt": "2026-11-11T09:58:45.678Z",
-          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "heartbeatAt": "2026-11-11T10:01:52.564Z",
+          "expiresAt": "2026-11-11T10:31:52.564Z",
           "generation": 11
         },
         "baseSha": null,
@@ -15409,13 +15409,13 @@
         "resources": [
           "owner:files"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.517Z",
-          "heartbeatAt": "2026-11-11T09:58:45.678Z",
-          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "heartbeatAt": "2026-11-11T10:01:52.564Z",
+          "expiresAt": "2026-11-11T10:31:52.564Z",
           "generation": 11
         },
         "baseSha": null,
@@ -15424,7 +15424,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Blocked by external-wip-2026-11-10: server-files paths are reserved dirty WIP. After the holder handoff is reviewed/narrowed, implement the Files LearningEvidencePort adapter against the Learning public trait and report the composition binding.",
+        "nextAction": "PgLearningEvidence implemented and registered (0398719c1; unit 4/4, PG 4/4). Remaining: wire it into the Learning command backend (create/change assignment evidence) and the Benefits evidence port, then switch consumers.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-files",
@@ -15615,8 +15615,8 @@
       "migratedPackets": 14,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 1,
-        "ready_for_integration": 7,
+        "in_progress": 0,
+        "ready_for_integration": 8,
         "integrating": 3,
         "migrated": 14,
         "blocked": 4,
@@ -15625,7 +15625,7 @@
       }
     },
     "lastCoordinatorGeneration": 11,
-    "updatedAt": "2026-11-11T09:58:45.679Z",
+    "updatedAt": "2026-11-11T10:01:52.564Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
