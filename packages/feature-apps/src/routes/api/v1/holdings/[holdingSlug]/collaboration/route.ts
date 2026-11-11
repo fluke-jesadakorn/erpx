@@ -13,7 +13,7 @@ import {
   createRecordRelation,
   removeRecordRelation,
 } from "@erpx/server-collaboration/public/collaboration-work";
-import { nativeCollaborationAvailable, nativeCollaborationWorkspace } from "@erpx/server-collaboration/public/native-collaboration-page";
+import { nativeCollaborationAvailable, nativeCollaborationCommand, nativeCollaborationWorkspace } from "@erpx/server-collaboration/public/native-collaboration-page";
 function failure(e:unknown){return errorResponse(e instanceof NativePartsSetupError?new ApiError(e.status,e.code,e.message):e);}
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -80,6 +80,10 @@ export async function POST(r: Request, c: C) {
     if(await nativeFieldCollaborationCommand(a,input)){
       if(r.headers.get('origin')!==requestPublicOrigin(r))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');
       const data=await nativeFieldCollaboration(r.headers,a.holdingSlug,nativeActorContext(a),'POST',body,key);
+      return Response.json(canonicalDestinationLinks({data}),{headers});
+    }
+    if(nativeCollaborationAvailable()){
+      const data=await nativeCollaborationCommand(r,(await c.params).holdingSlug,body,key);
       return Response.json(canonicalDestinationLinks({data}),{headers});
     }
     const legacyInput=input as Record<string,unknown>;

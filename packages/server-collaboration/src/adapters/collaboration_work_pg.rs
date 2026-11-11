@@ -700,11 +700,13 @@ where
         &mut self,
         source: &SourceReference,
     ) -> Result<(SourceRecord, Self::Witness), Error> {
-        self.sources.prepare(source).await
+        let connection = &mut *self.connection;
+        self.sources.prepare_with(connection, source).await
     }
 
     async fn require_current(&mut self, witness: &Self::Witness) -> Result<(), Error> {
-        self.sources.require_current(witness).await
+        let connection = &mut *self.connection;
+        self.sources.require_current_with(connection, witness).await
     }
 }
 

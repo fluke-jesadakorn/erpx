@@ -46,6 +46,51 @@ export function nativeCollaborationAvailable(): boolean {
   return process.env.ERPX_NATIVE_COLLABORATION_CONFIG !== undefined;
 }
 
+export async function nativeCollaborationCommand(
+  request: Request,
+  holdingSlug: string,
+  body: string,
+  key: string,
+) {
+  const config = configuration();
+  const headers = new Headers({ accept: 'application/json', 'content-type': 'application/json' });
+  const cookie = request.headers.get('cookie');
+  const origin = request.headers.get('origin');
+  if (cookie) headers.set('cookie', cookie);
+  if (origin) headers.set('origin', origin);
+  headers.set('idempotency-key', key);
+  for (const name of [
+    'x-erpx-context-company',
+    'x-erpx-context-assignment',
+    'x-erpx-context-revision',
+    'x-erpx-context-assignment-version',
+    'x-erpx-workspace-branch',
+    'x-erpx-workspace-department',
+  ]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  let response: Response;
+  try {
+    response = await fetch(
+      `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/collaboration`,
+      { method: 'POST', headers, body, cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
+    );
+  } catch {
+    throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');
+  }
+  const payload = (await response.json().catch(() => null)) as
+    | { data?: unknown; error?: { code?: string; message?: string } }
+    | null;
+  if (!response.ok)
+    throw new ApiError(
+      response.status,
+      payload?.error?.code ?? 'NATIVE_COLLABORATION_FAILED',
+      payload?.error?.message ?? 'The Collaboration request failed.',
+    );
+  return payload?.data;
+}
+
 export async function nativeCollaborationWorkspace(request: Request, holdingSlug: string) {
   const config = configuration();
   const headers = new Headers({ accept: 'application/json' });

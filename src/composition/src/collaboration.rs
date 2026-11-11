@@ -84,6 +84,28 @@ impl HoldingWorkSourcePreparation for CollaborationSources {
     }
 }
 
+/// Write preparation: Collaboration rows plus every owner record-source table
+/// are fenced before the first selected IAM snapshot.
+#[derive(Clone, Copy)]
+struct CollaborationWorkSources;
+
+impl HoldingWorkSourcePreparation for CollaborationWorkSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            erpx_server_collaboration::public::collaboration_work::lock_collaboration_work_sources(c)
+                .await?;
+            erpx_server_commerce::public::record_source::lock_record_sources(c).await?;
+            erpx_server_support::public::record_source::lock_record_sources(c).await?;
+            erpx_server_maintenance::public::record_source::lock_record_sources(c).await?;
+            erpx_server_operations::public::record_source::lock_record_sources(c).await?;
+            erpx_server_pos::public::record_source::lock_record_sources(c).await?;
+            erpx_server_pms::public::record_source::lock_record_sources(c).await?;
+            erpx_server_assets::public::record_source::lock_record_sources(c).await?;
+            Ok(())
+        })
+    }
+}
+
 #[derive(Clone)]
 pub struct SocialConfiguration {
     holding: HoldingId,
@@ -1410,18 +1432,64 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
 
     pub async fn command(
         &self,
-        _host: &str,
-        _proof: DeviceProof,
-        _selection: HoldingWorkspaceRequest,
-        _change: erpx_server_collaboration::public::collaboration_work::Change,
-        _key: erpx_server_shared::public::CommandKey,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        change: erpx_server_collaboration::public::collaboration_work::Change,
+        key: erpx_server_shared::public::CommandKey,
     ) -> Result<erpx_server_collaboration::public::collaboration_work::Receipt, Error> {
-        Err(BusinessError::new(
-            FailureKind::Unavailable,
-            "COLLABORATION_WRITE_PORT_REQUIRED",
-            "Collaboration writes still use the retained writer.",
-        )
-        .into())
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected {
+                        return Err(scope_error());
+                    }
+                    request.mutation = true;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.write".into(),
+                    module: Some("collaboration".into()),
+                    destination: "collaboration".into(),
+                    api: true,
+                },
+                CollaborationWorkSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let change = change.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_error().into());
+                        }
+                        let now = clock.now().get();
+                        let scope = collaboration_scope(current, &company, now)?;
+                        let mut sources = CollaborationSourceResolver {
+                            company: company.clone(),
+                        };
+                        erpx_server_collaboration::public::collaboration_work::execute_scope(
+                            connection,
+                            scope,
+                            key,
+                            &mut sources,
+                            change,
+                        )
+                        .await
+                    })
+                },
+            )
+            .await
     }
 }
 
