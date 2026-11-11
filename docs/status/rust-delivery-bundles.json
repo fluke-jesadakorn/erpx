@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 358,
+    "revision": 362,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g4",
       "agentId": "lead",
       "startedAt": "2026-11-11T01:25:04.841Z",
-      "heartbeatAt": "2026-11-11T01:41:53.390Z",
-      "expiresAt": "2026-11-11T02:11:53.390Z",
+      "heartbeatAt": "2026-11-11T01:53:46.921Z",
+      "expiresAt": "2026-11-11T02:23:46.921Z",
       "generation": 5,
       "tokenHash": "ffee6e06f57d2514b38b7159648b13abb19e1502dcd6c382264f6207fa03cbf9"
     },
@@ -12749,15 +12749,72 @@
         "resources": [
           "owner:agent"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "30889d0916204a804043a24227ad2b14a7afa2c9",
+        "lastPushedSha": "30889d0916204a804043a24227ad2b14a7afa2c9",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-agent --locked",
+            "result": "passed",
+            "sourceSha": "30889d0916204a804043a24227ad2b14a7afa2c9",
+            "sourceKind": "committed",
+            "note": "Agent crate compiles with governance/provider/quota ports."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "30889d0916204a804043a24227ad2b14a7afa2c9",
+            "sourceKind": "committed",
+            "note": "Composition mounts agent_governance_http_router over PgAgentGovernance."
+          },
+          {
+            "command": "bun run test:unit -- --suite=agent.rust-agent-governance.unit",
+            "result": "passed",
+            "sourceSha": "30889d0916204a804043a24227ad2b14a7afa2c9",
+            "sourceKind": "committed",
+            "note": "8/8 governance cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=agent.rust-agent-providers.unit",
+            "result": "passed",
+            "sourceSha": "30889d0916204a804043a24227ad2b14a7afa2c9",
+            "sourceKind": "committed",
+            "note": "7/7 provider contract cases pass (credentials fail closed until A1)."
+          },
+          {
+            "command": "bun run test:unit -- --suite=agent.rust-agent-quota.unit",
+            "result": "passed",
+            "sourceSha": "30889d0916204a804043a24227ad2b14a7afa2c9",
+            "sourceKind": "committed",
+            "note": "3/3 quota reservation cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=agent.rust-agent-governance-http.integration",
+            "result": "passed",
+            "sourceSha": "30889d0916204a804043a24227ad2b14a7afa2c9",
+            "sourceKind": "committed",
+            "note": "2/2 HTTP ingress cases pass."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "30889d0916204a804043a24227ad2b14a7afa2c9",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects pass with the native agent governance client and route dispatch."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "30889d0916204a804043a24227ad2b14a7afa2c9",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID with 1076 suites."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired during a long slice review; WIP and processes reconciled, same lead resumed",
-        "nextAction": "Agent crate registered (decd2d8c7; governance 8/8, providers 7/7, quota 3/3, http 2/2). Remaining: mount governance + ai-provider routers, switch feature-admin routes, keep platform agent-evidence read; credential runtime A1",
+        "blocker": null,
+        "nextAction": "Governance/pool/assignment/session commands migrated. Retained: Agent workspace read (native read returns retained code), AI provider credential/sealing + model discovery (A1), assistant invocation/gateway reconciliation, feature-admin ai-providers route.",
         "handoff": {
           "runId": "run-20261110-g2",
           "agentId": "lead",
@@ -15301,20 +15358,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 52,
-      "migratedPackets": 12,
+      "migratedPackets": 13,
       "statusCounts": {
         "pending": 26,
         "in_progress": 0,
-        "ready_for_integration": 10,
+        "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 12,
+        "migrated": 13,
         "blocked": 4,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 5,
-    "updatedAt": "2026-11-11T01:41:53.390Z",
+    "updatedAt": "2026-11-11T01:53:46.922Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
