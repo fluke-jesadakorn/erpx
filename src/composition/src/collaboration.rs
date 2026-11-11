@@ -1004,3 +1004,468 @@ impl<C: Clock + Send + Sync + 'static>
         })
     }
 }
+
+fn collaboration_invalid_source() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "SOURCE_RECORD_NOT_FOUND",
+        "Source record is unavailable in this work scope.",
+    )
+}
+
+fn source_href(kind: erpx_server_shared::public::record_source_contract::SourceKind, id: &str) -> Option<String> {
+    use erpx_server_shared::public::record_source_contract::SourceKind;
+    let encoded = erpx_server_collaboration::public::inbox::encode_uri_component(id);
+    let prefix = match kind {
+        SourceKind::CommerceOrder => "/commerce/orders/",
+        SourceKind::SupportTicket => "/support/",
+        SourceKind::FieldServiceOrder => "/field-service/",
+        SourceKind::PosSale => "/pos?sale=",
+        SourceKind::Asset => "/assets/",
+        SourceKind::MaintenancePlan => "/maintenance/plans/",
+        SourceKind::MaintenanceWork => "/maintenance/",
+        SourceKind::StaffTask => "/staff-tasks/",
+        SourceKind::PmsRecord => return None,
+    };
+    Some(format!("{prefix}{encoded}"))
+}
+
+enum CollaborationSourceWitness {
+    Pos(erpx_server_pos::public::record_source::CurrentRecordSource),
+    Pms(erpx_server_pms::public::record_source::CurrentRecordSource),
+    Assets(erpx_server_assets::public::record_source::CurrentRecordSource),
+    Commerce(erpx_server_commerce::public::record_source::CurrentRecordSource),
+    Support(erpx_server_support::public::record_source::CurrentRecordSource),
+    Maintenance(erpx_server_maintenance::public::record_source::CurrentRecordSource),
+    Operations(erpx_server_operations::public::record_source::CurrentRecordSource),
+}
+
+/// Composition-owned source resolver over the retained serializable unit.
+struct CollaborationSourceResolver {
+    company: CompanyId,
+}
+
+impl erpx_server_collaboration::public::collaboration_work::CollaborationSourcePort
+    for CollaborationSourceResolver
+{
+    type Error = Error;
+    type Witness = CollaborationSourceWitness;
+
+    fn prepare(
+        &mut self,
+        _source: &erpx_server_shared::public::record_source_contract::SourceReference,
+    ) -> impl std::future::Future<
+        Output = Result<
+            (
+                erpx_server_shared::public::record_source_contract::SourceRecord,
+                Self::Witness,
+            ),
+            Self::Error,
+        >,
+    > + Send {
+        Box::pin(async { Err(collaboration_invalid_source().into()) })
+    }
+
+    fn prepare_with<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        source: &'a erpx_server_shared::public::record_source_contract::SourceReference,
+    ) -> impl std::future::Future<
+        Output = Result<
+            (
+                erpx_server_shared::public::record_source_contract::SourceRecord,
+                Self::Witness,
+            ),
+            Self::Error,
+        >,
+    > + Send {
+        use erpx_server_shared::public::record_source_contract::SourceKind;
+        Box::pin(async move {
+            let company = self.company.clone();
+            let _ = connection;
+            match source.kind {
+                SourceKind::PosSale => {
+                    let current = erpx_server_pos::public::record_source::read_record_source(
+                        connection,
+                        &company,
+                        &source.id,
+                    )
+                    .await?
+                    .ok_or_else(collaboration_invalid_source)?;
+                    let record = current.data().clone();
+                    Ok((record, CollaborationSourceWitness::Pos(current)))
+                }
+                SourceKind::PmsRecord => {
+                    let current = erpx_server_pms::public::record_source::read_record_source(
+                        connection,
+                        &company,
+                        &source.id,
+                    )
+                    .await?
+                    .ok_or_else(collaboration_invalid_source)?;
+                    let record = current.data().clone();
+                    Ok((record, CollaborationSourceWitness::Pms(current)))
+                }
+                SourceKind::Asset => {
+                    let current = erpx_server_assets::public::record_source::read_record_source(
+                        connection,
+                        &company,
+                        &source.id,
+                    )
+                    .await?
+                    .ok_or_else(collaboration_invalid_source)?;
+                    let record = current.data().clone();
+                    Ok((record, CollaborationSourceWitness::Assets(current)))
+                }
+                SourceKind::CommerceOrder => {
+                    let current = erpx_server_commerce::public::record_source::read_record_source(
+                        connection,
+                        &company,
+                        &source.id,
+                    )
+                    .await?
+                    .ok_or_else(collaboration_invalid_source)?;
+                    let record = current.data().clone();
+                    Ok((record, CollaborationSourceWitness::Commerce(current)))
+                }
+                SourceKind::SupportTicket => {
+                    let current = erpx_server_support::public::record_source::read_record_source(
+                        connection,
+                        &company,
+                        &source.id,
+                    )
+                    .await?
+                    .ok_or_else(collaboration_invalid_source)?;
+                    let record = current.data().clone();
+                    Ok((record, CollaborationSourceWitness::Support(current)))
+                }
+                SourceKind::MaintenancePlan | SourceKind::MaintenanceWork => {
+                    let current = erpx_server_maintenance::public::record_source::read_record_source(
+                        connection,
+                        &company,
+                        source.kind,
+                        &source.id,
+                    )
+                    .await?
+                    .ok_or_else(collaboration_invalid_source)?;
+                    let record = current.data().clone();
+                    Ok((record, CollaborationSourceWitness::Maintenance(current)))
+                }
+                SourceKind::StaffTask => {
+                    let current = erpx_server_operations::public::record_source::read_record_source(
+                        connection,
+                        &company,
+                        &source.id,
+                    )
+                    .await?
+                    .ok_or_else(collaboration_invalid_source)?;
+                    let record = current.data().clone();
+                    Ok((record, CollaborationSourceWitness::Operations(current)))
+                }
+                SourceKind::FieldServiceOrder => Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "NATIVE_FIELD_INBOX_REQUIRED",
+                    "Field sources use the native Field workspace.",
+                )
+                .into()),
+            }
+        })
+    }
+
+    fn require_current(
+        &mut self,
+        _witness: &Self::Witness,
+    ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn present(
+        &mut self,
+        source: &erpx_server_shared::public::record_source_contract::SourceReference,
+    ) -> impl std::future::Future<
+        Output = Result<
+            erpx_server_collaboration::public::collaboration_work::SourcePresentation,
+            Self::Error,
+        >,
+    > + Send {
+        use erpx_server_collaboration::public::collaboration_work::SourcePresentation;
+        Box::pin(async move {
+            Ok(SourcePresentation {
+                title: None,
+                href: source_href(source.kind, &source.id),
+            })
+        })
+    }
+}
+
+pub struct CollaborationWorkService<C> {
+    authorizer: Arc<HoldingWorkAuthorizer>,
+    configuration: SocialConfiguration,
+    clock: Arc<C>,
+}
+
+fn collaboration_scope(
+    current: &AuthorizedWorkContext,
+    company: &CompanyId,
+    now: i64,
+) -> Result<
+    erpx_server_collaboration::public::collaboration_work::CollaborationScope,
+    BusinessError,
+> {
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    Ok(
+        erpx_server_collaboration::public::collaboration_work::CollaborationScope::new(
+            company.as_str(),
+            current.user_id().as_str(),
+            selected.assignment().id.as_str(),
+            now,
+        )?
+        .assignment_version(selected.assignment().version)
+        .branch(workspace.branch_id.as_ref().map(|id| id.as_str()))
+        .department(workspace.department_id.as_ref().map(|id| id.as_str())),
+    )
+}
+
+impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
+    pub fn new(
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        configuration: SocialConfiguration,
+        clock: Arc<C>,
+    ) -> Self {
+        Self {
+            authorizer,
+            configuration,
+            clock,
+        }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        self.configuration.company()
+    }
+
+    pub async fn read(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        kind: erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkReadKind,
+    ) -> Result<
+        erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpReadReply,
+        Error,
+    > {
+        use erpx_server_collaboration::public::collaboration_work::{
+            read_scope_card, read_scope_relation, read_scope_workspace,
+        };
+        use erpx_server_collaboration::public::collaboration_work_http::{
+            CollaborationCardData, CollaborationRelationData, CollaborationWorkHttpReadReply,
+            CollaborationWorkReadKind, CollaborationWorkspaceData,
+        };
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected {
+                        return Err(scope_error());
+                    }
+                    request.mutation = false;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("collaboration".into()),
+                    destination: "collaboration".into(),
+                    api: true,
+                },
+                CollaborationSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let kind = kind.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_error().into());
+                        }
+                        let now = clock.now().get();
+                        let scope = collaboration_scope(current, &company, now)?;
+                        let mut sources = CollaborationSourceResolver {
+                            company: company.clone(),
+                        };
+                        let can_write = current.has_permission("records.write");
+                        let can_review = current.has_permission("records.review");
+                        Ok(match kind {
+                            CollaborationWorkReadKind::Workspace => {
+                                let workspace =
+                                    read_scope_workspace(connection, scope, &mut sources).await?;
+                                CollaborationWorkHttpReadReply::Workspace(Box::new(
+                                    CollaborationWorkspaceData {
+                                        access: serde_json::json!({
+                                            "canWrite": can_write,
+                                            "canReview": can_review,
+                                        }),
+                                        relations: workspace.relations,
+                                        cards: workspace.cards,
+                                        people: workspace.people,
+                                        source_types: workspace
+                                            .source_types
+                                            .into_iter()
+                                            .map(str::to_owned)
+                                            .collect(),
+                                    },
+                                ))
+                            }
+                            CollaborationWorkReadKind::Card { id } => {
+                                let card =
+                                    read_scope_card(connection, scope, &mut sources, &id).await?;
+                                CollaborationWorkHttpReadReply::Card(Box::new(
+                                    CollaborationCardData {
+                                        access: serde_json::json!({
+                                            "canWrite": can_write,
+                                            "canReview": can_review,
+                                        }),
+                                        card: serde_json::json!({
+                                            "id": card.id,
+                                            "version": card.version,
+                                            "open": card.open,
+                                            "status": if card.open { "open" } else { "closed" },
+                                            "owner_id": card.owner_id,
+                                            "due_at": card.due_at,
+                                            "owner_eligible": if card.owner_eligible { 1 } else { 0 },
+                                            "source_type": card.source.kind.as_str(),
+                                            "source_id": card.source.id,
+                                        }),
+                                    },
+                                ))
+                            }
+                            CollaborationWorkReadKind::Relation { id } => {
+                                let relation =
+                                    read_scope_relation(connection, scope, &mut sources, &id)
+                                        .await?;
+                                CollaborationWorkHttpReadReply::Relation(Box::new(
+                                    CollaborationRelationData {
+                                        access: serde_json::json!({
+                                            "canWrite": can_write,
+                                            "canReview": can_review,
+                                        }),
+                                        relation: serde_json::json!({
+                                            "id": relation.id,
+                                            "version": relation.version,
+                                            "status": if relation.active { "active" } else { "removed" },
+                                            "source_type": relation.left.kind.as_str(),
+                                            "source_id": relation.left.id,
+                                            "target_type": relation.right.kind.as_str(),
+                                            "target_id": relation.right.id,
+                                        }),
+                                    },
+                                ))
+                            }
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn command(
+        &self,
+        _host: &str,
+        _proof: DeviceProof,
+        _selection: HoldingWorkspaceRequest,
+        _change: erpx_server_collaboration::public::collaboration_work::Change,
+        _key: erpx_server_shared::public::CommandKey,
+    ) -> Result<erpx_server_collaboration::public::collaboration_work::Receipt, Error> {
+        Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "COLLABORATION_WRITE_PORT_REQUIRED",
+            "Collaboration writes still use the retained writer.",
+        )
+        .into())
+    }
+}
+
+pub struct CollaborationWorkBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<CollaborationWorkService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> CollaborationWorkBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<CollaborationWorkService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpBackend
+    for CollaborationWorkBackend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpReadRequest<'a>,
+    ) -> erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpFuture<
+        'a,
+        erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpReadReply,
+    > {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .read(request.host, proof, selection, request.kind)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn command<'a>(
+        &'a self,
+        request: erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpCommandRequest<'a>,
+    ) -> erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpFuture<
+        'a,
+        erpx_server_collaboration::public::collaboration_work::Receipt,
+    > {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .command(request.host, proof, selection, request.change, request.key)
+                .await
+                .map_err(business)
+        })
+    }
+}

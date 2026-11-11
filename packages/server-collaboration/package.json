@@ -251,7 +251,8 @@
     "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts",
     "./public/native-social-page": "./src/public/native-social-page.ts",
     "./public/native-messaging-page": "./src/public/native-messaging-page.ts",
-    "./public/native-inbox-page": "./src/public/native-inbox-page.ts"
+    "./public/native-inbox-page": "./src/public/native-inbox-page.ts",
+    "./public/native-collaboration-page": "./src/public/native-collaboration-page.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

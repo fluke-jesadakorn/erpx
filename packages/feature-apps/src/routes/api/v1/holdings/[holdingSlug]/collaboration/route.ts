@@ -13,6 +13,7 @@ import {
   createRecordRelation,
   removeRecordRelation,
 } from "@erpx/server-collaboration/public/collaboration-work";
+import { nativeCollaborationAvailable, nativeCollaborationWorkspace } from "@erpx/server-collaboration/public/native-collaboration-page";
 function failure(e:unknown){return errorResponse(e instanceof NativePartsSetupError?new ApiError(e.status,e.code,e.message):e);}
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -32,6 +33,18 @@ export async function GET(r: Request, c: C) {
       });
     }
     let data:CollaborationWorkReadModel=await collaborationWorkspace(a);
+    if(nativeCollaborationAvailable()){
+      const native=await nativeCollaborationWorkspace(r,(await c.params).holdingSlug);
+      if(!native)throw new ApiError(503,'NATIVE_COLLABORATION_RESPONSE_INVALID','Collaboration workspace unavailable.');
+      data={
+        relations:(native.relations??[]) as CollaborationWorkReadModel['relations'],
+        cards:(native.cards??[]) as CollaborationWorkReadModel['cards'],
+        people:(native.people??[]) as CollaborationWorkReadModel['people'],
+        sourceTypes:(native.sourceTypes??[]) as CollaborationWorkReadModel['sourceTypes'],
+        canWrite:native.access?.canWrite===true,
+        canReview:native.access?.canReview===true,
+      };
+    }
     if(a.modules.includes('field_service')){
       const native=await nativeFieldCollaboration(r.headers,a.holdingSlug,nativeActorContext(a),'GET');
       if(!validFieldCollaborationReadModel(native))throw new ApiError(503,'NATIVE_FIELD_COLLABORATION_RESPONSE_INVALID','Field collaboration is unavailable.');
