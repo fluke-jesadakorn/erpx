@@ -14,11 +14,15 @@ import { createWorkSnapshot, type WorkSnapshotPorts } from "@erpx/server-work_pr
 import { mergeWorkItems, nextWorkSteps as decideNextWorkSteps, type WorkSnapshot } from "@erpx/server-work_projection/domain/work-items";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {
+    nativeWorkHomeUnread,
+    nativeWorkHomeUnreadConfigured,
     nativeWorkSnapshotConfigured,
     readNativeWorkSnapshot,
+    type NativeWorkHomeUnreadAvailability,
     type NativeWorkSnapshotAvailability,
     type NativeWorkSnapshotItem,
 } from "@erpx/server-work_projection/adapters/native-work-snapshot";
+import { unreadHomeCount } from "@erpx/server-work_projection/public/navigation-counts";
 export { mergeWorkItems };
 export type { WorkSnapshot };
 export function nextWorkSteps(items: WorkItem[], now = Date.now()) { return decideNextWorkSteps(items, now); }
@@ -122,4 +126,18 @@ function availabilityFromSnapshot(snapshot: WorkSnapshot): NativeWorkSnapshotAva
 export async function workSnapshotAvailability(actor: WorkContext): Promise<NativeWorkSnapshotAvailability> {
     if (nativeWorkSnapshotConfigured()) return readNativeWorkSnapshot(await headers(), actor);
     return availabilityFromSnapshot(await workSnapshot(actor));
+}
+
+/**
+ * Request-scoped Home unread count for the Work navigation.
+ *
+ * When `ERPX_NATIVE_WORK_PROJECTION_CONFIG` is set this reads the native owner
+ * route; otherwise it keeps the retained `unreadHomeCount` Collaboration read.
+ * Presentation and flow facts are not part of this consumer, so navigation and
+ * summary continue to use their retained readers.
+ */
+export async function workHomeUnreadAvailability(actor: WorkContext): Promise<number> {
+    if (nativeWorkHomeUnreadConfigured()) return (await nativeWorkHomeUnread(await headers(), actor)).count;
+    const { write } = await holdingResources(actor.holdingId);
+    return unreadHomeCount(write, actor);
 }

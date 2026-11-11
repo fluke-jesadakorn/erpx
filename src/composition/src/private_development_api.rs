@@ -5984,6 +5984,7 @@ async fn assemble_checked(
     {
         let mut work_card_targets = Vec::new();
         let mut work_snapshot_targets = Vec::new();
+        let mut work_home_unread_targets = Vec::new();
         for (i, holding) in config.holdings.iter().enumerate() {
             let authorizer = Arc::new(
                 HoldingWorkAuthorizer::new(
@@ -5997,6 +5998,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
             );
             let work_authorizer = authorizer.clone();
+            let unread_authorizer = authorizer.clone();
             work_card_targets.push(
                 erpx_server_work_projection::public::work_card_preferences_http::WorkCardPreferencesHttpTarget {
                     host: holding.host.clone(),
@@ -6051,6 +6053,35 @@ async fn assemble_checked(
                     ),
                 },
             );
+            work_home_unread_targets.push(
+                erpx_server_work_projection::public::work_home_unread_http::WorkHomeUnreadHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: config
+                        .policy
+                        .holdings
+                        .iter()
+                        .find(|registered| registered.host == holding.host)
+                        .map(|registered| registered.origin.clone())
+                        .unwrap_or_else(|| format!("https://{}", holding.host)),
+                    backend: Arc::new(
+                        crate::native_work_snapshot::NativeWorkHomeUnreadBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(
+                                crate::native_work_snapshot::NativeWorkHomeUnreadService::new(
+                                    unread_authorizer,
+                                    crate::native_work_snapshot::NativeWorkHomeUnreadConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        holding.registration.slug.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        ),
+                    ),
+                },
+            );
         }
         if !work_card_targets.is_empty() {
             router = router.merge(
@@ -6064,6 +6095,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_work_projection::public::work_snapshot_http::work_snapshot_router(
                     work_snapshot_targets,
+                )
+                .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !work_home_unread_targets.is_empty() {
+            router = router.merge(
+                erpx_server_work_projection::public::work_home_unread_http::work_home_unread_router(
+                    work_home_unread_targets,
                 )
                 .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
             );
@@ -9442,6 +9481,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             }
             _ => false,
         };
+    let work_home_unread = request.method() == axum::http::Method::GET
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", slug, "work", "home-unread"] if !slug.is_empty() => {
+                state.policy.audience(host).is_some()
+            }
+            _ => false,
+        };
     let allowed = (matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
@@ -9476,6 +9528,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || field_work_roles
         || work_card_preferences
         || work_snapshot
+        || work_home_unread
         || field_operations
         || field_support
         || field_collaboration

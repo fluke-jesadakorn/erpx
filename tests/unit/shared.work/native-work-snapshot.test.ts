@@ -3,7 +3,10 @@ import {describe,expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 
 import {
+  createNativeWorkHomeUnreadReader,
   createNativeWorkSnapshotReader,
+  nativeWorkHomeUnread,
+  nativeWorkHomeUnreadConfigured,
   nativeWorkSnapshotConfigured,
   readNativeWorkSnapshot,
   type NativeWorkSnapshotTransport,
@@ -119,5 +122,61 @@ describe('native Work snapshot transport',()=>{
     }
     const missing=await readNativeWorkSnapshot(incoming(),actor).then(()=>null,reason=>reason);
     expect((missing as ApiError).code).toBe('NATIVE_WORK_SNAPSHOT_CONFIGURATION_REQUIRED');
+  });
+});
+
+describe('native Work Home unread transport',()=>{
+  const readUnread=(transport:NativeWorkSnapshotTransport,raw=config())=>
+    createNativeWorkHomeUnreadReader(raw,transport)(incoming(),actor);
+
+  it('forwards the exact loopback target, cookie and selected context',async()=>{
+    const transport=vi.fn().mockResolvedValue(ok({data:{count:7},context}));
+    const unread=await readUnread(transport);
+    expect(unread).toEqual({count:7});
+    const [url,headers]=transport.mock.calls[0]!;
+    expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/work/home-unread');
+    expect(headers.get('host')).toBe('acme.example.com');
+    expect(headers.get('origin')).toBe('https://acme.example.com');
+    expect(headers.get('cookie')).toBe('__Host-erpx-product=session');
+    expect(headers.get('x-erpx-context-company')).toBe('company');
+    expect(headers.get('x-erpx-context-assignment')).toBe('assignment');
+    expect(headers.get('x-erpx-context-revision')).toBe('7');
+    expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
+  });
+
+  it('rejects a changed context and any extra count facts',async()=>{
+    const changed=vi.fn().mockResolvedValue(ok({data:{count:7},context:{...context,revision:6}}));
+    const changedError=await readUnread(changed).then(()=>null,reason=>reason);
+    expect((changedError as ApiError).code).toBe('WORK_CONTEXT_CHANGED');
+    const extra=vi.fn().mockResolvedValue(ok({data:{count:7,total:9},context}));
+    const extraError=await readUnread(extra).then(()=>null,reason=>reason);
+    expect((extraError as ApiError).code).toBe('NATIVE_WORK_HOME_UNREAD_RESPONSE_INVALID');
+    const negative=vi.fn().mockResolvedValue(ok({data:{count:-1},context}));
+    const negativeError=await readUnread(negative).then(()=>null,reason=>reason);
+    expect((negativeError as ApiError).code).toBe('NATIVE_WORK_HOME_UNREAD_RESPONSE_INVALID');
+  });
+
+  it('surfaces configured route failures with their named error',async()=>{
+    const transport=vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({error:{code:'COLLABORATION_HOME_UNREAD_UNAVAILABLE',message:'The current Collaboration Home unread count is unavailable.'}}),
+      {status:503,headers:{'content-type':'application/json'}},
+    ));
+    const error=await readUnread(transport).then(()=>null,reason=>reason);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(503);
+    expect((error as ApiError).code).toBe('COLLABORATION_HOME_UNREAD_UNAVAILABLE');
+  });
+
+  it('never silently falls back when the switch is configured or unset',async()=>{
+    vi.stubEnv('ERPX_NATIVE_WORK_PROJECTION_CONFIG','');
+    try{
+      expect(nativeWorkHomeUnreadConfigured()).toBe(true);
+      const unset=await nativeWorkHomeUnread(incoming(),actor).then(()=>null,reason=>reason);
+      expect((unset as ApiError).code).toBe('NATIVE_WORK_HOME_UNREAD_CONFIGURATION_INVALID');
+    }finally{
+      vi.unstubAllEnvs();
+    }
+    const missing=await nativeWorkHomeUnread(incoming(),actor).then(()=>null,reason=>reason);
+    expect((missing as ApiError).code).toBe('NATIVE_WORK_HOME_UNREAD_CONFIGURATION_REQUIRED');
   });
 });

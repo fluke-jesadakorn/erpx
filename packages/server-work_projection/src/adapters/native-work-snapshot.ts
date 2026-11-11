@@ -38,6 +38,10 @@ export type NativeWorkSnapshotAvailability = {
   unavailableSources: string[];
 };
 
+export type NativeWorkHomeUnreadAvailability = {
+  count: number;
+};
+
 type Actor = {
   userId: string;
   holdingId: string;
@@ -83,22 +87,22 @@ const identifier = (v: unknown): v is string =>
 const fail = (code: string, status: number, message: string): never => {
   throw new ApiError(status, code, message);
 };
-const unavailable = () =>
-  fail('NATIVE_WORK_SNAPSHOT_UNAVAILABLE', 503, 'The native Work snapshot is unavailable.');
+const unavailable = (code = 'NATIVE_WORK_SNAPSHOT') =>
+  fail(`${code}_UNAVAILABLE`, 503, 'The native Work snapshot is unavailable.');
 
-function configuration(raw: string): NativeHoldingConfiguration {
+function configuration(raw: string, code = 'NATIVE_WORK_SNAPSHOT'): NativeHoldingConfiguration {
   try {
     return nativeHoldingConfiguration(raw, originProfile());
   } catch {
     return fail(
-      'NATIVE_WORK_SNAPSHOT_CONFIGURATION_INVALID',
+      `${code}_CONFIGURATION_INVALID`,
       503,
       'The native Work snapshot is not configured.',
     );
   }
 }
 
-function target(config: NativeHoldingConfiguration, actor: Actor, incoming: Pick<Headers, 'get'>) {
+function target(config: NativeHoldingConfiguration, actor: Actor, incoming: Pick<Headers, 'get'>, code = 'NATIVE_WORK_SNAPSHOT') {
   const sourceHost = incoming.get('host');
   const loopback =
     originProfile() === 'loopback' && sourceHost !== null && /^127\.0\.0\.1:\d+$/.test(sourceHost);
@@ -113,7 +117,7 @@ function target(config: NativeHoldingConfiguration, actor: Actor, incoming: Pick
     selected.holdingSlug !== actor.holdingSlug
   )
     return fail(
-      'NATIVE_WORK_SNAPSHOT_TARGET_UNAVAILABLE',
+      `${code}_TARGET_UNAVAILABLE`,
       503,
       'The native Work snapshot target is unavailable.',
     );
@@ -124,6 +128,7 @@ function requestHeaders(
   incoming: Pick<Headers, 'get'>,
   selected: {origin: string},
   actor: Actor,
+  code = 'NATIVE_WORK_SNAPSHOT',
 ) {
   const headers = new Headers({
     host: new URL(selected.origin).host,
@@ -143,7 +148,7 @@ function requestHeaders(
   if (cookie) {
     if (new TextEncoder().encode(cookie).length > 8192)
       return fail(
-        'NATIVE_WORK_SNAPSHOT_COOKIE_LIMIT',
+        `${code}_COOKIE_LIMIT`,
         503,
         'The native Work snapshot request is unavailable.',
       );
@@ -252,7 +257,11 @@ function direct(
   });
 }
 
-async function boundedJson(response: Response, signal: AbortSignal): Promise<unknown> {
+async function boundedJson(
+  response: Response,
+  signal: AbortSignal,
+  code = 'NATIVE_WORK_SNAPSHOT',
+): Promise<unknown> {
   if (
     response.redirected ||
     response.status !== 200 ||
@@ -260,7 +269,7 @@ async function boundedJson(response: Response, signal: AbortSignal): Promise<unk
     !response.body
   ) {
     void response.body?.cancel().catch(() => undefined);
-    return unavailable();
+    return unavailable(code);
   }
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -272,13 +281,13 @@ async function boundedJson(response: Response, signal: AbortSignal): Promise<unk
   try {
     for (;;) {
       const part = await reader.read();
-      if (signal.aborted) return unavailable();
+      if (signal.aborted) return unavailable(code);
       if (part.done) break;
       size += part.value.length;
       if (size > RESPONSE_LIMIT) {
         await reader.cancel();
         return fail(
-          'NATIVE_WORK_SNAPSHOT_RESPONSE_LIMIT',
+          `${code}_RESPONSE_LIMIT`,
           502,
           'The native Work snapshot response was too large.',
         );
@@ -298,7 +307,7 @@ async function boundedJson(response: Response, signal: AbortSignal): Promise<unk
   try {
     return JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes));
   } catch {
-    return fail('NATIVE_WORK_SNAPSHOT_RESPONSE_INVALID', 502, 'The native Work snapshot response did not match its contract.');
+    return fail(`${code}_RESPONSE_INVALID`, 502, 'The native Work snapshot response did not match its contract.');
   }
 }
 
@@ -367,6 +376,119 @@ export function createNativeWorkSnapshotReader(
       clearTimeout(timer);
     }
   };
+}
+
+function validateHomeUnread(value: unknown, actor: Actor): NativeWorkHomeUnreadAvailability {
+  const invalid = () =>
+    fail(
+      'NATIVE_WORK_HOME_UNREAD_RESPONSE_INVALID',
+      502,
+      'The native Work Home unread response did not match its contract.',
+    );
+  if (!object(value) || !object(value.context)) return invalid();
+  validateContext(value.context, actor);
+  const data = value.data;
+  if (
+    !object(data) ||
+    Object.keys(data).length !== 1 ||
+    !('count' in data) ||
+    !integer(data.count)
+  )
+    return invalid();
+  return {count: data.count};
+}
+
+/**
+ * Reads the native Home unread count through the same private loopback
+ * configuration and transport as the native Work snapshot. An absent
+ * configuration is a programming error here: callers must check
+ * `nativeWorkHomeUnreadConfigured()` and keep the retained TS owner read.
+ */
+export function createNativeWorkHomeUnreadReader(
+  raw: string,
+  transport: NativeWorkSnapshotTransport = direct,
+) {
+  const code = 'NATIVE_WORK_HOME_UNREAD';
+  const config = configuration(raw, code);
+  return async (
+    incoming: Pick<Headers, 'get'>,
+    actor: Actor,
+  ): Promise<NativeWorkHomeUnreadAvailability> => {
+    if (
+      !identifier(actor.holdingId) ||
+      !identifier(actor.companyId) ||
+      !identifier(actor.assignmentId) ||
+      !actor.authority ||
+      !integer(actor.authority.revision) ||
+      !integer(actor.authority.assignmentVersion, 1)
+    )
+      return fail(
+        'WORK_CONTEXT_CHANGED',
+        409,
+        'Your work role changed. Reload and review before retrying.',
+      );
+    const selected = target(config, actor, incoming, code);
+    const headers = requestHeaders(incoming, selected, actor, code);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+    try {
+      let reply: Response;
+      try {
+        reply = await transport(
+          new URL(
+            `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/work/home-unread`,
+            config.privateBaseUrl,
+          ),
+          headers,
+          controller.signal,
+        );
+      } catch {
+        return unavailable(code);
+      }
+      if (reply.status !== 200) {
+        const body = await reply.json().catch(() => null);
+        if (object(body) && object(body.error)) {
+          const responseCode =
+            typeof body.error.code === 'string' && /^[A-Z0-9_]{3,100}$/.test(body.error.code)
+              ? body.error.code
+              : `${code}_UNAVAILABLE`;
+          const message =
+            typeof body.error.message === 'string' && body.error.message.length <= 300
+              ? body.error.message
+              : 'The native Work Home unread count is unavailable.';
+          return fail(
+            responseCode,
+            reply.status >= 400 && reply.status <= 599 ? reply.status : 503,
+            message,
+          );
+        }
+        return unavailable(code);
+      }
+      return validateHomeUnread(await boundedJson(reply, controller.signal, code), actor);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
+/** True when the native Work Home unread consumer switch is configured. */
+export function nativeWorkHomeUnreadConfigured(): boolean {
+  return process.env[CONFIG_ENV] !== undefined;
+}
+
+/** Reads the native Home unread count and fails closed when unconfigured. */
+export async function nativeWorkHomeUnread(
+  incoming: Pick<Headers, 'get'>,
+  actor: Actor,
+): Promise<NativeWorkHomeUnreadAvailability> {
+  const raw = process.env[CONFIG_ENV];
+  if (raw === undefined)
+    return fail(
+      'NATIVE_WORK_HOME_UNREAD_CONFIGURATION_REQUIRED',
+      503,
+      'The native Work Home unread count is not configured.',
+    );
+  return createNativeWorkHomeUnreadReader(raw)(incoming, actor);
 }
 
 /** True when the native Work snapshot consumer switch is configured. */

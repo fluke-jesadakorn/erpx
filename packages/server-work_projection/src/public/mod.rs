@@ -11,6 +11,7 @@ pub mod work_card_availability;
 pub mod work_card_availability_source;
 pub mod work_card_preferences;
 pub mod work_card_preferences_http;
+pub mod work_home_unread_http;
 pub mod work_card_selection;
 pub mod work_snapshot_sources;
 pub mod workspace_preference;
