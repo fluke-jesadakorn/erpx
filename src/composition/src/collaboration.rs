@@ -651,6 +651,33 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                 let messages =
                                     unit.history(&room_id, before, after, limit).await?;
                                 let has_more = messages.len() >= limit;
+                                let ids: Vec<String> =
+                                    messages.iter().map(|message| message.id.clone()).collect();
+                                let files = unit.files_for_messages(&ids).await?;
+                                let messages: Vec<serde_json::Value> = messages
+                                    .iter()
+                                    .map(|message| {
+                                        let mut value = serde_json::to_value(message)
+                                            .map_err(|_| unavailable())?;
+                                        let row_files: Vec<serde_json::Value> = files
+                                            .iter()
+                                            .filter(|file| {
+                                                file.get("message_id")
+                                                    .and_then(|id| id.as_str())
+                                                    == Some(message.id.as_str())
+                                            })
+                                            .cloned()
+                                            .collect();
+                                        if let Some(object) = value.as_object_mut() {
+                                            object.insert(
+                                                "files".into(),
+                                                serde_json::Value::Array(row_files),
+                                            );
+                                        }
+                                        Ok(value)
+                                    })
+                                    .collect::<Result<Vec<_>, BusinessError>>()
+                                    .map_err(Error::Business)?;
                                 let room = room.ok_or_else(|| {
                                     BusinessError::new(
                                         FailureKind::NotFound,

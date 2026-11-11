@@ -136,6 +136,20 @@ async function command(
   return payload?.data;
 }
 
+export function nativeMessagingHistory(
+  request: Request,
+  holdingSlug: string,
+  roomId: string,
+  before?: number,
+  after?: number,
+) {
+  const query = new URLSearchParams();
+  if (before !== undefined) query.set('before', String(before));
+  if (after !== undefined) query.set('after', String(after));
+  const suffix = query.size ? `?${query.toString()}` : '';
+  return read(request, holdingSlug, `/rooms/${encodeURIComponent(roomId)}/messages${suffix}`);
+}
+
 export function nativeCreateRoom(request: Request, holdingSlug: string, body: unknown, key: string) {
   return command(request, holdingSlug, '/rooms', body, key);
 }

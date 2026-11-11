@@ -82,7 +82,7 @@ impl MessagingHttpBackend for Probe {
                 MessagingReadKind::History { .. } => {
                     MessagingHttpReadReply::History(Box::new(MessagingHistoryData {
                         room: room(),
-                        messages: vec![MessageRow {
+                        messages: vec![serde_json::to_value(&MessageRow {
                             id: "message-1".into(),
                             room_id: "room-1".into(),
                             seq: 1,
@@ -90,7 +90,7 @@ impl MessagingHttpBackend for Probe {
                             sender_name: "User".into(),
                             body: "Hello".into(),
                             created_at: 1,
-                        }],
+                        }).unwrap()],
                         has_more: false,
                     }))
                 }

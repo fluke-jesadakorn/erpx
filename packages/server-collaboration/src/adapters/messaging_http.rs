@@ -45,7 +45,7 @@ pub struct MessagingOverviewData {
 #[serde(rename_all = "camelCase")]
 pub struct MessagingHistoryData {
     pub room: RoomView,
-    pub messages: Vec<MessageRow>,
+    pub messages: Vec<serde_json::Value>,
     #[serde(rename = "hasMore")]
     pub has_more: bool,
 }
@@ -879,7 +879,7 @@ mod tests {
                     MessagingReadKind::History { .. } => {
                         MessagingHttpReadReply::History(Box::new(MessagingHistoryData {
                             room: room_view(),
-                            messages: vec![MessageRow {
+                            messages: vec![serde_json::to_value(&MessageRow {
                                 id: "message-1".into(),
                                 room_id: "room-1".into(),
                                 seq: 1,
@@ -887,7 +887,7 @@ mod tests {
                                 sender_name: "User".into(),
                                 body: "Hello".into(),
                                 created_at: 1,
-                            }],
+                            }).unwrap()],
                             has_more: false,
                         }))
                     }
