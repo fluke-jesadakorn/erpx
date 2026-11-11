@@ -10,14 +10,15 @@
 //! no purchase admission is inferred. Composition supplies the current actor,
 //! the commercial package overlay and the Holding transaction.
 use crate::application::supplier_promise_history::{
-    SupplierPromiseHistoryFuture, SupplierPromiseHistoryRepository,
+    SupplierPromiseHistoryFuture, SupplierPromiseHistoryRepository, supplier_promise_detail,
 };
 use crate::domain::supplier_promise_history::{
-    OpenPromiseRow, SupplierPromiseLineRow, SupplierPromiseOrderRow,
-    SupplierPromiseReadActor, SupplierPromiseRow, SupplierPromiseSourceLineRow,
+    OpenPromiseRow, SupplierPromiseDetail, SupplierPromiseLineRow, SupplierPromiseOrderRow,
+    SupplierPromisePurchaseAccess, SupplierPromiseReadActor, SupplierPromiseRow,
+    SupplierPromiseSourceLineRow,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, CompanyId};
+use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
@@ -271,6 +272,21 @@ impl<'a> PgSupplierPromiseHistoryRead<'a> {
             })
             .collect()
     }
+}
+
+/// Runs the retained detail read on the caller-owned serializable Holding
+/// transaction. Composition supplies the Account-derived actor, the commercial
+/// package overlay it read in the same transaction and `now`; this helper never
+/// opens a transaction and never derives purchase authority.
+pub async fn supplier_promise_detail_in_transaction(
+    connection: &mut PgConnection,
+    actor: &SupplierPromiseReadActor,
+    order_id: &str,
+    purchase: Option<SupplierPromisePurchaseAccess>,
+    now: TimestampMillis,
+) -> Result<SupplierPromiseDetail, Error> {
+    let mut repository = PgSupplierPromiseHistoryRead::new(connection);
+    supplier_promise_detail(actor, &mut repository, order_id, purchase, now).await
 }
 
 impl SupplierPromiseHistoryRepository for PgSupplierPromiseHistoryRead<'_> {

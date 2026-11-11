@@ -1,7 +1,8 @@
 //! Native Procurement supplier promise history policy and row tests.
 use erpx_server_procurement::public::supplier_promise_history::{
     OpenPromiseRow, SupplierPromiseHistoryFuture, SupplierPromiseHistoryRepository,
-    SupplierPromiseLineRow, SupplierPromiseReadActor, SupplierPromiseRow, supplier_promise_history,
+    SupplierPromiseLineRow, SupplierPromiseOrderRow, SupplierPromiseReadActor, SupplierPromiseRow,
+    SupplierPromiseSourceLineRow, supplier_promise_history,
 };
 use erpx_server_shared::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
@@ -189,6 +190,22 @@ impl Repo {
 
 impl SupplierPromiseHistoryRepository for Repo {
     type Error = BusinessError;
+
+    fn order<'a>(
+        &'a mut self,
+        _: &'a SupplierPromiseReadActor,
+        _: &'a str,
+    ) -> SupplierPromiseHistoryFuture<'a, Option<SupplierPromiseOrderRow>, Self::Error> {
+        Box::pin(async { Ok(None) })
+    }
+
+    fn source_lines<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+    ) -> SupplierPromiseHistoryFuture<'a, Vec<SupplierPromiseSourceLineRow>, Self::Error> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
 
     fn history<'a>(
         &'a mut self,

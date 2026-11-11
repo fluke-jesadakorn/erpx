@@ -8,7 +8,7 @@ mod fixture;
 
 use erpx_server_procurement::public::supplier_promise_history::{
     PgSupplierPromiseHistoryRead, SupplierPromisePurchaseAccess, SupplierPromiseReadActor,
-    supplier_promise_detail,
+    supplier_promise_detail, supplier_promise_detail_in_transaction,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -302,10 +302,9 @@ async fn owner_iam_without_commerce_purchase_cannot_record() {
             .run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
                 let current = owner.clone();
                 Box::pin(async move {
-                    let mut reader = PgSupplierPromiseHistoryRead::new(connection);
-                    let detail = supplier_promise_detail(
+                    let detail = supplier_promise_detail_in_transaction(
+                        connection,
                         &current,
-                        &mut reader,
                         "order-owned",
                         Some(overlay()),
                         NOW,
