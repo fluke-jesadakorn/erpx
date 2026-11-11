@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 516,
+    "revision": 519,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g18",
+      "runId": "run-20261110-g19",
       "agentId": "lead",
-      "startedAt": "2026-11-11T19:52:13.370Z",
-      "heartbeatAt": "2026-11-11T19:52:13.370Z",
-      "expiresAt": "2026-11-11T20:22:13.371Z",
-      "generation": 19,
-      "tokenHash": "9de9b77ec64d018eedef8553248dca2b97c7c8ef185167ab10122f80d804037d"
+      "startedAt": "2026-11-11T20:40:13.583Z",
+      "heartbeatAt": "2026-11-11T20:40:13.583Z",
+      "expiresAt": "2026-11-11T21:10:13.584Z",
+      "generation": 20,
+      "tokenHash": "8fc6c10a8a1be4265e431eced543c1903883ad502a561a1bad7d0cabb664f98e"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9840,12 +9840,12 @@
         ],
         "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261110-g18",
+          "runId": "run-20261110-g19",
           "agentId": "lead",
-          "claimedAt": "2026-11-11T19:52:13.399Z",
-          "heartbeatAt": "2026-11-11T19:52:13.399Z",
-          "expiresAt": "2026-11-11T20:22:13.399Z",
-          "generation": 19
+          "claimedAt": "2026-11-11T20:40:13.608Z",
+          "heartbeatAt": "2026-11-11T20:40:13.608Z",
+          "expiresAt": "2026-11-11T21:10:13.608Z",
+          "generation": 20
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -9853,8 +9853,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Package-grant HTTP native and partially switched (58eda9738): owner router can preview/apply single+batch with MFA/authority/token/replay; platform route uses native for POST packages/preview|apply when configured, all other commercial paths stay TS. checks: package_grants_http 2/2, company_packages 7/7, PG 1/1, commercial units 154/154, erpx-service, typecheck, catalogue 1122. Retained: settlement-obligation changes fail closed until the obligation port lands; legacy-grants/* and GET paths stay TS. Remaining packets: entitlement_port, subscription_grace.",
-        "handoff": null,
+        "nextAction": "All three Commercial owner slices implemented: package-grant HTTP (58eda9738, partially switched), capability decision port + grouped access + modes/revision (554c07d5a), subscription/grace/recovery reads (554c07d5a). Tests: capability 6/6 + PG 3/3, subscriptions 7/7 + PG 3/3, grants 2/2 + PG 1/1, company packages 7/7, commercial units 154/154. Remaining: bind the decision/subscription readers into composition package pages and retire the TS readers; Billing must expose a Company subscription port for Stripe status; grace end is intentionally null until owner policy exists.",
+        "handoff": {
+          "runId": "run-20261110-g18",
+          "agentId": "lead",
+          "at": "2026-11-11T20:40:13.583Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Lease expired after commercial entitlement commit; WIP reviewed",
+          "nextAction": "Package-grant HTTP native and partially switched (58eda9738): owner router can preview/apply single+batch with MFA/authority/token/replay; platform route uses native for POST packages/preview|apply when configured, all other commercial paths stay TS. checks: package_grants_http 2/2, company_packages 7/7, PG 1/1, commercial units 154/154, erpx-service, typecheck, catalogue 1122. Retained: settlement-obligation changes fail closed until the obligation port lands; legacy-grants/* and GET paths stay TS. Remaining packets: entitlement_port, subscription_grace."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commercial",
         "plannedPackage": "erpx-server-commercial",
@@ -15951,8 +15958,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 19,
-    "updatedAt": "2026-11-11T19:52:13.423Z",
+    "lastCoordinatorGeneration": 20,
+    "updatedAt": "2026-11-11T20:40:13.630Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15995,10 +16002,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g17",
-      "runId": "run-20261110-g18",
-      "at": "2026-11-11T19:52:13.371Z",
-      "reason": "Lease expired after commercial package-grant commit; WIP reviewed",
+      "previousRunId": "run-20261110-g18",
+      "runId": "run-20261110-g19",
+      "at": "2026-11-11T20:40:13.584Z",
+      "reason": "Lease expired after commercial entitlement commit; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
