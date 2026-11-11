@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 458,
+    "revision": 464,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g10",
+      "runId": "run-20261110-g11",
       "agentId": "lead",
-      "startedAt": "2026-11-11T09:58:45.487Z",
-      "heartbeatAt": "2026-11-11T11:33:43.290Z",
-      "expiresAt": "2026-11-11T12:03:43.290Z",
-      "generation": 11,
-      "tokenHash": "0ced6e75701f162f2f68f201fdf9c79e87ba9ec9b4123f4befa42ff035f3ee6c"
+      "startedAt": "2026-11-11T12:18:27.956Z",
+      "heartbeatAt": "2026-11-11T12:18:27.956Z",
+      "expiresAt": "2026-11-11T12:48:27.957Z",
+      "generation": 12,
+      "tokenHash": "f5fc5344f9717c3fff6ed5683a54fbe565a312841f29f95fc80a58faed06572a"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -11302,28 +11302,21 @@
           "owner:operations"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g10",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T11:32:11.166Z",
-          "heartbeatAt": "2026-11-11T11:33:43.290Z",
-          "expiresAt": "2026-11-11T12:03:43.290Z",
-          "generation": 11
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
         "nextAction": "Connection threading committed (60d9a1b8b): StaffTaskRepository::connection lends the unit to StaffTaskSources/StaffTaskFactDelegates (unit 7/7, 5/5, 3/3; PG 4/4; HTTP 7/7). Remaining: implement composition StaffWorkHttpBackend delegates (People active staff, Projects, Identity same-person, Collaboration post, Workflow route/approvals, Files attachments, team feature), mount staff_work_router, switch workplace staff-tasks route.",
         "handoff": {
-          "runId": "run-20261110-g8",
+          "runId": "run-20261110-g10",
           "agentId": "lead",
-          "at": "2026-11-11T08:55:02.036Z",
+          "at": "2026-11-11T12:18:27.956Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired before reservation release; WIP reviewed",
-          "nextAction": "PgStaffTaskSources + fail-closed delegate traits committed. BLOCKER: application holds repository and sources as two &mut ports, so the delegate cannot use the same transaction connection; composition would need a second pool connection (non-transactional reads). Fix: thread the caller connection into StaffTaskSources (prepare_with/connection-carrying pattern as done for collaboration/payroll), then mount staff_work_router and switch the workplace route."
+          "reason": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
+          "nextAction": "Connection threading committed (60d9a1b8b): StaffTaskRepository::connection lends the unit to StaffTaskSources/StaffTaskFactDelegates (unit 7/7, 5/5, 3/3; PG 4/4; HTTP 7/7). Remaining: implement composition StaffWorkHttpBackend delegates (People active staff, Projects, Identity same-person, Collaboration post, Workflow route/approvals, Files attachments, team feature), mount staff_work_router, switch workplace staff-tasks route."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
@@ -12336,28 +12329,21 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "integrating",
-        "claim": {
-          "runId": "run-20261110-g10",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T09:58:45.567Z",
-          "heartbeatAt": "2026-11-11T11:33:43.290Z",
-          "expiresAt": "2026-11-11T12:03:43.290Z",
-          "generation": 11
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
         "nextAction": "Structure and actuals routers mounted with purchase/staff facts (cadc1aa2e). Remaining attachment packet needs a Files-side ProjectAttachmentFilesPort adapter (server-files paths are in the external-WIP reservation); after that mount and record migrated",
         "handoff": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "at": "2026-11-10T22:49:18.933Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "runId": "run-20261110-g10",
+          "agentId": "lead",
+          "at": "2026-11-11T12:18:27.956Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
           "nextAction": "Structure and actuals routers mounted with purchase/staff facts (cadc1aa2e). Remaining attachment packet needs a Files-side ProjectAttachmentFilesPort adapter (server-files paths are in the external-WIP reservation); after that mount and record migrated"
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -12535,12 +12521,12 @@
         ],
         "status": "integrating",
         "claim": {
-          "runId": "run-20261110-g10",
+          "runId": "run-20261110-g11",
           "agentId": "lead",
-          "claimedAt": "2026-11-11T09:58:45.591Z",
-          "heartbeatAt": "2026-11-11T11:33:43.290Z",
-          "expiresAt": "2026-11-11T12:03:43.290Z",
-          "generation": 11
+          "claimedAt": "2026-11-11T12:18:27.983Z",
+          "heartbeatAt": "2026-11-11T12:18:27.983Z",
+          "expiresAt": "2026-11-11T12:48:27.983Z",
+          "generation": 12
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -12548,14 +12534,14 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Native election detail GET /benefits/{id} is mounted and the People route prefers it (0fa8bb750; workspace-http 3/3, workspace 21/21, command 13/13, transport 15/15, services 21/21, typecheck). Remaining: BenefitsEvidencePort + BenefitsLearningPort over the caller unit (trait needs connection-carrying ports like Learning), and the People payroll_source switch.",
+        "nextAction": "Detail GET and command ports are native: Files benefits evidence + Learning benefit consumption bound over the caller unit (402dd7d12; command 13/13, evidence 3/3, learning 25/25, PG 5/2/14, composed HTTP 3/3). Remaining: switch People payroll reads to Benefits payroll_source so election eligibility closes end-to-end.",
         "handoff": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "at": "2026-11-10T22:49:18.933Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
-          "nextAction": "Lead mounts the detail HTTP route and Files/Records evidence ports, switches People payroll to payroll_source, and waits for the Learning consumption writer before election-eligibility closes"
+          "runId": "run-20261110-g10",
+          "agentId": "lead",
+          "at": "2026-11-11T12:18:27.956Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
+          "nextAction": "Native election detail GET /benefits/{id} is mounted and the People route prefers it (0fa8bb750; workspace-http 3/3, workspace 21/21, command 13/13, transport 15/15, services 21/21, typecheck). Remaining: BenefitsEvidencePort + BenefitsLearningPort over the caller unit (trait needs connection-carrying ports like Learning), and the People payroll_source switch."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-benefits",
@@ -13131,28 +13117,21 @@
           "owner:collaboration"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g10",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T09:58:45.542Z",
-          "heartbeatAt": "2026-11-11T11:33:43.290Z",
-          "expiresAt": "2026-11-11T12:03:43.290Z",
-          "generation": 11
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
         "nextAction": "Messaging history (1435f0cf6) and file content (03e632750) are native and switched; attachments bind/content port wired at ec0472b44 with fail-closed absence. Remaining: native messaging upload/discard intake does not exist in Rust (stays TS), inbox notifications need owner visibility port, feed subpaths/CSV/mention drain.",
         "handoff": {
-          "runId": "run-20261110-g6",
+          "runId": "run-20261110-g10",
           "agentId": "lead",
-          "at": "2026-11-11T06:43:23.642Z",
+          "at": "2026-11-11T12:18:27.956Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
-          "nextAction": "Collaboration: social feed, messaging overview/create/send/read/members (Control-name objects), inbox people/notices/summary, workspace + relation/card commands are native and switched. Remaining: inbox notifications blocked in child task migrate.collaboration.inbox-owner-targets (calendar owner is TS-only; crm/finance/commerce/payroll visibility checks incomplete); messaging history needs Files decoration (server-files WIP)."
+          "reason": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
+          "nextAction": "Messaging history (1435f0cf6) and file content (03e632750) are native and switched; attachments bind/content port wired at ec0472b44 with fail-closed absence. Remaining: native messaging upload/discard intake does not exist in Rust (stays TS), inbox notifications need owner visibility port, feed subpaths/CSV/mention drain."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -15447,12 +15426,12 @@
         ],
         "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261110-g10",
+          "runId": "run-20261110-g11",
           "agentId": "lead",
-          "claimedAt": "2026-11-11T09:58:45.517Z",
-          "heartbeatAt": "2026-11-11T11:33:43.290Z",
-          "expiresAt": "2026-11-11T12:03:43.290Z",
-          "generation": 11
+          "claimedAt": "2026-11-11T12:19:03.059Z",
+          "heartbeatAt": "2026-11-11T12:19:03.059Z",
+          "expiresAt": "2026-11-11T12:49:03.059Z",
+          "generation": 12
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -15460,8 +15439,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "PgLearningEvidence implemented and registered (0398719c1; unit 4/4, PG 4/4). Remaining: wire it into the Learning command backend (create/change assignment evidence) and the Benefits evidence port, then switch consumers.",
-        "handoff": null,
+        "nextAction": "PgLearningEvidence is bound into the Learning command path (877ea6927) and PgBenefitsEvidence into Benefits commands (402dd7d12). Remaining: no separate action; close when Benefits election eligibility closes (payroll_source switch).",
+        "handoff": {
+          "runId": "run-20261110-g10",
+          "agentId": "lead",
+          "at": "2026-11-11T12:18:27.956Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
+          "nextAction": "PgLearningEvidence implemented and registered (0398719c1; unit 4/4, PG 4/4). Remaining: wire it into the Learning command backend (create/change assignment evidence) and the Benefits evidence port, then switch consumers."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-files",
         "plannedPackage": "erpx-server-files",
@@ -15653,15 +15639,15 @@
         "pending": 24,
         "in_progress": 0,
         "ready_for_integration": 8,
-        "integrating": 2,
+        "integrating": 1,
         "migrated": 15,
-        "blocked": 4,
+        "blocked": 5,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 11,
-    "updatedAt": "2026-11-11T11:33:43.291Z",
+    "lastCoordinatorGeneration": 12,
+    "updatedAt": "2026-11-11T12:19:03.083Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15704,10 +15690,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g9",
-      "runId": "run-20261110-g10",
-      "at": "2026-11-11T09:58:45.489Z",
-      "reason": "Lease expired after Files adapters commit; WIP reviewed",
+      "previousRunId": "run-20261110-g10",
+      "runId": "run-20261110-g11",
+      "at": "2026-11-11T12:18:27.957Z",
+      "reason": "Lease expired after benefits ports commit; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
