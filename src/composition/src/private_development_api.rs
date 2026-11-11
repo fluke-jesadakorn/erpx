@@ -2775,6 +2775,27 @@ async fn assemble_checked(
                 }
             }
         }
+        // Files-owned Messaging attachments reuse the exact canonical private
+        // root already parsed for the Field Files providers. Parsing happens
+        // once per assembly; absence keeps every attachment route fail-closed.
+        #[cfg(feature = "files-scan-worker")]
+        let messaging_files_roots: BTreeMap<HoldingId, std::path::PathBuf> =
+            match config.field_files_providers.as_ref() {
+                Some(raw) => {
+                    let bytes = serde_json::to_vec(raw).map_err(|_| {
+                        "PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID"
+                    })?;
+                    crate::field_files_runtime_configuration::parse_field_files_runtime_configuration(
+                        &bytes,
+                        &config.holdings_registry,
+                    )
+                    .map_err(|_| "PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?
+                    .into_iter()
+                    .map(|target| (target.holding_id, target.files_root))
+                    .collect()
+                }
+                None => BTreeMap::new(),
+            };
         for (i, holding) in config.holdings.iter().enumerate() {
             let Some(companies) = config
                 .operations_companies
@@ -2997,6 +3018,46 @@ async fn assemble_checked(
                 }
                 #[cfg(feature = "existing-business")]
                 {
+                    #[cfg(feature = "files-scan-worker")]
+                    let files: Option<
+                        Arc<
+                            dyn erpx_server_collaboration::public::messaging_http::MessagingFilesPort,
+                        >,
+                    > = match messaging_files_roots
+                        .get(&holding.registration.holding_id)
+                    {
+                        Some(root) => {
+                            let store =
+                                erpx_server_files::public::canonical_original::LocalOriginalStore::open(
+                                    root, 8,
+                                )
+                                .map_err(|_| "PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?;
+                            let audience = Arc::new(
+                                crate::collaboration::CompositionMessagingFilesAudience::new(
+                                    config.policy.clone(),
+                                    Arc::new(FinanceJournalReadScopeHeaders),
+                                    authorizer.clone(),
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                            );
+                            Some(Arc::new(
+                                erpx_server_files::public::messaging_files::PgMessagingFiles::new(
+                                    pools[i + 1].clone(),
+                                    audience,
+                                    Arc::new(store),
+                                    clock.clone(),
+                                ),
+                            ))
+                        }
+                        None => None,
+                    };
+                    #[cfg(not(feature = "files-scan-worker"))]
+                    let files: Option<
+                        Arc<
+                            dyn erpx_server_collaboration::public::messaging_http::MessagingFilesPort,
+                        >,
+                    > = None;
                     messaging_targets.push(
                         erpx_server_collaboration::public::messaging_http::MessagingHttpTarget {
                             host: holding.host.clone(),
@@ -3017,7 +3078,7 @@ async fn assemble_checked(
                                     )),
                                 ),
                             ),
-                            files: None,
+                            files,
                         },
                     );
                 }

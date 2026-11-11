@@ -9,7 +9,9 @@ use erpx_server_collaboration::public::social::{
     PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, execute, lock_social_sources,
 };
 use erpx_server_collaboration::public::messaging_http::{
-    MessagingAttachmentReply, MessagingChannelsData, MessagingHistoryData,
+    MessagingAttachmentKind, MessagingAttachmentReply, MessagingChannelsData,
+    MessagingFileBinding, MessagingFileContent, MessagingFilesBindRequest,
+    MessagingFilesContentRequest, MessagingFilesPort, MessagingHistoryData,
     MessagingHttpAttachmentRequest, MessagingHttpBackend, MessagingHttpCommand,
     MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
     MessagingHttpReadRequest, MessagingHttpReceipt, MessagingHttpTarget, MessagingMembersData,
@@ -36,6 +38,9 @@ use erpx_server_identity_access::public::{
         WorkAuthorizationRequest,
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+};
+use erpx_server_files::public::messaging_files::{
+    MessagingFilesActor, MessagingFilesAudience, MessagingFilesFuture,
 };
 use erpx_server_records::public::record_context::{
     PgRecordContext, RecordContextActor, record_context,
@@ -522,14 +527,6 @@ fn room_view(room: &erpx_server_collaboration::public::messaging_native::RoomSna
     }
 }
 
-fn attachment_unavailable() -> BusinessError {
-    BusinessError::new(
-        FailureKind::Unavailable,
-        "FILES_PORT_UNAVAILABLE",
-        "Messaging attachments are unavailable.",
-    )
-}
-
 async fn messaging_member_names(
     control: &erpx_server_runtime::public::postgres::DatabasePool,
     ids: &[String],
@@ -912,10 +909,167 @@ impl<C: Clock + Send + Sync + 'static> MessagingHttpBackend for MessagingBackend
 
     fn attachment<'a>(
         &'a self,
-        _request: MessagingHttpAttachmentRequest<'a>,
-        _files: &'a dyn erpx_server_collaboration::public::messaging_http::MessagingFilesPort,
+        request: MessagingHttpAttachmentRequest<'a>,
+        files: &'a dyn MessagingFilesPort,
     ) -> MessagingHttpFuture<'a, MessagingAttachmentReply> {
-        Box::pin(async { Err(attachment_unavailable()) })
+        Box::pin(async move {
+            let MessagingHttpAttachmentRequest {
+                host,
+                holding_slug,
+                headers,
+                kind,
+                ..
+            } = request;
+            Ok(match kind {
+                MessagingAttachmentKind::Bind {
+                    room_id,
+                    attachment_set_ids,
+                    message_id,
+                } => MessagingAttachmentReply::Bound(
+                    files
+                        .bind(MessagingFilesBindRequest {
+                            host,
+                            holding_slug,
+                            headers,
+                            room_id,
+                            attachment_set_ids,
+                            message_id,
+                        })
+                        .await?,
+                ),
+                MessagingAttachmentKind::Content { file_id, variant } => {
+                    MessagingAttachmentReply::Content(
+                        files
+                            .content(MessagingFilesContentRequest {
+                                host,
+                                holding_slug,
+                                headers,
+                                file_id,
+                                variant,
+                            })
+                            .await?,
+                    )
+                }
+            })
+        })
+    }
+}
+
+/// Composition-owned Messaging attachment audience. It re-resolves the exact
+/// current Account/Holding session through the same authorizer as Messaging
+/// reads, then rechecks current conversation membership on the caller's
+/// existing Holding unit. It never commits that unit.
+pub struct CompositionMessagingFilesAudience {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    authorizer: Arc<HoldingWorkAuthorizer>,
+    holding: HoldingId,
+    company: CompanyId,
+}
+
+impl CompositionMessagingFilesAudience {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        holding: HoldingId,
+        company: CompanyId,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            authorizer,
+            holding,
+            company,
+        }
+    }
+}
+
+impl MessagingFilesAudience for CompositionMessagingFilesAudience {
+    fn current<'a>(
+        &'a self,
+        _connection: &'a mut PgConnection,
+        host: &'a str,
+        _holding_slug: &'a str,
+        headers: &'a HeaderMap,
+    ) -> MessagingFilesFuture<'a, MessagingFilesActor> {
+        Box::pin(async move {
+            let inbound = parse_inbound_account_request(&self.policy, headers)?;
+            if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+                return Err(not_found());
+            }
+            let (branch_slug, department_slug) = self.scopes.slugs(headers)?;
+            let expected = self.company.clone();
+            let company = self.company.clone();
+            let holding = self.holding.clone();
+            self.authorizer
+                .execute_with_sources_deferred(
+                    host,
+                    inbound.into_proof(),
+                    move || {
+                        Ok(HoldingWorkspaceRequest {
+                            company_id: expected,
+                            branch_slug,
+                            department_slug,
+                            expected: None,
+                            mutation: false,
+                        })
+                    },
+                    WorkAuthorizationRequest {
+                        permission: "records.read".into(),
+                        module: Some("collaboration".into()),
+                        destination: "messaging".into(),
+                        api: true,
+                    },
+                    CollaborationSources,
+                    move |_connection, current| {
+                        let company = company.clone();
+                        let holding = holding.clone();
+                        Box::pin(async move {
+                            if current.holding_id() != &holding
+                                || current.selection().workspace().company_id != company
+                            {
+                                return Err(scope_error().into());
+                            }
+                            Ok(MessagingFilesActor {
+                                company_id: company,
+                                user_id: current.user_id().as_str().to_owned(),
+                            })
+                        })
+                    },
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn require_room<'a>(
+        &'a self,
+        connection: &'a mut PgConnection,
+        actor: &'a MessagingFilesActor,
+        room_id: &'a str,
+    ) -> MessagingFilesFuture<'a, ()> {
+        Box::pin(async move {
+            let member: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM messaging_room_members m \
+                 JOIN messaging_rooms r ON r.id=m.room_id AND r.company_id=$3 \
+                 WHERE m.room_id=$1 AND m.user_id=$2)",
+            )
+            .bind(room_id)
+            .bind(&actor.user_id)
+            .bind(actor.company_id.as_str())
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|_| unavailable())?;
+            if !member {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "MESSAGING_ROOM_FORBIDDEN",
+                    "Choose a conversation you belong to.",
+                ));
+            }
+            Ok(())
+        })
     }
 }
 
