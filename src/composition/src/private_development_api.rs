@@ -190,6 +190,14 @@ struct ServicePackageConfiguration {
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CommercialPackageGrantsDocument {
+    review_secret: String,
+}
+struct CommercialPackageGrantsConfiguration {
+    signer: Arc<erpx_server_commercial::public::package_review::PackageLifecycleReviewSigner>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct AccountSecurityKeyDocument {
     id: String,
     key_hex: String,
@@ -333,6 +341,10 @@ struct ConfigurationDocument {
     account_bootstrap: bool,
     #[serde(default)]
     service_package_lifecycle: Option<ServicePackageDocument>,
+    /// Opt-in native Platform Commercial package grant preview/apply. The
+    /// mounted owner router shares the existing package review wire domain.
+    #[serde(default)]
+    commercial_package_grants: Option<CommercialPackageGrantsDocument>,
     #[serde(default)]
     account_security_keys: Option<AccountSecurityKeysDocument>,
     /// Absolute path to the private Directory credential profile file. Opt-in:
@@ -427,6 +439,7 @@ pub struct DevelopmentApiConfiguration {
     field_service_agreement_creates: BTreeSet<HoldingId>,
     account_bootstrap: bool,
     service_package_lifecycle: Option<ServicePackageConfiguration>,
+    commercial_package_grants: Option<CommercialPackageGrantsConfiguration>,
     account_security_keys:
         Option<Arc<erpx_server_identity_access::public::account_security::AccountMfaKeyring>>,
     #[cfg_attr(
@@ -1258,6 +1271,22 @@ impl DevelopmentApiConfiguration {
                 })
             }
         };
+        let commercial_package_grants = match doc.commercial_package_grants {
+            None => None,
+            Some(input) => {
+                if input.review_secret.len() > 4096 {
+                    return Err("PRIVATE_API_COMMERCIAL_PACKAGE_GRANTS_CONFIGURATION_INVALID");
+                }
+                let signer =
+                    erpx_server_commercial::public::package_review::PackageLifecycleReviewSigner::new(
+                        &input.review_secret,
+                    )
+                    .map_err(|_| "PRIVATE_API_COMMERCIAL_PACKAGE_GRANTS_CONFIGURATION_INVALID")?;
+                Some(CommercialPackageGrantsConfiguration {
+                    signer: Arc::new(signer),
+                })
+            }
+        };
         let mut field_service_parts_prerequisites = BTreeSet::new();
         for id in doc.field_service_parts_prerequisites {
             let holding = HoldingId::new(id)
@@ -1741,6 +1770,7 @@ impl DevelopmentApiConfiguration {
             field_service_agreement_creates,
             account_bootstrap: doc.account_bootstrap,
             service_package_lifecycle,
+            commercial_package_grants,
             account_security_keys,
             directory,
         })
@@ -2671,6 +2701,48 @@ async fn assemble_checked(
                 platform_executive_targets,
             )
             .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
+        );
+    }
+    if let Some(grants) = &config.commercial_package_grants {
+        let holdings: BTreeMap<HoldingId, DatabasePool> = config
+            .holdings
+            .iter()
+            .enumerate()
+            .map(|(index, holding)| {
+                (
+                    holding.registration.holding_id.clone(),
+                    pools[index + 1].clone(),
+                )
+            })
+            .collect();
+        let clock = Arc::new(crate::commercial::CommercialClock::new(clock.clone()));
+        let mut targets = Vec::new();
+        for holding in &config.holdings {
+            targets.push(
+                erpx_server_commercial::public::purchases::PackageGrantsHttpTarget {
+                    host: holding.host.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(
+                        crate::commercial::CommercialPackageGrantsBackend::new(
+                            crate::commercial::CommercialPackageGrantsConfiguration::new(
+                                holding.host.clone(),
+                                holding.registration.holding_id.clone(),
+                                holding.registration.slug.clone(),
+                                pools[0].clone(),
+                                config.policy.clone(),
+                                config.holdings_registry.clone(),
+                                holdings.clone(),
+                                grants.signer.clone(),
+                                clock.clone(),
+                            ),
+                        ),
+                    ),
+                },
+            );
+        }
+        router = router.merge(
+            erpx_server_commercial::public::purchases::package_grants_router(targets)
+                .map_err(|_| "PRIVATE_API_COMMERCIAL_PACKAGE_GRANTS_CONFIGURATION_INVALID")?,
         );
     }
     if !config.finance_journal_reads.is_empty()

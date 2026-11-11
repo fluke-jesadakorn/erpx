@@ -4,6 +4,11 @@ pub use crate::adapters::company_packages_http::{
     company_package_router,
 };
 pub use crate::adapters::package_catalogue::current_package_catalogue;
+pub use crate::adapters::package_grants_http::{
+    PackageGrantHttpCommand, PackageGrantHttpFuture, PackageGrantHttpRequest,
+    PackageGrantHttpResponse, PackageGrantsHttpBackend, PackageGrantsHttpTarget,
+    package_grants_router,
+};
 pub use crate::adapters::postgres_grant_commands::{
     PgPackageBatchReview, PgPackageGrantCommands, PgPackageGrantPolicy,
 };

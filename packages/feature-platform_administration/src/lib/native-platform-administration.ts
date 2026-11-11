@@ -184,3 +184,12 @@ export async function nativePlatformMigrate(
 }
 
 export { nativePlatformAdminFailure } from '../adapters/server/native-platform-administration';
+
+export {
+  createNativePackageGrantsClient,
+  nativePackageGrantsConfiguration,
+  nativePackageGrantsConfigured,
+  nativePackageGrantsFailure,
+  NativePackageGrantsError,
+  type NativePackageGrantActor,
+} from '../adapters/server/native-platform-administration';

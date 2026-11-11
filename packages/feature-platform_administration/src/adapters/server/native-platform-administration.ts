@@ -1165,3 +1165,335 @@ export function nativePlatformAdminFailure(
     message: error.message,
   };
 }
+
+/** Rendering input from retained Platform Commercial authorization, never a grant. */
+export type NativePackageGrantActor = Readonly<{
+  userId: string;
+  platformAssignmentId: string;
+  platformRole: string;
+  roleRevision: number;
+  modules: readonly string[];
+  permissions: readonly string[];
+}>;
+
+export class NativePackageGrantsError extends Error {
+  readonly code: string;
+  readonly status?: number;
+  constructor(code: string, status?: number, message?: string) {
+    super(message ?? 'The native Commercial package grant request could not be completed.');
+    this.name = 'NativePackageGrantsError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+const grantFailure = (code: string, status?: number, message?: string): never => {
+  throw new NativePackageGrantsError(code, status, message);
+};
+
+const grantObject = (value: unknown): value is Row =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+function grantFields(value: unknown, keys: readonly string[]): Row {
+  if (
+    !grantObject(value) ||
+    Object.keys(value).length !== keys.length ||
+    !keys.every((key) => Object.hasOwn(value, key))
+  )
+    return grantFailure('NATIVE_COMMERCIAL_RESPONSE_INVALID');
+  return value;
+}
+
+const grantText = (value: unknown, max = 4096): value is string =>
+  typeof value === 'string' && new TextEncoder().encode(value).length <= max;
+const grantIdentifier = (value: unknown): value is string =>
+  grantText(value, 200) && value.length > 0 && !/[\u0000-\u001f\u007f]/u.test(value);
+const grantInteger = (value: unknown, min = 0): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
+
+function grantComparison(value: unknown): Row {
+  const row = grantFields(value, [
+    'companyId',
+    'expectedRevision',
+    'changes',
+    'before',
+    'after',
+  ]);
+  if (
+    !grantIdentifier(row.companyId) ||
+    typeof row.expectedRevision !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(row.expectedRevision) ||
+    !Array.isArray(row.changes) ||
+    row.changes.length < 1 ||
+    row.changes.length > 100 ||
+    !Array.isArray(row.before) ||
+    row.before.length > 1024 ||
+    !Array.isArray(row.after) ||
+    row.after.length > 1024
+  )
+    return grantFailure('NATIVE_COMMERCIAL_RESPONSE_INVALID');
+  return row;
+}
+
+function grantContext(
+  value: unknown,
+  actor: NativePackageGrantActor,
+  holding: Readonly<{ origin: string; holdingSlug: string; holdingId: string }>,
+): void {
+  const row = grantFields(value, [
+    'userId',
+    'holdingId',
+    'holdingSlug',
+    'platformAssignmentId',
+    'platformRole',
+    'roleRevision',
+  ]);
+  if (
+    !grantIdentifier(row.userId) ||
+    !grantIdentifier(row.holdingId) ||
+    !grantIdentifier(row.holdingSlug) ||
+    !grantIdentifier(row.platformAssignmentId) ||
+    !grantText(row.platformRole, 80) ||
+    !grantInteger(row.roleRevision, 1) ||
+    row.userId !== actor.userId ||
+    row.holdingId !== holding.holdingId ||
+    row.holdingSlug !== holding.holdingSlug ||
+    row.platformAssignmentId !== actor.platformAssignmentId ||
+    row.platformRole !== actor.platformRole ||
+    row.roleRevision !== actor.roleRevision
+  )
+    return grantFailure('NATIVE_COMMERCIAL_CONTEXT_CHANGED');
+}
+
+async function boundedGrantBytes(response: Response, limit: number): Promise<Uint8Array> {
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      bytes += next.value.byteLength;
+      if (bytes > limit) {
+        await reader.cancel();
+        return grantFailure('NATIVE_COMMERCIAL_RESPONSE_LIMIT');
+      }
+      chunks.push(next.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const data = new Uint8Array(bytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    data.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return data;
+}
+
+async function boundedGrantJson(response: Response): Promise<unknown> {
+  if (response.redirected) {
+    void response.body?.cancel().catch(() => undefined);
+    return grantFailure('NATIVE_COMMERCIAL_UNAVAILABLE', response.status);
+  }
+  const contentType = response.headers.get('content-type')?.split(';')[0]?.trim();
+  if (response.status !== 200) {
+    const body = await boundedGrantBytes(response, 64 * 1024);
+    let code: string | undefined;
+    let message: string | undefined;
+    if (contentType === 'application/json') {
+      try {
+        const value: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(body));
+        if (grantObject(value) && grantObject(value.error)) {
+          if (grantText(value.error.code, 200)) code = value.error.code;
+          if (grantText(value.error.message, 2000)) message = value.error.message;
+        }
+      } catch {
+        // A malformed owner error keeps the bounded transport failure.
+      }
+    }
+    return grantFailure(code ?? 'NATIVE_COMMERCIAL_UNAVAILABLE', response.status, message);
+  }
+  if (contentType !== 'application/json') {
+    void response.body?.cancel().catch(() => undefined);
+    return grantFailure('NATIVE_COMMERCIAL_RESPONSE_INVALID');
+  }
+  const data = await boundedGrantBytes(response, 2 * 1024 * 1024);
+  try {
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(data));
+  } catch {
+    return grantFailure('NATIVE_COMMERCIAL_RESPONSE_INVALID');
+  }
+}
+
+export function nativePackageGrantsConfigured(): boolean {
+  return process.env.ERPX_NATIVE_COMMERCIAL_CONFIG !== undefined;
+}
+
+export function nativePackageGrantsConfiguration(raw: string): NativePlatformAdminConfiguration {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return grantFailure('NATIVE_COMMERCIAL_CONFIGURATION_INVALID');
+  }
+  try {
+    return configuration(value as NativePlatformAdminConfiguration);
+  } catch {
+    return grantFailure('NATIVE_COMMERCIAL_CONFIGURATION_INVALID');
+  }
+}
+
+async function grantCall(
+  transport: Transport,
+  config: NativePlatformAdminConfiguration,
+  incoming: Pick<Headers, 'get'>,
+  actor: NativePackageGrantActor,
+  operation: 'preview' | 'apply',
+  body: string,
+  idempotencyKey?: string,
+): Promise<unknown> {
+  const host = incoming.get('host');
+  const holding = config.holdings.find((entry) => host && new URL(entry.origin).host === host);
+  if (!holding || !host) return grantFailure('NATIVE_COMMERCIAL_AUTHORITY_INVALID');
+  if (
+    !grantIdentifier(actor.userId) ||
+    !grantIdentifier(actor.platformAssignmentId) ||
+    !grantText(actor.platformRole, 80) ||
+    !grantInteger(actor.roleRevision, 1) ||
+    !Array.isArray(actor.modules) ||
+    !actor.modules.every((item) => grantText(item, 80)) ||
+    !Array.isArray(actor.permissions) ||
+    !actor.permissions.every((item) => grantText(item, 120))
+  )
+    return grantFailure('NATIVE_COMMERCIAL_REQUEST_INVALID');
+  const origin = incoming.get('origin');
+  if (origin !== holding.origin) return grantFailure('ORIGIN_FORBIDDEN', 403);
+  if (new TextEncoder().encode(body).length > 1024 * 1024)
+    return grantFailure('REQUEST_TOO_LARGE', 413);
+  const headers = new Headers({
+    host,
+    accept: 'application/json',
+    'cache-control': 'no-cache',
+    'content-type': 'application/json',
+    origin,
+    'x-erpx-platform-assignment': actor.platformAssignmentId,
+    'x-erpx-platform-role': actor.platformRole,
+    'x-erpx-context-revision': String(actor.roleRevision),
+  });
+  const cookie = incoming.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192)
+      return grantFailure('NATIVE_COMMERCIAL_COOKIE_LIMIT');
+    headers.set('cookie', cookie);
+  }
+  if (operation === 'apply') {
+    if (!idempotencyKey || !/^[A-Za-z0-9_-]{16,128}$/.test(idempotencyKey))
+      return grantFailure('NATIVE_COMMERCIAL_REQUEST_INVALID');
+    headers.set('idempotency-key', idempotencyKey);
+  }
+  const url = new URL(
+    `/api/v1/platform/commercial/package-grants/batches/${operation}`,
+    config.privateBaseUrl,
+  );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const response = await transport('POST', url, headers, body, controller.signal);
+    const value = await boundedGrantJson(response);
+    const row = grantFields(value, ['data', 'context']);
+    grantContext(row.context, actor, holding);
+    return row.data;
+  } catch (error) {
+    if (error instanceof NativePackageGrantsError) throw error;
+    return grantFailure('NATIVE_COMMERCIAL_UNAVAILABLE');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function createNativePackageGrantsClient(
+  raw: NativePlatformAdminConfiguration,
+  transport: Transport = directHttp,
+) {
+  let config: NativePlatformAdminConfiguration;
+  try {
+    config = configuration(raw);
+  } catch {
+    return grantFailure('NATIVE_COMMERCIAL_CONFIGURATION_INVALID');
+  }
+  return {
+    async preview(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePackageGrantActor,
+      body: string,
+    ): Promise<unknown> {
+      const data = await grantCall(transport, config, incoming, actor, 'preview', body);
+      const row = grantFields(data, ['comparison', 'request', 'review']);
+      grantComparison(row.comparison);
+      if (!grantObject(row.request)) return grantFailure('NATIVE_COMMERCIAL_RESPONSE_INVALID');
+      const review = grantFields(row.review, ['token', 'expiresAt']);
+      if (!grantText(review.token, 8192) || !grantInteger(review.expiresAt, 1))
+        return grantFailure('NATIVE_COMMERCIAL_RESPONSE_INVALID');
+      return row;
+    },
+    async apply(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePackageGrantActor,
+      body: string,
+      idempotencyKey: string,
+    ): Promise<unknown> {
+      const data = await grantCall(
+        transport,
+        config,
+        incoming,
+        actor,
+        'apply',
+        body,
+        idempotencyKey,
+      );
+      const row = grantFields(data, ['receipt']);
+      grantComparison(row.receipt);
+      return row;
+    },
+  };
+}
+
+export function nativePackageGrantsFailure(
+  error: unknown,
+): { status: number; code: string; message: string } | undefined {
+  if (!(error instanceof NativePackageGrantsError)) return undefined;
+  if (error.code === 'NATIVE_COMMERCIAL_CONTEXT_CHANGED')
+    return {
+      status: 409,
+      code: 'WORK_CONTEXT_CHANGED',
+      message: 'Your Platform context changed. Reload and review before retrying.',
+    };
+  if (error.status === 401)
+    return { status: 401, code: 'UNAUTHENTICATED', message: 'Sign in to continue.' };
+  if (error.status === 403)
+    return { status: 403, code: error.code, message: error.message };
+  if (error.status === 404)
+    return { status: 404, code: 'NOT_FOUND', message: 'Packages not found in this scope.' };
+  if (error.status === 409)
+    return { status: 409, code: error.code, message: error.message };
+  if (error.status === 422)
+    return { status: 422, code: error.code, message: error.message };
+  if (error.status === 413)
+    return { status: 413, code: 'REQUEST_TOO_LARGE', message: 'This request is too large.' };
+  if (error.status === 415)
+    return { status: 415, code: 'JSON_REQUIRED', message: 'Submit a JSON request.' };
+  if (error.code === 'NATIVE_COMMERCIAL_REQUEST_INVALID')
+    return {
+      status: 422,
+      code: 'COMMERCIAL_REQUEST_INVALID',
+      message: 'Review the Company package request.',
+    };
+  return {
+    status: 503,
+    code: 'NATIVE_COMMERCIAL_UNAVAILABLE',
+    message: 'The native Commercial package grant service is unavailable.',
+  };
+}

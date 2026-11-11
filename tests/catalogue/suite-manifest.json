@@ -83302,6 +83302,103 @@
       }
     },
     {
+      "id": "commercial.rust-package-grants-http.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native package grant HTTP ingress must retain the registered Platform Host, exact Origin, Idempotency-Key, bounded JSON and business-error mapping without minting authority."
+      },
+      "files": [
+        "tests/unit/commercial/rust-package-grants-http.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "package_grants_http"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-commercial/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-commercial",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "commercial.rust-package-grants-postgres.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Package grant preview/apply and reviewed batch commands must preserve exact receipt replay, serializable owner units and idempotency conflicts over migrated PostgreSQL."
+      },
+      "files": [
+        "tests/integration/commercial/rust-package-grants-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "package_grants_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-commercial/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-commercial",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "commercial.native-company-packages-transport.unit",
       "lane": "unit",
       "owner": "commercial",

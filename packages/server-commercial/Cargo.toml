@@ -43,8 +43,16 @@ name = "company_packages"
 path = "../../tests/unit/commercial/rust-company-packages.test.rs"
 
 [[test]]
+name = "package_grants_http"
+path = "../../tests/unit/commercial/rust-package-grants-http.test.rs"
+
+[[test]]
 name = "company_packages_postgres"
 path = "../../tests/integration/commercial/rust-company-packages-postgres.test.rs"
+
+[[test]]
+name = "package_grants_postgres"
+path = "../../tests/integration/commercial/rust-package-grants-postgres.test.rs"
 
 [[test]]
 name = "purchase_postgres"
