@@ -39,6 +39,15 @@ pub trait CollaborationSourcePort: Send {
         &mut self,
         witness: &Self::Witness,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send;
+    /// Connection-carrying revalidation for ports that must recheck the owner
+    /// row on the caller's transaction before commit.
+    fn require_current_with<'a>(
+        &'a mut self,
+        _connection: &'a mut sqlx::PgConnection,
+        witness: &'a Self::Witness,
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send {
+        self.require_current(witness)
+    }
     /// Additive display-only hook. The default keeps every existing implementor
     /// compiling and defers the destination to the prepared record title.
     fn present(

@@ -1179,6 +1179,39 @@ impl erpx_server_collaboration::public::collaboration_work::CollaborationSourceP
         Box::pin(async { Ok(()) })
     }
 
+    fn require_current_with<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        witness: &'a Self::Witness,
+    ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send {
+        Box::pin(async move {
+            match witness {
+                CollaborationSourceWitness::Pos(current) => {
+                    current.require_current(connection).await?
+                }
+                CollaborationSourceWitness::Pms(current) => {
+                    current.require_current(connection).await?
+                }
+                CollaborationSourceWitness::Assets(current) => {
+                    current.require_current(connection).await?
+                }
+                CollaborationSourceWitness::Commerce(current) => {
+                    current.require_current(connection).await?
+                }
+                CollaborationSourceWitness::Support(current) => {
+                    current.require_current(connection).await?
+                }
+                CollaborationSourceWitness::Maintenance(current) => {
+                    current.require_current(connection).await?
+                }
+                CollaborationSourceWitness::Operations(current) => {
+                    current.require_current(connection).await?
+                }
+            }
+            Ok(())
+        })
+    }
+
     fn present(
         &mut self,
         source: &erpx_server_shared::public::record_source_contract::SourceReference,

@@ -211,6 +211,7 @@ where
     read_only: bool,
     eligibility: Vec<Eligibility>,
     card_scope: Option<(String, Option<String>, Option<String>)>,
+    witnesses: Vec<S::Witness>,
 }
 
 impl<'c, S> PgCollaborationUnit<'c, S>
@@ -242,6 +243,7 @@ where
             read_only: false,
             eligibility: vec![],
             card_scope: None,
+            witnesses: vec![],
         }
     }
 
@@ -881,6 +883,11 @@ where
     }
 
     async fn require_unit_current(&mut self) -> Result<(), Error> {
+        for witness in std::mem::take(&mut self.witnesses) {
+            let connection = &mut *self.connection;
+            self.sources.require_current_with(connection, &witness).await?;
+            self.witnesses.push(witness);
+        }
         self.actor = None;
         let write = !self.read_only;
         self.verify_authority(write).await?;
