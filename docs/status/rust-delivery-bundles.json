@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 445,
+    "revision": 448,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g10",
       "agentId": "lead",
       "startedAt": "2026-11-11T09:58:45.487Z",
-      "heartbeatAt": "2026-11-11T10:10:57.983Z",
-      "expiresAt": "2026-11-11T10:40:57.983Z",
+      "heartbeatAt": "2026-11-11T10:18:17.476Z",
+      "expiresAt": "2026-11-11T10:48:17.476Z",
       "generation": 11,
       "tokenHash": "0ced6e75701f162f2f68f201fdf9c79e87ba9ec9b4123f4befa42ff035f3ee6c"
     },
@@ -12334,8 +12334,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.567Z",
-          "heartbeatAt": "2026-11-11T10:10:57.983Z",
-          "expiresAt": "2026-11-11T10:40:57.983Z",
+          "heartbeatAt": "2026-11-11T10:18:17.476Z",
+          "expiresAt": "2026-11-11T10:48:17.476Z",
           "generation": 11
         },
         "baseSha": null,
@@ -12531,8 +12531,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.591Z",
-          "heartbeatAt": "2026-11-11T10:10:57.983Z",
-          "expiresAt": "2026-11-11T10:40:57.983Z",
+          "heartbeatAt": "2026-11-11T10:18:17.476Z",
+          "expiresAt": "2026-11-11T10:48:17.476Z",
           "generation": 11
         },
         "baseSha": null,
@@ -13128,8 +13128,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.542Z",
-          "heartbeatAt": "2026-11-11T10:10:57.983Z",
-          "expiresAt": "2026-11-11T10:40:57.983Z",
+          "heartbeatAt": "2026-11-11T10:18:17.476Z",
+          "expiresAt": "2026-11-11T10:48:17.476Z",
           "generation": 11
         },
         "baseSha": null,
@@ -13138,7 +13138,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Files MessagingFilesPort/LearningEvidencePort/ProjectAttachmentFilesPort are implemented and committed (0398719c1; 23/23 tests). Next: compose the messaging Files audience + original store, pass files:Some(...) to MessagingHttpTarget, decorate messaging history with files rows and switch it; bind LearningEvidencePort into benefits/learning; bind project attachment port.",
+        "nextAction": "Messaging history is native and switched with per-message file metadata (1435f0cf6; unit 3/3, PG 1/1). Remaining: wire files:Some(PgMessagingFiles)+audience+OriginalByteStore for attachment upload/content (needs files private root in private-API config), inbox notifications owner-visibility port, feed subpaths, CSV/mention drain.",
         "handoff": {
           "runId": "run-20261110-g6",
           "agentId": "lead",
@@ -15443,8 +15443,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.517Z",
-          "heartbeatAt": "2026-11-11T10:10:57.983Z",
-          "expiresAt": "2026-11-11T10:40:57.983Z",
+          "heartbeatAt": "2026-11-11T10:18:17.476Z",
+          "expiresAt": "2026-11-11T10:48:17.476Z",
           "generation": 11
         },
         "baseSha": null,
@@ -15654,7 +15654,7 @@
       }
     },
     "lastCoordinatorGeneration": 11,
-    "updatedAt": "2026-11-11T10:10:57.984Z",
+    "updatedAt": "2026-11-11T10:18:17.476Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
