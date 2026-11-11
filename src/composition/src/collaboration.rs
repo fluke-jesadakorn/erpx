@@ -802,3 +802,205 @@ impl<C: Clock + Send + Sync + 'static> MessagingHttpBackend for MessagingBackend
         Box::pin(async { Err(attachment_unavailable()) })
     }
 }
+
+fn inbox_scope(
+    current: &AuthorizedWorkContext,
+    company: &CompanyId,
+    now: i64,
+) -> Result<erpx_server_collaboration::public::inbox::InboxScope, BusinessError> {
+    erpx_server_collaboration::public::inbox::InboxScope::new(
+        company.as_str(),
+        current.user_id().as_str(),
+        current.selection().assignment().id.as_str(),
+        now,
+    )
+    .map(|scope| scope.assignment_version(current.selection().assignment().version))
+}
+
+pub struct InboxService<C> {
+    authorizer: Arc<HoldingWorkAuthorizer>,
+    configuration: SocialConfiguration,
+    clock: Arc<C>,
+}
+
+impl<C: Clock + Send + Sync + 'static> InboxService<C> {
+    pub fn new(
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        configuration: SocialConfiguration,
+        clock: Arc<C>,
+    ) -> Self {
+        Self {
+            authorizer,
+            configuration,
+            clock,
+        }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        self.configuration.company()
+    }
+
+    pub async fn read(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        kind: erpx_server_collaboration::public::inbox::InboxReadKind,
+    ) -> Result<
+        erpx_server_collaboration::public::inbox::InboxHttpReadReply,
+        Error,
+    > {
+        use erpx_server_collaboration::public::inbox::{
+            InboxHttpReadReply, InboxNotificationQuery, InboxReadKind, PgInboxTargets,
+            PgInboxUnit,
+        };
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected {
+                        return Err(scope_error());
+                    }
+                    request.mutation = false;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("collaboration".into()),
+                    destination: "inbox".into(),
+                    api: true,
+                },
+                CollaborationSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let kind = kind.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_error().into());
+                        }
+                        let now = clock.now().get();
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let scope = inbox_scope(current, &company, now)?;
+                        let mut targets = PgInboxTargets::new(
+                            workspace.branch_id.as_ref().map(|id| id.as_str()),
+                            workspace.department_id.as_ref().map(|id| id.as_str()),
+                        )
+                        .assignment(Some(selected.assignment().id.as_str()));
+                        let mut unit = PgInboxUnit::new(connection, scope, &mut targets);
+                        Ok(match kind {
+                            InboxReadKind::Summary => {
+                                InboxHttpReadReply::Summary(Box::new(unit.summary().await?))
+                            }
+                            InboxReadKind::Notifications {
+                                view,
+                                category,
+                                search,
+                                cursor,
+                                limit,
+                            } => InboxHttpReadReply::Page(Box::new(
+                                unit.notifications(InboxNotificationQuery {
+                                    view,
+                                    category,
+                                    search,
+                                    cursor,
+                                    limit,
+                                })
+                                .await?,
+                            )),
+                            InboxReadKind::People { query } => {
+                                InboxHttpReadReply::People(
+                                    serde_json::to_value(unit.people(&query).await?)
+                                        .map_err(|_| unavailable())?,
+                                )
+                            }
+                            InboxReadKind::Notices => {
+                                InboxHttpReadReply::Notices(
+                                    serde_json::to_value(unit.notices().await?)
+                                        .map_err(|_| unavailable())?,
+                                )
+                            }
+                            InboxReadKind::Notice { id } => {
+                                InboxHttpReadReply::Notice(
+                                    serde_json::to_value(unit.notice(&id).await?)
+                                        .map_err(|_| unavailable())?,
+                                )
+                            }
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
+pub struct InboxBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<InboxService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> InboxBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<InboxService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_collaboration::public::inbox::InboxHttpBackend for InboxBackend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: erpx_server_collaboration::public::inbox::InboxHttpReadRequest<'a>,
+    ) -> erpx_server_collaboration::public::inbox::InboxHttpFuture<
+        'a,
+        erpx_server_collaboration::public::inbox::InboxHttpReadReply,
+    > {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .read(request.host, proof, selection, request.kind)
+                .await
+                .map_err(business)
+        })
+    }
+}
