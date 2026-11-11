@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 499,
+    "revision": 501,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -11501,22 +11501,85 @@
         "resources": [
           "owner:procurement"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g15",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T16:00:32.358Z",
-          "heartbeatAt": "2026-11-11T16:47:38.180Z",
-          "expiresAt": "2026-11-11T17:17:38.180Z",
-          "generation": 16
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
+        "implementedCommit": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+        "lastPushedSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+            "sourceKind": "committed",
+            "note": "History and command routers, notification recipients and composition compile together."
+          },
+          {
+            "command": "bun run test:unit -- --suite=procurement.rust-supplier-promise-command.unit",
+            "result": "passed",
+            "sourceSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+            "sourceKind": "committed",
+            "note": "8/8 command policy cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=procurement.rust-supplier-promise-command-http.unit",
+            "result": "passed",
+            "sourceSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+            "sourceKind": "committed",
+            "note": "5/5 command HTTP cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=procurement.rust-supplier-promise-command-postgres.integration",
+            "result": "passed",
+            "sourceSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+            "sourceKind": "committed",
+            "note": "11/11 PostgreSQL command cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=procurement.native-supplier-promise-history-transport.unit",
+            "result": "passed",
+            "sourceSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+            "sourceKind": "committed",
+            "note": "10/10 transport cases pass including detail/record."
+          },
+          {
+            "command": "bun run test:integration -- --suite=identity_access.rust-staff-notification-recipients-postgres.integration",
+            "result": "passed",
+            "sourceSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+            "sourceKind": "committed",
+            "note": "3/3 notification recipient cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=procurement.rust-supplier-promise-detail-postgres.integration",
+            "result": "passed",
+            "sourceSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+            "sourceKind": "committed",
+            "note": "5/5 detail cases pass."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+            "sourceKind": "committed",
+            "note": "Native client/route switch typecheck."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "cb8adc5f0e04c9c3037a1b6e87ed103b1522347e",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 33 modules, 1117 suites."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-procurement/src/domain/supplier_promise_command.rs",
+            "reason": "Supplier-promise confirmations with non-empty attachmentSetIds stay on the retained TS path until Files evidence parity lands; the native owner refuses non-empty sets by design.",
+            "consumer": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-promises/[id]/route.ts"
+          }
+        ],
         "blocker": null,
-        "nextAction": "Supply GET is native and switched (18489ac36): composition returns the full SupplierPromiseDetail with the supply.purchasing purchase overlay; the order page and the supplier-promises route prefer the native detail; history client accepts the detail shape. Checks: detail unit 8/8, history HTTP 3/3, detail HTTP 3/3, detail PG 5/5, history PG 4/4, native transport 8/8, typecheck, catalogue. Remaining: POST command router mount + notification consumer, and attachment parity.",
+        "nextAction": "History GET and supplier-promise POST are native and switched; purchase admission, Commerce CAS, receipt/audit/outbox and recipient notifications are native. Retained: attachment-bearing confirmations only.",
         "handoff": {
           "runId": "run-20261110-g8",
           "agentId": "lead",
@@ -15869,20 +15932,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 53,
-      "migratedPackets": 19,
+      "migratedPackets": 20,
       "statusCounts": {
         "pending": 24,
         "in_progress": 0,
-        "ready_for_integration": 5,
+        "ready_for_integration": 4,
         "integrating": 0,
-        "migrated": 19,
+        "migrated": 20,
         "blocked": 5,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 16,
-    "updatedAt": "2026-11-11T16:47:38.180Z",
+    "updatedAt": "2026-11-11T16:48:39.420Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
