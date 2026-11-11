@@ -188,6 +188,60 @@ export function nativeCreateChannel(
   return command(request, holdingSlug, `/teams/${encodeURIComponent(teamId)}/channels`, body, key);
 }
 
+export async function nativeMessagingFileContent(
+  request: Request,
+  holdingSlug: string,
+  fileId: string,
+  variant: 'original' | 'preview',
+): Promise<Response> {
+  const config = configuration();
+  const headers = new Headers();
+  const cookie = request.headers.get('cookie');
+  if (cookie) headers.set('cookie', cookie);
+  for (const name of [
+    'x-erpx-context-company',
+    'x-erpx-context-assignment',
+    'x-erpx-context-revision',
+    'x-erpx-context-assignment-version',
+    'x-erpx-workspace-branch',
+    'x-erpx-workspace-department',
+  ]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  let response: Response;
+  try {
+    response = await fetch(
+      `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/messaging/files/${encodeURIComponent(fileId)}?variant=${variant}`,
+      { method: 'GET', headers, cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
+    );
+  } catch {
+    throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');
+  }
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: { code?: string; message?: string } }
+      | null;
+    throw new ApiError(
+      response.status,
+      payload?.error?.code ?? 'NATIVE_COLLABORATION_FAILED',
+      payload?.error?.message ?? 'The Collaboration request failed.',
+    );
+  }
+  const outgoing = new Headers();
+  for (const name of [
+    'content-type',
+    'content-disposition',
+    'cache-control',
+    'x-content-type-options',
+    'content-security-policy',
+  ]) {
+    const value = response.headers.get(name);
+    if (value) outgoing.set(name, value);
+  }
+  return new Response(await response.arrayBuffer(), { headers: outgoing });
+}
+
 export function nativeMessagingOverview(request: Request, holdingSlug: string) {
   return read(request, holdingSlug, '');
 }
