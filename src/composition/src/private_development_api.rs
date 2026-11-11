@@ -9862,6 +9862,56 @@ pub async fn run_production_files_worker_file(
 /// bounded delay until the operator shuts the process down. The supervisor
 /// never discovers targets: the explicit production document owns the Holding
 /// partition.
+/// Production supervisor for the native Organization position-move drain.
+/// Mirrors the development `position-move-worker` loop (5s cadence, per
+/// registered Holding) and stops with the shared worker watch channel.
+async fn run_position_move_supervisor(
+    databases: Vec<crate::runtime_database::RuntimeDatabase>,
+    mut stop: tokio::sync::watch::Receiver<bool>,
+) {
+    let limits = PoolLimits {
+        max_connections: 2,
+        acquire_timeout: Duration::from_secs(5),
+    };
+    let mut pools = Vec::new();
+    for database in databases {
+        match database.connect(limits).await {
+            Ok(pool) => pools.push(pool),
+            Err(_) => {
+                eprintln!("production position-move worker unavailable; restarting");
+                return;
+            }
+        }
+    }
+    loop {
+        if *stop.borrow() {
+            return;
+        }
+        let now = SystemAccountClock.now().get();
+        for pool in &pools {
+            match erpx_server_organization::public::position_moves::drain_due_position_moves(
+                pool.clone(),
+                now,
+            )
+            .await
+            {
+                Ok(processed) if processed > 0 => eprintln!(
+                    "{{\"event\":\"position_move_drain\",\"processed\":{processed}}}"
+                ),
+                Ok(_) => {}
+                Err(error) => eprintln!(
+                    "{{\"event\":\"position_move_drain_failed\",\"code\":\"{}\"}}",
+                    error.code
+                ),
+            }
+        }
+        tokio::select! {
+            _ = stop.changed() => return,
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+        }
+    }
+}
+
 pub async fn run_production_workers_file(
     path: &Path,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
@@ -9974,6 +10024,18 @@ pub async fn run_production_workers_file(
                     _ = tokio::time::sleep(Duration::from_secs(5)) => {}
                 }
             }
+        }));
+    }
+    if !config.holdings.is_empty() {
+        let databases = config
+            .holdings
+            .iter()
+            .map(|holding| holding.database.clone())
+            .collect::<Vec<_>>();
+        let mut stop = stop.clone();
+        handles.push(tokio::spawn(async move {
+            run_position_move_supervisor(databases, stop).await;
+            Ok::<(), &'static str>(())
         }));
     }
     shutdown.await;
