@@ -6,6 +6,8 @@ pub(crate) mod service_count_flow_notification;
 
 pub(crate) mod collaboration_work;
 
+pub(crate) mod collaboration_work_pg;
+
 pub(crate) mod collaboration_work_wire;
 
 pub(crate) mod handbook;
@@ -27,6 +29,8 @@ pub(crate) mod messaging_native;
 pub(crate) mod messaging_pg;
 
 pub(crate) mod inbox_pg;
+
+pub(crate) mod inbox_targets;
 
 pub(crate) mod social_http;
 

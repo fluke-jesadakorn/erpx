@@ -11,3 +11,7 @@ pub use crate::adapters::inbox_pg::{
     InboxCursor, InboxNotificationQuery, InboxScope, InboxTarget, InboxTargetFuture,
     InboxTargetPort, PgInboxUnit, UnavailableInboxTargets, unavailable_targets,
 };
+pub use crate::adapters::inbox_targets::{
+    InboxTargetVisibility, PgInboxTargets, RetainedInboxDestination, encode_uri_component,
+    is_owned_inbox_target, retained_inbox_destination, source_record_label,
+};

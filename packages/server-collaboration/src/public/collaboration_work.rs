@@ -1,6 +1,9 @@
 //! Collaboration mutation port; no commit or source authority is supplied here.
 pub const CONTRACT_VERSION: &str = "collaboration.work.v1";
 pub use crate::adapters::collaboration_work::apply_plan;
+pub use crate::adapters::collaboration_work_pg::{
+    CollaborationScope, PgCollaborationUnit, execute_scope, read_scope_card, read_scope_relation,
+};
 pub use crate::adapters::collaboration_work::{CurrentCollaborationEffects, retain_effects};
 pub use crate::adapters::collaboration_work::{
     CurrentCollaborationRow, StoredCard, lock_collaboration_work_sources, read_card, read_relation,
