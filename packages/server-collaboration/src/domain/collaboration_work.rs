@@ -67,7 +67,7 @@ pub struct AuthorizedActor {
     pub company_id: String,
     pub can_review: bool,
 }
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 pub struct Receipt {
     pub id: String,
     pub version: i64,

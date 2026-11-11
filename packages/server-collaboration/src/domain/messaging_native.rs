@@ -11,12 +11,16 @@ pub const MAX_BODY: usize = 5000;
 pub enum RoomKind {
     Direct,
     Group,
+    /// A room owned by a team. Team membership and ownership come from the
+    /// `messaging_teams` owner rows, never from this value.
+    Channel,
 }
 impl RoomKind {
     pub fn parse(value: &str) -> Result<Self, BusinessError> {
         match value {
             "direct" => Ok(Self::Direct),
             "group" => Ok(Self::Group),
+            "channel" => Ok(Self::Channel),
             _ => Err(invalid()),
         }
     }
@@ -24,6 +28,7 @@ impl RoomKind {
         match self {
             Self::Direct => "direct",
             Self::Group => "group",
+            Self::Channel => "channel",
         }
     }
 }
@@ -110,7 +115,10 @@ pub enum OwnerPlan {
 }
 
 fn invalid() -> BusinessError {
-    BusinessError::invalid("MESSAGING_INPUT_INVALID", "Provide a valid conversation value.")
+    BusinessError::invalid(
+        "MESSAGING_INPUT_INVALID",
+        "Provide a valid conversation value.",
+    )
 }
 
 fn changed() -> BusinessError {
@@ -272,7 +280,9 @@ mod tests {
         );
         assert!(members("", &[]).is_err());
         assert!(members("a", &[" ".into()]).is_err());
-        let many = (0..=MAX_MEMBERS).map(|i| format!("u{i}")).collect::<Vec<_>>();
+        let many = (0..=MAX_MEMBERS)
+            .map(|i| format!("u{i}"))
+            .collect::<Vec<_>>();
         assert!(members("a", &many).is_err());
     }
 
@@ -284,7 +294,10 @@ mod tests {
         assert_eq!(room_name("  Team  ", RoomKind::Group).unwrap(), "Team");
         assert_eq!(room_name("ignored", RoomKind::Direct).unwrap(), "");
         assert!(validate_seq(-1).is_err());
-        assert_eq!(next_seq(MAX_SAFE).unwrap_err().code, "MESSAGING_SOURCE_CHANGED");
+        assert_eq!(
+            next_seq(MAX_SAFE).unwrap_err().code,
+            "MESSAGING_SOURCE_CHANGED"
+        );
     }
 
     #[test]

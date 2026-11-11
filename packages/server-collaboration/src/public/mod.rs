@@ -14,6 +14,16 @@ pub mod social;
 
 pub mod messaging_native;
 
+pub mod messaging_teams;
+
+pub mod messaging_http;
+
+pub mod social_http;
+
+pub mod collaboration_work_http;
+
+pub mod inbox_http;
+
 pub mod operations_notification;
 
 pub mod field_outbox;

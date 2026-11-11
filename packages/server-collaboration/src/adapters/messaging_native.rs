@@ -58,6 +58,15 @@ async fn room_members(c: &mut PgConnection, id: &str) -> Result<Vec<String>, Err
     .await?)
 }
 
+async fn team_members(c: &mut PgConnection, id: &str) -> Result<Vec<String>, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT user_id FROM messaging_team_members WHERE team_id=$1 ORDER BY user_id",
+    )
+    .bind(id)
+    .fetch_all(&mut *c)
+    .await?)
+}
+
 pub async fn read_room(
     c: &mut PgConnection,
     company: &CompanyId,
@@ -73,15 +82,33 @@ pub async fn read_room(
     let Some(row) = row else {
         return Ok(None);
     };
+    let kind = RoomKind::parse(&row.try_get::<String, _>(2)?)?;
+    // Public team channels take membership from the owning team; private
+    // channels and direct/group rooms use explicit room membership.
+    let members = match kind {
+        RoomKind::Channel => {
+            let (team_id, private): (String, bool) =
+                sqlx::query_as("SELECT team_id,private FROM messaging_rooms WHERE id=$1")
+                    .bind(id)
+                    .fetch_one(&mut *c)
+                    .await?;
+            if private {
+                room_members(c, id).await?
+            } else {
+                team_members(c, &team_id).await?
+            }
+        }
+        _ => room_members(c, id).await?,
+    };
     Ok(Some(RoomSnapshot {
         id: row.try_get(0)?,
         company_id: row.try_get(1)?,
-        kind: RoomKind::parse(&row.try_get::<String, _>(2)?)?,
+        kind,
         name: row.try_get(3)?,
         owner_id: row.try_get(4)?,
         version: row.try_get(5)?,
         last_seq: row.try_get(6)?,
-        members: room_members(c, id).await?,
+        members,
         created_at: row.try_get(7)?,
     }))
 }
@@ -147,11 +174,7 @@ pub async fn read_history(
         .ok_or_else(room_not_found)?;
     require_member(actor, &room)?;
     if before.is_some() && after.is_some() {
-        return Err(BusinessError::invalid(
-            "CURSOR_INVALID",
-            "Choose one message cursor.",
-        )
-        .into());
+        return Err(BusinessError::invalid("CURSOR_INVALID", "Choose one message cursor.").into());
     }
     let limit = limit.clamp(1, 100) as i64;
     let reverse = after.is_none();
@@ -213,8 +236,12 @@ pub async fn read_overview(
         "SELECT r.id,r.kind,r.name,r.owner_id,r.version,r.last_seq,
            (SELECT count(*) FROM messaging_messages m WHERE m.room_id=r.id AND m.seq>COALESCE((SELECT mr.seq FROM messaging_reads mr WHERE mr.room_id=r.id AND mr.user_id=$2),0)) unread,
            (SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id) last_message_at
-         FROM messaging_rooms r JOIN messaging_room_members rm ON rm.room_id=r.id AND rm.user_id=$2
-         WHERE r.company_id=$1 ORDER BY COALESCE((SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id),r.created_at) DESC,r.id LIMIT 100",
+         FROM messaging_rooms r
+         WHERE r.company_id=$1 AND (
+           EXISTS(SELECT 1 FROM messaging_room_members rm WHERE rm.room_id=r.id AND rm.user_id=$2)
+           OR (r.kind='channel' AND r.private=false AND EXISTS(SELECT 1 FROM messaging_team_members tm WHERE tm.team_id=r.team_id AND tm.user_id=$2))
+         )
+         ORDER BY COALESCE((SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id),r.created_at) DESC,r.id LIMIT 100",
     )
     .bind(&actor.company_id)
     .bind(&actor.user_id)

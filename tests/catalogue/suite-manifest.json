@@ -90310,6 +90310,150 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "collaboration.rust-social-http.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/collaboration/rust-social-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native collaboration ingress retains authority, bounded input and idempotency."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "social_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml"
+      ]
+    },
+    {
+      "id": "collaboration.rust-messaging-http.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/collaboration/rust-messaging-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native collaboration ingress retains authority, bounded input and idempotency."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "messaging_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml"
+      ]
+    },
+    {
+      "id": "collaboration.rust-collaboration-work-http.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/collaboration/rust-collaboration-work-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native collaboration ingress retains authority, bounded input and idempotency."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "collaboration_work_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml"
+      ]
+    },
+    {
+      "id": "collaboration.rust-inbox-http.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/collaboration/rust-inbox-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native collaboration ingress retains authority, bounded input and idempotency."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "inbox_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml"
+      ]
     }
   ]
 }

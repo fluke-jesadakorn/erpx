@@ -14,13 +14,29 @@ pub(crate) mod handbook_http;
 
 pub(crate) mod handbook_wire;
 
+pub(crate) mod http_ingress;
+
 pub(crate) mod social;
 
 pub(crate) mod messaging_native;
 
+pub(crate) mod social_http;
+
+pub(crate) mod social_http_wire;
+
+pub(crate) mod messaging_http;
+
+pub(crate) mod messaging_http_wire;
+
+pub(crate) mod messaging_teams;
+
+pub(crate) mod collaboration_work_http;
+
+pub(crate) mod inbox_http;
+
 pub mod operations_notification;
 
-#[cfg(feature="push-provider")]
+#[cfg(feature = "push-provider")]
 pub mod web_push_provider;
 
 pub mod field_push_queue;
