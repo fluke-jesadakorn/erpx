@@ -82,6 +82,7 @@ struct Facts;
 impl StaffTaskFactDelegates for Facts {
     fn active_staff<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company_id: &'a str,
         _user_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<StaffFact>, BusinessError> {
@@ -95,6 +96,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn project<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company_id: &'a str,
         project_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<ProjectFact>, BusinessError> {
@@ -109,6 +111,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn same_person<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         actor: &'a StaffTaskActor,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, bool, BusinessError> {
@@ -117,6 +120,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn same_person_between<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company_id: &'a str,
         user_a: &'a str,
         user_b: &'a str,
@@ -126,6 +130,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn readable_post<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _actor: &'a StaffTaskActor,
         post_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<PostFact>, BusinessError> {
@@ -140,6 +145,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn task_route<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _scope: &'a TaskScope,
         _creator_user_id: &'a str,
         _assignee_user_id: &'a str,
@@ -157,6 +163,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn approval_view<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _actor: &'a StaffTaskActor,
         task: &'a TaskRow,
     ) -> StaffTaskFuture<'a, ApprovalView, BusinessError> {
@@ -174,6 +181,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn open_approval<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _key: &'a str,
         _task: &'a TaskRow,
         _phase: &'a str,
@@ -185,6 +193,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn prepare_decision<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _key: &'a str,
         _task: &'a TaskRow,
         approve: bool,
@@ -201,6 +210,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn close_approvals<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _key: &'a str,
         _task_id: &'a str,
         _reason: &'a str,
@@ -211,6 +221,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn attachments<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _actor: &'a StaffTaskActor,
         task_id: &'a str,
     ) -> StaffTaskFuture<'a, Vec<AttachmentRow>, BusinessError> {
@@ -227,6 +238,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn person_name<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company_id: &'a str,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<String>, BusinessError> {
@@ -236,6 +248,7 @@ impl StaffTaskFactDelegates for Facts {
 
     fn feature_enabled<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company_id: &'a str,
     ) -> StaffTaskFuture<'a, bool, BusinessError> {
         Box::pin(async { Ok(true) })
@@ -247,35 +260,35 @@ async fn concrete_sources_forward_each_current_owner_fact() {
     let actor = actor();
     let mut sources = PgStaffTaskSources::new(Facts);
     let staff = sources
-        .active_staff("company", "worker")
+        .active_staff(None, "company", "worker")
         .await
         .unwrap()
         .unwrap();
     assert_eq!(staff.branch_id.as_deref(), Some("branch"));
     assert_eq!(staff.department_id.as_deref(), Some("department"));
     let project = sources
-        .project("company", "project-1")
+        .project(None, "company", "project-1")
         .await
         .unwrap()
         .unwrap();
     assert_eq!(project.owner_user_id, "owner");
     assert_eq!(project.title, "Project project-1");
-    assert!(sources.same_person(&actor, "creator").await.unwrap());
-    assert!(!sources.same_person(&actor, "worker").await.unwrap());
+    assert!(sources.same_person(None, &actor, "creator").await.unwrap());
+    assert!(!sources.same_person(None, &actor, "worker").await.unwrap());
     assert!(
         sources
-            .same_person_between("company", "a", "a")
+            .same_person_between(None, "company", "a", "a")
             .await
             .unwrap()
     );
     assert!(
         !sources
-            .same_person_between("company", "a", "b")
+            .same_person_between(None, "company", "a", "b")
             .await
             .unwrap()
     );
     let post = sources
-        .readable_post(&actor, "post-1")
+        .readable_post(None, &actor, "post-1")
         .await
         .unwrap()
         .unwrap();
@@ -283,6 +296,7 @@ async fn concrete_sources_forward_each_current_owner_fact() {
     assert_eq!(post.author_id, "author");
     let route = sources
         .task_route(
+            None,
             &scope(),
             "creator",
             "worker",
@@ -293,12 +307,16 @@ async fn concrete_sources_forward_each_current_owner_fact() {
         .await
         .unwrap();
     assert_eq!(route.blocked_reason.as_deref(), Some("blocked in start"));
-    let approval = sources.approval_view(&actor, &reviewed()).await.unwrap();
+    let approval = sources
+        .approval_view(None, &actor, &reviewed())
+        .await
+        .unwrap();
     assert_eq!(approval.state, "pending");
     assert!(approval.can_decide);
     assert_eq!(approval.phase.as_deref(), Some("completion"));
     sources
         .open_approval(
+            None,
             "key-1",
             &reviewed(),
             "completion",
@@ -310,27 +328,27 @@ async fn concrete_sources_forward_each_current_owner_fact() {
         .await
         .unwrap();
     let decision = sources
-        .prepare_decision("key-1", &reviewed(), true, "Verified", 1)
+        .prepare_decision(None, "key-1", &reviewed(), true, "Verified", 1)
         .await
         .unwrap();
     assert_eq!(decision.phase, "completion");
     assert!(decision.final_decision);
     sources
-        .close_approvals("key-1", "task-1", "Duplicate", 1)
+        .close_approvals(None, "key-1", "task-1", "Duplicate", 1)
         .await
         .unwrap();
-    let attachments = sources.attachments(&actor, "task-1").await.unwrap();
+    let attachments = sources.attachments(None, &actor, "task-1").await.unwrap();
     assert_eq!(attachments.len(), 1);
     assert_eq!(attachments[0].id, "attachment-task-1");
     assert_eq!(
         sources
-            .person_name("company", "worker")
+            .person_name(None, "company", "worker")
             .await
             .unwrap()
             .as_deref(),
         Some("Name worker")
     );
-    assert!(sources.feature_enabled("company").await.unwrap());
+    assert!(sources.feature_enabled(None, "company").await.unwrap());
 }
 
 #[tokio::test]
@@ -338,14 +356,22 @@ async fn ordinary_task_presentation_resolves_without_a_workflow_delegate() {
     let actor = actor();
     let mut sources = PgStaffTaskSources::new(FailClosedStaffTaskFactDelegates);
     let approval = sources
-        .task_route(&scope(), "creator", "worker", "completion", &[], false)
+        .task_route(
+            None,
+            &scope(),
+            "creator",
+            "worker",
+            "completion",
+            &[],
+            false,
+        )
         .await
         .unwrap();
     assert!(
         approval.blocked_reason.is_none(),
         "an empty route has nothing to validate"
     );
-    let view = sources.approval_view(&actor, &task()).await.unwrap();
+    let view = sources.approval_view(None, &actor, &task()).await.unwrap();
     assert_eq!(view.state, "not_required");
     assert!(view.phase.is_none());
     assert!(!view.can_decide);
@@ -363,7 +389,7 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     let mut sources = PgStaffTaskSources::fail_closed();
     assert_eq!(
         sources
-            .active_staff("company", "worker")
+            .active_staff(None, "company", "worker")
             .await
             .unwrap_err()
             .code,
@@ -371,7 +397,7 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     );
     assert_eq!(
         sources
-            .project("company", "project-1")
+            .project(None, "company", "project-1")
             .await
             .unwrap_err()
             .code,
@@ -379,7 +405,7 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     );
     assert_eq!(
         sources
-            .same_person(&actor, "creator")
+            .same_person(None, &actor, "creator")
             .await
             .unwrap_err()
             .code,
@@ -387,7 +413,7 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     );
     assert_eq!(
         sources
-            .same_person_between("company", "a", "b")
+            .same_person_between(None, "company", "a", "b")
             .await
             .unwrap_err()
             .code,
@@ -395,7 +421,7 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     );
     assert_eq!(
         sources
-            .readable_post(&actor, "post-1")
+            .readable_post(None, &actor, "post-1")
             .await
             .unwrap_err()
             .code,
@@ -404,6 +430,7 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     assert_eq!(
         sources
             .task_route(
+                None,
                 &scope(),
                 "creator",
                 "worker",
@@ -417,12 +444,16 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
         "TASK_WORKFLOW_ROUTE_SOURCE_REQUIRED"
     );
     assert_eq!(
-        sources.approval_view(&actor, &row).await.unwrap_err().code,
+        sources
+            .approval_view(None, &actor, &row)
+            .await
+            .unwrap_err()
+            .code,
         "TASK_WORKFLOW_APPROVAL_VIEW_SOURCE_REQUIRED"
     );
     assert_eq!(
         sources
-            .open_approval("key-1", &row, "start", &route, 2)
+            .open_approval(None, "key-1", &row, "start", &route, 2)
             .await
             .unwrap_err()
             .code,
@@ -430,7 +461,7 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     );
     assert_eq!(
         sources
-            .prepare_decision("key-1", &row, true, "Verified", 1)
+            .prepare_decision(None, "key-1", &row, true, "Verified", 1)
             .await
             .unwrap_err()
             .code,
@@ -438,7 +469,7 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     );
     assert_eq!(
         sources
-            .close_approvals("key-1", "task-1", "Duplicate", 1)
+            .close_approvals(None, "key-1", "task-1", "Duplicate", 1)
             .await
             .unwrap_err()
             .code,
@@ -446,7 +477,7 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     );
     assert_eq!(
         sources
-            .attachments(&actor, "task-1")
+            .attachments(None, &actor, "task-1")
             .await
             .unwrap_err()
             .code,
@@ -454,14 +485,18 @@ async fn each_absent_delegate_fails_closed_with_its_named_code() {
     );
     assert_eq!(
         sources
-            .person_name("company", "worker")
+            .person_name(None, "company", "worker")
             .await
             .unwrap_err()
             .code,
         "TASK_PEOPLE_NAME_SOURCE_REQUIRED"
     );
     assert_eq!(
-        sources.feature_enabled("company").await.unwrap_err().code,
+        sources
+            .feature_enabled(None, "company")
+            .await
+            .unwrap_err()
+            .code,
         "TASK_PMS_FEATURE_SOURCE_REQUIRED"
     );
 }

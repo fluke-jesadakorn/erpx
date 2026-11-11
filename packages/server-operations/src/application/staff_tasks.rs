@@ -138,6 +138,18 @@ pub struct AlertPlan {
 /// atomically. A key may never commit a second time.
 pub trait StaffTaskRepository: Send {
     type Error: From<BusinessError> + Send;
+    /// Lend the caller's retained serializable unit to [`StaffTaskSources`] for
+    /// one fact call.
+    ///
+    /// A real adapter always returns its own unit, so People/Projects/
+    /// Collaboration/Files/Workflow facts resolve inside the same transaction
+    /// the owner rows and ledger are written to. `None` exists only for
+    /// owner-local fakes that answer facts without SQL; a composition delegate
+    /// refuses when the unit is absent instead of fabricating a fact. The
+    /// borrow ends when the source future completes, so the application keeps
+    /// using the repository between fact reads and never holds two `&mut` to
+    /// the transaction.
+    fn connection(&mut self) -> Option<&mut sqlx::PgConnection>;
     fn stored_receipt<'a>(
         &'a mut self,
         key: &'a str,
@@ -194,32 +206,39 @@ pub trait StaffTaskSources: Send {
     type Error: From<BusinessError> + Send;
     fn active_staff<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         company_id: &'a str,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<StaffFact>, Self::Error>;
     fn project<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         company_id: &'a str,
         project_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<ProjectFact>, Self::Error>;
     fn same_person<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         actor: &'a StaffTaskActor,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, bool, Self::Error>;
     fn same_person_between<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         company_id: &'a str,
         user_a: &'a str,
         user_b: &'a str,
     ) -> StaffTaskFuture<'a, bool, Self::Error>;
     fn readable_post<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         actor: &'a StaffTaskActor,
         post_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<PostFact>, Self::Error>;
+    #[allow(clippy::too_many_arguments)]
     fn task_route<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         scope: &'a TaskScope,
         creator_user_id: &'a str,
         assignee_user_id: &'a str,
@@ -229,11 +248,13 @@ pub trait StaffTaskSources: Send {
     ) -> StaffTaskFuture<'a, RouteFact, Self::Error>;
     fn approval_view<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         actor: &'a StaffTaskActor,
         task: &'a TaskRow,
     ) -> StaffTaskFuture<'a, ApprovalView, Self::Error>;
     fn open_approval<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         key: &'a str,
         task: &'a TaskRow,
         phase: &'a str,
@@ -242,6 +263,7 @@ pub trait StaffTaskSources: Send {
     ) -> StaffTaskFuture<'a, (), Self::Error>;
     fn prepare_decision<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         key: &'a str,
         task: &'a TaskRow,
         approve: bool,
@@ -250,6 +272,7 @@ pub trait StaffTaskSources: Send {
     ) -> StaffTaskFuture<'a, DecisionFact, Self::Error>;
     fn close_approvals<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         key: &'a str,
         task_id: &'a str,
         reason: &'a str,
@@ -257,16 +280,19 @@ pub trait StaffTaskSources: Send {
     ) -> StaffTaskFuture<'a, (), Self::Error>;
     fn attachments<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         actor: &'a StaffTaskActor,
         task_id: &'a str,
     ) -> StaffTaskFuture<'a, Vec<AttachmentRow>, Self::Error>;
     fn person_name<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         company_id: &'a str,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<String>, Self::Error>;
     fn feature_enabled<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         company_id: &'a str,
     ) -> StaffTaskFuture<'a, bool, Self::Error>;
 }
@@ -324,16 +350,29 @@ where
     S: StaffTaskSources,
     R::Error: From<S::Error> + From<BusinessError>,
 {
-    let same_creator = sources.same_person(actor, &row.creator_user_id).await?;
-    let same_assignee = sources.same_person(actor, &row.assignee_user_id).await?;
+    let same_creator = sources
+        .same_person(repository.connection(), actor, &row.creator_user_id)
+        .await?;
+    let same_assignee = sources
+        .same_person(repository.connection(), actor, &row.assignee_user_id)
+        .await?;
     let same_delegate = match row.active_delegate_user_id.as_deref() {
-        Some(user) => sources.same_person(actor, user).await?,
+        Some(user) => {
+            sources
+                .same_person(repository.connection(), actor, user)
+                .await?
+        }
         None => false,
     };
     let (same_project_owner, project_member) = match row.project_id.as_deref() {
-        Some(project_id) => match sources.project(&actor.company_id, project_id).await? {
+        Some(project_id) => match sources
+            .project(repository.connection(), &actor.company_id, project_id)
+            .await?
+        {
             Some(project) => (
-                sources.same_person(actor, &project.owner_user_id).await?,
+                sources
+                    .same_person(repository.connection(), actor, &project.owner_user_id)
+                    .await?,
                 false,
             ),
             None => (false, false),
@@ -344,14 +383,16 @@ where
         let users = row.approvers()?;
         let mut found = false;
         for user in users {
-            if sources.same_person(actor, &user).await? {
+            if sources
+                .same_person(repository.connection(), actor, &user)
+                .await?
+            {
                 found = true;
                 break;
             }
         }
         found
     };
-    let _ = repository;
     Ok(TaskAccessFacts {
         same_creator,
         same_assignee,
@@ -460,7 +501,9 @@ where
         .await?
         .ok_or_else(task_not_found)?;
     let access = require_visible(actor, &row, repository, sources).await?;
-    let approval = sources.approval_view(actor, &row).await?;
+    let approval = sources
+        .approval_view(repository.connection(), actor, &row)
+        .await?;
     let blocked = approval
         .blocked_reason
         .clone()
@@ -472,7 +515,11 @@ where
             let delegate_name = match row.active_delegate_name.clone() {
                 Some(name) if !name.is_empty() => name,
                 _ => sources
-                    .person_name(&actor.company_id, &delegate_user_id)
+                    .person_name(
+                        repository.connection(),
+                        &actor.company_id,
+                        &delegate_user_id,
+                    )
                     .await?
                     .unwrap_or_else(|| delegate_user_id.clone()),
             };
@@ -490,19 +537,29 @@ where
     let mut delegation_history = repository.delegation_history(&actor.company_id, id).await?;
     for history in &mut delegation_history {
         if let Some(name) = sources
-            .person_name(&actor.company_id, &history.delegate_name)
+            .person_name(
+                repository.connection(),
+                &actor.company_id,
+                &history.delegate_name,
+            )
             .await?
         {
             history.delegate_name = name;
         }
         if let Some(name) = sources
-            .person_name(&actor.company_id, &history.delegator_name)
+            .person_name(
+                repository.connection(),
+                &actor.company_id,
+                &history.delegator_name,
+            )
             .await?
         {
             history.delegator_name = name;
         }
     }
-    let attachments = sources.attachments(actor, id).await?;
+    let attachments = sources
+        .attachments(repository.connection(), actor, id)
+        .await?;
     Ok(TaskDetail {
         task: row,
         approval,
@@ -590,7 +647,7 @@ where
         .map(|row| row.creator_user_id.as_str())
         .unwrap_or(actor.user_id.as_str());
     let staff = sources
-        .active_staff(&actor.company_id, &actor.user_id)
+        .active_staff(repository.connection(), &actor.company_id, &actor.user_id)
         .await?
         .ok_or_else(|| {
             BusinessError::new(
@@ -600,7 +657,11 @@ where
             )
         })?;
     sources
-        .active_staff(&actor.company_id, &input.assignee_user_id)
+        .active_staff(
+            repository.connection(),
+            &actor.company_id,
+            &input.assignee_user_id,
+        )
         .await?
         .ok_or_else(|| {
             BusinessError::invalid(
@@ -610,7 +671,7 @@ where
         })?;
     if let Some(project_id) = input.project_id.as_deref() {
         sources
-            .project(&actor.company_id, project_id)
+            .project(repository.connection(), &actor.company_id, project_id)
             .await?
             .ok_or_else(|| {
                 BusinessError::new(
@@ -639,6 +700,7 @@ where
     for (phase, approvers) in phases {
         let route = sources
             .task_route(
+                repository.connection(),
                 &scope,
                 creator,
                 &input.assignee_user_id,
@@ -739,7 +801,9 @@ where
         .await?
         .ok_or_else(task_not_found)?;
     let facts = require_visible(actor, &row, repository, sources).await?;
-    let approval = sources.approval_view(actor, &row).await?;
+    let approval = sources
+        .approval_view(repository.connection(), actor, &row)
+        .await?;
     if row.is_terminal() {
         return Err(BusinessError::new(
             FailureKind::Conflict,
@@ -789,6 +853,7 @@ where
                 };
                 let route = sources
                     .task_route(
+                        repository.connection(),
                         &row.scope(),
                         &row.creator_user_id,
                         &row.assignee_user_id,
@@ -806,6 +871,7 @@ where
                 }
                 sources
                     .open_approval(
+                        repository.connection(),
                         key.as_str(),
                         &row,
                         phase,
@@ -819,6 +885,7 @@ where
             decision = Some(
                 sources
                     .prepare_decision(
+                        repository.connection(),
                         key.as_str(),
                         &row,
                         input.action == TaskAction::Approve,
@@ -830,7 +897,13 @@ where
         }
         TaskAction::Cancel => {
             sources
-                .close_approvals(key.as_str(), id, &input.note, input.expected_version)
+                .close_approvals(
+                    repository.connection(),
+                    key.as_str(),
+                    id,
+                    &input.note,
+                    input.expected_version,
+                )
                 .await?;
         }
         TaskAction::Start | TaskAction::SaveProgress => {}
@@ -904,9 +977,12 @@ where
         )
         .into());
     }
-    if sources.same_person(actor, &input.delegate_user_id).await?
+    if sources
+        .same_person(repository.connection(), actor, &input.delegate_user_id)
+        .await?
         || sources
             .same_person_between(
+                repository.connection(),
                 &actor.company_id,
                 &input.delegate_user_id,
                 &row.assignee_user_id,
@@ -931,7 +1007,11 @@ where
         .into());
     }
     sources
-        .active_staff(&actor.company_id, &input.delegate_user_id)
+        .active_staff(
+            repository.connection(),
+            &actor.company_id,
+            &input.delegate_user_id,
+        )
         .await?
         .ok_or_else(|| {
             BusinessError::invalid(
@@ -1060,14 +1140,17 @@ where
     let mut due_soon = 0;
     let mut overdue = 0;
     for mut task in rows {
-        if !sources.feature_enabled(&task.company_id).await? {
+        if !sources
+            .feature_enabled(repository.connection(), &task.company_id)
+            .await?
+        {
             continue;
         }
         if task.project_owner_id.is_none()
             && let Some(project_id) = task.project_id.clone()
         {
             task.project_owner_id = sources
-                .project(&task.company_id, &project_id)
+                .project(repository.connection(), &task.company_id, &project_id)
                 .await?
                 .map(|project| project.owner_user_id);
         }

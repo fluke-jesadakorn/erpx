@@ -353,6 +353,10 @@ impl<'a> PgStaffTasks<'a> {
 impl StaffTaskRepository for PgStaffTasks<'_> {
     type Error = Error;
 
+    fn connection(&mut self) -> Option<&mut PgConnection> {
+        Some(&mut *self.connection)
+    }
+
     fn stored_receipt<'a>(
         &'a mut self,
         key: &'a str,

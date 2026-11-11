@@ -3,10 +3,11 @@
 //! Operations owns the task, delegation and notification rows. Every other fact
 //! needed to authorize or present a task belongs to another owner and must be
 //! supplied by composition under the caller's retained serializable Holding
-//! unit. [`StaffTaskFactDelegates`] is that seam: each method has a fail-closed
-//! default with its own named error code, so a source composition has not
-//! mounted refuses the command instead of fabricating a fact or copying another
-//! owner's SQL.
+//! unit. [`StaffTaskFactDelegates`] is that seam: each method receives the
+//! repository's own unit (`Option<&mut sqlx::PgConnection>`) as its first
+//! argument and has a fail-closed default with its own named error code, so a
+//! source composition has not mounted refuses the command instead of
+//! fabricating a fact or copying another owner's SQL.
 //!
 //! Two facts are genuinely owner-local and are resolved here without a delegate:
 //!
@@ -22,6 +23,7 @@ use crate::domain::staff_tasks::{
     ApprovalView, AttachmentRow, DecisionFact, StaffTaskActor, TaskRow, TaskScope,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
+use sqlx::PgConnection;
 
 fn source_required(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::new(FailureKind::Unavailable, code, message)
@@ -30,19 +32,21 @@ fn source_required(code: &'static str, message: &'static str) -> BusinessError {
 /// Cross-owner Staff Work facts and effects.
 ///
 /// Composition implements this trait on one per-request adapter that holds the
-/// retained PostgreSQL unit plus the owning Identity, People, Projects,
-/// Collaboration, Files, Workflow and PMS ports. Every method defaults to the
-/// named fail-closed refusal; composition overrides only the facts it can serve
-/// from the current owner.
+/// owning Identity, People, Projects, Collaboration, Files, Workflow and PMS
+/// ports. The application lends the repository's retained unit through `unit`,
+/// so every fact read runs inside the same serializable transaction the owner
+/// command writes. Every method defaults to the named fail-closed refusal;
+/// composition overrides only the facts it can serve from the current owner.
 pub trait StaffTaskFactDelegates: Send {
     /// People: the user is current active staff for the Company, with their
     /// current branch/department placement.
     fn active_staff<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<StaffFact>, BusinessError> {
-        let _ = (company_id, user_id);
+        let _ = (unit, company_id, user_id);
         Box::pin(async {
             Err(source_required(
                 "TASK_PEOPLE_ACTIVE_STAFF_SOURCE_REQUIRED",
@@ -54,10 +58,11 @@ pub trait StaffTaskFactDelegates: Send {
     /// Projects: the project identity and accountable owner for the Company.
     fn project<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         project_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<ProjectFact>, BusinessError> {
-        let _ = (company_id, project_id);
+        let _ = (unit, company_id, project_id);
         Box::pin(async {
             Err(source_required(
                 "TASK_PROJECT_SOURCE_REQUIRED",
@@ -69,10 +74,11 @@ pub trait StaffTaskFactDelegates: Send {
     /// Identity: the current IAM mapping says the actor is this user.
     fn same_person<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         actor: &'a StaffTaskActor,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, bool, BusinessError> {
-        let _ = (actor, user_id);
+        let _ = (unit, actor, user_id);
         Box::pin(async {
             Err(source_required(
                 "TASK_IDENTITY_SAME_PERSON_SOURCE_REQUIRED",
@@ -84,11 +90,12 @@ pub trait StaffTaskFactDelegates: Send {
     /// Identity: the current IAM mapping says two users are the same person.
     fn same_person_between<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         user_a: &'a str,
         user_b: &'a str,
     ) -> StaffTaskFuture<'a, bool, BusinessError> {
-        let _ = (company_id, user_a, user_b);
+        let _ = (unit, company_id, user_a, user_b);
         Box::pin(async {
             Err(source_required(
                 "TASK_IDENTITY_SAME_PERSON_BETWEEN_SOURCE_REQUIRED",
@@ -100,10 +107,11 @@ pub trait StaffTaskFactDelegates: Send {
     /// Collaboration: the post is readable by the actor.
     fn readable_post<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         actor: &'a StaffTaskActor,
         post_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<PostFact>, BusinessError> {
-        let _ = (actor, post_id);
+        let _ = (unit, actor, post_id);
         Box::pin(async {
             Err(source_required(
                 "TASK_COLLABORATION_POST_SOURCE_REQUIRED",
@@ -113,8 +121,10 @@ pub trait StaffTaskFactDelegates: Send {
     }
 
     /// Workflow: validate the ordered approval route for the task scope.
+    #[allow(clippy::too_many_arguments)]
     fn task_route<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         scope: &'a TaskScope,
         creator_user_id: &'a str,
         assignee_user_id: &'a str,
@@ -123,6 +133,7 @@ pub trait StaffTaskFactDelegates: Send {
         service_task: bool,
     ) -> StaffTaskFuture<'a, RouteFact, BusinessError> {
         let _ = (
+            unit,
             scope,
             creator_user_id,
             assignee_user_id,
@@ -142,10 +153,11 @@ pub trait StaffTaskFactDelegates: Send {
     /// actor may decide it.
     fn approval_view<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         actor: &'a StaffTaskActor,
         task: &'a TaskRow,
     ) -> StaffTaskFuture<'a, ApprovalView, BusinessError> {
-        let _ = (actor, task);
+        let _ = (unit, actor, task);
         Box::pin(async {
             Err(source_required(
                 "TASK_WORKFLOW_APPROVAL_VIEW_SOURCE_REQUIRED",
@@ -157,13 +169,14 @@ pub trait StaffTaskFactDelegates: Send {
     /// Workflow: open the approval instance for the next task version.
     fn open_approval<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         key: &'a str,
         task: &'a TaskRow,
         phase: &'a str,
         route: &'a RouteFact,
         version: i64,
     ) -> StaffTaskFuture<'a, (), BusinessError> {
-        let _ = (key, task, phase, route, version);
+        let _ = (unit, key, task, phase, route, version);
         Box::pin(async {
             Err(source_required(
                 "TASK_WORKFLOW_OPEN_APPROVAL_SOURCE_REQUIRED",
@@ -175,13 +188,14 @@ pub trait StaffTaskFactDelegates: Send {
     /// Workflow: record one approval or rejection decision.
     fn prepare_decision<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         key: &'a str,
         task: &'a TaskRow,
         approve: bool,
         note: &'a str,
         expected_version: i64,
     ) -> StaffTaskFuture<'a, DecisionFact, BusinessError> {
-        let _ = (key, task, approve, note, expected_version);
+        let _ = (unit, key, task, approve, note, expected_version);
         Box::pin(async {
             Err(source_required(
                 "TASK_WORKFLOW_DECISION_SOURCE_REQUIRED",
@@ -193,12 +207,13 @@ pub trait StaffTaskFactDelegates: Send {
     /// Workflow: close the open approval when the task is cancelled.
     fn close_approvals<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         key: &'a str,
         task_id: &'a str,
         reason: &'a str,
         expected_version: i64,
     ) -> StaffTaskFuture<'a, (), BusinessError> {
-        let _ = (key, task_id, reason, expected_version);
+        let _ = (unit, key, task_id, reason, expected_version);
         Box::pin(async {
             Err(source_required(
                 "TASK_WORKFLOW_CLOSE_APPROVAL_SOURCE_REQUIRED",
@@ -210,10 +225,11 @@ pub trait StaffTaskFactDelegates: Send {
     /// Files: current task evidence attachments.
     fn attachments<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         actor: &'a StaffTaskActor,
         task_id: &'a str,
     ) -> StaffTaskFuture<'a, Vec<AttachmentRow>, BusinessError> {
-        let _ = (actor, task_id);
+        let _ = (unit, actor, task_id);
         Box::pin(async {
             Err(source_required(
                 "TASK_FILES_ATTACHMENT_SOURCE_REQUIRED",
@@ -225,10 +241,11 @@ pub trait StaffTaskFactDelegates: Send {
     /// People: the current display name for a user.
     fn person_name<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<String>, BusinessError> {
-        let _ = (company_id, user_id);
+        let _ = (unit, company_id, user_id);
         Box::pin(async {
             Err(source_required(
                 "TASK_PEOPLE_NAME_SOURCE_REQUIRED",
@@ -240,9 +257,10 @@ pub trait StaffTaskFactDelegates: Send {
     /// PMS: the Operations feature is enabled for the Company.
     fn feature_enabled<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
     ) -> StaffTaskFuture<'a, bool, BusinessError> {
-        let _ = company_id;
+        let _ = (unit, company_id);
         Box::pin(async {
             Err(source_required(
                 "TASK_PMS_FEATURE_SOURCE_REQUIRED",
@@ -262,15 +280,14 @@ impl StaffTaskFactDelegates for FailClosedStaffTaskFactDelegates {}
 
 /// Concrete composition-facing [`StaffTaskSources`].
 ///
-/// It performs no cross-owner SQL: composition supplies current owner facts
-/// through [`StaffTaskFactDelegates`]. The only local decisions are the two
-/// owner-local facts documented at the module root.
+/// It performs no cross-owner SQL and owns no connection of its own: composition
+/// supplies current owner facts through [`StaffTaskFactDelegates`], and the
+/// application lends the repository's retained unit to every call. Because the
+/// unit is passed per call, the application keeps using the repository between
+/// fact reads and there is never a second simultaneous `&mut` to the transaction.
 ///
-/// The application holds the repository and the sources as two simultaneous
-/// `&mut` ports, so a delegate cannot borrow the repository's
-/// `&mut PgConnection`. Composition should back the delegate with its owner
-/// ports over a separate pool connection or a prepared read snapshot; the
-/// Staff Work command still writes through the repository's retained unit.
+/// The only local decisions are the two owner-local facts documented at the
+/// module root.
 pub struct PgStaffTaskSources<D: StaffTaskFactDelegates> {
     delegates: D,
 }
@@ -304,48 +321,55 @@ impl<D: StaffTaskFactDelegates> StaffTaskSources for PgStaffTaskSources<D> {
 
     fn active_staff<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<StaffFact>, Self::Error> {
-        self.delegates.active_staff(company_id, user_id)
+        self.delegates.active_staff(unit, company_id, user_id)
     }
 
     fn project<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         project_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<ProjectFact>, Self::Error> {
-        self.delegates.project(company_id, project_id)
+        self.delegates.project(unit, company_id, project_id)
     }
 
     fn same_person<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         actor: &'a StaffTaskActor,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, bool, Self::Error> {
-        self.delegates.same_person(actor, user_id)
+        self.delegates.same_person(unit, actor, user_id)
     }
 
     fn same_person_between<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         user_a: &'a str,
         user_b: &'a str,
     ) -> StaffTaskFuture<'a, bool, Self::Error> {
         self.delegates
-            .same_person_between(company_id, user_a, user_b)
+            .same_person_between(unit, company_id, user_a, user_b)
     }
 
     fn readable_post<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         actor: &'a StaffTaskActor,
         post_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<PostFact>, Self::Error> {
-        self.delegates.readable_post(actor, post_id)
+        self.delegates.readable_post(unit, actor, post_id)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn task_route<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         scope: &'a TaskScope,
         creator_user_id: &'a str,
         assignee_user_id: &'a str,
@@ -361,6 +385,7 @@ impl<D: StaffTaskFactDelegates> StaffTaskSources for PgStaffTaskSources<D> {
             });
         }
         self.delegates.task_route(
+            unit,
             scope,
             creator_user_id,
             assignee_user_id,
@@ -372,6 +397,7 @@ impl<D: StaffTaskFactDelegates> StaffTaskSources for PgStaffTaskSources<D> {
 
     fn approval_view<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         actor: &'a StaffTaskActor,
         task: &'a TaskRow,
     ) -> StaffTaskFuture<'a, ApprovalView, Self::Error> {
@@ -386,11 +412,12 @@ impl<D: StaffTaskFactDelegates> StaffTaskSources for PgStaffTaskSources<D> {
                 })
             });
         }
-        self.delegates.approval_view(actor, task)
+        self.delegates.approval_view(unit, actor, task)
     }
 
     fn open_approval<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         key: &'a str,
         task: &'a TaskRow,
         phase: &'a str,
@@ -398,11 +425,12 @@ impl<D: StaffTaskFactDelegates> StaffTaskSources for PgStaffTaskSources<D> {
         version: i64,
     ) -> StaffTaskFuture<'a, (), Self::Error> {
         self.delegates
-            .open_approval(key, task, phase, route, version)
+            .open_approval(unit, key, task, phase, route, version)
     }
 
     fn prepare_decision<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         key: &'a str,
         task: &'a TaskRow,
         approve: bool,
@@ -410,40 +438,44 @@ impl<D: StaffTaskFactDelegates> StaffTaskSources for PgStaffTaskSources<D> {
         expected_version: i64,
     ) -> StaffTaskFuture<'a, DecisionFact, Self::Error> {
         self.delegates
-            .prepare_decision(key, task, approve, note, expected_version)
+            .prepare_decision(unit, key, task, approve, note, expected_version)
     }
 
     fn close_approvals<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         key: &'a str,
         task_id: &'a str,
         reason: &'a str,
         expected_version: i64,
     ) -> StaffTaskFuture<'a, (), Self::Error> {
         self.delegates
-            .close_approvals(key, task_id, reason, expected_version)
+            .close_approvals(unit, key, task_id, reason, expected_version)
     }
 
     fn attachments<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         actor: &'a StaffTaskActor,
         task_id: &'a str,
     ) -> StaffTaskFuture<'a, Vec<AttachmentRow>, Self::Error> {
-        self.delegates.attachments(actor, task_id)
+        self.delegates.attachments(unit, actor, task_id)
     }
 
     fn person_name<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         user_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<String>, Self::Error> {
-        self.delegates.person_name(company_id, user_id)
+        self.delegates.person_name(unit, company_id, user_id)
     }
 
     fn feature_enabled<'a>(
         &'a mut self,
+        unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
     ) -> StaffTaskFuture<'a, bool, Self::Error> {
-        self.delegates.feature_enabled(company_id)
+        self.delegates.feature_enabled(unit, company_id)
     }
 }

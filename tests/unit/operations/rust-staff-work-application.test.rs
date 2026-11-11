@@ -50,6 +50,9 @@ impl Repo {
 }
 impl StaffTaskRepository for Repo {
     type Error = BusinessError;
+    fn connection(&mut self) -> Option<&mut sqlx::PgConnection> {
+        None
+    }
     fn stored_receipt<'a>(
         &'a mut self,
         key: &'a str,
@@ -246,6 +249,7 @@ impl StaffTaskSources for Sources {
     type Error = BusinessError;
     fn active_staff<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company: &'a str,
         user: &'a str,
     ) -> StaffTaskFuture<'a, Option<StaffFact>, Self::Error> {
@@ -261,6 +265,7 @@ impl StaffTaskSources for Sources {
     }
     fn project<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company: &'a str,
         _id: &'a str,
     ) -> StaffTaskFuture<'a, Option<ProjectFact>, Self::Error> {
@@ -268,6 +273,7 @@ impl StaffTaskSources for Sources {
     }
     fn same_person<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         actor: &'a StaffTaskActor,
         user: &'a str,
     ) -> StaffTaskFuture<'a, bool, Self::Error> {
@@ -275,6 +281,7 @@ impl StaffTaskSources for Sources {
     }
     fn same_person_between<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company: &'a str,
         a: &'a str,
         b: &'a str,
@@ -283,6 +290,7 @@ impl StaffTaskSources for Sources {
     }
     fn readable_post<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _actor: &'a StaffTaskActor,
         _id: &'a str,
     ) -> StaffTaskFuture<'a, Option<PostFact>, Self::Error> {
@@ -290,6 +298,7 @@ impl StaffTaskSources for Sources {
     }
     fn task_route<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _scope: &'a erpx_server_operations::public::staff_tasks::TaskScope,
         _creator: &'a str,
         _assignee: &'a str,
@@ -305,6 +314,7 @@ impl StaffTaskSources for Sources {
     }
     fn approval_view<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _actor: &'a StaffTaskActor,
         _task: &'a TaskRow,
     ) -> StaffTaskFuture<'a, ApprovalView, Self::Error> {
@@ -320,6 +330,7 @@ impl StaffTaskSources for Sources {
     }
     fn open_approval<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _key: &'a str,
         _task: &'a TaskRow,
         _phase: &'a str,
@@ -330,6 +341,7 @@ impl StaffTaskSources for Sources {
     }
     fn prepare_decision<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _key: &'a str,
         _task: &'a TaskRow,
         _approve: bool,
@@ -345,6 +357,7 @@ impl StaffTaskSources for Sources {
     }
     fn close_approvals<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _key: &'a str,
         _task: &'a str,
         _reason: &'a str,
@@ -354,6 +367,7 @@ impl StaffTaskSources for Sources {
     }
     fn attachments<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _actor: &'a StaffTaskActor,
         _task: &'a str,
     ) -> StaffTaskFuture<'a, Vec<AttachmentRow>, Self::Error> {
@@ -361,6 +375,7 @@ impl StaffTaskSources for Sources {
     }
     fn person_name<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company: &'a str,
         _user: &'a str,
     ) -> StaffTaskFuture<'a, Option<String>, Self::Error> {
@@ -368,6 +383,7 @@ impl StaffTaskSources for Sources {
     }
     fn feature_enabled<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _company: &'a str,
     ) -> StaffTaskFuture<'a, bool, Self::Error> {
         Box::pin(async move { Ok(true) })

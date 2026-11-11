@@ -3,8 +3,9 @@
 #[path = "../../support/operations/rust-operations-database.rs"]
 mod fixture;
 use erpx_server_operations::public::staff_tasks::{
-    AlertPlan, PgStaffTasks, SaveTaskCommand, SaveTaskPlan, StaffTaskActor, StaffTaskRepository,
-    TaskReceipt, TransitionTaskCommand, TransitionTaskPlan, lock_staff_task_sources,
+    AlertPlan, PgStaffTaskSources, PgStaffTasks, SaveTaskCommand, SaveTaskPlan, StaffTaskActor,
+    StaffTaskFactDelegates, StaffTaskFuture, StaffTaskRepository, TaskReceipt,
+    TransitionTaskCommand, TransitionTaskPlan, list_tasks, lock_staff_task_sources,
     plan_transition,
 };
 use erpx_server_runtime::public::postgres::{
@@ -193,6 +194,54 @@ async fn rejects_a_replayed_key_with_a_different_fingerprint() {
             ),
             "a key may never commit a second request"
         );
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+/// A repository lending its unit to the source port proves cross-owner facts
+/// resolve inside the same serializable transaction: the delegate can see the
+/// uncommitted owner row the repository just wrote.
+struct SameUnitDelegates;
+
+impl StaffTaskFactDelegates for SameUnitDelegates {
+    fn same_person<'a>(
+        &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
+        actor: &'a StaffTaskActor,
+        user_id: &'a str,
+    ) -> StaffTaskFuture<'a, bool, erpx_server_shared::public::BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Ok(false);
+            };
+            let visible: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM staff_tasks WHERE id='task-1' AND company_id=$1",
+            )
+            .bind(&actor.company_id)
+            .fetch_one(&mut *connection)
+            .await
+            .unwrap();
+            Ok(visible == 1 && actor.user_id == user_id)
+        })
+    }
+}
+
+#[tokio::test]
+async fn sources_resolve_facts_inside_the_repository_unit() {
+    fixture::with_database(2, |holding| async move {
+        migrate(&holding).await;
+        let now = NOW.load(Ordering::SeqCst);
+        let mut tx = serializable(&holding).await;
+        lock_staff_task_sources(&mut tx).await.unwrap();
+        let mut repository = PgStaffTasks::new(&mut tx);
+        repository.save(save_plan("key-unit", now)).await.unwrap();
+        let mut sources = PgStaffTaskSources::new(SameUnitDelegates);
+        let rows = list_tasks(&actor(), &mut repository, &mut sources, None, now)
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "task-1");
         tx.rollback().await.unwrap();
     })
     .await;
