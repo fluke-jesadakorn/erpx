@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 348,
+    "revision": 349,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -11587,14 +11587,21 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g3",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-11T00:27:13.038Z",
+          "heartbeatAt": "2026-11-11T00:27:13.038Z",
+          "expiresAt": "2026-11-11T00:57:13.038Z",
+          "generation": 4
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired during a long slice review; WIP and processes reconciled, same lead resumed",
+        "blocker": null,
         "nextAction": "Implement the first inventoried people_payroll packet (migrate.people_payroll.payroll-run-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
         "handoff": {
           "runId": "run-20261110-g2",
@@ -15211,17 +15218,17 @@
       "migratedPackets": 11,
       "statusCounts": {
         "pending": 25,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 11,
-        "blocked": 5,
+        "blocked": 4,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 4,
-    "updatedAt": "2026-11-11T00:26:58.637Z",
+    "updatedAt": "2026-11-11T00:27:13.039Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
