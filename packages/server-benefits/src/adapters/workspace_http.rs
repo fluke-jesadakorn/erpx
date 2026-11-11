@@ -25,6 +25,13 @@ pub struct BenefitsWorkspaceHttpReadRequest<'a> {
     pub personal: bool,
 }
 
+pub struct BenefitsDetailHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub id: &'a str,
+}
+
 #[derive(Clone, Debug)]
 pub struct BenefitsWorkspaceHttpResponse {
     /// Owner read data. The backend adds the validated current context.
@@ -44,6 +51,11 @@ pub trait BenefitsWorkspaceHttpBackend: Send + Sync {
     fn read<'a>(
         &'a self,
         request: BenefitsWorkspaceHttpReadRequest<'a>,
+    ) -> BenefitsWorkspaceHttpFuture<'a, BenefitsWorkspaceHttpResponse>;
+
+    fn detail<'a>(
+        &'a self,
+        request: BenefitsDetailHttpRequest<'a>,
     ) -> BenefitsWorkspaceHttpFuture<'a, BenefitsWorkspaceHttpResponse>;
 }
 
@@ -116,6 +128,9 @@ fn valid_slug(slug: &str) -> bool {
             byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
         })
 }
+fn valid_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 128 && id.is_ascii() && !id.contains('/')
+}
 fn status(kind: FailureKind) -> StatusCode {
     match kind {
         FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
@@ -180,6 +195,10 @@ pub fn benefits_workspace_http_router(
             "/api/v1/holdings/{holding_slug}/benefits",
             get(read_workspace),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/benefits/{id}",
+            get(read_detail),
+        )
         .with_state(Arc::new(BenefitsWorkspaceHttpState {
             targets: configured,
         })))
@@ -207,6 +226,40 @@ async fn read_workspace(
                 holding_slug: &target.holding_slug,
                 headers: &headers,
                 personal,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_detail(
+    State(state): State<Arc<BenefitsWorkspaceHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        if request.uri().query().is_some() {
+            return Err(malformed());
+        }
+        if !valid_id(&id) {
+            return Err(malformed());
+        }
+        let headers = request.headers().clone();
+        let _ = to_bytes(request.into_body(), 0)
+            .await
+            .map_err(|_| malformed())?;
+        target
+            .backend
+            .detail(BenefitsDetailHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                id: &id,
             })
             .await
     }

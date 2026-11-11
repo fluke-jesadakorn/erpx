@@ -11,11 +11,12 @@ use erpx_server_benefits::public::command_http::{
 };
 use erpx_server_benefits::public::workspace::{
     BenefitsActor, BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture,
-    BenefitsPeoplePort, BenefitsWorker, PgBenefitsWorkspaceRead, benefits_workspace,
+    BenefitsPeoplePort, BenefitsWorker, PgBenefitsWorkspaceRead, benefits_election_detail,
+    benefits_workspace,
 };
 use erpx_server_benefits::public::workspace_http::{
-    BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture, BenefitsWorkspaceHttpReadRequest,
-    BenefitsWorkspaceHttpResponse,
+    BenefitsDetailHttpRequest, BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture,
+    BenefitsWorkspaceHttpReadRequest, BenefitsWorkspaceHttpResponse,
 };
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
@@ -459,6 +460,103 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
             .await
     }
 
+    pub async fn detail<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: &str,
+    ) -> Result<BenefitsWorkspaceHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let id = id.to_owned();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                BenefitsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let actor = benefits_actor(current)?;
+                        let now = clock.now();
+                        let (worker, names, person) =
+                            benefits_people(connection, &company, current.user_id().as_str(), &[])
+                                .await?;
+                        let (entitlement, witness) =
+                            benefits_entitlement(connection, &holding, &company, now).await?;
+                        let purchase = entitlement.purchase();
+                        let mut repository = PgBenefitsWorkspaceRead::new(connection);
+                        let mut people = BenefitsPeopleSnapshot { worker, names };
+                        let mut entitlement_port = BenefitsEntitlementSnapshot(entitlement);
+                        let detail = benefits_election_detail(
+                            &actor,
+                            &id,
+                            &mut repository,
+                            &mut people,
+                            &mut entitlement_port,
+                            now,
+                        )
+                        .await?;
+                        drop(repository);
+                        person.require_current(connection).await.map_err(business)?;
+                        let catalogue = current_package_catalogue()?;
+                        PgCompanyPurchaseReader::new(
+                            holding.clone(),
+                            company.clone(),
+                            connection,
+                            &catalogue,
+                        )
+                        .revalidate(&witness, now)
+                        .await
+                        .map_err(business)?;
+                        let mut data = serde_json::to_value(detail).map_err(|_| unavailable())?;
+                        let object = data.as_object_mut().ok_or_else(unavailable)?;
+                        object.insert(
+                            "canWrite".into(),
+                            Value::Bool(
+                                current
+                                    .command_iam_metadata()
+                                    .permissions
+                                    .iter()
+                                    .any(|permission| permission == "records.write"),
+                            ),
+                        );
+                        object.insert(
+                            "workContext".into(),
+                            Value::String(benefits_work_context(current)),
+                        );
+                        if let Some(purchase) = purchase {
+                            object.insert(
+                                "purchase".into(),
+                                serde_json::to_value(purchase).map_err(|_| unavailable())?,
+                            );
+                        }
+                        Ok(BenefitsWorkspaceHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn command(
         &self,
         host: &str,
@@ -680,6 +778,19 @@ impl<C: Clock + Send + Sync + 'static> BenefitsWorkspaceHttpBackend for Benefits
             let personal = request.personal;
             self.service
                 .workspace(request.host, proof, move || Ok(selection), personal)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn detail<'a>(
+        &'a self,
+        request: BenefitsDetailHttpRequest<'a>,
+    ) -> BenefitsWorkspaceHttpFuture<'a, BenefitsWorkspaceHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .detail(request.host, proof, move || Ok(selection), request.id)
                 .await
                 .map_err(business)
         })

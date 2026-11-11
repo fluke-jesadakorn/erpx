@@ -1,5 +1,6 @@
 //! Native Benefits enrollment workspace HTTP ingress and owner-local router.
 pub use crate::adapters::workspace_http::{
-    BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture, BenefitsWorkspaceHttpReadRequest,
-    BenefitsWorkspaceHttpResponse, BenefitsWorkspaceHttpTarget, benefits_workspace_http_router,
+    BenefitsDetailHttpRequest, BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture,
+    BenefitsWorkspaceHttpReadRequest, BenefitsWorkspaceHttpResponse, BenefitsWorkspaceHttpTarget,
+    benefits_workspace_http_router,
 };

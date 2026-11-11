@@ -114,6 +114,43 @@ describe('native Benefits workspace transport',()=>{
   expect(body).toBeUndefined();
  });
 
+ it('forwards the exact detail route, validates its id and returns owner data unchanged',async()=>{
+  const detail={
+    election:{id:'election-owner',company_id:'company',person_id:'person-owner',status:'released'},
+    history:[],payroll:null,canReview:false,canManageDocuments:false,isOwner:true,
+    actorId:'user',canWrite:true,workContext:'a'.repeat(64),
+    purchase:{newWork:true,settleExisting:true,history:true,revision:'7'},
+  };
+  const transport=vi.fn().mockResolvedValue(ok({data:detail,context}));
+  const client=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),transport);
+  const result=await client.detail(incoming(),actor,input,'election-owner');
+  expect(result).toEqual(detail);
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('GET');
+  expect(url.toString()).toBe('http://127.0.0.1:44997/api/v1/holdings/acme/benefits/election-owner');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(headers.get('x-erpx-context-assignment')).toBe('assignment');
+  expect(headers.get('x-erpx-context-revision')).toBe('7');
+  expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
+  expect(headers.get('x-erpx-benefits-personal')).toBeNull();
+  expect(body).toBeUndefined();
+  for(const id of ['','a/b','é','a'.repeat(129)]){
+    await expect(client.detail(incoming(),actor,input,id))
+      .rejects.toMatchObject({code:'NATIVE_BENEFITS_REQUEST_INVALID'});
+  }
+  expect(transport).toHaveBeenCalledTimes(1);
+  await expect(client.detail(incoming({host:'evil.example.com'}),actor,input,'election-owner'))
+    .rejects.toMatchObject({code:'NATIVE_BENEFITS_AUTHORITY_INVALID'});
+  const mismatched=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),vi.fn().mockResolvedValue(ok({data:detail,context:{...context,companyId:'foreign'}})));
+  await expect(mismatched.detail(incoming(),actor,input,'election-owner'))
+    .rejects.toMatchObject({code:'NATIVE_BENEFITS_CONTEXT_CHANGED'});
+  const oversized=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),vi.fn().mockResolvedValue(
+    new Response('x'.repeat(2*1024*1024+1),{status:200,headers:{'content-type':'application/json'}}),
+  ));
+  await expect(oversized.detail(incoming(),actor,input,'election-owner'))
+    .rejects.toMatchObject({code:'NATIVE_BENEFITS_RESPONSE_LIMIT'});
+ });
+
  it('forwards a keyed command with exact origin, context, body and bounded receipt',async()=>{
   const receipt={id:'benefit-plan-plan-command-1',status:'draft',version:1};
   const transport=vi.fn().mockResolvedValue(ok({data:receipt,context}));
@@ -249,20 +286,24 @@ describe('native Benefits workspace transport',()=>{
   const previous=process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   delete process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   expect(nativeBenefitsAvailable()).toBe(false);
-  const {nativeBenefitsWorkspace,nativeBenefitCommand}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
+  const {nativeBenefitsWorkspace,nativeBenefitCommand,nativeBenefitDetail}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
   await expect(nativeBenefitsWorkspace(actor as never)).resolves.toBeUndefined();
   await expect(nativeBenefitCommand(actor as never,{entity:'plan'},'command-key-1',incoming())).resolves.toBeUndefined();
+  await expect(nativeBenefitDetail(actor as never,'election-owner')).resolves.toBeUndefined();
   if(previous!==undefined)process.env.ERPX_NATIVE_BENEFITS_CONFIG=previous;
  });
 
  it('does not fall back when a configured native Benefits selector is malformed',async()=>{
   const previous=process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   process.env.ERPX_NATIVE_BENEFITS_CONFIG='{not-json';
-  const {nativeBenefitsWorkspace,nativeBenefitCommand}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
+  const {nativeBenefitsWorkspace,nativeBenefitCommand,nativeBenefitDetail}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
   await expect(nativeBenefitsWorkspace(actor as never)).rejects.toMatchObject({
     status:503,code:'NATIVE_BENEFITS_UNAVAILABLE',
   });
   await expect(nativeBenefitCommand(actor as never,{entity:'plan'},'command-key-2',incoming())).rejects.toMatchObject({
+    status:503,code:'NATIVE_BENEFITS_UNAVAILABLE',
+  });
+  await expect(nativeBenefitDetail(actor as never,'election-owner')).rejects.toMatchObject({
     status:503,code:'NATIVE_BENEFITS_UNAVAILABLE',
   });
   if(previous===undefined)delete process.env.ERPX_NATIVE_BENEFITS_CONFIG;

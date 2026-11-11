@@ -188,6 +188,12 @@ const text = (value: unknown, max = 4096): value is string =>
   value.trim() === value;
 const identifier = (value: unknown): value is string =>
   text(value, 200) && value.length > 0;
+const detailId = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length > 0 &&
+  value.length <= 128 &&
+  /^[\x00-\x7f]+$/.test(value) &&
+  !value.includes('/');
 const name = (value: unknown, max = NAME_LIMIT): value is string =>
   text(value, max) && [...value].length >= 2;
 const code = (value: unknown, max = ELIGIBILITY_LIMIT): value is string =>
@@ -552,6 +558,7 @@ function transportCall(
   timeout: number,
   signal?: AbortSignal,
   command?: Readonly<{ body: string; key: string; origin: string }>,
+  detail?: string,
 ): Promise<Response> {
   const host = incoming.get('host');
   const holding = host ? holdings.get(host) : undefined;
@@ -604,7 +611,12 @@ function transportCall(
     headers.set('content-type', 'application/json');
     headers.set('idempotency-key', command.key);
   }
-  const url = new URL(`/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/benefits`, base);
+  const url = new URL(
+    detail === undefined
+      ? `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/benefits`
+      : `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/benefits/${encodeURIComponent(detail)}`,
+    base,
+  );
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal?.addEventListener('abort', cancel, { once: true });
@@ -779,6 +791,37 @@ export function createNativeBenefitsClient(
     const parsedContext = context(value.context, actor, input);
     return pageData(value.data, actor, parsedContext);
   };
+  const detail = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeBenefitsPageContext,
+    input: NativeBenefitsReadInput,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<unknown> => {
+    if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+      return failure('NATIVE_BENEFITS_CONTEXT_CHANGED');
+    if (!detailId(id)) return failure('NATIVE_BENEFITS_REQUEST_INVALID');
+    const response = await transportCall(
+      transport,
+      config.base,
+      config.holdings,
+      incoming,
+      input,
+      actor,
+      config.timeout,
+      signal,
+      undefined,
+      id,
+    ).catch((error: unknown) => {
+      if (error instanceof NativeBenefitsError) throw error;
+      return failure('NATIVE_BENEFITS_UNAVAILABLE');
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_BENEFITS_RESPONSE_INVALID');
+    context(value.context, actor, input);
+    return value.data;
+  };
   const command = async (
     incoming: Pick<Headers, 'get'>,
     actor: NativeBenefitsPageContext,
@@ -823,7 +866,7 @@ export function createNativeBenefitsClient(
     context(value.context, actor, input);
     return commandReceipt(value.data);
   };
-  return { workspace, command };
+  return { workspace, command, detail };
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */

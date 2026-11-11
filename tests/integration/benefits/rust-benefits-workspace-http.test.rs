@@ -2,8 +2,9 @@
 //! ingress facts only; composition, Account session and PostgreSQL remain
 //! separate responsibilities.
 use erpx_server_benefits::public::workspace_http::{
-    BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture, BenefitsWorkspaceHttpReadRequest,
-    BenefitsWorkspaceHttpResponse, BenefitsWorkspaceHttpTarget, benefits_workspace_http_router,
+    BenefitsDetailHttpRequest, BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture,
+    BenefitsWorkspaceHttpReadRequest, BenefitsWorkspaceHttpResponse, BenefitsWorkspaceHttpTarget,
+    benefits_workspace_http_router,
 };
 use erpx_server_runtime::public::http_support::{serde_json, serve};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -24,6 +25,19 @@ impl BenefitsWorkspaceHttpBackend for Noop {
             ))
         })
     }
+
+    fn detail<'a>(
+        &'a self,
+        _: BenefitsDetailHttpRequest<'a>,
+    ) -> BenefitsWorkspaceHttpFuture<'a, BenefitsWorkspaceHttpResponse> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::NotFound,
+                "BENEFIT_ELECTION_NOT_FOUND",
+                "Election not found.",
+            ))
+        })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,6 +46,7 @@ struct Seen {
     holding: String,
     cookie: Option<String>,
     personal: bool,
+    id: Option<String>,
 }
 
 struct Probe {
@@ -54,6 +69,7 @@ impl BenefitsWorkspaceHttpBackend for Probe {
                     .and_then(|value| value.to_str().ok())
                     .map(str::to_owned),
                 personal: request.personal,
+                id: None,
             });
             if let Some(error) = self.fail.clone() {
                 return Err(error);
@@ -87,6 +103,57 @@ impl BenefitsWorkspaceHttpBackend for Probe {
                     "dependents": [],
                     "elections": [],
                     "purchase": null
+                }),
+                context: serde_json::json!({
+                    "userId": "user",
+                    "companyId": "company",
+                    "workContext": "a".repeat(64)
+                }),
+            })
+        })
+    }
+
+    fn detail<'a>(
+        &'a self,
+        request: BenefitsDetailHttpRequest<'a>,
+    ) -> BenefitsWorkspaceHttpFuture<'a, BenefitsWorkspaceHttpResponse> {
+        Box::pin(async move {
+            self.seen.lock().unwrap().push(Seen {
+                host: request.host.into(),
+                holding: request.holding_slug.into(),
+                cookie: request
+                    .headers
+                    .get("cookie")
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_owned),
+                personal: false,
+                id: Some(request.id.into()),
+            });
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            Ok(BenefitsWorkspaceHttpResponse {
+                data: serde_json::json!({
+                    "election": {
+                        "id": "election-owner",
+                        "company_id": "company",
+                        "person_id": "person-owner",
+                        "status": "released"
+                    },
+                    "history": [],
+                    "payroll": null,
+                    "canReview": false,
+                    "canManageDocuments": false,
+                    "isOwner": true,
+                    "actorId": "user",
+                    "canWrite": true,
+                    "workContext": "a".repeat(64),
+                    "purchase": {
+                        "newWork": true,
+                        "settleExisting": true,
+                        "history": true,
+                        "revision": "7"
+                    }
                 }),
                 context: serde_json::json!({
                     "userId": "user",
@@ -243,6 +310,7 @@ async fn actual_router_forwards_exact_target_scope_and_maps_business_errors() {
             holding: "acme".into(),
             cookie: Some("__Host-erpx-product=session".into()),
             personal: false,
+            id: None,
         })
     );
 
@@ -260,6 +328,7 @@ async fn actual_router_forwards_exact_target_scope_and_maps_business_errors() {
             holding: "acme".into(),
             cookie: None,
             personal: true,
+            id: None,
         })
     );
 
@@ -335,6 +404,142 @@ async fn actual_router_forwards_exact_target_scope_and_maps_business_errors() {
         seen.lock().unwrap().len(),
         3,
         "query, personal, body, unknown-target and duplicate-Host requests must not reach the backend"
+    );
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn actual_router_serves_registered_detail_and_rejects_invalid_ids() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = benefits_workspace_http_router(vec![
+        BenefitsWorkspaceHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend: Arc::new(Probe {
+                seen: seen.clone(),
+                fail: None,
+            }),
+        },
+        BenefitsWorkspaceHttpTarget {
+            host: "miss.example.test".into(),
+            holding_slug: "miss".into(),
+            origin: "https://miss.example.test".into(),
+            backend: Arc::new(Probe {
+                seen: seen.clone(),
+                fail: Some(BusinessError::new(
+                    FailureKind::NotFound,
+                    "BENEFIT_ELECTION_NOT_FOUND",
+                    "Election not found.",
+                )),
+            }),
+        },
+    ])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, body, raw) = http(
+        addr,
+        "GET /api/v1/holdings/acme/benefits/election-owner HTTP/1.1\r\nHost: acme.example.test\r\nCookie: __Host-erpx-product=session\r\nConnection: close\r\n\r\n".to_string(),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["election"]["id"], "election-owner");
+    assert_eq!(body["data"]["canWrite"], true);
+    assert_eq!(body["data"]["workContext"], "a".repeat(64));
+    assert_eq!(body["data"]["purchase"]["history"], true);
+    assert_eq!(body["context"]["companyId"], "company");
+    assert!(raw.contains("cache-control: private, no-store"));
+    assert_eq!(
+        seen.lock().unwrap().last().cloned(),
+        Some(Seen {
+            host: "acme.example.test".into(),
+            holding: "acme".into(),
+            cookie: Some("__Host-erpx-product=session".into()),
+            personal: false,
+            id: Some("election-owner".into()),
+        })
+    );
+
+    let (status, body, _) = http(
+        addr,
+        get(
+            "/api/v1/holdings/miss/benefits/missing-election",
+            "miss.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert_eq!(body["error"]["code"], "BENEFIT_ELECTION_NOT_FOUND");
+
+    for path in [
+        "/api/v1/holdings/acme/benefits/a%2Fb",
+        "/api/v1/holdings/acme/benefits/%C3%A9",
+        "/api/v1/holdings/acme/benefits?x=1",
+    ] {
+        let (status, body, _) = http(addr, get(path, "acme.example.test")).await;
+        assert_eq!(status, 422, "path: {path}");
+        assert_eq!(body["error"]["code"], "BENEFITS_WORKSPACE_REQUEST_INVALID");
+    }
+
+    let (status, _, _) = http(
+        addr,
+        get("/api/v1/holdings/acme/benefits/", "acme.example.test"),
+    )
+    .await;
+    assert_eq!(status, 404);
+
+    let long = "a".repeat(129);
+    let (status, body, _) = http(
+        addr,
+        get(
+            &format!("/api/v1/holdings/acme/benefits/{long}"),
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(body["error"]["code"], "BENEFITS_WORKSPACE_REQUEST_INVALID");
+
+    let (status, body, _) = http(
+        addr,
+        get_with_body(
+            "/api/v1/holdings/acme/benefits/election-owner",
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(body["error"]["code"], "BENEFITS_WORKSPACE_REQUEST_INVALID");
+
+    let (status, body, _) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/benefits/election-owner",
+            "other.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert_eq!(body["error"]["code"], "NOT_FOUND");
+
+    let (status, body, _) = http(
+        addr,
+        "GET /api/v1/holdings/acme/benefits/election-owner HTTP/1.1\r\nHost: acme.example.test\r\nHost: miss.example.test\r\nConnection: close\r\n\r\n".to_string(),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(body["error"]["code"], "BENEFITS_WORKSPACE_REQUEST_INVALID");
+
+    assert_eq!(
+        seen.lock().unwrap().len(),
+        2,
+        "invalid id, query, body, foreign-Host and duplicate-Host requests must not reach the backend"
     );
 
     server.abort();

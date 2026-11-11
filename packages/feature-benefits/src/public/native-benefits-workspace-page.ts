@@ -1,7 +1,11 @@
 import 'server-only';
+import { headers } from 'next/headers';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { ApiError } from '@erpx/server-runtime/public/http';
-import type { benefitsWorkspace as retainedBenefitsWorkspace } from '@erpx/server-benefits/public/benefits';
+import type {
+  benefitDetail as retainedBenefitDetail,
+  benefitsWorkspace as retainedBenefitsWorkspace,
+} from '@erpx/server-benefits/public/benefits';
 import {
   createNativeBenefitsClient,
   nativeBenefitsAvailable,
@@ -27,6 +31,9 @@ export type {
 
 /** The native read must retain the exact retained workspace wire shape. */
 export type NativeBenefitsWorkspaceResult = Awaited<ReturnType<typeof retainedBenefitsWorkspace>>;
+
+/** The native detail must retain the exact retained detail wire shape. */
+export type NativeBenefitDetailResult = Awaited<ReturnType<typeof retainedBenefitDetail>>;
 
 /** Retained WorkContext render input; the native owner still re-checks scope. */
 export function nativeBenefitsPageContext(actor: WorkContext): NativeBenefitsPageContext {
@@ -94,6 +101,38 @@ export async function nativeBenefitsWorkspace(
     return await createNextNativeBenefitsWorkspaceReader(
       (incoming, readInput, signal) => native.workspace(incoming, pageContext, readInput, signal),
     )(input);
+  } catch (error) {
+    const failure = nativeBenefitsFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
+
+/**
+ * Native Benefits election detail. An unset configuration retains the
+ * TypeScript detail; once configured, an invalid or failed native read is
+ * surfaced and never silently replaced.
+ */
+export async function nativeBenefitDetail(
+  actor: WorkContext,
+  id: string,
+): Promise<NativeBenefitDetailResult | undefined> {
+  try {
+    const native = client();
+    if (!native) return undefined;
+    const pageContext = nativeBenefitsPageContext(actor);
+    const input: NativeBenefitsReadInput = {
+      holdingSlug: actor.holdingSlug,
+      personal: false,
+      ...scope(pageContext),
+      expected: expected(pageContext),
+    };
+    return (await native.detail(
+      await headers(),
+      pageContext,
+      input,
+      id,
+    )) as NativeBenefitDetailResult;
   } catch (error) {
     const failure = nativeBenefitsFailure(error);
     if (failure) throw new ApiError(failure.status, failure.code, failure.message);
