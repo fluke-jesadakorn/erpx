@@ -6,7 +6,7 @@ import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import {channelSchema,createMessagingChannel,createMessagingRoom,createMessagingTeam,manageMessaging,manageSchema,messageSchema,messagingFile,messagingHistory,messagingMembers,messagingOverview,messagingPeople,readMessaging,roomSchema,sendMessagingMessage,teamSchema} from '@erpx/server-collaboration/public/messaging';
 import { uploadMessagingFile,discardMessagingFile } from "@erpx/server-collaboration/public/messaging-files";
-import { nativeMessagingAvailable, nativeMessagingMembers, nativeMessagingOverview } from "@erpx/server-collaboration/public/native-messaging-page";
+import { nativeCreateChannel, nativeCreateRoom, nativeCreateTeam, nativeMarkRead, nativeMessagingAvailable, nativeMessagingMembers, nativeMessagingOverview, nativeSendMessage } from "@erpx/server-collaboration/public/native-messaging-page";
 import { attachmentContent } from "@erpx/server-files/public/attachments/service";
 
 export const dynamic = "force-dynamic";
@@ -129,28 +129,22 @@ async function handle(request: Request, context: Context) {
       const input = await request.json(),
         key = request.headers.get("idempotency-key") ?? "";
       if(p[0]==='files'&&p[2]==='discard'&&p.length===3)data=await discardMessagingFile(db,actor,p[1],z.object({reason:z.string().trim().min(3).max(1000)}).parse(input),key);
-      else if (p[0] === "rooms" && p.length === 1)
-        data = await createMessagingRoom(
-          db,
-          actor,
-          roomSchema.parse(input),
-          key,
-        );
-      else if (p[0] === "teams" && p.length === 1)
-        data = await createMessagingTeam(
-          db,
-          actor,
-          teamSchema.parse(input),
-          key,
-        );
-      else if (p[0] === "teams" && p[2] === "channels" && p.length === 3)
-        data = await createMessagingChannel(
-          db,
-          actor,
-          p[1],
-          channelSchema.parse(input),
-          key,
-        );
+      else if (p[0] === "rooms" && p.length === 1) {
+        const room = roomSchema.parse(input);
+        data = nativeMessagingAvailable()
+          ? await nativeCreateRoom(request, holdingSlug, room, key)
+          : await createMessagingRoom(db, actor, room, key);
+      } else if (p[0] === "teams" && p.length === 1) {
+        const team = teamSchema.parse(input);
+        data = nativeMessagingAvailable()
+          ? await nativeCreateTeam(request, holdingSlug, team, key)
+          : await createMessagingTeam(db, actor, team, key);
+      } else if (p[0] === "teams" && p[2] === "channels" && p.length === 3) {
+        const channel = channelSchema.parse(input);
+        data = nativeMessagingAvailable()
+          ? await nativeCreateChannel(request, holdingSlug, p[1], channel, key)
+          : await createMessagingChannel(db, actor, p[1], channel, key);
+      }
       else if (["rooms", "teams"].includes(p[0]) && p.length === 2)
         data = await manageMessaging(
           db,
@@ -160,21 +154,24 @@ async function handle(request: Request, context: Context) {
           manageSchema.parse(input),
           key,
         );
-      else if (p[0] === "rooms" && p[2] === "messages" && p.length === 3)
-        data = await sendMessagingMessage(
-          db,
-          actor,
-          p[1],
-          messageSchema.parse(input),
-          key,
-        );
-      else if (p[0] === "rooms" && p[2] === "read" && p.length === 3)
-        data = await readMessaging(
-          db,
-          actor,
-          p[1],
-          z.object({ seq: cursor }).parse(input).seq,
-        );
+      else if (p[0] === "rooms" && p[2] === "messages" && p.length === 3) {
+        const message = messageSchema.parse(input);
+        data =
+          nativeMessagingAvailable() && message.files.length === 0
+            ? await nativeSendMessage(
+                request,
+                holdingSlug,
+                p[1],
+                { body: message.body },
+                key,
+              )
+            : await sendMessagingMessage(db, actor, p[1], message, key);
+      } else if (p[0] === "rooms" && p[2] === "read" && p.length === 3) {
+        const seq = z.object({ seq: cursor }).parse(input).seq;
+        data = nativeMessagingAvailable()
+          ? await nativeMarkRead(request, holdingSlug, p[1], seq, key)
+          : await readMessaging(db, actor, p[1], seq);
+      }
       else
         throw new ApiError(404, "NOT_FOUND", "Messaging endpoint not found.");
     } else throw new ApiError(405, "METHOD_NOT_ALLOWED", "Method not allowed.");
