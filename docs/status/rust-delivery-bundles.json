@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 521,
+    "revision": 524,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g19",
+      "runId": "run-20261110-g20",
       "agentId": "lead",
-      "startedAt": "2026-11-11T20:40:13.583Z",
-      "heartbeatAt": "2026-11-11T20:48:35.254Z",
-      "expiresAt": "2026-11-11T21:18:35.254Z",
-      "generation": 20,
-      "tokenHash": "8fc6c10a8a1be4265e431eced543c1903883ad502a561a1bad7d0cabb664f98e"
+      "startedAt": "2026-11-11T21:36:23.874Z",
+      "heartbeatAt": "2026-11-11T21:36:23.874Z",
+      "expiresAt": "2026-11-11T22:06:23.875Z",
+      "generation": 21,
+      "tokenHash": "c22e085941ee302488c160b0891cab4f6ff5cb471c6b6aa2e9d40c5a96b105e1"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9839,28 +9839,21 @@
           "owner:commercial"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g19",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T20:40:13.608Z",
-          "heartbeatAt": "2026-11-11T20:48:35.254Z",
-          "expiresAt": "2026-11-11T21:18:35.254Z",
-          "generation": 20
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after work snapshot mount; WIP reviewed",
         "nextAction": "All owner slices implemented and the package page binds the native subscription/grace projection (457da3351): new GET commercial/companies/{id}/subscriptions served by PgCompanySubscriptionReader and merged into providerCompanyPackageOverview alongside the native overview. Checks: transport 11/11, capability 6/6 + PG 3/3, subscriptions 7/7 + PG 3/3, grants 2/2 + PG 1/1, company packages 7/7, erpx-service, typecheck, catalogue 1126. Remaining: bind capability-decision into an owner consumer (composition currently uses PgCompanyPurchaseReader directly); Billing must expose a Company subscription port for Stripe status; grace end intentionally null.",
         "handoff": {
-          "runId": "run-20261110-g18",
+          "runId": "run-20261110-g19",
           "agentId": "lead",
-          "at": "2026-11-11T20:40:13.583Z",
+          "at": "2026-11-11T21:36:23.873Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after commercial entitlement commit; WIP reviewed",
-          "nextAction": "Package-grant HTTP native and partially switched (58eda9738): owner router can preview/apply single+batch with MFA/authority/token/replay; platform route uses native for POST packages/preview|apply when configured, all other commercial paths stay TS. checks: package_grants_http 2/2, company_packages 7/7, PG 1/1, commercial units 154/154, erpx-service, typecheck, catalogue 1122. Retained: settlement-obligation changes fail closed until the obligation port lands; legacy-grants/* and GET paths stay TS. Remaining packets: entitlement_port, subscription_grace."
+          "reason": "Recovery: Lease expired after work snapshot mount; WIP reviewed",
+          "nextAction": "All owner slices implemented and the package page binds the native subscription/grace projection (457da3351): new GET commercial/companies/{id}/subscriptions served by PgCompanySubscriptionReader and merged into providerCompanyPackageOverview alongside the native overview. Checks: transport 11/11, capability 6/6 + PG 3/3, subscriptions 7/7 + PG 3/3, grants 2/2 + PG 1/1, company packages 7/7, erpx-service, typecheck, catalogue 1126. Remaining: bind capability-decision into an owner consumer (composition currently uses PgCompanyPurchaseReader directly); Billing must expose a Company subscription port for Stripe status; grace end intentionally null."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commercial",
@@ -14141,15 +14134,22 @@
         "resources": [
           "owner:work_projection"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "ready_for_integration",
+        "claim": {
+          "runId": "run-20261110-g20",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T21:36:23.900Z",
+          "heartbeatAt": "2026-11-11T21:36:23.900Z",
+          "expiresAt": "2026-11-11T22:06:23.900Z",
+          "generation": 21
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Mount-capable Work snapshot/report reads from inventory.work_projection; run cargo check -p erpx-server-work_projection and the registered work-snapshot cargo suite, and send the exact composition mount request to the lead.",
+        "nextAction": "Native reads + route mounted: snapshot (availability-only), navigation, report projection; GET /work/native-snapshot mounted (1a9480f26) with boundary admission; consumer workSnapshotAvailability switches when ERPX_NATIVE_WORK_PROJECTION_CONFIG is set. Checks: work lib 49/49, navigation PG 1/1, report PG 2/2, snapshot maintenance 1/1, work-attention 30/30, private-api 12/12, typecheck, catalogue 1128. Remaining: presentation/flow facts (title/detail/status/blocker, routing flow) and native Home-unread owner read + owner report fact ports before navigation/summary/CSV can switch.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-work-projection",
@@ -15948,9 +15948,9 @@
       "totalPackets": 53,
       "migratedPackets": 20,
       "statusCounts": {
-        "pending": 23,
+        "pending": 22,
         "in_progress": 0,
-        "ready_for_integration": 7,
+        "ready_for_integration": 8,
         "integrating": 0,
         "migrated": 20,
         "blocked": 3,
@@ -15958,8 +15958,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 20,
-    "updatedAt": "2026-11-11T20:48:48.176Z",
+    "lastCoordinatorGeneration": 21,
+    "updatedAt": "2026-11-11T21:36:23.924Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16002,10 +16002,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g18",
-      "runId": "run-20261110-g19",
-      "at": "2026-11-11T20:40:13.584Z",
-      "reason": "Lease expired after commercial entitlement commit; WIP reviewed",
+      "previousRunId": "run-20261110-g19",
+      "runId": "run-20261110-g20",
+      "at": "2026-11-11T21:36:23.876Z",
+      "reason": "Lease expired after work snapshot mount; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
