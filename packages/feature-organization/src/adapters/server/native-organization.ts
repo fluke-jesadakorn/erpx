@@ -8,6 +8,11 @@ import type {
   OrganizationOverview,
   OrganizationPosition,
 } from '../../lib/organization-domain';
+import type {
+  PositionMoveInput,
+  PositionMovePreview,
+  PositionMoveRecord,
+} from '@erpx/feature-people_payroll/lib/position-moves';
 
 /** Rendering input from the retained route authorization, never a grant. */
 export type NativeOrganizationPageContext = {
@@ -242,6 +247,323 @@ function workspace(value: unknown): NativeOrganizationWorkspace {
   };
 }
 
+const accessPersonKeys = [
+  'person_id',
+  'user_id',
+  'legal_name',
+  'email',
+  'engagement_id',
+  'engagement_version',
+  'person_version',
+  'company_id',
+  'branch_id',
+  'department_id',
+  'position_id',
+  'manager_person_id',
+  'level_id',
+  'level_number',
+  'level_name',
+  'status',
+  'person_status',
+  'start_date',
+  'end_date',
+  'job_title',
+  'issues',
+] as const;
+
+function accessPerson(value: unknown): value is OrganizationAccessData['people'][number] {
+  return (
+    exact(value, accessPersonKeys) &&
+    identifier(value.person_id) &&
+    nullableIdentifier(value.user_id) &&
+    text(value.legal_name, 300) &&
+    optionalText(value.email, 320) &&
+    identifier(value.engagement_id) &&
+    integer(value.engagement_version, 1) &&
+    integer(value.person_version, 1) &&
+    identifier(value.company_id) &&
+    nullableIdentifier(value.branch_id) &&
+    nullableIdentifier(value.department_id) &&
+    nullableIdentifier(value.position_id) &&
+    nullableIdentifier(value.manager_person_id) &&
+    nullableIdentifier(value.level_id) &&
+    (value.level_number === null || integer(value.level_number, 1)) &&
+    optionalText(value.level_name, 120) &&
+    text(value.status, 40) &&
+    text(value.person_status, 40) &&
+    text(value.start_date, 20) &&
+    optionalText(value.end_date, 20) &&
+    text(value.job_title, 200) &&
+    Array.isArray(value.issues) &&
+    value.issues.length <= 20 &&
+    value.issues.every((issue) => text(issue, 400))
+  );
+}
+
+function accessPosition(value: unknown): value is OrganizationAccessData['positions'][number] {
+  if (!record(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length !== 12 && keys.length !== 13) return false;
+  const required = [
+    'id',
+    'company_id',
+    'branch_id',
+    'department_id',
+    'title',
+    'level_id',
+    'level_number',
+    'reports_to_position_id',
+    'is_ceo',
+    'roster_required',
+    'active',
+    'version',
+  ];
+  return (
+    required.every((key) => Object.hasOwn(value, key)) &&
+    identifier(value.id) &&
+    identifier(value.company_id) &&
+    nullableIdentifier(value.branch_id) &&
+    nullableIdentifier(value.department_id) &&
+    text(value.title, 200) &&
+    identifier(value.level_id) &&
+    integer(value.level_number, 1) &&
+    nullableIdentifier(value.reports_to_position_id) &&
+    (!Object.hasOwn(value, 'requirements') || optionalText(value.requirements, 4000)) &&
+    flag(value.is_ceo) &&
+    flag(value.roster_required) &&
+    flag(value.active) &&
+    integer(value.version, 1)
+  );
+}
+
+function accessNode(value: unknown): value is OrganizationAccessData['nodes'][number] {
+  return (
+    exact(value, [
+      'id',
+      'kind',
+      'slug',
+      'display_name',
+      'branch_id',
+      'status',
+      'hierarchy_revision',
+    ]) &&
+    identifier(value.id) &&
+    text(value.kind, 40) &&
+    text(value.slug, 80) &&
+    text(value.display_name, 120) &&
+    nullableIdentifier(value.branch_id) &&
+    text(value.status, 20) &&
+    integer(value.hierarchy_revision, 1)
+  );
+}
+
+function accessLevel(value: unknown): value is OrganizationAccessData['levels'][number] {
+  return (
+    exact(value, ['id', 'name', 'level_number']) &&
+    identifier(value.id) &&
+    text(value.name, 120) &&
+    integer(value.level_number, 1)
+  );
+}
+
+/** Exact native access projection. The Rust contract is the retained
+ * `OrganizationAccessData` wire shape; anything else fails closed. */
+function accessData(value: unknown): OrganizationAccessData {
+  if (
+    !exact(value, ['data']) ||
+    !exact(value.data, [
+      'positions',
+      'people',
+      'nodes',
+      'levels',
+      'canManage',
+      'canMovePeople',
+      'actorId',
+    ])
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  const data = value.data;
+  if (
+    !Array.isArray(data.positions) ||
+    data.positions.length > 4000 ||
+    !data.positions.every(accessPosition) ||
+    !Array.isArray(data.people) ||
+    data.people.length > 4000 ||
+    !data.people.every(accessPerson) ||
+    !Array.isArray(data.nodes) ||
+    data.nodes.length > 4000 ||
+    !data.nodes.every(accessNode) ||
+    !Array.isArray(data.levels) ||
+    data.levels.length > 100 ||
+    !data.levels.every(accessLevel) ||
+    typeof data.canManage !== 'boolean' ||
+    typeof data.canMovePeople !== 'boolean' ||
+    !identifier(data.actorId)
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return data as unknown as OrganizationAccessData;
+}
+
+function movePlacement(value: unknown): boolean {
+  return (
+    exact(value, ['branchId', 'departmentId', 'levelId', 'reportsToPositionId']) &&
+    nullableIdentifier(value.branchId) &&
+    nullableIdentifier(value.departmentId) &&
+    nullableIdentifier(value.levelId) &&
+    nullableIdentifier(value.reportsToPositionId)
+  );
+}
+
+function moveDefinition(value: unknown): value is PositionMoveInput {
+  return (
+    record(value) &&
+    identifier(value.positionId) &&
+    integer(value.expectedVersion, 1) &&
+    ['department', 'level'].includes(String(value.targetKind)) &&
+    identifier(value.targetId) &&
+    integer(value.effectiveAt, 1) &&
+    text(value.timezone, 80) &&
+    Array.isArray(value.managerAssignments) &&
+    value.managerAssignments.length <= 10000 &&
+    value.managerAssignments.every(
+      (item) =>
+        record(item) &&
+        identifier(item.engagementId) &&
+        (item.managerPersonId === null || identifier(item.managerPersonId)),
+    ) &&
+    (!Object.hasOwn(value, 'reportsToPositionId') ||
+      value.reportsToPositionId === null ||
+      identifier(value.reportsToPositionId)) &&
+    text(value.reason, 1000)
+  );
+}
+
+function movePolicyChanges(value: unknown): boolean {
+  if (!exact(value, ['added', 'removed', 'retained'])) return false;
+  return ['added', 'removed', 'retained'].every((key) => {
+    const items = value[key];
+    return Array.isArray(items) && items.length <= 1000 && items.every(record);
+  });
+}
+
+function movePreview(value: unknown): value is PositionMovePreview {
+  return (
+    exact(value, [
+      'previewToken',
+      'expiresAt',
+      'ready',
+      'blockers',
+      'before',
+      'after',
+      'people',
+      'policyChanges',
+      'affectedCount',
+      'effectiveAt',
+      'timezone',
+    ]) &&
+    identifier(value.previewToken) &&
+    integer(value.expiresAt, 1) &&
+    typeof value.ready === 'boolean' &&
+    Array.isArray(value.blockers) &&
+    value.blockers.length <= 100 &&
+    value.blockers.every((blocker) => text(blocker, 1000)) &&
+    movePlacement(value.before) &&
+    movePlacement(value.after) &&
+    Array.isArray(value.people) &&
+    value.people.length <= 10000 &&
+    value.people.every(
+      (person) =>
+        record(person) &&
+        identifier(person.engagementId) &&
+        identifier(person.personId) &&
+        text(person.name, 300) &&
+        movePlacement(person.before) &&
+        movePlacement(person.after) &&
+        optionalText(person.leaveEffectiveFrom, 20) &&
+        text(person.leaveNote, 2000),
+    ) &&
+    movePolicyChanges(value.policyChanges) &&
+    integer(value.affectedCount, 0) &&
+    integer(value.effectiveAt, 1) &&
+    text(value.timezone, 80)
+  );
+}
+
+function positionMoveRecord(value: unknown): value is PositionMoveRecord {
+  return (
+    exact(value, [
+      'id',
+      'company_id',
+      'position_id',
+      'status',
+      'version',
+      'effective_at',
+      'definition',
+      'preview',
+      'created_by',
+      'created_at',
+      'updated_at',
+      'applied_at',
+      'last_error',
+    ]) &&
+    identifier(value.id) &&
+    identifier(value.company_id) &&
+    identifier(value.position_id) &&
+    ['scheduled', 'applied', 'needs_review', 'cancelled'].includes(String(value.status)) &&
+    integer(value.version, 1) &&
+    integer(value.effective_at, 1) &&
+    moveDefinition(value.definition) &&
+    movePreview(value.preview) &&
+    identifier(value.created_by) &&
+    integer(value.created_at, 0) &&
+    integer(value.updated_at, 0) &&
+    (value.applied_at === null || integer(value.applied_at, 0)) &&
+    (value.last_error === null || text(value.last_error, 4000))
+  );
+}
+
+function positionMoves(value: unknown): PositionMoveRecord[] {
+  if (
+    !exact(value, ['data']) ||
+    !Array.isArray(value.data) ||
+    value.data.length > 100 ||
+    !value.data.every(positionMoveRecord)
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return value.data;
+}
+
+function positionMovePreviewData(value: unknown): PositionMovePreview {
+  if (!exact(value, ['data']) || !movePreview(value.data))
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return value.data;
+}
+
+function moveReceipt(value: unknown): NativePositionMoveReceipt {
+  if (!exact(value, ['data']) || !record(value.data)) return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  const data = value.data;
+  const keys = Object.keys(data);
+  if (
+    !identifier(data.id) ||
+    !integer(data.version, 1) ||
+    !text(data.status, 40) ||
+    !(
+      keys.length === 3 ||
+      (keys.length === 4 && Object.hasOwn(data, 'effectiveAt') && integer(data.effectiveAt, 1))
+    ) ||
+    !keys.every((key) => ['id', 'version', 'status', 'effectiveAt'].includes(key))
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return data as NativePositionMoveReceipt;
+}
+
+export type NativePositionMoveReceipt = Readonly<{
+  id: string;
+  version: number;
+  status: string;
+  effectiveAt?: number;
+}>;
+
 /** Compose the page GET from native Organization-owned facts and the retained
  * People projection. Roster/manager-grant/pay-group defaults still come from
  * their existing owner ports; no Organization SQL reads them directly. */
@@ -471,6 +793,7 @@ function call(
   incoming: Pick<Headers, 'get'>,
   actor: NativeOrganizationPageContext,
   holdingSlug: string,
+  section: 'organization' | 'access',
   path: string,
   body: string | undefined,
   idempotencyKey?: string,
@@ -507,9 +830,11 @@ function call(
     if (new TextEncoder().encode(body).length > 64 * 1024)
       return Promise.reject(new NativeOrganizationError('NATIVE_ORGANIZATION_REQUEST_INVALID'));
     headers.set('content-type', 'application/json');
-    if (!idempotencyKey || !/^[A-Za-z0-9:_.-]{8,180}$/.test(idempotencyKey))
-      return Promise.reject(new NativeOrganizationError('NATIVE_ORGANIZATION_COMMAND_KEY_INVALID'));
-    headers.set('idempotency-key', idempotencyKey);
+    if (idempotencyKey !== undefined) {
+      if (!/^[A-Za-z0-9:_.-]{8,180}$/.test(idempotencyKey))
+        return Promise.reject(new NativeOrganizationError('NATIVE_ORGANIZATION_COMMAND_KEY_INVALID'));
+      headers.set('idempotency-key', idempotencyKey);
+    }
     if (origin) {
       let originUrl: URL;
       try {
@@ -521,7 +846,10 @@ function call(
       headers.set('origin', origin);
     }
   }
-  const url = new URL(`/api/v1/holdings/${encodeURIComponent(holdingSlug)}/people/organization${path}`, base);
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/people/${section}${path}`,
+    base,
+  );
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal?.addEventListener('abort', cancel, { once: true });
@@ -652,6 +980,7 @@ export function createNativeOrganizationClient(
         incoming,
         actor,
         actor.holdingSlug,
+        'organization',
         `?${query}`,
         undefined,
         undefined,
@@ -682,6 +1011,7 @@ export function createNativeOrganizationClient(
         incoming,
         actor,
         actor.holdingSlug,
+        'organization',
         input.path,
         JSON.stringify(input.body),
         input.idempotencyKey,
@@ -696,6 +1026,139 @@ export function createNativeOrganizationClient(
       if (input.result === 'template') return templateData(value);
       if (input.result === 'apply') return applyTemplateData(value);
       return commandData(value);
+    },
+    async access(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeOrganizationPageContext,
+      signal?: AbortSignal,
+    ): Promise<OrganizationAccessData> {
+      const response = await call(
+        transport,
+        config.base,
+        config.holdings,
+        incoming,
+        actor,
+        actor.holdingSlug,
+        'access',
+        '',
+        undefined,
+        undefined,
+        undefined,
+        signal,
+      ).catch((error: unknown) => {
+        if (error instanceof NativeOrganizationError) throw error;
+        return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
+      });
+      return accessData(await boundedJson(response));
+    },
+    async positionMoves(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeOrganizationPageContext,
+      id?: string,
+      signal?: AbortSignal,
+    ): Promise<PositionMoveRecord[] | PositionMoveRecord> {
+      if (id !== undefined && !identifier(id))
+        return Promise.reject(new NativeOrganizationError('NATIVE_ORGANIZATION_REQUEST_INVALID'));
+      const path = `/position-moves${id === undefined ? '' : `/${encodeURIComponent(id)}`}`;
+      const response = await call(
+        transport,
+        config.base,
+        config.holdings,
+        incoming,
+        actor,
+        actor.holdingSlug,
+        'organization',
+        path,
+        undefined,
+        undefined,
+        undefined,
+        signal,
+      ).catch((error: unknown) => {
+        if (error instanceof NativeOrganizationError) throw error;
+        return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
+      });
+      const rows = positionMoves(await boundedJson(response));
+      if (id === undefined) return rows;
+      if (rows.length !== 1) return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+      return rows[0]!;
+    },
+    async previewPositionMove(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeOrganizationPageContext,
+      body: unknown,
+      signal?: AbortSignal,
+    ): Promise<PositionMovePreview> {
+      const response = await call(
+        transport,
+        config.base,
+        config.holdings,
+        incoming,
+        actor,
+        actor.holdingSlug,
+        'organization',
+        '/position-moves/preview',
+        JSON.stringify(body),
+        undefined,
+        undefined,
+        signal,
+      ).catch((error: unknown) => {
+        if (error instanceof NativeOrganizationError) throw error;
+        return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
+      });
+      return positionMovePreviewData(await boundedJson(response));
+    },
+    async submitPositionMove(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeOrganizationPageContext,
+      input: { body: unknown; idempotencyKey: string; origin?: string },
+    ): Promise<NativePositionMoveReceipt> {
+      const response = await call(
+        transport,
+        config.base,
+        config.holdings,
+        incoming,
+        actor,
+        actor.holdingSlug,
+        'organization',
+        '/position-moves/submit',
+        JSON.stringify(input.body),
+        input.idempotencyKey,
+        input.origin,
+      ).catch((error: unknown) => {
+        if (error instanceof NativeOrganizationError) throw error;
+        return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
+      });
+      return moveReceipt(await boundedJson(response));
+    },
+    async cancelPositionMove(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeOrganizationPageContext,
+      input: {
+        id: string;
+        expectedVersion: number;
+        idempotencyKey: string;
+        origin?: string;
+      },
+    ): Promise<NativePositionMoveReceipt> {
+      if (!identifier(input.id) || !integer(input.expectedVersion, 1))
+        return Promise.reject(new NativeOrganizationError('NATIVE_ORGANIZATION_REQUEST_INVALID'));
+      const response = await call(
+        transport,
+        config.base,
+        config.holdings,
+        incoming,
+        actor,
+        actor.holdingSlug,
+        'organization',
+        `/position-moves/${encodeURIComponent(input.id)}/cancel`,
+        JSON.stringify({ expectedVersion: input.expectedVersion }),
+        input.idempotencyKey,
+        input.origin,
+      ).catch((error: unknown) => {
+        if (error instanceof NativeOrganizationError) throw error;
+        return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
+      });
+      return moveReceipt(await boundedJson(response));
     },
   };
 }
@@ -742,6 +1205,12 @@ export function nativeOrganizationFailure(
       return { status: 404, code: 'NOT_FOUND', message: 'Organization change not found.' };
     case 409:
       return { status: 409, code: 'CONFLICT', message: 'The organization changed. Refresh and review again.' };
+    case 422:
+      return {
+        status: 422,
+        code: 'NATIVE_ORGANIZATION_REQUEST_INVALID',
+        message: 'Review the organization request and submit it again.',
+      };
     default:
       return { status: 503, code: 'NATIVE_ORGANIZATION_UNAVAILABLE', message: 'The organization workspace is unavailable.' };
   }

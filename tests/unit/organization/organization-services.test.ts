@@ -107,9 +107,13 @@ import {
   nativeOrganizationOverview,
 } from "../../../packages/feature-organization/src/adapters/server/native-organization";
 import {
+  nativeOrganizationAccessPage,
+  nativeOrganizationPositionMoveCommand,
+  nativeOrganizationPositionMoveList,
   nativeOrganizationPage,
   nativeOrganizationSelector,
   nativeOrganizationWorkspace,
+  nativePositionMoveSelector,
 } from "../../../packages/feature-organization/src/lib/native-organization";
 import type { OrganizationAccessData } from "../../../packages/feature-organization/src/lib/organization-access";
 import type { OrganizationOverview } from "../../../packages/feature-organization/src/lib/organization-domain";
@@ -323,6 +327,7 @@ describe("Native organization transport", () => {
     ).rejects.toMatchObject({ code: "NATIVE_ORGANIZATION_UNAVAILABLE", status: 409 });
     expect(nativeOrganizationFailure(new NativeOrganizationError("NATIVE_ORGANIZATION_UNAVAILABLE", 409))).toMatchObject({ status: 409, code: "CONFLICT" });
     expect(nativeOrganizationFailure(new NativeOrganizationError("NATIVE_ORGANIZATION_UNAVAILABLE", 401))).toMatchObject({ status: 401 });
+    expect(nativeOrganizationFailure(new NativeOrganizationError("NATIVE_ORGANIZATION_UNAVAILABLE", 422))).toMatchObject({ status: 422, code: "NATIVE_ORGANIZATION_REQUEST_INVALID" });
     expect(nativeOrganizationFailure(new NativeOrganizationError("NATIVE_ORGANIZATION_UNAVAILABLE"))).toMatchObject({ status: 503 });
   });
 
@@ -633,5 +638,329 @@ describe("Native organization page configuration selection", () => {
     await expect(
       nativeOrganizationWorkspace(nativeActor, "other", {}, nativeHeaders),
     ).rejects.toMatchObject({ code: "NATIVE_ORGANIZATION_CONTEXT_CHANGED" });
+  });
+});
+
+describe("Native organization access and position-move transport", () => {
+  const accessPayload = {
+    data: {
+      positions: [
+        {
+          id: "position-lead",
+          company_id: "company",
+          branch_id: null,
+          department_id: null,
+          title: "North lead",
+          level_id: "level-1",
+          level_number: 1,
+          reports_to_position_id: null,
+          requirements: "",
+          is_ceo: 1,
+          roster_required: 0,
+          active: 1,
+          version: 1,
+        },
+      ],
+      people: [
+        {
+          person_id: "person-lead",
+          user_id: "user",
+          legal_name: "North Lead",
+          email: null,
+          engagement_id: "engagement-lead",
+          engagement_version: 1,
+          person_version: 1,
+          company_id: "company",
+          branch_id: null,
+          department_id: null,
+          position_id: "position-lead",
+          manager_person_id: null,
+          level_id: "level-1",
+          level_number: 1,
+          level_name: "Level 1",
+          status: "active",
+          person_status: "active",
+          start_date: "",
+          end_date: null,
+          job_title: "North lead",
+          issues: [],
+        },
+      ],
+      nodes: [
+        {
+          id: "company",
+          kind: "company",
+          slug: "acme",
+          display_name: "Acme",
+          branch_id: null,
+          status: "active",
+          hierarchy_revision: 1,
+        },
+      ],
+      levels: [{ id: "level-1", name: "Level 1", level_number: 1 }],
+      canManage: true,
+      canMovePeople: true,
+      actorId: "user",
+    },
+  };
+  const movePreview = {
+    previewToken: "preview-token",
+    expiresAt: 2_000,
+    ready: true,
+    blockers: [],
+    before: { branchId: null, departmentId: null, levelId: "level-1", reportsToPositionId: null },
+    after: { branchId: null, departmentId: null, levelId: "level-2", reportsToPositionId: null },
+    people: [],
+    policyChanges: { added: [], removed: [], retained: [] },
+    affectedCount: 0,
+    effectiveAt: 1_000,
+    timezone: "UTC",
+  };
+  const moveRecord = {
+    id: "position-move-key",
+    company_id: "company",
+    position_id: "position-lead",
+    status: "scheduled",
+    version: 1,
+    effective_at: 1_000,
+    definition: {
+      positionId: "position-lead",
+      expectedVersion: 1,
+      targetKind: "level",
+      targetId: "level-2",
+      effectiveAt: 1_000,
+      timezone: "UTC",
+      managerAssignments: [],
+      reason: "Reviewed position move",
+    },
+    preview: movePreview,
+    created_by: "user",
+    created_at: 1,
+    updated_at: 1,
+    applied_at: null,
+    last_error: null,
+  };
+
+  function capture(payload: unknown, status = 200) {
+    const calls: { method: string; url: URL; headers: Headers; body: string | undefined }[] = [];
+    const transport = vi.fn(
+      async (method: string, url: URL, headers: Headers, body: string | undefined, signal: AbortSignal) => {
+        void signal;
+        calls.push({ method, url, headers, body });
+        return new Response(JSON.stringify(payload), {
+          status,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        });
+      },
+    );
+    return { calls, transport };
+  }
+
+  it("reads the exact native access projection with forwarded context headers", async () => {
+    const { calls, transport } = capture(accessPayload);
+    const data = await createNativeOrganizationClient(nativeConfig, transport).access(
+      nativeHeaders,
+      nativeActor,
+    );
+    expect(data).toEqual(accessPayload.data);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe("GET");
+    expect(calls[0]!.url.toString()).toBe("http://127.0.0.1:3199/api/v1/holdings/acme/people/access");
+    expect(calls[0]!.headers.get("host")).toBe("acme.example.test");
+    expect(calls[0]!.headers.get("cookie")).toBe("session=value");
+    expect(calls[0]!.headers.get("x-erpx-context-company")).toBe("company");
+    expect(calls[0]!.headers.get("x-erpx-context-assignment")).toBe("assignment");
+    expect(calls[0]!.headers.get("x-erpx-context-revision")).toBe("7");
+    expect(calls[0]!.headers.get("x-erpx-context-assignment-version")).toBe("3");
+  });
+
+  it("fails closed on a malformed or over-broad access reply", async () => {
+    const malformed = createNativeOrganizationClient(
+      nativeConfig,
+      capture({ data: { ...accessPayload.data, canManage: "yes" } }).transport,
+    );
+    await expect(malformed.access(nativeHeaders, nativeActor)).rejects.toMatchObject({
+      code: "NATIVE_ORGANIZATION_RESPONSE_INVALID",
+    });
+    const extra = createNativeOrganizationClient(
+      nativeConfig,
+      capture({ data: { ...accessPayload.data, payroll: [] } }).transport,
+    );
+    await expect(extra.access(nativeHeaders, nativeActor)).rejects.toMatchObject({
+      code: "NATIVE_ORGANIZATION_RESPONSE_INVALID",
+    });
+  });
+
+  it("lists moves and returns one exact record for an id selector", async () => {
+    const list = capture({ data: [moveRecord] });
+    const client = createNativeOrganizationClient(nativeConfig, list.transport);
+    await expect(client.positionMoves(nativeHeaders, nativeActor)).resolves.toEqual([moveRecord]);
+    expect(list.calls[0]!.url.toString()).toBe(
+      "http://127.0.0.1:3199/api/v1/holdings/acme/people/organization/position-moves",
+    );
+    const one = capture({ data: [moveRecord] });
+    const record = await createNativeOrganizationClient(nativeConfig, one.transport).positionMoves(
+      nativeHeaders,
+      nativeActor,
+      "position-move-key",
+    );
+    expect(record).toEqual(moveRecord);
+    expect(one.calls[0]!.url.toString()).toBe(
+      "http://127.0.0.1:3199/api/v1/holdings/acme/people/organization/position-moves/position-move-key",
+    );
+  });
+
+  it("previews without an idempotency key and submits and cancels through exact routes", async () => {
+    const preview = capture({ data: movePreview });
+    await expect(
+      createNativeOrganizationClient(nativeConfig, preview.transport).previewPositionMove(
+        nativeHeaders,
+        nativeActor,
+        moveRecord.definition,
+      ),
+    ).resolves.toEqual(movePreview);
+    expect(preview.calls[0]!.method).toBe("POST");
+    expect(preview.calls[0]!.url.toString()).toBe(
+      "http://127.0.0.1:3199/api/v1/holdings/acme/people/organization/position-moves/preview",
+    );
+    expect(preview.calls[0]!.headers.get("idempotency-key")).toBeNull();
+    expect(preview.calls[0]!.headers.get("content-type")).toBe("application/json");
+
+    const submitted = capture({ data: { id: "position-move-key", version: 1, status: "scheduled", effectiveAt: 1_000 } });
+    await expect(
+      createNativeOrganizationClient(nativeConfig, submitted.transport).submitPositionMove(
+        nativeHeaders,
+        nativeActor,
+        {
+          body: { ...moveRecord.definition, previewToken: "preview-token", expiresAt: 2_000 },
+          idempotencyKey: "organization-key-0001",
+          origin: "https://acme.example.test",
+        },
+      ),
+    ).resolves.toEqual({ id: "position-move-key", version: 1, status: "scheduled", effectiveAt: 1_000 });
+    expect(submitted.calls[0]!.url.toString()).toBe(
+      "http://127.0.0.1:3199/api/v1/holdings/acme/people/organization/position-moves/submit",
+    );
+    expect(submitted.calls[0]!.headers.get("idempotency-key")).toBe("organization-key-0001");
+    expect(submitted.calls[0]!.headers.get("origin")).toBe("https://acme.example.test");
+    expect(JSON.parse(submitted.calls[0]!.body!)).toMatchObject({ previewToken: "preview-token", expiresAt: 2_000 });
+
+    const cancelled = capture({ data: { id: "position-move-key", version: 2, status: "cancelled" } });
+    await expect(
+      createNativeOrganizationClient(nativeConfig, cancelled.transport).cancelPositionMove(
+        nativeHeaders,
+        nativeActor,
+        { id: "position-move-key", expectedVersion: 1, idempotencyKey: "organization-key-0002" },
+      ),
+    ).resolves.toEqual({ id: "position-move-key", version: 2, status: "cancelled" });
+    expect(cancelled.calls[0]!.url.toString()).toBe(
+      "http://127.0.0.1:3199/api/v1/holdings/acme/people/organization/position-moves/position-move-key/cancel",
+    );
+    expect(JSON.parse(cancelled.calls[0]!.body!)).toEqual({ expectedVersion: 1 });
+  });
+
+  it("rejects a malformed move list and an unsafe cancellation before transport", async () => {
+    const malformed = createNativeOrganizationClient(
+      nativeConfig,
+      capture({ data: [{ ...moveRecord, status: "unknown" }] }).transport,
+    );
+    await expect(malformed.positionMoves(nativeHeaders, nativeActor)).rejects.toMatchObject({
+      code: "NATIVE_ORGANIZATION_RESPONSE_INVALID",
+    });
+    const transport = capture({ data: [] }).transport;
+    await expect(
+      createNativeOrganizationClient(nativeConfig, transport).cancelPositionMove(nativeHeaders, nativeActor, {
+        id: "position-move-key",
+        expectedVersion: 0,
+        idempotencyKey: "organization-key-0003",
+      }),
+    ).rejects.toMatchObject({ code: "NATIVE_ORGANIZATION_REQUEST_INVALID" });
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("selects only the exact People catch-all position-move routes", () => {
+    expect(nativePositionMoveSelector(["organization", "position-moves"])).toEqual({ kind: "list" });
+    expect(nativePositionMoveSelector(["organization", "position-moves", "position-move-key"])).toEqual({
+      kind: "list",
+      id: "position-move-key",
+    });
+    expect(nativePositionMoveSelector(["organization", "position-moves", "preview"])).toEqual({ kind: "preview" });
+    expect(nativePositionMoveSelector(["organization", "position-moves", "submit"])).toEqual({ kind: "submit" });
+    expect(
+      nativePositionMoveSelector(["organization", "position-moves", "position-move-key", "cancel"]),
+    ).toEqual({ kind: "cancel", id: "position-move-key" });
+    expect(nativePositionMoveSelector(["organization", "changes", "submit"])).toBeUndefined();
+    expect(nativePositionMoveSelector(["organization", "position-moves", "position-move-key", "other"])).toBeUndefined();
+  });
+
+  it("keeps retained access when unconfigured and surfaces a configured failure", async () => {
+    const configured = process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+      const retained = vi.fn(async () => retainedAccess());
+      await expect(
+        nativeOrganizationAccessPage(nativeActor, "acme", nativeHeaders, retained),
+      ).resolves.toEqual(retainedAccess());
+      expect(retained).toHaveBeenCalledOnce();
+      const failure = new NativeOrganizationError("NATIVE_ORGANIZATION_UNAVAILABLE");
+      const never = vi.fn(async () => retainedAccess());
+      await expect(
+        nativeOrganizationAccessPage(nativeActor, "acme", nativeHeaders, never, async () => {
+          throw failure;
+        }),
+      ).rejects.toBe(failure);
+      expect(never).not.toHaveBeenCalled();
+    } finally {
+      if (configured === undefined) delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+      else process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = configured;
+    }
+  });
+
+  it("keeps the retained read for an actor outside the native people.manage gate", async () => {
+    const configured = process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+    try {
+      process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = JSON.stringify(nativeConfig);
+      const retained = vi.fn(async () => retainedAccess());
+      await expect(
+        nativeOrganizationAccessPage(nativeActor, "acme", nativeHeaders, retained),
+      ).resolves.toEqual(retainedAccess());
+      expect(retained).toHaveBeenCalledOnce();
+    } finally {
+      if (configured === undefined) delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+      else process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = configured;
+    }
+  });
+
+  it("returns undefined from the move wrappers when the native transport is not configured", async () => {
+    const configured = process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+      await expect(
+        nativeOrganizationPositionMoveList(nativeActor, "acme", undefined, nativeHeaders),
+      ).resolves.toBeUndefined();
+      await expect(
+        nativeOrganizationPositionMoveCommand(
+          nativeActor,
+          "acme",
+          ["organization", "position-moves", "preview"],
+          moveRecord.definition,
+          "organization-key-0004",
+          nativeHeaders,
+        ),
+      ).resolves.toBeUndefined();
+      await expect(
+        nativeOrganizationPositionMoveCommand(
+          nativeActor,
+          "acme",
+          ["organization", "changes", "submit"],
+          {},
+          "organization-key-0005",
+          nativeHeaders,
+        ),
+      ).resolves.toBeUndefined();
+    } finally {
+      if (configured === undefined) delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+      else process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = configured;
+    }
   });
 });

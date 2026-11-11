@@ -17,7 +17,7 @@ import { expenseRoute } from "@erpx/server-people_payroll/public/expense-routing
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import {organizationOverview,positionSchema,savePosition,organizationTemplateSchema,saveOrganizationTemplate,applyOrganizationTemplateSchema,applyOrganizationTemplate,installStaffLevels,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
-import { nativeOrganizationChange, nativeOrganizationFailure, nativeOrganizationOverview, nativeOrganizationWorkspace } from "@erpx/feature-organization/lib/native-organization";
+import { nativeOrganizationChange, nativeOrganizationFailure, nativeOrganizationOverview, nativeOrganizationPositionMoveCommand, nativeOrganizationPositionMoveList, nativeOrganizationWorkspace } from "@erpx/feature-organization/lib/native-organization";
 import { ownedPeoplePayrollRuns, ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
 import { nativePeoplePayrollCommand, peoplePayrollPageContext } from "@erpx/feature-people_payroll/public/native-payroll-summary-page";
 import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@erpx/server-finance/public/company-business-acceptance";
@@ -123,7 +123,7 @@ export async function GET(request: Request, context: Context) {
     if(p[0]==="lifecycle" && p.length===1){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await peopleLifecycleData(write,actor)}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="drafts"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await organizationDraftApi(write as PostgresDatabase,actor,p.slice(2))}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p.length===1){requirePermission(actor,"people.manage");const {write}=await holdingResources(actor.holdingId);const query=Object.fromEntries(new URL(request.url).searchParams);let native:Awaited<ReturnType<typeof nativeOrganizationWorkspace>>;try{native=await nativeOrganizationWorkspace(actor,holdingSlug,query,request.headers);}catch(error){const failure=nativeOrganizationFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}if(native)return Response.json(canonicalDestinationLinks({data:nativeOrganizationOverview(native,await organizationOverview(write,actor,query))}),{headers:{"Cache-Control":"private, no-store"}});return Response.json(canonicalDestinationLinks({data:await organizationOverview(write,actor,query)}),{headers:{"Cache-Control":"private, no-store"}});}
-    if(p[0]==="organization" && p[1]==="position-moves" && p.length<=3){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await positionMoves(write,actor,p[2])}),{headers:{"Cache-Control":"private, no-store"}});}
+    if(p[0]==="organization" && p[1]==="position-moves" && p.length<=3){let native:Awaited<ReturnType<typeof nativeOrganizationPositionMoveList>>;try{native=await nativeOrganizationPositionMoveList(actor,holdingSlug,p[2],request.headers);}catch(error){const failure=nativeOrganizationFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}if(native!==undefined)return Response.json(canonicalDestinationLinks({data:native}),{headers:{"Cache-Control":"private, no-store"}});const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await positionMoves(write,actor,p[2])}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="acceptance" && p.length===2){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await companyBusinessAcceptance(write,actor)}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="readiness") {const {write}=await holdingResources(actor.holdingId);const kind=new URL(request.url).searchParams.get("kind");const route=await expenseRoute(write,actor.companyId,actor.userId,[],false,kind==="purchase"||kind==="payment"?kind:"expense");return Response.json(canonicalDestinationLinks({data:{ready:!route.blockedReason,blockedReason:route.blockedReason,steps:route.steps}}));}
     if (p.length === 0 || (p[0] === "people" && !p[1])) return Response.json(canonicalDestinationLinks({ data: await listPeople(actor) }), { headers: { "Cache-Control": "private, no-store" } });
@@ -212,8 +212,11 @@ export async function POST(request: Request, context: Context) {
     }
     if(p[0]==="organization") {
       if(p[1]==="drafts"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await organizationDraftApi(write as PostgresDatabase,actor,p.slice(2),input,id)}));}
-      let native:Record<string,unknown>|undefined;
-      try{native=await nativeOrganizationChange(actor,holdingSlug,p,input,id,request.headers);}
+      let native:unknown;
+      try{
+        native=await nativeOrganizationChange(actor,holdingSlug,p,input,id,request.headers);
+        if(native===undefined)native=await nativeOrganizationPositionMoveCommand(actor,holdingSlug,p,input,id,request.headers,origin??undefined);
+      }
       catch(error){const failure=nativeOrganizationFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}
       if(native)return Response.json(canonicalDestinationLinks({data:native}),{headers:{"Cache-Control":"private, no-store"}});
       const {write}=await holdingResources(actor.holdingId);

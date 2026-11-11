@@ -1,7 +1,13 @@
 import 'server-only';
+import { hasPermission } from '@erpx/feature-identity_access/lib/permissions';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { OrganizationAccessData } from './organization-access';
 import type { OrganizationOverview } from './organization-domain';
+import type {
+  PositionMoveInput,
+  PositionMovePreview,
+  PositionMoveRecord,
+} from '@erpx/feature-people_payroll/lib/position-moves';
 import {
   createNativeOrganizationClient,
   nativeOrganizationAccess,
@@ -12,6 +18,7 @@ import {
   NativeOrganizationError,
   type NativeOrganizationPageContext,
   type NativeOrganizationWorkspace,
+  type NativePositionMoveReceipt,
 } from '../adapters/server/native-organization';
 
 type Row = Record<string, unknown>;
@@ -185,6 +192,125 @@ export async function nativeOrganizationWorkspace(
     Object.entries(query).filter((entry): entry is [string, string] => entry[1] !== undefined),
   );
   return await native.workspace(incoming, context(actor), search.toString());
+}
+
+/** Native access projection read. A missing configuration returns `undefined`
+ * so consumers keep the retained owner read; a configured failure throws
+ * instead of silently returning retained data. */
+export async function nativeOrganizationAccessRead(
+  actor: WorkContext,
+  holdingSlug: string,
+  incoming: Pick<Headers, 'get'>,
+): Promise<OrganizationAccessData | undefined> {
+  // The native access ingress is currently gated by `people.manage` while the
+  // retained projection also serves `iam.read` / `organization.manage`. Those
+  // narrower-JIT readers keep the retained read rather than receiving a 403.
+  if (!hasPermission(actor, 'people.manage')) return undefined;
+  const native = client(actor);
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_CONTEXT_CHANGED');
+  const data = await native.access(incoming, context(actor));
+  if (
+    data.actorId !== actor.userId ||
+    data.people.some((person) => person.company_id !== actor.companyId) ||
+    data.positions.some((position) => position.company_id !== actor.companyId)
+  )
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return data;
+}
+
+/** Compose the native access projection over the retained read. The retained
+ * callback is only invoked when the native transport is not configured, so a
+ * configured failure is never masked by a fallback. */
+export async function nativeOrganizationAccessPage(
+  actor: WorkContext,
+  holdingSlug: string,
+  incoming: Pick<Headers, 'get'>,
+  retained: () => Promise<OrganizationAccessData>,
+  read: typeof nativeOrganizationAccessRead = nativeOrganizationAccessRead,
+): Promise<OrganizationAccessData> {
+  const native = await read(actor, holdingSlug, incoming);
+  return native ?? retained();
+}
+
+export type NativePositionMoveSelector =
+  | { kind: 'list'; id?: string }
+  | { kind: 'preview' }
+  | { kind: 'submit' }
+  | { kind: 'cancel'; id: string };
+
+/** Exact People catch-all selector for the native position-move surface. */
+export function nativePositionMoveSelector(
+  parts: readonly string[],
+): NativePositionMoveSelector | undefined {
+  if (parts[0] !== 'organization' || parts[1] !== 'position-moves') return undefined;
+  if (parts.length === 2) return { kind: 'list' };
+  if (parts.length === 3 && parts[2] === 'preview') return { kind: 'preview' };
+  if (parts.length === 3 && parts[2] === 'submit') return { kind: 'submit' };
+  if (parts.length === 3 && parts[2]) return { kind: 'list', id: parts[2] };
+  if (parts.length === 4 && parts[2] && parts[3] === 'cancel')
+    return { kind: 'cancel', id: parts[2] };
+  return undefined;
+}
+
+/** Native list read. A missing configuration returns `undefined` so the
+ * People route keeps its retained owner branch; a configured failure throws. */
+export async function nativeOrganizationPositionMoveList(
+  actor: WorkContext,
+  holdingSlug: string,
+  id: string | undefined,
+  incoming: Pick<Headers, 'get'>,
+): Promise<PositionMoveRecord[] | PositionMoveRecord | undefined> {
+  const native = client(actor);
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_CONTEXT_CHANGED');
+  const result = await native.positionMoves(incoming, context(actor), id);
+  const rows = Array.isArray(result) ? result : [result];
+  if (
+    rows.some((row) => row.company_id !== actor.companyId) ||
+    (id !== undefined && rows[0]?.id !== id)
+  )
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return result;
+}
+
+/** Native preview/submit/cancel command. Only the exact People catch-all
+ * position-move selectors are handled; every other organization command stays
+ * with its existing owner until a native replacement exists. */
+export async function nativeOrganizationPositionMoveCommand(
+  actor: WorkContext,
+  holdingSlug: string,
+  parts: readonly string[],
+  body: unknown,
+  idempotencyKey: string,
+  incoming: Pick<Headers, 'get'>,
+  origin?: string,
+): Promise<PositionMovePreview | NativePositionMoveReceipt | undefined> {
+  const selector = nativePositionMoveSelector(parts);
+  if (!selector || selector.kind === 'list') return undefined;
+  const native = client(actor);
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_CONTEXT_CHANGED');
+  const page = context(actor);
+  if (selector.kind === 'preview')
+    return await native.previewPositionMove(incoming, page, body as PositionMoveInput);
+  if (selector.kind === 'submit')
+    return await native.submitPositionMove(incoming, page, { body, idempotencyKey, origin });
+  const expectedVersion =
+    body !== null && typeof body === 'object'
+      ? (body as Record<string, unknown>).expectedVersion
+      : undefined;
+  if (typeof expectedVersion !== 'number' || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1)
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_REQUEST_INVALID');
+  return await native.cancelPositionMove(incoming, page, {
+    id: selector.id,
+    expectedVersion,
+    idempotencyKey,
+    origin,
+  });
 }
 
 /** Compose one page read from the native Organization workspace and the
