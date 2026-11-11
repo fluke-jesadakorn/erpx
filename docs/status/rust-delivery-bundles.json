@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 424,
+    "revision": 427,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g8",
       "agentId": "lead",
       "startedAt": "2026-11-11T07:38:28.627Z",
-      "heartbeatAt": "2026-11-11T07:38:28.726Z",
-      "expiresAt": "2026-11-11T08:08:28.726Z",
+      "heartbeatAt": "2026-11-11T08:01:17.505Z",
+      "expiresAt": "2026-11-11T08:31:17.505Z",
       "generation": 9,
       "tokenHash": "1cf3d4127debb90bd93ea00de1cfc343b844280ac6be93b5a11d512a91441e8b"
     },
@@ -11195,13 +11195,13 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "integrating",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261110-g8",
           "agentId": "lead",
           "claimedAt": "2026-11-11T07:38:28.686Z",
-          "heartbeatAt": "2026-11-11T07:38:28.726Z",
-          "expiresAt": "2026-11-11T08:08:28.726Z",
+          "heartbeatAt": "2026-11-11T08:01:17.505Z",
+          "expiresAt": "2026-11-11T08:31:17.505Z",
           "generation": 9
         },
         "baseSha": null,
@@ -11210,7 +11210,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Staff-work owner slice + follow-ups committed (c506f1682, latest fix). Mount staff_work_router in composition with a StaffTaskSources implementation (Identity same_person, People active_staff/name, Projects/Work purchase scopes, Collaboration post/notify, Files attachments, Workflow approvals, PMS feature_enabled), then switch the workplace staff-tasks route (currently staffHandler from server-work_projection).",
+        "nextAction": "PgStaffTaskSources + fail-closed delegate traits committed. BLOCKER: application holds repository and sources as two &mut ports, so the delegate cannot use the same transaction connection; composition would need a second pool connection (non-transactional reads). Fix: thread the caller connection into StaffTaskSources (prepare_with/connection-carrying pattern as done for collaboration/payroll), then mount staff_work_router and switch the workplace route.",
         "handoff": {
           "runId": "run-20261110-g7",
           "agentId": "lead",
@@ -11302,13 +11302,13 @@
         "resources": [
           "owner:procurement"
         ],
-        "status": "integrating",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261110-g8",
           "agentId": "lead",
           "claimedAt": "2026-11-11T07:38:28.661Z",
-          "heartbeatAt": "2026-11-11T07:38:28.726Z",
-          "expiresAt": "2026-11-11T08:08:28.726Z",
+          "heartbeatAt": "2026-11-11T08:01:17.505Z",
+          "expiresAt": "2026-11-11T08:31:17.505Z",
           "generation": 9
         },
         "baseSha": null,
@@ -11317,7 +11317,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Supplier-promise command ingress committed (3526ac7f6), suite 5/5. Route switch is blocked on parity: attachmentSetIds rejected natively (Files port WIP), TS staff_notifications not replaced by an outbox consumer, and native GET detail lacks the order/lines/schedule/canRecord/purchase shape. Mount backend + resolve those before switching.",
+        "nextAction": "Full supplier-promise detail shape committed. Remaining: mount the history/detail router with purchase facts supplied by composition, switch the Supply route for GET+POST once attachments parity (Files WIP) and the notification consumer exist.",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
@@ -15489,8 +15489,8 @@
       "statusCounts": {
         "pending": 25,
         "in_progress": 0,
-        "ready_for_integration": 8,
-        "integrating": 2,
+        "ready_for_integration": 10,
+        "integrating": 0,
         "migrated": 14,
         "blocked": 4,
         "deferred": 0,
@@ -15498,7 +15498,7 @@
       }
     },
     "lastCoordinatorGeneration": 9,
-    "updatedAt": "2026-11-11T07:38:28.726Z",
+    "updatedAt": "2026-11-11T08:01:17.506Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
