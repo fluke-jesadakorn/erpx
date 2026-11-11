@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 511,
+    "revision": 513,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -10036,14 +10036,21 @@
           "owner:organization"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g17",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T18:40:09.726Z",
+          "heartbeatAt": "2026-11-11T18:40:09.726Z",
+          "expiresAt": "2026-11-11T19:10:09.726Z",
+          "generation": 18
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after directory sign-in mount; WIP reviewed",
-        "nextAction": "Access projection and position-move consumers now prefer native (bc5138db3): People catch-all position-move list/preview/submit/cancel, Admin technology screen and technology organization view; ERPX_NATIVE_ORGANIZATION_CONFIG unset keeps TS. Production position-move drain supervisor added (9532fd57e). Remaining: switch feature-admin technology JSON API, people_payroll workspace/move adapters, organization drafts/presentation queries; retire the TS lifecycle drain once the native worker is the only drain; then remove TS access adapters.",
+        "blocker": null,
+        "nextAction": "Access projection and position-move consumers prefer native: People catch-all position-move read/commands, Admin technology JSON API (lazy retained fallback, 02e99cf87), technology/organization screens; production position-move drain supervised (9532fd57e). Remaining: people_payroll workspace/move adapters, organization drafts/presentation queries, TS lifecycle drain retirement, then remove the TS access adapters.",
         "handoff": {
           "runId": "run-20261110-g16",
           "agentId": "lead",
@@ -15952,7 +15959,7 @@
       }
     },
     "lastCoordinatorGeneration": 18,
-    "updatedAt": "2026-11-11T18:36:42.852Z",
+    "updatedAt": "2026-11-11T18:40:09.750Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
