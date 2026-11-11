@@ -2550,6 +2550,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut talent_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut talent_lifecycle_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut sales_documents_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut sales_price_lists_targets = Vec::new();
@@ -3287,6 +3289,26 @@ async fn assemble_checked(
                     },
                 );
                 #[cfg(feature = "existing-business")]
+                #[cfg(feature = "existing-business")]
+                talent_lifecycle_targets.push(
+                    erpx_server_talent::public::talent_http::TalentLifecycleHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::talent_lifecycle::TalentBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::talent_lifecycle::TalentService::new(
+                                authorizer.clone(),
+                                crate::talent_lifecycle::TalentConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 talent_targets.push(
                     erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget {
                         host: holding.host.clone(),
@@ -4828,6 +4850,15 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        #[cfg(feature = "existing-business")]
+        if !talent_lifecycle_targets.is_empty() {
+            router = router.merge(
+                erpx_server_talent::public::talent_http::talent_lifecycle_http_router(
+                    talent_lifecycle_targets,
+                )
+                .map_err(|_| "PRIVATE_API_TALENT_CONFIGURATION_INVALID")?,
+            );
+        }
         if !talent_targets.is_empty() {
             router = router.merge(
                 erpx_server_talent::public::requisition_http::talent_requisition_http_router(

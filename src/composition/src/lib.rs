@@ -140,6 +140,8 @@ pub mod records_command;
 pub mod sales;
 #[cfg(feature = "existing-business")]
 pub mod talent;
+#[cfg(feature = "existing-business")]
+pub mod talent_lifecycle;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_presentation;
