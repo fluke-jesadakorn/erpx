@@ -21,6 +21,12 @@ use erpx_server_platform_administration::public::agent_evidence_http::{
     AgentEvidenceHttpReadRequest, AgentEvidenceHttpResponse,
 };
 use erpx_server_platform_administration::public::platform_operations::PlatformHttpReadRequest;
+use erpx_server_platform_administration::public::platform_executive::{
+    ExecutiveDateRangeInput, PgPlatformExecutive, PlatformExecutiveActor,
+    PlatformExecutiveHttpBackend, PlatformExecutiveHttpFuture, PlatformExecutiveHttpQuery,
+    PlatformExecutiveHttpReadRequest, PlatformExecutiveHttpResponse, platform_executive_snapshot,
+    platform_executive_sources, require_platform_executive, validate_source_request,
+};
 use erpx_server_platform_administration::public::platform_operations::{
     PgPlatformAdministration, PlatformActor, PlatformHoldingIdentity, PlatformHttpBackend,
     PlatformHttpCommand, PlatformHttpCommandRequest, PlatformHttpFuture, PlatformHttpResponse,
@@ -91,6 +97,33 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     }
 }
 
+/// Current published permissions for the selected Platform role. The work
+/// assignment holds the `manage_erpx.access` grant; the Platform-only
+/// `platform.executive.read` grant lives on the separate Platform role. Read
+/// the current revision from the same Control pool that resolves the
+/// assignment, exactly as the retained Platform context does.
+async fn platform_role_permissions(
+    control: &DatabasePool,
+    role: &str,
+) -> Result<Vec<String>, BusinessError> {
+    let permissions: Option<String> = sqlx::query_scalar(
+        "SELECT v.permissions_json::text FROM iam_roles r \
+         JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id \
+         AND v.revision=r.published_revision \
+         WHERE r.id=$1 AND r.company_id IN ('*','platform') AND r.status='active' LIMIT 1",
+    )
+    .bind(role)
+    .fetch_optional(control.raw())
+    .await
+    .map_err(|_| database_unavailable())?;
+    permissions
+        .map(|value| {
+            serde_json::from_str::<Vec<String>>(&value).map_err(|_| database_unavailable())
+        })
+        .transpose()
+        .map(Option::unwrap_or_default)
+}
+
 #[derive(Clone, Copy)]
 struct PlatformAdministrationSources;
 
@@ -109,6 +142,7 @@ pub struct PlatformAdministrationConfiguration {
     slots: Vec<PlatformResourceSlot>,
     holdings: Vec<PlatformHoldingIdentity>,
     control: DatabasePool,
+    executive: Option<Arc<PgPlatformExecutive>>,
 }
 
 impl PlatformAdministrationConfiguration {
@@ -120,6 +154,7 @@ impl PlatformAdministrationConfiguration {
         slots: Vec<PlatformResourceSlot>,
         holdings: Vec<PlatformHoldingIdentity>,
         control: DatabasePool,
+        executive: Option<Arc<PgPlatformExecutive>>,
     ) -> Self {
         Self {
             holding,
@@ -129,6 +164,7 @@ impl PlatformAdministrationConfiguration {
             slots,
             holdings,
             control,
+            executive,
         }
     }
 
@@ -328,6 +364,125 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
                                 &holding_slug,
                                 &platform_assignment_id,
                                 &role,
+                            ),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn read_executive<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        platform_assignment_id: String,
+        query: PlatformExecutiveHttpQuery,
+    ) -> Result<PlatformExecutiveHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let holding_slug = self.configuration.holding_slug.clone();
+        let company = self.configuration.company.clone();
+        let store = self
+            .configuration
+            .executive
+            .clone()
+            .ok_or_else(unavailable)?;
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                PlatformAdministrationSources,
+                move |_connection, current| {
+                    let holding = holding.clone();
+                    let holding_slug = holding_slug.clone();
+                    let company = company.clone();
+                    let store = store.clone();
+                    let platform_assignment_id = platform_assignment_id.clone();
+                    let query = query.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("manage_erpx.access")?;
+                        let now = clock.now().get();
+                        let role: String = sqlx::query_scalar(
+                            "SELECT role FROM platform_assignments WHERE id=$1 AND user_id=$2 \
+                             AND revoked_at IS NULL AND valid_from <= $3 AND valid_until > $3",
+                        )
+                        .bind(&platform_assignment_id)
+                        .bind(current.user_id().as_str())
+                        .bind(now)
+                        .fetch_optional(store.control().raw())
+                        .await
+                        .map_err(|_| database_unavailable())?
+                        .ok_or_else(forbidden_platform)?;
+                        let mut permissions = current.command_iam_metadata().permissions.clone();
+                        permissions
+                            .extend(platform_role_permissions(store.control(), &role).await?);
+                        let actor = PlatformExecutiveActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            assignment_id: platform_assignment_id.clone(),
+                            role,
+                            permissions,
+                        };
+                        require_platform_executive(&actor)?;
+                        let data = match query.metric.as_deref() {
+                            Some(metric) => {
+                                let request = validate_source_request(
+                                    metric,
+                                    query.group.as_deref().unwrap_or_default(),
+                                    query.from.as_deref().unwrap_or_default(),
+                                    query.to.as_deref().unwrap_or_default(),
+                                    query.page.as_deref(),
+                                )?;
+                                let sources =
+                                    platform_executive_sources(&actor, store.as_ref(), &request)
+                                        .await?;
+                                serde_json::to_value(sources)
+                            }
+                            None => {
+                                let filters = if query.from.is_some() || query.to.is_some() {
+                                    Some(ExecutiveDateRangeInput {
+                                        from: query.from.clone(),
+                                        to: query.to.clone(),
+                                    })
+                                } else {
+                                    None
+                                };
+                                let snapshot = platform_executive_snapshot(
+                                    &actor,
+                                    store.as_ref(),
+                                    filters.as_ref(),
+                                    now,
+                                )
+                                .await?;
+                                serde_json::to_value(snapshot)
+                            }
+                        }
+                        .map_err(|_| {
+                            BusinessError::new(
+                                FailureKind::Unavailable,
+                                "PLATFORM_EXECUTIVE_REPLY_INVALID",
+                                "The Platform Executive reply could not be rendered.",
+                            )
+                        })?;
+                        Ok(PlatformExecutiveHttpResponse {
+                            data,
+                            context: platform_context_value(
+                                current,
+                                &holding_slug,
+                                &platform_assignment_id,
+                                &actor.role,
                             ),
                         })
                     })
@@ -611,6 +766,29 @@ impl<C: Clock + Send + Sync + 'static> PlatformHttpBackend for PlatformAdministr
                     platform_assignment_id,
                     key,
                     command,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PlatformExecutiveHttpBackend
+    for PlatformAdministrationBackend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: PlatformExecutiveHttpReadRequest<'a>,
+    ) -> PlatformExecutiveHttpFuture<'a, PlatformExecutiveHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection, platform_assignment_id) = self.context(request.headers)?;
+            self.service
+                .read_executive(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    platform_assignment_id,
+                    request.query.clone(),
                 )
                 .await
                 .map_err(business)

@@ -10,6 +10,15 @@ import {
   type NativePlatformAdminActor,
 } from '../../../packages/feature-platform_administration/src/adapters/server/native-platform-administration';
 import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformAdministrationOrRetained, nativePlatformMigrate, nativePlatformOperationsForPresentation } from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
+import {
+  createNativePlatformExecutiveClient,
+  nativePlatformExecutiveConfiguration,
+  nativePlatformExecutiveFailure,
+  nativePlatformExecutiveOrRetained,
+  nativePlatformExecutiveSnapshot,
+  NativePlatformExecutiveError,
+  type NativePlatformExecutiveActor,
+} from '../../../packages/feature-admin/src/public/native-platform-executive';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -592,5 +601,234 @@ describe('native Platform Administration transport', () => {
       nativePlatformAdminFailure(new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_REQUEST_INVALID')),
     ).toMatchObject({ status: 422 });
     expect(nativePlatformAdminFailure(new Error('plain'))).toBeUndefined();
+  });
+});
+
+const executiveWork = {
+  userId: 'operator',
+  holdingId: 'h003',
+  holdingSlug: 'erpx',
+  companyId: 'erpx',
+  branchId: null,
+  departmentId: null,
+  assignmentId: 'work-assignment',
+  role: 'platform_admin',
+  assignmentScope: 'holding',
+  scope: { kind: 'holding' } as const,
+  authority: { revision: 7, assignmentVersion: 3 },
+  modules: ['manage_erpx'],
+  iam: { permissions: ['manage_erpx.access'] },
+};
+const executiveActor: NativePlatformExecutiveActor = {
+  userId: 'operator',
+  holdingId: 'h003',
+  holdingSlug: 'erpx',
+  companyId: 'erpx',
+  branchId: null,
+  departmentId: null,
+  workAssignmentId: 'work-assignment',
+  platformAssignmentId: 'platform-assignment',
+  platformRole: 'platform_admin',
+  authority: { revision: 7, assignmentVersion: 3 },
+  modules: ['manage_erpx'],
+  permissions: ['manage_erpx.access'],
+};
+
+describe('native Platform Executive transport', () => {
+  it('rejects reserved, non-loopback, duplicate and insecure targets', () => {
+    for (const privateBaseUrl of [
+      'http://127.0.0.1:3101',
+      'http://127.0.0.1:3100',
+      'http://192.168.1.1:44991',
+      'http://127.0.0.1:44991/',
+    ])
+      expect(() => nativePlatformExecutiveConfiguration(config({ privateBaseUrl }))).toThrow(
+        NativePlatformExecutiveError,
+      );
+    expect(() =>
+      nativePlatformExecutiveConfiguration(
+        config({
+          holdings: [
+            { origin: 'https://erpx-internal.example.test', holdingSlug: 'erpx', holdingId: 'h003' },
+            { origin: 'https://erpx-internal.example.test', holdingSlug: 'erpx', holdingId: 'h003' },
+          ],
+        }),
+      ),
+    ).toThrow(NativePlatformExecutiveError);
+    expect(() =>
+      nativePlatformExecutiveConfiguration(
+        config({
+          holdings: [
+            { origin: 'http://erpx-internal.example.test', holdingSlug: 'erpx', holdingId: 'h003' },
+          ],
+        }),
+      ),
+    ).toThrow(NativePlatformExecutiveError);
+  });
+
+  it('forwards the exact host, cookie, platform assignment and snapshot query', async () => {
+    const transport = vi.fn().mockResolvedValue(ok({ data: executiveSnapshotData, context }));
+    const client = createNativePlatformExecutiveClient(JSON.parse(config()), transport as never);
+    const result = await client.snapshot(incoming(), executiveActor, {
+      from: '2026-06-01',
+      to: '2026-06-30',
+    });
+    expect(result.metrics.map((metric) => metric.total)).toEqual(['1', '0']);
+    const [method, url, headers] = transport.mock.calls[0]!;
+    expect(method).toBe('GET');
+    expect(url.pathname).toBe('/api/v1/platform/executive');
+    expect(url.searchParams.get('from')).toBe('2026-06-01');
+    expect(url.searchParams.get('to')).toBe('2026-06-30');
+    expect(headers.get('host')).toBe('erpx-internal.example.test');
+    expect(headers.get('cookie')).toBe('__Host-erpx-product=session');
+    expect(headers.get('x-erpx-platform-assignment')).toBe('platform-assignment');
+    expect(headers.get('x-erpx-workspace-branch')).toBeNull();
+  });
+
+  it('forwards workspace selectors and bounded source fields', async () => {
+    const branchContext = { ...context, branchId: 'branch-1' };
+    const transport = vi.fn().mockResolvedValue(ok({ data: executiveSourcesData, context: branchContext }));
+    const client = createNativePlatformExecutiveClient(JSON.parse(config()), transport as never);
+    const branchActor: NativePlatformExecutiveActor = {
+      ...executiveActor,
+      branchId: 'branch-1',
+      branchSlug: 'north',
+    };
+    const result = await client.sources(incoming(), branchActor, {
+      metric: 'failed-provisioning',
+      group: '2026-06',
+      from: '2026-06-01',
+      to: '2026-06-30',
+      page: 2,
+    });
+    expect(result.rows).toEqual([{ created_at: 1, action: 'failed' }]);
+    const [, url, headers] = transport.mock.calls[0]!;
+    expect(url.pathname).toBe('/api/v1/platform/executive');
+    expect(url.searchParams.get('metric')).toBe('failed-provisioning');
+    expect(url.searchParams.get('group')).toBe('2026-06');
+    expect(url.searchParams.get('page')).toBe('2');
+    expect(headers.get('x-erpx-workspace-branch')).toBe('north');
+    await expect(
+      client.sources(incoming(), executiveActor, {
+        metric: 'failed-provisioning',
+        group: '2026-06',
+        from: '2026-06-01',
+        to: '2026-06-30',
+        page: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_EXECUTIVE_REQUEST_INVALID' });
+  });
+
+  it('rejects a foreign host, foreign context and malformed metrics', async () => {
+    const client = createNativePlatformExecutiveClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(ok({ data: executiveSnapshotData, context })) as never,
+    );
+    await expect(
+      client.snapshot(
+        incoming({ host: 'other.example.test' }),
+        executiveActor,
+        { from: '2026-06-01', to: '2026-06-30' },
+      ),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_EXECUTIVE_AUTHORITY_INVALID' });
+    await expect(
+      client.snapshot(incoming(), { ...executiveActor, platformAssignmentId: 'other' }, {
+        from: '2026-06-01',
+        to: '2026-06-30',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_EXECUTIVE_RESPONSE_INVALID' });
+    const malformed = createNativePlatformExecutiveClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(
+        ok({
+          data: {
+            ...executiveSnapshotData,
+            metrics: [
+              { ...executiveSnapshotData.metrics[0], total: 1 },
+              executiveSnapshotData.metrics[1],
+            ],
+          },
+          context,
+        }),
+      ) as never,
+    );
+    await expect(
+      malformed.snapshot(incoming(), executiveActor, {
+        from: '2026-06-01',
+        to: '2026-06-30',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_EXECUTIVE_RESPONSE_INVALID' });
+  });
+
+  it('keeps the retained read only while unconfigured and surfaces configured failures', async () => {
+    let retained = 0;
+    expect(
+      await nativePlatformExecutiveOrRetained(
+        async () => undefined,
+        async () => {
+          retained += 1;
+          return 'retained';
+        },
+      ),
+    ).toBe('retained');
+    expect(retained).toBe(1);
+    await expect(
+      nativePlatformExecutiveOrRetained(
+        async () => {
+          throw new NativePlatformExecutiveError('NATIVE_PLATFORM_EXECUTIVE_UNAVAILABLE');
+        },
+        async () => 'retained',
+      ),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_EXECUTIVE_UNAVAILABLE' });
+    const previous = process.env.ERPX_NATIVE_PLATFORM_EXECUTIVE_CONFIG;
+    process.env.ERPX_NATIVE_PLATFORM_EXECUTIVE_CONFIG = config();
+    try {
+      await expect(
+        nativePlatformExecutiveSnapshot(
+          { ...executiveWork, holdingId: 'h001' },
+          platform,
+          incoming(),
+        ),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_EXECUTIVE_CONTEXT_CHANGED' });
+      await expect(
+        nativePlatformExecutiveSnapshot(
+          executiveWork,
+          { ...platform, role: 'legal_editor' },
+          incoming(),
+        ),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_EXECUTIVE_CONTEXT_CHANGED' });
+    } finally {
+      if (previous === undefined) delete process.env.ERPX_NATIVE_PLATFORM_EXECUTIVE_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_EXECUTIVE_CONFIG = previous;
+    }
+  });
+
+  it('maps configuration, context, response and owner failures', () => {
+    expect(
+      nativePlatformExecutiveFailure(
+        new NativePlatformExecutiveError('NATIVE_PLATFORM_EXECUTIVE_CONFIGURATION_INVALID'),
+      ),
+    ).toMatchObject({ status: 503, code: 'NATIVE_PLATFORM_EXECUTIVE_UNAVAILABLE' });
+    expect(
+      nativePlatformExecutiveFailure(
+        new NativePlatformExecutiveError('NATIVE_PLATFORM_EXECUTIVE_CONTEXT_CHANGED'),
+      ),
+    ).toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
+    expect(
+      nativePlatformExecutiveFailure(
+        new NativePlatformExecutiveError('NATIVE_PLATFORM_EXECUTIVE_RESPONSE_INVALID'),
+      ),
+    ).toMatchObject({ status: 502 });
+    expect(
+      nativePlatformExecutiveFailure(
+        new NativePlatformExecutiveError('NATIVE_PLATFORM_EXECUTIVE_REQUEST_INVALID'),
+      ),
+    ).toMatchObject({ status: 422 });
+    expect(
+      nativePlatformExecutiveFailure(
+        new NativePlatformExecutiveError('PLATFORM_EXECUTIVE_FORBIDDEN', 403, 'Denied.'),
+      ),
+    ).toMatchObject({ status: 403, code: 'PLATFORM_EXECUTIVE_FORBIDDEN' });
+    expect(nativePlatformExecutiveFailure(new Error('plain'))).toBeUndefined();
   });
 });

@@ -215,6 +215,8 @@ struct ConfigurationDocument {
     maximum_requests: usize,
     request_timeout_ms: u64,
     control: DatabaseDocument,
+    #[serde(default, rename = "controlRead")]
+    control_read: Option<DatabaseDocument>,
     holdings: Vec<HoldingDocument>,
     #[serde(default)]
     product_origins: Vec<ProductOriginDocument>,
@@ -343,6 +345,7 @@ pub struct DevelopmentApiConfiguration {
     request_timeout: Duration,
     holdings_registry: Arc<ConfiguredHoldingRegistry>,
     control: RuntimeDatabase,
+    control_read: Option<RuntimeDatabase>,
     holdings: Vec<HoldingConfiguration>,
     products: Vec<ProductOrigin>,
     finance_journal_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
@@ -609,6 +612,12 @@ fn runtime_database(
         }
     }
 }
+fn control_read_aliases_control(
+    control: &DatabaseDocument,
+    read: Option<&DatabaseDocument>,
+) -> bool {
+    read.is_some_and(|read| read.url == control.url)
+}
 impl DevelopmentApiConfiguration {
     /// Explicit disposable development configuration. Production labels are
     /// rejected here; use `parse_production` for the private production runtime.
@@ -694,6 +703,16 @@ impl DevelopmentApiConfiguration {
         };
         let control =
             runtime_database(&doc.control, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
+        let control_read = doc
+            .control_read
+            .as_ref()
+            .map(|document| {
+                runtime_database(document, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")
+            })
+            .transpose()?;
+        if control_read_aliases_control(&doc.control, doc.control_read.as_ref()) {
+            return Err("PRIVATE_API_CONTROL_READ_CONFIGURATION_INVALID");
+        }
         let mut tokens = BTreeSet::new();
         if let Some(token) = &doc.control.lease_token {
             tokens.insert(token.clone());
@@ -1603,6 +1622,7 @@ impl DevelopmentApiConfiguration {
             request_timeout: Duration::from_millis(doc.request_timeout_ms),
             holdings_registry,
             control,
+            control_read,
             holdings,
             products,
             finance_journal_reads,
@@ -2015,18 +2035,38 @@ pub async fn assemble_development_api(
             }
         }
     }
-    let result = assemble_checked(&config, &pools, clock, secrets).await;
+    let control_read = match &config.control_read {
+        Some(database) => match database.connect(limits).await {
+            Ok(pool) => Some(pool),
+            Err(_) => {
+                for p in &pools {
+                    p.close().await;
+                }
+                return Err("PRIVATE_API_DATABASE_UNAVAILABLE");
+            }
+        },
+        None => None,
+    };
+    let result = assemble_checked(&config, &pools, control_read.as_ref(), clock, secrets).await;
     match result {
-        Ok(assembly) => Ok(DevelopmentApiRuntime {
-            router: assembly.router,
-            #[cfg(feature = "files-scan-worker")]
-            files_workers: assembly.files_workers,
-            listen: config.listen,
-            pools,
-        }),
+        Ok(assembly) => {
+            if let Some(read) = control_read {
+                pools.push(read);
+            }
+            Ok(DevelopmentApiRuntime {
+                router: assembly.router,
+                #[cfg(feature = "files-scan-worker")]
+                files_workers: assembly.files_workers,
+                listen: config.listen,
+                pools,
+            })
+        }
         Err(error) => {
             for pool in &pools {
                 pool.close().await;
+            }
+            if let Some(read) = &control_read {
+                read.close().await;
             }
             Err(error)
         }
@@ -2050,6 +2090,7 @@ fn finance_composition_environment(
 async fn assemble_checked(
     config: &DevelopmentApiConfiguration,
     pools: &[DatabasePool],
+    control_read: Option<&DatabasePool>,
     clock: Arc<dyn Clock + Send + Sync>,
     secrets: Arc<dyn AuthenticationSecrets>,
 ) -> Result<CheckedAssembly, &'static str> {
@@ -2369,6 +2410,7 @@ async fn assemble_checked(
     // must not depend on a Finance journal read or another business scope.
     let mut platform_administration_targets = Vec::new();
         let mut platform_projection_targets = Vec::new();
+    let mut platform_executive_targets = Vec::new();
     for (i, holding) in config.holdings.iter().enumerate() {
         let Some(companies) = config
             .platform_administration_companies
@@ -2391,6 +2433,14 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
             );
+            let executive = control_read.map(|read| {
+                Arc::new(
+                    erpx_server_platform_administration::public::platform_executive::PgPlatformExecutive::new(
+                        pools[0].clone(),
+                        read.clone(),
+                    ),
+                )
+            });
             let platform_backend = Arc::new(
                 crate::platform_administration::PlatformAdministrationBackend::new(
                     config.policy.clone(),
@@ -2405,11 +2455,20 @@ async fn assemble_checked(
                             platform_administration_slots.clone(),
                             platform_administration_holdings.clone(),
                             pools[0].clone(),
+                            executive.clone(),
                         ),
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 ),
             );
+            if executive.is_some() {
+                platform_executive_targets.push(
+                    erpx_server_platform_administration::public::platform_executive::PlatformExecutiveHttpTarget {
+                        host: holding.host.clone(),
+                        backend: platform_backend.clone(),
+                    },
+                );
+            }
             platform_administration_targets.push(
                 erpx_server_platform_administration::public::platform_operations::PlatformHttpTarget {
                     host: holding.host.clone(),
@@ -2437,6 +2496,14 @@ async fn assemble_checked(
         router = router.merge(
             erpx_server_platform_administration::public::platform_operations_projection::platform_operations_projection_router(
                 platform_projection_targets,
+            )
+            .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
+        );
+    }
+    if !platform_executive_targets.is_empty() {
+        router = router.merge(
+            erpx_server_platform_administration::public::platform_executive::platform_executive_router(
+                platform_executive_targets,
             )
             .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
         );
@@ -9869,5 +9936,32 @@ mod legal_enrollment_tests {
             base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(hmac_sha256(secret, data)),
             "Ae-5Aa5p-PhWzJcHwonGJlg4MIjyeARMceX2G8vGg6M"
         );
+    }
+}
+
+#[cfg(test)]
+mod control_read_configuration_tests {
+    use super::*;
+
+    fn database(url: &str) -> DatabaseDocument {
+        serde_json::from_value(serde_json::json!({ "url": url }))
+            .expect("database document must decode")
+    }
+
+    #[test]
+    fn control_read_must_not_alias_the_control_database() {
+        let control =
+            database("postgresql://erpx_dev_control_app@127.0.0.1:5432/erpx_dev_control");
+        assert!(!control_read_aliases_control(&control, None));
+        assert!(control_read_aliases_control(
+            &control,
+            Some(&database(&control.url))
+        ));
+        assert!(!control_read_aliases_control(
+            &control,
+            Some(&database(
+                "postgresql://erpx_dev_control_read_app@127.0.0.1:5432/erpx_dev_control_read"
+            ))
+        ));
     }
 }
