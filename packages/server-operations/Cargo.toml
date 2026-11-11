@@ -47,3 +47,19 @@ path = "../../tests/unit/operations/rust-record-source.test.rs"
 [[test]]
 name = "record_source_postgres"
 path = "../../tests/integration/operations/rust-record-source-postgres.test.rs"
+
+[[test]]
+name = "staff_work"
+path = "../../tests/unit/operations/rust-staff-work.test.rs"
+
+[[test]]
+name = "staff_work_application"
+path = "../../tests/unit/operations/rust-staff-work-application.test.rs"
+
+[[test]]
+name = "staff_work_http"
+path = "../../tests/integration/operations/rust-staff-work-http.test.rs"
+
+[[test]]
+name = "staff_work_postgres"
+path = "../../tests/integration/operations/rust-staff-work-postgres.test.rs"

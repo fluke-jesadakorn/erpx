@@ -11,3 +11,7 @@ pub mod record_source;
 pub mod operations_http;
 
 pub mod operations_commands;
+
+pub mod staff_tasks;
+
+pub mod staff_work_http;
