@@ -3,8 +3,11 @@ pub const CONTRACT_VERSION: &str = "collaboration.social.v1";
 
 pub use crate::adapters::social::{
     CurrentSocialEffects, FeedComment, FeedFilter, FeedPost, FeedRecord, apply_plan,
-    lock_social_sources, read_comment, read_comments, read_feed, read_post, read_thread,
-    retain_effects,
+    lock_social_sources, read_comment, read_comments, read_feed, read_feed_page, read_post,
+    read_thread, retain_effects,
+};
+pub use crate::adapters::social_pg::{
+    PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, UnavailableSocialRecords,
 };
 pub use crate::application::social::{Access, SocialUnit, authorize_read, execute};
 pub use crate::domain::social::{

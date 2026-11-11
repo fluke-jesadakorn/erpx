@@ -24,6 +24,8 @@ pub mod collaboration_work_http;
 
 pub mod inbox_http;
 
+pub mod inbox;
+
 pub mod operations_notification;
 
 pub mod field_outbox;

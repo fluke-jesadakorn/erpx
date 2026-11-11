@@ -16,9 +16,17 @@ pub(crate) mod handbook_wire;
 
 pub(crate) mod http_ingress;
 
+pub(crate) mod command_ledger;
+
 pub(crate) mod social;
 
+pub(crate) mod social_pg;
+
 pub(crate) mod messaging_native;
+
+pub(crate) mod messaging_pg;
+
+pub(crate) mod inbox_pg;
 
 pub(crate) mod social_http;
 

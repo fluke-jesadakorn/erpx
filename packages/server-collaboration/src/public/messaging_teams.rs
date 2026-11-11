@@ -1,6 +1,7 @@
 //! Messaging teams/channels owner port. No Company membership authority here.
 pub const CONTRACT_VERSION: &str = "collaboration.messaging.teams.v1";
 
+pub use crate::adapters::messaging_pg::{MessagingScope, PgMessagingTeamUnit};
 pub use crate::adapters::messaging_teams::{
     ChannelView, CurrentTeamEffects, apply_plan, lock_messaging_team_sources, read_channel,
     read_team, read_team_channels, retain_effects,

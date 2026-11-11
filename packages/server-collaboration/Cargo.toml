@@ -95,3 +95,11 @@ path = "../../tests/unit/collaboration/rust-collaboration-work-http.test.rs"
 [[test]]
 name = "inbox_http"
 path = "../../tests/unit/collaboration/rust-inbox-http.test.rs"
+
+[[test]]
+name = "collaboration_pg"
+path = "../../tests/unit/collaboration/rust-collaboration-pg.test.rs"
+
+[[test]]
+name = "collaboration_pg_postgres"
+path = "../../tests/integration/collaboration/rust-collaboration-pg-postgres.test.rs"

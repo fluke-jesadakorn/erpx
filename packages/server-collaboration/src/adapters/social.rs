@@ -373,6 +373,17 @@ pub async fn read_feed(
     cursor: Option<&FeedCursor>,
     limit: usize,
 ) -> Result<Vec<FeedPost>, Error> {
+    Ok(read_feed_page(c, actor, filter, cursor, limit).await?.0)
+}
+
+/// Feed rows plus the exact `has_more` signal needed by the HTTP cursor.
+pub async fn read_feed_page(
+    c: &mut PgConnection,
+    actor: &SocialActor,
+    filter: FeedFilter,
+    cursor: Option<&FeedCursor>,
+    limit: usize,
+) -> Result<(Vec<FeedPost>, bool), Error> {
     let limit = limit.clamp(1, 100);
     let following = filter == FeedFilter::Following;
     let records = filter == FeedFilter::Records;
@@ -403,6 +414,7 @@ pub async fn read_feed(
     .fetch_all(&mut *c)
     .await?;
     let mut posts = Vec::with_capacity(rows.len().min(limit));
+    let has_more = rows.len() > limit;
     for row in rows.into_iter().take(limit) {
         let id: String = row.try_get(0)?;
         let linked_module: Option<String> = row.try_get(6)?;
@@ -440,7 +452,7 @@ pub async fn read_feed(
             comments,
         });
     }
-    Ok(posts)
+    Ok((posts, has_more))
 }
 
 pub async fn read_thread(
