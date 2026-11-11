@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 455,
+    "revision": 457,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -11302,14 +11302,21 @@
           "owner:operations"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g10",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T11:32:11.166Z",
+          "heartbeatAt": "2026-11-11T11:32:11.166Z",
+          "expiresAt": "2026-11-11T12:02:11.166Z",
+          "generation": 11
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired before reservation release; WIP reviewed",
-        "nextAction": "PgStaffTaskSources + fail-closed delegate traits committed. BLOCKER: application holds repository and sources as two &mut ports, so the delegate cannot use the same transaction connection; composition would need a second pool connection (non-transactional reads). Fix: thread the caller connection into StaffTaskSources (prepare_with/connection-carrying pattern as done for collaboration/payroll), then mount staff_work_router and switch the workplace route.",
+        "blocker": null,
+        "nextAction": "Connection threading committed (60d9a1b8b): StaffTaskRepository::connection lends the unit to StaffTaskSources/StaffTaskFactDelegates (unit 7/7, 5/5, 3/3; PG 4/4; HTTP 7/7). Remaining: implement composition StaffWorkHttpBackend delegates (People active staff, Projects, Identity same-person, Collaboration post, Workflow route/approvals, Files attachments, team feature), mount staff_work_router, switch workplace staff-tasks route.",
         "handoff": {
           "runId": "run-20261110-g8",
           "agentId": "lead",
@@ -15654,7 +15661,7 @@
       }
     },
     "lastCoordinatorGeneration": 11,
-    "updatedAt": "2026-11-11T11:32:02.049Z",
+    "updatedAt": "2026-11-11T11:32:11.198Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
