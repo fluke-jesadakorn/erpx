@@ -26,6 +26,15 @@ pub trait CollaborationSourcePort: Send {
         &mut self,
         source: &SourceReference,
     ) -> impl Future<Output = Result<(SourceRecord, Self::Witness), Self::Error>> + Send;
+    /// Connection-carrying variant for ports that resolve through the caller's
+    /// serializable transaction. Ports that own their handle keep the default.
+    fn prepare_with<'a>(
+        &'a mut self,
+        _connection: &'a mut sqlx::PgConnection,
+        source: &'a SourceReference,
+    ) -> impl Future<Output = Result<(SourceRecord, Self::Witness), Self::Error>> + Send {
+        self.prepare(source)
+    }
     fn require_current(
         &mut self,
         witness: &Self::Witness,

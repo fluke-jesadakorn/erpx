@@ -382,7 +382,8 @@ where
             id: id.into(),
             expected_version: None,
         };
-        let (record, witness) = match self.sources.prepare(&reference).await {
+        let connection = &mut *self.connection;
+        let (record, witness) = match self.sources.prepare_with(connection, &reference).await {
             Ok(prepared) => prepared,
             Err(error) if hidden_source(&error) => return Ok(None),
             Err(error) => return Err(error),
