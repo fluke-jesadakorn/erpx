@@ -64,3 +64,5 @@ pub(crate) mod field_journal_flow_notification;
 pub(crate) mod crm_activity_notification;
 pub(crate) mod quality_notification;
 pub(crate) mod supplier_bill_match_notification;
+
+pub(crate) mod staff_facts;

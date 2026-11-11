@@ -119,3 +119,7 @@ path = "../../tests/unit/collaboration/rust-collaboration-pg.test.rs"
 [[test]]
 name = "collaboration_pg_postgres"
 path = "../../tests/integration/collaboration/rust-collaboration-pg-postgres.test.rs"
+
+[[test]]
+name = "staff_facts_postgres"
+path = "../../tests/integration/collaboration/rust-staff-facts-postgres.test.rs"

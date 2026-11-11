@@ -43,3 +43,5 @@ pub mod field_journal_flow_notification;
 pub mod crm_activity_notification;
 pub mod quality_notification;
 pub mod supplier_bill_match_notification;
+
+pub mod staff_facts;

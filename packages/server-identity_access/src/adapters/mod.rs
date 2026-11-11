@@ -129,3 +129,5 @@ pub(crate) mod operations_recipients;
 
 pub(crate) mod iam_roles_postgres;
 pub(crate) mod iam_roles_http;
+
+pub(crate) mod staff_facts;

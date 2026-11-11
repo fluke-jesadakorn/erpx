@@ -91282,6 +91282,231 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "people_payroll.rust-staff-facts-postgres.integration",
+      "lane": "integration",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "files": [
+        "tests/integration/people_payroll/rust-staff-facts-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native People staff facts must keep Company scope, active/unmerged Person status, engagement state and the current UTC day window."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-people-payroll",
+        "targets": [
+          "staff_facts_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-people_payroll/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      },
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "identity_access.rust-staff-facts-postgres.integration",
+      "lane": "integration",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/integration/identity_access/rust-staff-facts-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Staff Work same-person facts must call the current IAM person mapping with Company as the scope key."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "staff_facts_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-identity_access/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-identity_access",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "projects.rust-staff-facts-postgres.integration",
+      "lane": "integration",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/integration/projects/rust-staff-facts-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Projects staff facts must keep the original Company-scoped project read and owner/title identity."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "staff_facts_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-projects/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      },
+      "apps": [
+        "projects"
+      ],
+      "packages": [
+        "@erpx/server-projects",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "collaboration.rust-staff-facts-postgres.integration",
+      "lane": "integration",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/integration/collaboration/rust-staff-facts-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Collaboration staff facts must keep published state, current assignment scope and team/branch/department audience visibility."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "staff_facts_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-collaboration",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
     }
   ]
 }

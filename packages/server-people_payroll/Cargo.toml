@@ -71,3 +71,7 @@ path = "../../tests/unit/people_payroll/rust-payroll-summary.test.rs"
 [[test]]
 name = "payroll_summary_postgres"
 path = "../../tests/integration/people_payroll/rust-payroll-summary-postgres.test.rs"
+
+[[test]]
+name = "staff_facts_postgres"
+path = "../../tests/integration/people_payroll/rust-staff-facts-postgres.test.rs"

@@ -110,3 +110,5 @@ pub mod operations_recipients;
 pub mod iam_roles;
 pub mod iam_roles_http;
 pub mod directory_runtime;
+
+pub mod staff_facts;
