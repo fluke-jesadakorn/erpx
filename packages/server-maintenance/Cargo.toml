@@ -67,5 +67,13 @@ path = "../../tests/unit/maintenance/rust-preventive-plan-wire.test.rs"
 name = "preventive_plan_command_postgres"
 path = "../../tests/integration/maintenance/rust-preventive-plan-command-postgres.test.rs"
 
+[[test]]
+name = "record_source"
+path = "../../tests/unit/maintenance/rust-record-source.test.rs"
+
+[[test]]
+name = "record_source_postgres"
+path = "../../tests/integration/maintenance/rust-record-source-postgres.test.rs"
+
 [lints]
 workspace = true

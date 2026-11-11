@@ -1,4 +1,5 @@
 pub(crate) mod order;
+pub(crate) mod record_source;
 pub(crate) mod quality_receipt_origin;
 pub(crate) mod quality_return_origin;
 pub(crate) mod quality_return_join;

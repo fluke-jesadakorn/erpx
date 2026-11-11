@@ -25,6 +25,14 @@ path = "../../tests/unit/support/rust-ticket-portal-rules.test.rs"
 name = "service_teams"
 path = "../../tests/unit/support/rust-service-teams.test.rs"
 
+[[test]]
+name = "record_source"
+path = "../../tests/unit/support/rust-support-record-source.test.rs"
+
+[[test]]
+name = "record_source_postgres"
+path = "../../tests/integration/support/rust-support-record-source-postgres.test.rs"
+
 
 [lints]
 workspace = true

@@ -36,6 +36,14 @@ name = "order_http"
 path = "../../tests/unit/commerce/rust-commerce-order-http.test.rs"
 
 [[test]]
+name = "record_source"
+path = "../../tests/unit/commerce/rust-commerce-record-source.test.rs"
+
+[[test]]
+name = "record_source_postgres"
+path = "../../tests/integration/commerce/rust-commerce-record-source-postgres.test.rs"
+
+[[test]]
 name = "order_postgres"
 path = "../../tests/integration/commerce/rust-commerce-order-postgres.test.rs"
 

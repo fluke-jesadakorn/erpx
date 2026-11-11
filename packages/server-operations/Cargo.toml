@@ -39,3 +39,11 @@ path = "../../tests/unit/operations/rust-operations-commands.test.rs"
 [[test]]
 name = "operations_commands_postgres"
 path = "../../tests/integration/operations/rust-operations-commands-postgres.test.rs"
+
+[[test]]
+name = "record_source"
+path = "../../tests/unit/operations/rust-record-source.test.rs"
+
+[[test]]
+name = "record_source_postgres"
+path = "../../tests/integration/operations/rust-record-source-postgres.test.rs"

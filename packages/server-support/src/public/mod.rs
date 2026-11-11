@@ -23,6 +23,8 @@ pub mod sla_drain;
 
 pub mod support_evidence;
 
+pub mod record_source;
+
 pub mod support_ticket_read;
 
 pub mod ticket_portal;

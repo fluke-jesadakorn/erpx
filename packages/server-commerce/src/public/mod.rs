@@ -1,4 +1,5 @@
 pub mod order;
+pub mod record_source;
 pub mod quality_receipt_origin;
 pub mod quality_return_origin;
 pub mod quality_return_join;
