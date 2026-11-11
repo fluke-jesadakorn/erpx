@@ -15,13 +15,23 @@ pub use crate::adapters::postgres::unit_of_work::{
 };
 
 pub use crate::adapters::postgres::jobs::{
-    claim, complete, fail, renew, requeue_dead_letter, requeue_dead_letter_with_audit,
+    LeaseCompletion, claim, complete, complete_lease, fail, renew, requeue_dead_letter,
+    requeue_dead_letter_with_audit,
+};
+pub use crate::adapters::postgres::outbox_supervisor::{
+    OutboxAttestation, OutboxHandlerRegistry, OutboxHolding, OutboxHoldingOutcome,
+    OutboxPassReport, OutboxRunSummary, OutboxSupervisor, OutboxSupervisorError,
+    OutboxSupervisorPolicy, attest_outbox_holding, failure_log_line, record_outbox_attestation,
+    restart_log_line, run_outbox_supervisor,
 };
 pub use crate::adapters::postgres::worker::{
     OutboxJobHandler, WorkerFuture, WorkerOutcome, WorkerSupervisor, WorkerTarget, worker_failure,
 };
 pub use crate::domain::jobs::{
-    DEFAULT_LEASE_MILLIS, MAX_ATTEMPTS, OutboxJob, retry_delay_millis, truncate_error_code,
+    DEFAULT_BUSY_POLL_MILLIS, DEFAULT_IDLE_POLL_MILLIS, DEFAULT_LEASE_MILLIS,
+    DEFAULT_LEASE_REFRESH_MILLIS, DEFAULT_MAX_EVENTS_PER_PASS, DEFAULT_RESTART_BACKOFF_MILLIS,
+    MAX_ATTEMPTS, MAX_EVENTS_PER_PASS_LIMIT, OutboxJob, OutboxRetrySchedule, retry_delay_millis,
+    retry_schedule, truncate_error_code,
 };
 
 pub use crate::adapters::postgres::development_lease::LeasedDevelopmentDatabase;

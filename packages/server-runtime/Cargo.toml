@@ -81,3 +81,11 @@ path = "../../tests/integration/shared.runtime/worker-attestation-postgres.test.
 [[test]]
 name = "outbox_jobs_postgres"
 path = "../../tests/integration/shared.persistence/rust-outbox-jobs-postgres.test.rs"
+
+[[test]]
+name = "outbox_supervisor"
+path = "../../tests/unit/shared.runtime/rust-outbox-supervisor.test.rs"
+
+[[test]]
+name = "outbox_supervisor_postgres"
+path = "../../tests/integration/shared.runtime/rust-outbox-supervisor-postgres.test.rs"

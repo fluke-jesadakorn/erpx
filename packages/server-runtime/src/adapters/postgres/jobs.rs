@@ -4,7 +4,7 @@
 //! statement as the queue update. The static owner predicate is supplied by the
 //! worker composition and must never contain request, user or provider input.
 use crate::domain::jobs::{
-    DEFAULT_LEASE_MILLIS, MAX_ATTEMPTS, OutboxJob, retry_delay_millis, truncate_error_code,
+    DEFAULT_LEASE_MILLIS, OutboxJob, OutboxRetrySchedule, retry_schedule, truncate_error_code,
 };
 use sqlx::{AssertSqlSafe, PgConnection, Row};
 
@@ -89,17 +89,33 @@ pub async fn renew(
         == 1)
 }
 
+/// The exact terminal outcome of an acknowledgement attempt.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LeaseCompletion {
+    /// This call moved the exact leased event to processed/published.
+    Applied,
+    /// The event is already terminal. A crash after the durable effect commit
+    /// and before this acknowledgement is recovered as success, never replayed.
+    AlreadyCompleted,
+    /// A live event belongs to another token or the row no longer exists.
+    LeaseLost,
+}
+
 /// Acknowledge the exact leased event after its durable effect committed.
-pub async fn complete(
+///
+/// Completion is idempotent: an event already marked processed is returned as
+/// `AlreadyCompleted` instead of looking like a stolen lease. Any other
+/// zero-row result remains `LeaseLost` and must not be treated as success.
+pub async fn complete_lease(
     connection: &mut PgConnection,
     id: &str,
     lease_token: &str,
     now: i64,
-) -> Result<bool, sqlx::Error> {
+) -> Result<LeaseCompletion, sqlx::Error> {
     if id.is_empty() || lease_token.is_empty() || now < 0 {
         return Err(invalid("INVALID_NATIVE_JOB_LEASE"));
     }
-    Ok(sqlx::query(
+    let applied = sqlx::query(
         "WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) \
          UPDATE outbox_events SET processed_at=$1,published_at=$1,claim_until=NULL,\
          lease_token=NULL,last_error=NULL FROM runtime_owner \
@@ -108,10 +124,41 @@ pub async fn complete(
     .bind(now)
     .bind(id)
     .bind(lease_token)
-    .execute(connection)
+    .execute(&mut *connection)
     .await?
     .rows_affected()
-        == 1)
+        == 1;
+    if applied {
+        return Ok(LeaseCompletion::Applied);
+    }
+    let completed: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM outbox_events WHERE id=$1 AND processed_at IS NOT NULL)",
+    )
+    .bind(id)
+    .fetch_one(&mut *connection)
+    .await?;
+    Ok(if completed {
+        LeaseCompletion::AlreadyCompleted
+    } else {
+        LeaseCompletion::LeaseLost
+    })
+}
+
+/// Acknowledge the exact leased event after its durable effect committed.
+///
+/// Retained TypeScript ignored the affected-row count of this statement. This
+/// boolean therefore reports both a fresh acknowledgement and an already
+/// terminal event as success; `complete_lease` exposes the reason.
+pub async fn complete(
+    connection: &mut PgConnection,
+    id: &str,
+    lease_token: &str,
+    now: i64,
+) -> Result<bool, sqlx::Error> {
+    Ok(matches!(
+        complete_lease(connection, id, lease_token, now).await?,
+        LeaseCompletion::Applied | LeaseCompletion::AlreadyCompleted
+    ))
 }
 
 /// Release a failed attempt with bounded exponential backoff and dead-letter
@@ -128,14 +175,17 @@ pub async fn fail(
     if id.is_empty() || lease_token.is_empty() || now < 0 || attempts < 0 {
         return Err(invalid("INVALID_NATIVE_JOB_LEASE"));
     }
-    let dead_letter_at = (attempts >= MAX_ATTEMPTS).then_some(now);
+    let OutboxRetrySchedule {
+        next_attempt_at,
+        dead_letter_at,
+    } = retry_schedule(attempts, now);
     Ok(sqlx::query(
         "WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) \
          UPDATE outbox_events SET claim_until=NULL,lease_token=NULL,next_attempt_at=$1,\
          last_error=$2,dead_letter_at=$3 FROM runtime_owner \
          WHERE id=$4 AND lease_token=$5 AND processed_at IS NULL",
     )
-    .bind(now.saturating_add(retry_delay_millis(attempts)))
+    .bind(next_attempt_at)
     .bind(truncate_error_code(code))
     .bind(dead_letter_at)
     .bind(id)

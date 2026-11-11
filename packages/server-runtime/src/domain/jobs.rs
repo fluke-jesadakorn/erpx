@@ -6,6 +6,36 @@ pub const DEFAULT_LEASE_MILLIS: i64 = 90_000;
 pub const MAX_ATTEMPTS: i64 = 6;
 const MAX_RETRY_DELAY_MILLIS: i64 = 60_000;
 const MAX_ERROR_CODE_UNITS: usize = 64;
+/// Retained generic worker cadence: one sequential pass per second while idle.
+pub const DEFAULT_IDLE_POLL_MILLIS: u64 = 1_000;
+/// Retained generic worker follow-up cadence after a completed/failed attempt.
+pub const DEFAULT_BUSY_POLL_MILLIS: u64 = 10;
+/// Retained lease heartbeat: `claim_until = now + 90s` every 15s.
+pub const DEFAULT_LEASE_REFRESH_MILLIS: u64 = 15_000;
+/// A restarted worker waits one second before retrying its first pass.
+pub const DEFAULT_RESTART_BACKOFF_MILLIS: u64 = 1_000;
+/// Upper bound on Holding partitions handled in one sequential pass. The
+/// DatabaseManifest admits at most 22 slots; 64 leaves deliberate headroom.
+pub const DEFAULT_MAX_EVENTS_PER_PASS: usize = 64;
+pub const MAX_EVENTS_PER_PASS_LIMIT: usize = 1_024;
+
+/// The exact durable retry decision for a failed attempt.
+///
+/// `attempts` is the value returned by the claim after incrementing, exactly as
+/// the retained worker computes `Math.min(60_000, 1000 * 2 ** Math.min(attempts, 6))`
+/// and places the sixth failed attempt into the dead-letter queue.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OutboxRetrySchedule {
+    pub next_attempt_at: i64,
+    pub dead_letter_at: Option<i64>,
+}
+
+pub fn retry_schedule(attempts: i64, now: i64) -> OutboxRetrySchedule {
+    OutboxRetrySchedule {
+        next_attempt_at: now.saturating_add(retry_delay_millis(attempts)),
+        dead_letter_at: (attempts >= MAX_ATTEMPTS).then_some(now),
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct OutboxJob {

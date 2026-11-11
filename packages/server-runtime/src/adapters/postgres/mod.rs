@@ -3,6 +3,7 @@ pub(crate) mod jobs;
 pub(crate) mod config;
 pub(crate) mod development_lease;
 pub(crate) mod migrations;
+pub(crate) mod outbox_supervisor;
 pub(crate) mod pool;
 pub(crate) mod request_lease;
 pub(crate) mod unit_of_work;
