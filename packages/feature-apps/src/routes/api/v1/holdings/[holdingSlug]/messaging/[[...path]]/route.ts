@@ -6,7 +6,7 @@ import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import {channelSchema,createMessagingChannel,createMessagingRoom,createMessagingTeam,manageMessaging,manageSchema,messageSchema,messagingFile,messagingHistory,messagingMembers,messagingOverview,messagingPeople,readMessaging,roomSchema,sendMessagingMessage,teamSchema} from '@erpx/server-collaboration/public/messaging';
 import { uploadMessagingFile,discardMessagingFile } from "@erpx/server-collaboration/public/messaging-files";
-import { nativeCreateChannel, nativeCreateRoom, nativeCreateTeam, nativeMarkRead, nativeMessagingAvailable, nativeMessagingMembers, nativeMessagingOverview, nativeSendMessage } from "@erpx/server-collaboration/public/native-messaging-page";
+import { nativeCreateChannel, nativeCreateRoom, nativeCreateTeam, nativeMarkRead, nativeMessagingAvailable, nativeMessagingOverview, nativeSendMessage } from "@erpx/server-collaboration/public/native-messaging-page";
 import { attachmentContent } from "@erpx/server-files/public/attachments/service";
 
 export const dynamic = "force-dynamic";
@@ -64,19 +64,9 @@ async function handle(request: Request, context: Context) {
         ["rooms", "teams"].includes(p[0]) &&
         p[2] === "members" &&
         p.length === 3
-      ) {
-        if (nativeMessagingAvailable()) {
-          const reply = (await nativeMessagingMembers(
-            request,
-            holdingSlug,
-            p[1],
-            p[0] === "teams",
-          )) as { members?: unknown };
-          data = reply.members ?? [];
-        } else {
-          data = await messagingMembers(db, actor, p[1], p[0] === "teams");
-        }
-      } else if (p[0] === "files" && p.length === 2) {
+      )
+        data = await messagingMembers(db, actor, p[1], p[0] === "teams");
+      else if (p[0] === "files" && p.length === 2) {
         const file = await messagingFile(db, actor, p[1]);
         if (!file.attachment_link_id)
           throw new ApiError(
