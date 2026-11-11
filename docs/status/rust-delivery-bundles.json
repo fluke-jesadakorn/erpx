@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 382,
+    "revision": 384,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g6",
       "agentId": "lead",
       "startedAt": "2026-11-11T04:25:19.281Z",
-      "heartbeatAt": "2026-11-11T04:59:36.503Z",
-      "expiresAt": "2026-11-11T05:29:36.503Z",
+      "heartbeatAt": "2026-11-11T05:23:58.798Z",
+      "expiresAt": "2026-11-11T05:53:58.798Z",
       "generation": 7,
       "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
     },
@@ -12915,8 +12915,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T04:25:19.306Z",
-          "heartbeatAt": "2026-11-11T04:59:36.503Z",
-          "expiresAt": "2026-11-11T05:29:36.503Z",
+          "heartbeatAt": "2026-11-11T05:23:58.798Z",
+          "expiresAt": "2026-11-11T05:53:58.798Z",
           "generation": 7
         },
         "baseSha": null,
@@ -12925,7 +12925,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Owner source port now carries the caller connection (52d616daa), unblocking a transactional composition resolver. Two workers are adding commerce_order + support_ticket and maintenance_plan/work + staff_task record-source reads. Next: implement the composition CollaborationSourcePort dispatch (pos/pms/assets ready), mount collaboration_work_router, switch feature-apps collaboration GET/POST keeping CSV TS; then inbox summary/notifications/messaging history remain.",
+        "nextAction": "All 8 source reads now exist (933f460c2) and collaboration_work GET workspace is native (1a63db1ee), router mounted. Remaining: collaboration POST (relation/card commands) still TS because the composed source port does not revalidate witnesses; inbox summary/notifications walk owner scopes; messaging history/team-channel reads; feed subpaths; attachments 503 (Files WIP); CSV export TS.",
         "handoff": {
           "runId": "run-20261110-g5",
           "agentId": "lead",
@@ -15378,7 +15378,7 @@
       }
     },
     "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T04:59:36.504Z",
+    "updatedAt": "2026-11-11T05:23:58.798Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
