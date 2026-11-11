@@ -11,6 +11,8 @@ use erpx_server_learning::public::eligibility_facts::{
     learning_eligibility_consumer_facts, learning_eligibility_facts, prepare_benefit_consumption,
     validate_benefit_consumption,
 };
+use erpx_server_learning::public::benefit_learning::PgBenefitLearning;
+use erpx_server_benefits::public::command::{BenefitLearningRequest, BenefitsLearningPort};
 use erpx_server_learning::public::learning::{
     AssignmentAction, AssignmentChange, AssignmentRequest, Attendance, CertificateRevocation,
     CourseAction, CourseChange, CourseRequest, EvidenceManifestItem, LearningActor,
@@ -23,7 +25,8 @@ use erpx_server_runtime::public::postgres::{
     load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{
-    AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
+    AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
+    TimestampMillis, UserId,
 };
 use serde_json::Value;
 use sqlx::{AssertSqlSafe, Row};
@@ -2480,6 +2483,121 @@ async fn assignment_evidence_binds_through_the_files_port_and_fails_closed_witho
         .await
         .unwrap();
         assert_eq!(certificates, 0);
+    })
+    .await;
+}
+
+
+#[tokio::test(flavor = "multi_thread")]
+async fn benefits_learning_port_writes_the_receipt_after_the_election_effect() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let (_assignment, certificate_id, _handoff) =
+            seed_completed_certificate(&pool, "benefits-port").await;
+        seed_benefit_election(&pool, "election-benefits-port", None).await;
+        let request = BenefitLearningRequest {
+            company_id: "company".into(),
+            person_id: "person-learner".into(),
+            required_code: "equipment_operator".into(),
+            effective_date: "2026-11-04".into(),
+            election_id: "election-benefits-port".into(),
+            command_id: "benefits-port-command-1".into(),
+            today: utc_date(NOW),
+        };
+        let expected_certificate = certificate_id.clone();
+
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                let request = request.clone();
+                let certificate_id = expected_certificate.clone();
+                move |connection| {
+                    let request = request.clone();
+                    let certificate_id = certificate_id.clone();
+                    Box::pin(async move {
+                        let mut port =
+                            PgBenefitLearning::new("benefits-reviewer".into(), TimestampMillis::new(NOW));
+                        let prepared = port
+                            .prepare(Some(&mut *connection), request.clone())
+                            .await
+                            .map_err(PgTransactionError::Business)?;
+                        assert_eq!(prepared.certificate_id, certificate_id);
+                        assert_eq!(prepared.election_id, "election-benefits-port");
+                        assert_eq!(prepared.command_id, "benefits-port-command-1");
+                        let before: i64 = sqlx::query_scalar(
+                            "SELECT count(*) FROM learning_benefit_consumption_receipts \
+                             WHERE election_id='election-benefits-port'",
+                        )
+                        .fetch_one(&mut *connection)
+                        .await?;
+                        assert_eq!(before, 0);
+                        sqlx::query(
+                            "UPDATE benefit_elections SET learning_certificate_id=$1 WHERE id=$2",
+                        )
+                        .bind(&prepared.certificate_id)
+                        .bind("election-benefits-port")
+                        .execute(&mut *connection)
+                        .await?;
+                        port.require_current(Some(&mut *connection), &prepared)
+                            .await
+                            .map_err(PgTransactionError::Business)?;
+                        let validated = port
+                            .validate(Some(&mut *connection), request)
+                            .await
+                            .map_err(PgTransactionError::Business)?;
+                        assert_eq!(validated.certificate_id, certificate_id);
+                        port.require_current(Some(&mut *connection), &validated)
+                            .await
+                            .map_err(PgTransactionError::Business)?;
+                        Ok(())
+                    })
+                }
+            })
+            .await
+            .unwrap();
+
+        let counts: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM learning_benefit_consumption_receipts \
+             WHERE election_id='election-benefits-port'),\
+             (SELECT count(*) FROM audit_events WHERE record_type='learning_benefit_consumption'),\
+             (SELECT count(*) FROM outbox_events WHERE aggregate_type='learning_benefit_consumption')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(counts, (1, 0, 0));
+
+        sqlx::query(
+            "INSERT INTO learning_certificate_revocations\
+             (id,certificate_id,company_id,actor_id,reason,command_id,created_at) \
+             VALUES('revocation-benefits-port',$1,'company','reviewer','Retire the retained certificate',\
+             'revocation-benefits-port-command',1799999999000)",
+        )
+        .bind(&certificate_id)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let expired = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                let request = request.clone();
+                move |connection| {
+                    let request = request.clone();
+                    Box::pin(async move {
+                        let mut port =
+                            PgBenefitLearning::new("benefits-reviewer".into(), TimestampMillis::new(NOW));
+                        port.validate(Some(&mut *connection), request)
+                            .await
+                            .map_err(PgTransactionError::Business)?;
+                        Ok(())
+                    })
+                }
+            })
+            .await
+            .unwrap_err();
+        let expired = match expired {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => panic!("unexpected persistence error"),
+        };
+        assert_eq!(expired.code, "BENEFIT_LEARNING_CERTIFICATE_EXPIRED");
     })
     .await;
 }

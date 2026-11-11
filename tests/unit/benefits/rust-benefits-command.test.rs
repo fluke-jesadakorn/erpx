@@ -1,18 +1,24 @@
 //! Native Benefits command policy and port tests. These are owner unit facts;
 //! PostgreSQL and HTTP are proven by the sibling integration targets.
 use erpx_server_benefits::public::command::{
-    BenefitCommandResult, BenefitPlanInput, BenefitRecordKind, BenefitRecordState,
-    BenefitWindowInput, BenefitsCommandActor, ChangeBenefit, CreateDependent, CreateElection,
-    CreatePlan, CreateWindow, StoredBenefitReceipt, create_dependent, create_election, create_plan,
-    create_window, execute_benefits_command, parse_money_minor,
+    BenefitCommandPorts, BenefitCommandResult, BenefitEvidenceRequest, BenefitLearningRequest,
+    BenefitPlanInput, BenefitRecordKind, BenefitRecordState, BenefitWindowInput,
+    BenefitsCommandActor, BenefitsEvidencePort, BenefitsLearningPort, ChangeBenefit,
+    CreateDependent, CreateElection, CreatePlan, CreateWindow, PreparedBenefitLearning,
+    StoredBenefitReceipt, change_with_ports, create_dependent, create_election,
+    create_election_with_ports, create_plan, create_window, execute_benefits_command,
+    parse_money_minor,
 };
 use erpx_server_benefits::public::command::{BenefitsCommandFuture, BenefitsCommandRepository};
 use erpx_server_benefits::public::workspace::{
     BenefitPlanRow, BenefitWindowRow, BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture,
     BenefitsPeoplePort, BenefitsWorker,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
+use erpx_server_shared::public::{
+    BusinessError, CommandKey, CompanyId, FailureKind, TimestampMillis,
+};
 use serde_json::{Value, json};
+use sqlx::PgConnection;
 use std::collections::BTreeMap;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_790_812_800_000);
@@ -150,6 +156,7 @@ struct Repo {
     last_dependent: Option<(String, String)>,
     last_election: Option<(String, String, i64, i64, Vec<String>)>,
     last_change: Option<(BenefitRecordKind, String, String, String, bool)>,
+    learning_requirement: Option<String>,
     lock_calls: usize,
 }
 
@@ -193,6 +200,10 @@ impl Repo {
 
 impl BenefitsCommandRepository for Repo {
     type Error = BusinessError;
+
+    fn connection(&mut self) -> Option<&mut PgConnection> {
+        None
+    }
 
     fn lock_command<'a>(&'a mut self, _: &'a str) -> BenefitsCommandFuture<'a, (), Self::Error> {
         Box::pin(async move {
@@ -254,6 +265,13 @@ impl BenefitsCommandRepository for Repo {
         _: &'a str,
     ) -> BenefitsCommandFuture<'a, Vec<String>, Self::Error> {
         Box::pin(async move { Ok(self.verified.clone()) })
+    }
+
+    fn learning_requirement<'a>(
+        &'a mut self,
+        _: &'a str,
+    ) -> BenefitsCommandFuture<'a, Option<String>, Self::Error> {
+        Box::pin(async move { Ok(self.learning_requirement.clone()) })
     }
 
     fn create_plan<'a>(
@@ -576,6 +594,7 @@ async fn transition_rechecks_status_version_independence_and_employee_ownership(
         created_by: "owner".into(),
         acknowledged_by: None,
         person_id: None,
+        effective_from: None,
     };
     repo.records.insert(
         (BenefitRecordKind::Plan as u8, plan_state.id.clone()),
@@ -625,6 +644,7 @@ async fn transition_rechecks_status_version_independence_and_employee_ownership(
         created_by: "person-owner".into(),
         acknowledged_by: None,
         person_id: Some("person-other".into()),
+        effective_from: Some("2027-01-01".into()),
     };
     repo.records.insert(
         (BenefitRecordKind::Election as u8, election_state.id.clone()),
@@ -689,6 +709,7 @@ async fn release_requires_payroll_handoff_and_independent_provider_acknowledgeme
         created_by: "person-owner".into(),
         acknowledged_by: Some("acknowledger".into()),
         person_id: Some("person-owner".into()),
+        effective_from: Some("2027-01-01".into()),
     };
     repo.records
         .insert((BenefitRecordKind::Election as u8, state.id.clone()), state);
@@ -765,6 +786,7 @@ async fn draining_and_inactive_packages_block_new_work_and_settlement_separately
         created_by: "author".into(),
         acknowledged_by: None,
         person_id: None,
+        effective_from: None,
     };
     repo.records
         .insert((BenefitRecordKind::Plan as u8, state.id.clone()), state);
@@ -803,6 +825,7 @@ async fn draining_and_inactive_packages_block_new_work_and_settlement_separately
         created_by: "author".into(),
         acknowledged_by: None,
         person_id: None,
+        effective_from: None,
     };
     repo.records
         .insert((BenefitRecordKind::Plan as u8, state.id.clone()), state);
@@ -859,4 +882,380 @@ async fn envelope_dispatch_rejects_an_unregistered_entity_and_missing_worker_sco
     .await
     .unwrap_err();
     assert_eq!(error.code, "BENEFITS_VALIDATION_FAILED");
+}
+
+#[derive(Default)]
+struct Evidence {
+    requests: Vec<BenefitEvidenceRequest>,
+    current_checks: usize,
+    prepared: bool,
+}
+
+struct PreparedEvidence {
+    command_id: String,
+    target_id: String,
+}
+
+impl BenefitsEvidencePort for Evidence {
+    type Prepared = PreparedEvidence;
+
+    fn prepare<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        request: BenefitEvidenceRequest,
+    ) -> BenefitsCommandFuture<'a, Option<Self::Prepared>, BusinessError> {
+        Box::pin(async move {
+            assert!(unit.is_none());
+            self.requests.push(request.clone());
+            if !self.prepared {
+                return Ok(None);
+            }
+            Ok(Some(PreparedEvidence {
+                command_id: request.command_id,
+                target_id: request.target_id,
+            }))
+        })
+    }
+
+    fn require_current<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        prepared: &'a Self::Prepared,
+    ) -> BenefitsCommandFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            assert!(unit.is_none());
+            assert!(!prepared.command_id.is_empty());
+            assert!(!prepared.target_id.is_empty());
+            self.current_checks += 1;
+            Ok(())
+        })
+    }
+}
+
+#[derive(Default)]
+struct Learning {
+    eligible: bool,
+    preparations: Vec<BenefitLearningRequest>,
+    validations: Vec<BenefitLearningRequest>,
+    current_checks: usize,
+}
+
+impl BenefitsLearningPort for Learning {
+    type Prepared = PreparedBenefitLearning;
+
+    fn prepare<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        request: BenefitLearningRequest,
+    ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError> {
+        Box::pin(async move {
+            assert!(unit.is_none());
+            self.preparations.push(request.clone());
+            if !self.eligible {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "LEARNING_ELIGIBILITY_REQUIRED",
+                    "The current Learning certificate does not satisfy this plan.",
+                ));
+            }
+            Ok(PreparedBenefitLearning {
+                certificate_id: "certificate-current".into(),
+                election_id: request.election_id,
+                command_id: request.command_id,
+            })
+        })
+    }
+
+    fn validate<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        request: BenefitLearningRequest,
+    ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError> {
+        Box::pin(async move {
+            assert!(unit.is_none());
+            self.validations.push(request.clone());
+            if !self.eligible {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "LEARNING_ELIGIBILITY_REQUIRED",
+                    "The current Learning certificate does not satisfy this plan.",
+                ));
+            }
+            Ok(PreparedBenefitLearning {
+                certificate_id: "certificate-current".into(),
+                election_id: request.election_id,
+                command_id: request.command_id,
+            })
+        })
+    }
+
+    fn require_current<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        prepared: &'a Self::Prepared,
+    ) -> BenefitsCommandFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            assert!(unit.is_none());
+            assert!(!prepared.certificate_id.is_empty());
+            self.current_checks += 1;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn dependent_verification_binds_exact_files_evidence_through_the_mounted_port() {
+    let mut repo = Repo::with_sources();
+    let mut packages = active_packages();
+    let mut people = People {
+        worker: Some(worker()),
+    };
+    let mut evidence = Evidence {
+        prepared: true,
+        ..Evidence::default()
+    };
+    let mut learning = Learning::default();
+    let mut ports = BenefitCommandPorts {
+        evidence: &mut evidence,
+        learning: &mut learning,
+    };
+    repo.records.insert(
+        (
+            BenefitRecordKind::Dependent as u8,
+            "dependent-pending".into(),
+        ),
+        BenefitRecordState {
+            id: "dependent-pending".into(),
+            status: "pending".into(),
+            version: 1,
+            created_by: "author".into(),
+            acknowledged_by: None,
+            person_id: Some("person-owner".into()),
+            effective_from: None,
+        },
+    );
+    let command = key("dependent-evidence-1");
+    let verified = change_with_ports(
+        &reviewer_actor(),
+        BenefitRecordKind::Dependent,
+        "dependent-pending",
+        &json!({
+            "entity": "dependent",
+            "id": "dependent-pending",
+            "action": "verify",
+            "expectedVersion": 1,
+            "reason": "Relationship proof reviewed",
+            "attachmentSetIds": ["set-1"],
+        }),
+        &command,
+        &mut repo,
+        &mut people,
+        &mut packages,
+        &mut ports,
+        NOW,
+    )
+    .await
+    .unwrap();
+    assert_eq!(verified.status, "verified");
+    let request = evidence.requests.first().unwrap();
+    assert_eq!(request.target_type, "benefit_dependent");
+    assert_eq!(request.purpose, "dependent_proof");
+    assert_eq!(request.component_ref, "verification");
+    assert_eq!(request.binding_type, "benefits_dependent_verify");
+    assert_eq!(request.target_id, "dependent-pending");
+    assert_eq!(request.expected_target_version, 1);
+    assert_eq!(request.command_id, command.as_str());
+    assert_eq!(request.attachment_set_ids, vec!["set-1".to_string()]);
+    assert_eq!(evidence.current_checks, 1);
+    assert!(learning.preparations.is_empty());
+}
+
+#[tokio::test]
+async fn absent_evidence_port_fails_closed_before_the_owner_effect() {
+    let mut repo = Repo::with_sources();
+    let mut packages = active_packages();
+    let mut people = People {
+        worker: Some(worker()),
+    };
+    repo.records.insert(
+        (
+            BenefitRecordKind::Dependent as u8,
+            "dependent-pending".into(),
+        ),
+        BenefitRecordState {
+            id: "dependent-pending".into(),
+            status: "pending".into(),
+            version: 1,
+            created_by: "author".into(),
+            acknowledged_by: None,
+            person_id: Some("person-owner".into()),
+            effective_from: None,
+        },
+    );
+    let error = change_for_test(
+        &reviewer_actor(),
+        BenefitRecordKind::Dependent,
+        "dependent-pending",
+        &json!({
+            "entity": "dependent",
+            "id": "dependent-pending",
+            "action": "verify",
+            "expectedVersion": 1,
+            "reason": "Relationship proof reviewed",
+            "attachmentSetIds": ["set-1"],
+        }),
+        &key("dependent-evidence-absent"),
+        &mut repo,
+        &mut people,
+        &mut packages,
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error.code, "BENEFIT_EVIDENCE_PORT_REQUIRED");
+    assert!(repo.last_change.is_none());
+}
+
+#[tokio::test]
+async fn plan_gated_election_consumes_the_learning_receipt_port() {
+    let mut repo = Repo::with_sources();
+    let mut packages = active_packages();
+    let mut people = People {
+        worker: Some(worker()),
+    };
+    let mut gated = plan();
+    gated.coverage_type = "employee".into();
+    gated.required_eligibility_code = Some("PROBATION_COMPLETE".into());
+    repo.plan = Some(gated);
+    let mut evidence = Evidence::default();
+    let mut learning = Learning {
+        eligible: true,
+        ..Learning::default()
+    };
+    let mut ports = BenefitCommandPorts {
+        evidence: &mut evidence,
+        learning: &mut learning,
+    };
+    let command = key("election-learning-1");
+    let elected = create_election_with_ports(
+        &actor(false),
+        &json!({
+            "entity": "election",
+            "planId": "plan-published",
+            "planVersion": 1,
+            "windowId": "window-open",
+            "windowVersion": 1,
+            "dependentIds": [],
+        }),
+        &command,
+        &mut repo,
+        &mut people,
+        &mut packages,
+        &mut ports,
+        NOW,
+    )
+    .await
+    .unwrap();
+    assert_eq!(elected.status, "elected");
+    let request = learning.preparations.first().unwrap();
+    assert_eq!(request.person_id, "person-owner");
+    assert_eq!(request.required_code, "PROBATION_COMPLETE");
+    assert_eq!(request.effective_date, "2027-01-01");
+    assert_eq!(request.election_id, "benefit-election-election-learning-1");
+    assert_eq!(request.command_id, command.as_str());
+    assert_eq!(learning.current_checks, 1);
+    assert!(evidence.requests.is_empty());
+}
+
+#[tokio::test]
+async fn election_submit_requires_the_current_learning_receipt_and_fails_closed_without_it() {
+    let mut repo = Repo::with_sources();
+    let mut packages = active_packages();
+    let mut people = People {
+        worker: Some(worker()),
+    };
+    repo.learning_requirement = Some("PROBATION_COMPLETE".into());
+    repo.records.insert(
+        (BenefitRecordKind::Election as u8, "election-owner".into()),
+        BenefitRecordState {
+            id: "election-owner".into(),
+            status: "elected".into(),
+            version: 1,
+            created_by: "person-owner".into(),
+            acknowledged_by: None,
+            person_id: Some("person-owner".into()),
+            effective_from: Some("2027-01-01".into()),
+        },
+    );
+    let submit = json!({
+        "entity": "election",
+        "id": "election-owner",
+        "action": "submit",
+        "expectedVersion": 1,
+        "reason": "Employee confirms own coverage",
+    });
+    let mut evidence = Evidence::default();
+    let mut learning = Learning {
+        eligible: true,
+        ..Learning::default()
+    };
+    let mut ports = BenefitCommandPorts {
+        evidence: &mut evidence,
+        learning: &mut learning,
+    };
+    let submitted = change_with_ports(
+        &actor(false),
+        BenefitRecordKind::Election,
+        "election-owner",
+        &submit,
+        &key("election-submit-learning-1"),
+        &mut repo,
+        &mut people,
+        &mut packages,
+        &mut ports,
+        NOW,
+    )
+    .await
+    .unwrap();
+    assert_eq!(submitted.status, "submitted");
+    assert_eq!(learning.validations.len(), 1);
+    assert_eq!(learning.validations[0].required_code, "PROBATION_COMPLETE");
+    assert_eq!(learning.validations[0].effective_date, "2027-01-01");
+    assert_eq!(learning.current_checks, 1);
+
+    let changes_before = repo.last_change.clone();
+    let mut learning = Learning::default();
+    let mut ports = BenefitCommandPorts {
+        evidence: &mut evidence,
+        learning: &mut learning,
+    };
+    let error = change_with_ports(
+        &actor(false),
+        BenefitRecordKind::Election,
+        "election-owner",
+        &submit,
+        &key("election-submit-learning-2"),
+        &mut repo,
+        &mut people,
+        &mut packages,
+        &mut ports,
+        NOW,
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error.code, "LEARNING_ELIGIBILITY_REQUIRED");
+    assert_eq!(repo.last_change, changes_before);
+
+    let error = change_for_test(
+        &actor(false),
+        BenefitRecordKind::Election,
+        "election-owner",
+        &submit,
+        &key("election-submit-learning-absent"),
+        &mut repo,
+        &mut people,
+        &mut packages,
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error.code, "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED");
 }

@@ -56,6 +56,18 @@ fn learning_port_required() -> BusinessError {
 
 pub trait BenefitsCommandRepository: Send {
     type Error: From<BusinessError> + Send;
+    /// Lend the caller's retained serializable unit to [`BenefitsEvidencePort`]
+    /// and [`BenefitsLearningPort`] for one call.
+    ///
+    /// A real adapter returns its own unit, so Files evidence and the Learning
+    /// consumption receipt resolve inside the same transaction the Benefits
+    /// owner rows and ledger are written to. `None` exists only for owner-local
+    /// fakes that answer port calls without SQL; a mounted composition delegate
+    /// refuses when the unit is absent instead of fabricating a binding. The
+    /// borrow ends when the port future completes, so the application keeps
+    /// using the repository between calls and never holds two `&mut` to the
+    /// transaction.
+    fn connection(&mut self) -> Option<&mut sqlx::PgConnection>;
 
     fn lock_command<'a>(&'a mut self, key: &'a str) -> BenefitsCommandFuture<'a, (), Self::Error>;
 
@@ -134,11 +146,13 @@ pub trait BenefitsEvidencePort: Send {
 
     fn prepare<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         request: BenefitEvidenceRequest,
     ) -> BenefitsCommandFuture<'a, Option<Self::Prepared>, BusinessError>;
 
     fn require_current<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         prepared: &'a Self::Prepared,
     ) -> BenefitsCommandFuture<'a, (), BusinessError>;
 }
@@ -151,16 +165,19 @@ pub trait BenefitsLearningPort: Send {
 
     fn prepare<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         request: BenefitLearningRequest,
     ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError>;
 
     fn validate<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         request: BenefitLearningRequest,
     ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError>;
 
     fn require_current<'a>(
         &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
         prepared: &'a Self::Prepared,
     ) -> BenefitsCommandFuture<'a, (), BusinessError>;
 }
@@ -179,6 +196,7 @@ impl BenefitsEvidencePort for NoBenefitPorts {
 
     fn prepare<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _request: BenefitEvidenceRequest,
     ) -> BenefitsCommandFuture<'a, Option<Self::Prepared>, BusinessError> {
         Box::pin(async { Err(evidence_port_required()) })
@@ -186,6 +204,7 @@ impl BenefitsEvidencePort for NoBenefitPorts {
 
     fn require_current<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _prepared: &'a Self::Prepared,
     ) -> BenefitsCommandFuture<'a, (), BusinessError> {
         Box::pin(async { Err(evidence_port_required()) })
@@ -197,6 +216,7 @@ impl BenefitsLearningPort for NoBenefitPorts {
 
     fn prepare<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _request: BenefitLearningRequest,
     ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError> {
         Box::pin(async { Err(learning_port_required()) })
@@ -204,6 +224,7 @@ impl BenefitsLearningPort for NoBenefitPorts {
 
     fn validate<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _request: BenefitLearningRequest,
     ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError> {
         Box::pin(async { Err(learning_port_required()) })
@@ -211,6 +232,7 @@ impl BenefitsLearningPort for NoBenefitPorts {
 
     fn require_current<'a>(
         &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
         _prepared: &'a Self::Prepared,
     ) -> BenefitsCommandFuture<'a, (), BusinessError> {
         Box::pin(async { Err(learning_port_required()) })
@@ -490,15 +512,18 @@ where
         Some(required_code) => Some(
             ports
                 .learning
-                .prepare(BenefitLearningRequest {
-                    company_id: actor.company_id.as_str().to_owned(),
-                    person_id: worker.person_id.clone(),
-                    required_code: required_code.clone(),
-                    effective_date: window.effective_on.clone(),
-                    election_id: id.clone(),
-                    command_id: key.as_str().to_owned(),
-                    today: current_date(now),
-                })
+                .prepare(
+                    repository.connection(),
+                    BenefitLearningRequest {
+                        company_id: actor.company_id.as_str().to_owned(),
+                        person_id: worker.person_id.clone(),
+                        required_code: required_code.clone(),
+                        effective_date: window.effective_on.clone(),
+                        election_id: id.clone(),
+                        command_id: key.as_str().to_owned(),
+                        today: current_date(now),
+                    },
+                )
                 .await?,
         ),
         None => None,
@@ -517,7 +542,10 @@ where
         })
         .await?;
     if let Some(prepared) = &learning {
-        ports.learning.require_current(prepared).await?;
+        ports
+            .learning
+            .require_current(repository.connection(), prepared)
+            .await?;
     }
     Ok(result)
 }
@@ -625,17 +653,20 @@ where
         Some(policy) if !input.attachment_set_ids.is_empty() => Some(
             ports
                 .evidence
-                .prepare(BenefitEvidenceRequest {
-                    attachment_set_ids: input.attachment_set_ids.clone(),
-                    target_type: policy.target_type.to_owned(),
-                    purpose: policy.purpose.to_owned(),
-                    component_ref: policy.component_ref.to_owned(),
-                    target_id: id.to_owned(),
-                    expected_target_version: input.expected_version,
-                    command_id: key.as_str().to_owned(),
-                    binding_type: benefit_evidence_binding_type(kind, &input.action),
-                    now: now.get(),
-                })
+                .prepare(
+                    repository.connection(),
+                    BenefitEvidenceRequest {
+                        attachment_set_ids: input.attachment_set_ids.clone(),
+                        target_type: policy.target_type.to_owned(),
+                        purpose: policy.purpose.to_owned(),
+                        component_ref: policy.component_ref.to_owned(),
+                        target_id: id.to_owned(),
+                        expected_target_version: input.expected_version,
+                        command_id: key.as_str().to_owned(),
+                        binding_type: benefit_evidence_binding_type(kind, &input.action),
+                        now: now.get(),
+                    },
+                )
                 .await?
                 .ok_or_else(evidence_port_required)?,
         ),
@@ -652,15 +683,18 @@ where
                 Some(
                     ports
                         .learning
-                        .validate(BenefitLearningRequest {
-                            company_id: actor.company_id.as_str().to_owned(),
-                            person_id,
-                            required_code,
-                            effective_date,
-                            election_id: id.to_owned(),
-                            command_id: key.as_str().to_owned(),
-                            today: current_date(now),
-                        })
+                        .validate(
+                            repository.connection(),
+                            BenefitLearningRequest {
+                                company_id: actor.company_id.as_str().to_owned(),
+                                person_id,
+                                required_code,
+                                effective_date,
+                                election_id: id.to_owned(),
+                                command_id: key.as_str().to_owned(),
+                                today: current_date(now),
+                            },
+                        )
                         .await?,
                 )
             }
@@ -686,10 +720,16 @@ where
         })
         .await?;
     if let Some(prepared) = &evidence {
-        ports.evidence.require_current(prepared).await?;
+        ports
+            .evidence
+            .require_current(repository.connection(), prepared)
+            .await?;
     }
     if let Some(prepared) = &learning {
-        ports.learning.require_current(prepared).await?;
+        ports
+            .learning
+            .require_current(repository.connection(), prepared)
+            .await?;
     }
     Ok(result)
 }

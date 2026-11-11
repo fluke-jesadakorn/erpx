@@ -314,6 +314,10 @@ fn map_window(row: &sqlx::postgres::PgRow) -> Result<BenefitWindowRow, sqlx::Err
 impl BenefitsCommandRepository for PgBenefitsCommand<'_> {
     type Error = Error;
 
+    fn connection(&mut self) -> Option<&mut PgConnection> {
+        Some(&mut *self.connection)
+    }
+
     fn lock_command<'a>(&'a mut self, key: &'a str) -> BenefitsCommandFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.ready().await?;

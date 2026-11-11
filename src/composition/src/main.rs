@@ -156,7 +156,6 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             ).await.map_err(str::to_owned)
         }
         #[cfg(feature = "private-field-api")]
-        #[cfg(feature = "private-field-api")]
         [command, option, path]
             if command == "position-move-worker" && option == "--development-config" =>
         {
@@ -167,6 +166,7 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             .await
             .map_err(str::to_owned)
         }
+        #[cfg(feature = "private-field-api")]
         [command, option, path]
             if command == "service-count-worker" && option == "--development-config" =>
         {

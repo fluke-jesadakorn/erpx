@@ -2,11 +2,18 @@
 //! course catalogue, eligible assignment, learner evidence, certification and
 //! revocation. No database or HTTP effect is reachable here.
 use erpx_server_learning::public::eligibility_facts::{
-    BenefitConsumptionActor, BenefitConsumptionRequest, EligibilityCertificateRow,
-    EligibilityConsumptionRow, EligibilityQuery, EligibilityScope, MAX_ELIGIBILITY_CERTIFICATES,
-    MAX_ELIGIBILITY_CONSUMPTIONS, benefit_consume_identity, benefit_consumption_plan,
-    certificate_source_json, eligibility_facts_json, learning_benefit_continuation,
-    require_certificate_current, select_benefit_certificate,
+    BenefitConsumptionActor, BenefitConsumptionPlan, BenefitConsumptionRequest,
+    EligibilityCertificateRow, EligibilityConsumptionRow, EligibilityQuery, EligibilityScope,
+    MAX_ELIGIBILITY_CERTIFICATES, MAX_ELIGIBILITY_CONSUMPTIONS, PreparedBenefitConsumption,
+    benefit_consume_identity, benefit_consumption_plan, certificate_source_json,
+    eligibility_facts_json, learning_benefit_continuation, require_certificate_current,
+    select_benefit_certificate,
+};
+use erpx_server_learning::public::benefit_learning::{
+    PgBenefitLearning, benefit_consumption_request, benefit_learning_identity,
+};
+use erpx_server_benefits::public::command::{
+    BenefitLearningRequest, BenefitsLearningPort, PreparedBenefitLearning,
 };
 use erpx_server_learning::public::learning::{
     AssignmentAction, AssignmentChange, AssignmentRequest, AssignmentRow, Attendance,
@@ -17,7 +24,7 @@ use erpx_server_learning::public::learning::{
     utc_date, valid_date,
 };
 use erpx_server_shared::public::{
-    AssignmentId, CompanyId, FailureKind, HoldingId, RecordId, UserId,
+    AssignmentId, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis, UserId,
 };
 
 const NOW: i64 = 1_800_000_000_000;
@@ -1662,4 +1669,118 @@ fn assignment_evidence_request_uses_exact_files_policy_context() {
     .unwrap();
     assert_eq!(plan.evidence.as_ref().unwrap().link_ids, vec!["link-1"]);
     plan.evidence = None;
+}
+
+fn benefit_learning_request() -> BenefitLearningRequest {
+    BenefitLearningRequest {
+        company_id: "company".into(),
+        person_id: "person-learner".into(),
+        required_code: "equipment_operator".into(),
+        effective_date: "2026-11-04".into(),
+        election_id: "benefit-election-1".into(),
+        command_id: "learning-benefit-1".into(),
+        today: "2026-11-04".into(),
+    }
+}
+
+fn prepared_consumption() -> PreparedBenefitConsumption {
+    PreparedBenefitConsumption {
+        plan: BenefitConsumptionPlan {
+            id: "learning-benefit-receipt-1".into(),
+            handoff_id: "handoff-1".into(),
+            certificate_id: "certificate-1".into(),
+            election_id: "benefit-election-1".into(),
+            company_id: "company".into(),
+            person_id: "person-learner".into(),
+            source_assignment_version: 3,
+            eligibility_code: "equipment_operator".into(),
+            source_digest: "a".repeat(64),
+            purpose: "benefit_eligibility".into(),
+            actor_id: "learner".into(),
+            command_id: "learning-benefit-1".into(),
+            created_at: NOW,
+        },
+        existing: None,
+        today: "2026-11-04".into(),
+        effective_date: "2026-11-04".into(),
+    }
+}
+
+#[test]
+fn benefit_learning_identity_maps_only_the_prepared_plan_identity() {
+    let identity = benefit_learning_identity(&prepared_consumption()).unwrap();
+    assert_eq!(
+        identity,
+        PreparedBenefitLearning {
+            certificate_id: "certificate-1".into(),
+            election_id: "benefit-election-1".into(),
+            command_id: "learning-benefit-1".into(),
+        }
+    );
+    assert!(identity.validate().is_ok());
+}
+
+#[test]
+fn benefit_learning_identity_refuses_a_malformed_certificate() {
+    let mut prepared = prepared_consumption();
+    prepared.plan.certificate_id = String::new();
+    assert_eq!(
+        benefit_learning_identity(&prepared).unwrap_err().code,
+        "BENEFITS_SOURCE_INVALID"
+    );
+}
+
+#[test]
+fn benefit_consumption_request_validates_code_person_and_effective_date() {
+    let mapped = benefit_consumption_request("learner", &benefit_learning_request()).unwrap();
+    assert_eq!(mapped.company_id, "company");
+    assert_eq!(mapped.person_id, "person-learner");
+    assert_eq!(mapped.required_code, "equipment_operator");
+    assert_eq!(mapped.effective_date, "2026-11-04");
+    assert_eq!(mapped.election_id, "benefit-election-1");
+    assert_eq!(mapped.command_id, "learning-benefit-1");
+    assert_eq!(mapped.actor_id, "learner");
+
+    for mutate in [
+        (|request: &mut BenefitLearningRequest| request.person_id = String::new())
+            as fn(&mut BenefitLearningRequest),
+        |request: &mut BenefitLearningRequest| request.required_code = " ".into(),
+        |request: &mut BenefitLearningRequest| request.effective_date = "04/11/2026".into(),
+        |request: &mut BenefitLearningRequest| request.command_id = String::new(),
+    ] {
+        let mut request = benefit_learning_request();
+        mutate(&mut request);
+        let error = benefit_consumption_request("learner", &request).unwrap_err();
+        assert_eq!(error.code, "LEARNING_REQUEST_INVALID");
+    }
+}
+
+#[tokio::test]
+async fn benefits_learning_port_refuses_without_the_caller_unit() {
+    let mut port = PgBenefitLearning::new("learner".into(), TimestampMillis::new(NOW));
+    let error = port
+        .prepare(None, benefit_learning_request())
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "BENEFITS_LEARNING_UNIT_REQUIRED");
+    assert_eq!(error.kind, FailureKind::Unavailable);
+
+    let error = port
+        .validate(None, benefit_learning_request())
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "BENEFITS_LEARNING_UNIT_REQUIRED");
+
+    let error = port
+        .require_current(
+            None,
+            &PreparedBenefitLearning {
+                certificate_id: "certificate-1".into(),
+                election_id: "benefit-election-1".into(),
+                command_id: "learning-benefit-1".into(),
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "BENEFITS_LEARNING_UNIT_REQUIRED");
 }

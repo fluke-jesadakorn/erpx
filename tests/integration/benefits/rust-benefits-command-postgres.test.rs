@@ -6,8 +6,10 @@
 mod fixture;
 
 use erpx_server_benefits::public::command::{
-    BenefitsCommandActor, PgBenefitsCommand, change, create_dependent, create_election,
-    create_plan, create_window,
+    BenefitCommandPorts, BenefitEvidenceRequest, BenefitLearningRequest, BenefitsCommandActor,
+    BenefitsEvidencePort, BenefitsLearningPort, PgBenefitsCommand, PreparedBenefitLearning, change,
+    change_with_ports, create_dependent, create_election, create_election_with_ports, create_plan,
+    create_window,
 };
 use erpx_server_benefits::public::workspace::{
     BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture, BenefitsPeoplePort,
@@ -19,6 +21,7 @@ use erpx_server_runtime::public::postgres::{
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
 use serde_json::{Value, json};
+use sqlx::PgConnection;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_790_812_800_000);
 
@@ -725,6 +728,369 @@ async fn failed_plan_event_insert_rolls_back_row_receipt_audit_and_outbox() {
         .await
         .unwrap();
         assert_eq!((plan, receipt, audit, outbox), (0, 0, 0, 0));
+    })
+    .await;
+}
+
+#[derive(Default)]
+struct MountedEvidence {
+    requests: Vec<BenefitEvidenceRequest>,
+    current_checks: usize,
+}
+
+struct PreparedEvidence {
+    command_id: String,
+    target_id: String,
+}
+
+impl BenefitsEvidencePort for MountedEvidence {
+    type Prepared = PreparedEvidence;
+
+    fn prepare<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        request: BenefitEvidenceRequest,
+    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<
+        'a,
+        Option<Self::Prepared>,
+        BusinessError,
+    > {
+        Box::pin(async move {
+            assert!(unit.is_some());
+            self.requests.push(request.clone());
+            Ok(Some(PreparedEvidence {
+                command_id: request.command_id,
+                target_id: request.target_id,
+            }))
+        })
+    }
+
+    fn require_current<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        prepared: &'a Self::Prepared,
+    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            assert!(unit.is_some());
+            assert!(!prepared.command_id.is_empty());
+            assert!(!prepared.target_id.is_empty());
+            self.current_checks += 1;
+            Ok(())
+        })
+    }
+}
+
+#[derive(Default)]
+struct MountedLearning {
+    preparations: Vec<BenefitLearningRequest>,
+    validations: Vec<BenefitLearningRequest>,
+    current_checks: usize,
+}
+
+impl BenefitsLearningPort for MountedLearning {
+    type Prepared = PreparedBenefitLearning;
+
+    fn prepare<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        request: BenefitLearningRequest,
+    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<
+        'a,
+        Self::Prepared,
+        BusinessError,
+    > {
+        Box::pin(async move {
+            assert!(unit.is_some());
+            self.preparations.push(request.clone());
+            Ok(PreparedBenefitLearning {
+                certificate_id: "certificate-current".into(),
+                election_id: request.election_id,
+                command_id: request.command_id,
+            })
+        })
+    }
+
+    fn validate<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        request: BenefitLearningRequest,
+    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<
+        'a,
+        Self::Prepared,
+        BusinessError,
+    > {
+        Box::pin(async move {
+            assert!(unit.is_some());
+            self.validations.push(request.clone());
+            Ok(PreparedBenefitLearning {
+                certificate_id: "certificate-current".into(),
+                election_id: request.election_id,
+                command_id: request.command_id,
+            })
+        })
+    }
+
+    fn require_current<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        prepared: &'a Self::Prepared,
+    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            assert!(unit.is_some());
+            assert!(!prepared.certificate_id.is_empty());
+            self.current_checks += 1;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn mounted_evidence_port_binds_the_exact_dependent_verification_action() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let reviewer = actor("reviewer", "company", true);
+        PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), {
+                let reviewer = reviewer.clone();
+                move |connection| {
+                    let reviewer = reviewer.clone();
+                    Box::pin(async move {
+                        sqlx::raw_sql(
+                            "INSERT INTO benefit_dependents(id,company_id,person_id,name,relationship,birth_date,status,created_by,reviewed_by,version,created_at,updated_at) VALUES \
+                             ('dependent-evidence','company','person-owner','Evidence Child','child','2018-01-01','pending','author',NULL,1,10,10),\
+                             ('dependent-without-port','company','person-owner','No Port Child','child','2018-01-01','pending','author',NULL,1,10,10);",
+                        )
+                        .execute(&mut *connection)
+                        .await?;
+                        let mut packages = Packages;
+                        let mut people = People {
+                            worker: Some(BenefitsWorker {
+                                person_id: "person-owner".into(),
+                                engagement_id: "engagement-owner".into(),
+                            }),
+                        };
+                        let mut evidence = MountedEvidence::default();
+                        let mut learning = MountedLearning::default();
+                        let mut ports = BenefitCommandPorts {
+                            evidence: &mut evidence,
+                            learning: &mut learning,
+                        };
+                        let mut command = PgBenefitsCommand::new(connection, &reviewer);
+                        let verified = change_with_ports(
+                            &reviewer,
+                            erpx_server_benefits::public::command::BenefitRecordKind::Dependent,
+                            "dependent-evidence",
+                            &json!({
+                                "entity": "dependent",
+                                "id": "dependent-evidence",
+                                "action": "verify",
+                                "expectedVersion": 1,
+                                "reason": "Relationship proof reviewed",
+                                "attachmentSetIds": ["set-benefit-proof"],
+                            }),
+                            &key("dependent-evidence-port-1"),
+                            &mut command,
+                            &mut people,
+                            &mut packages,
+                            &mut ports,
+                            NOW,
+                        )
+                        .await?;
+                        assert_eq!(verified.status, "verified");
+                        assert_eq!(verified.version, 2);
+                        let request = ports.evidence.requests.first().unwrap();
+                        assert_eq!(request.target_type, "benefit_dependent");
+                        assert_eq!(request.purpose, "dependent_proof");
+                        assert_eq!(request.component_ref, "verification");
+                        assert_eq!(request.binding_type, "benefits_dependent_verify");
+                        assert_eq!(request.target_id, "dependent-evidence");
+                        assert_eq!(request.expected_target_version, 1);
+                        assert_eq!(ports.evidence.current_checks, 1);
+                        drop(command);
+
+                        let mut command = PgBenefitsCommand::new(connection, &reviewer);
+                        let error = change(
+                            &reviewer,
+                            erpx_server_benefits::public::command::BenefitRecordKind::Dependent,
+                            "dependent-without-port",
+                            &json!({
+                                "entity": "dependent",
+                                "id": "dependent-without-port",
+                                "action": "verify",
+                                "expectedVersion": 1,
+                                "reason": "Relationship proof reviewed",
+                                "attachmentSetIds": ["set-benefit-proof"],
+                            }),
+                            &key("dependent-evidence-absent-1"),
+                            &mut command,
+                            &mut people,
+                            &mut packages,
+                            NOW,
+                        )
+                        .await
+                        .unwrap_err();
+                        assert_eq!(business(error).code, "BENEFIT_EVIDENCE_PORT_REQUIRED");
+                        Ok(())
+                    })
+                }
+            })
+            .await
+            .unwrap();
+        let rows = sqlx::query_as::<_, (String, i64)>(
+            "SELECT status,version FROM benefit_dependents ORDER BY id",
+        )
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                ("verified".into(), 2),
+                ("pending".into(), 1),
+            ]
+        );
+        let events: Vec<String> = sqlx::query_scalar(
+            "SELECT action FROM benefit_dependent_events WHERE dependent_id='dependent-evidence'",
+        )
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(events, vec!["verify"]);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn mounted_learning_port_consumes_plan_gated_election_and_submit() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let owner = actor("owner", "company", false);
+        PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), {
+                let owner = owner.clone();
+                move |connection| {
+                    let owner = owner.clone();
+                    Box::pin(async move {
+                        sqlx::raw_sql(
+                            "INSERT INTO benefit_plans(id,company_id,name,provider,coverage_type,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,reviewed_by,version,created_at,updated_at,required_eligibility_code) VALUES \
+                             ('plan-gated','company','Gated Plan','Synthetic provider','employee','THB',12550,30000,'2026-01-01','2026-12-31','published','author','reviewer',1,10,10,'PROBATION_COMPLETE');\
+                             INSERT INTO benefit_enrollment_windows(id,company_id,name,opens_on,closes_on,effective_on,status,created_by,reviewed_by,version,created_at,updated_at) VALUES \
+                             ('window-gated','company','Gated enrollment','2026-01-01','2026-12-31','2027-01-01','open','author','reviewer',1,10,10);",
+                        )
+                        .execute(&mut *connection)
+                        .await?;
+                        let mut packages = Packages;
+                        let mut people = People {
+                            worker: Some(BenefitsWorker {
+                                person_id: "person-owner".into(),
+                                engagement_id: "engagement-owner".into(),
+                            }),
+                        };
+                        let mut evidence = MountedEvidence::default();
+                        let mut learning = MountedLearning::default();
+                        let mut ports = BenefitCommandPorts {
+                            evidence: &mut evidence,
+                            learning: &mut learning,
+                        };
+                        let mut command = PgBenefitsCommand::new(connection, &owner);
+                        let election = create_election_with_ports(
+                            &owner,
+                            &json!({
+                                "entity": "election",
+                                "planId": "plan-gated",
+                                "planVersion": 1,
+                                "windowId": "window-gated",
+                                "windowVersion": 1,
+                                "dependentIds": [],
+                            }),
+                            &key("election-gated-1"),
+                            &mut command,
+                            &mut people,
+                            &mut packages,
+                            &mut ports,
+                            NOW,
+                        )
+                        .await?;
+                        assert_eq!(election.status, "elected");
+                        assert_eq!(
+                            election.id,
+                            "benefit-election-election-gated-1"
+                        );
+                        assert_eq!(ports.learning.preparations.len(), 1);
+                        assert_eq!(
+                            ports.learning.preparations[0].required_code,
+                            "PROBATION_COMPLETE"
+                        );
+                        assert_eq!(ports.learning.preparations[0].effective_date, "2027-01-01");
+                        assert_eq!(ports.learning.current_checks, 1);
+
+                        let submitted = change_with_ports(
+                            &owner,
+                            erpx_server_benefits::public::command::BenefitRecordKind::Election,
+                            &election.id,
+                            &json!({
+                                "entity": "election",
+                                "id": election.id,
+                                "action": "submit",
+                                "expectedVersion": 1,
+                                "reason": "Employee confirms own coverage",
+                            }),
+                            &key("election-gated-submit-1"),
+                            &mut command,
+                            &mut people,
+                            &mut packages,
+                            &mut ports,
+                            NOW,
+                        )
+                        .await?;
+                        assert_eq!(submitted.status, "submitted");
+                        assert_eq!(ports.learning.validations.len(), 1);
+                        assert_eq!(ports.learning.current_checks, 2);
+                        drop(command);
+
+                        let mut command = PgBenefitsCommand::new(connection, &owner);
+                        let error = create_election(
+                            &owner,
+                            &json!({
+                                "entity": "election",
+                                "planId": "plan-gated",
+                                "planVersion": 1,
+                                "windowId": "window-gated",
+                                "windowVersion": 1,
+                                "dependentIds": [],
+                            }),
+                            &key("election-gated-absent-1"),
+                            &mut command,
+                            &mut people,
+                            &mut packages,
+                            NOW,
+                        )
+                        .await
+                        .unwrap_err();
+                        assert_eq!(
+                            business(error).code,
+                            "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED"
+                        );
+                        Ok(())
+                    })
+                }
+            })
+            .await
+            .unwrap();
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM benefit_elections WHERE plan_id='plan-gated'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(count, 1);
+        let submitted: String = sqlx::query_scalar(
+            "SELECT status FROM benefit_elections WHERE plan_id='plan-gated'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(submitted, "submitted");
     })
     .await;
 }

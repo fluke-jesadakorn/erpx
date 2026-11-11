@@ -37,6 +37,8 @@ pub mod field_attachment_routing;
 
 pub mod learning_evidence;
 
+pub mod benefit_evidence;
+
 pub mod project_attachment;
 
 pub mod messaging_files;
