@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 394,
+    "revision": 396,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g6",
       "agentId": "lead",
       "startedAt": "2026-11-11T04:25:19.281Z",
-      "heartbeatAt": "2026-11-11T05:46:02.749Z",
-      "expiresAt": "2026-11-11T06:16:02.749Z",
+      "heartbeatAt": "2026-11-11T05:49:39.540Z",
+      "expiresAt": "2026-11-11T06:19:39.540Z",
       "generation": 7,
       "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
     },
@@ -12915,8 +12915,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T04:25:19.306Z",
-          "heartbeatAt": "2026-11-11T05:46:02.749Z",
-          "expiresAt": "2026-11-11T06:16:02.749Z",
+          "heartbeatAt": "2026-11-11T05:49:39.540Z",
+          "expiresAt": "2026-11-11T06:19:39.540Z",
           "generation": 7
         },
         "baseSha": null,
@@ -12925,7 +12925,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Messaging members now native with Control-DB account-name objects and retained detail row (eb803265f); route switched. Remaining collaboration: messaging history needs Files decoration (blocked by server-files WIP) and team-channel read shape; inbox summary/notifications need owner source scopes; feed subpaths/CSV/mention drain/AI reply stay TS.",
+        "nextAction": "Inbox summary is native and switched (unread/category counts, no cross-owner targets needed). NOTE: the feature-apps messaging catch-all has no GET team-channel branch (only POST channel create), so that item is not a switch target. Remaining collaboration: inbox notifications need owner source targets/visibility; messaging history needs Files decoration (server-files WIP); feed subpaths/CSV/mention drain/AI reply stay TS.",
         "handoff": {
           "runId": "run-20261110-g5",
           "agentId": "lead",
@@ -15378,7 +15378,7 @@
       }
     },
     "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T05:46:02.749Z",
+    "updatedAt": "2026-11-11T05:49:39.540Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
