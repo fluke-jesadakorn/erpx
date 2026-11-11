@@ -17,6 +17,9 @@ use std::{
 pub struct FieldFilesProviderTarget {
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
+    /// Canonical private files root for this Holding. Reused by other owner
+    /// ports (Messaging attachments) so they never invent a storage path.
+    pub files_root: PathBuf,
     pub providers: NativeFilesScanConfiguration,
 }
 #[derive(Deserialize)]
@@ -134,11 +137,13 @@ pub fn parse_field_files_runtime_configuration(
             concurrent_scans: t.concurrent_scans,
         };
         ClamAvScanner::new(scanner.clone()).map_err(|_| invalid())?;
+        let files_root = t.files_root.clone();
         let mut files_roots = BTreeMap::new();
         files_roots.insert(t.files_binding, t.files_root);
         output.push(FieldFilesProviderTarget {
             holding_id: holding,
             company_id: company,
+            files_root,
             providers: NativeFilesScanConfiguration {
                 files_roots,
                 temporary_root: t.temporary_root,
