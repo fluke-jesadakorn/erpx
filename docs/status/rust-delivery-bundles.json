@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 428,
+    "revision": 431,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g8",
+      "runId": "run-20261110-g9",
       "agentId": "lead",
-      "startedAt": "2026-11-11T07:38:28.627Z",
-      "heartbeatAt": "2026-11-11T08:08:07.372Z",
-      "expiresAt": "2026-11-11T08:38:07.372Z",
-      "generation": 9,
-      "tokenHash": "1cf3d4127debb90bd93ea00de1cfc343b844280ac6be93b5a11d512a91441e8b"
+      "startedAt": "2026-11-11T08:55:02.036Z",
+      "heartbeatAt": "2026-11-11T08:55:02.109Z",
+      "expiresAt": "2026-11-11T09:25:02.109Z",
+      "generation": 10,
+      "tokenHash": "ace211dc654c0de43619777961c9b98e0e1f049d229e326bffddede47789ca99"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9412,7 +9412,7 @@
     "externalReservations": [
       {
         "id": "external-wip-2026-11-10",
-        "status": "active",
+        "status": "released",
         "observedAt": "2026-11-10T22:40:10+07:00",
         "baseSha": "b9b2f147a759300de65507727fe4eb81493adf81",
         "allowedPaths": [
@@ -9459,7 +9459,113 @@
           "packages/server-files/src/adapters/quality_disposition_evidence.rs",
           "packages/server-files/src/adapters/quality_inspection_descriptors.rs"
         ],
-        "reason": "Pre-existing dirty files and concurrently observed editor sessions. Preserve WIP; holder is not identified. Lead must reconcile a handoff before narrowing/releasing these exact paths."
+        "reason": "Operator authorized touching all reserved paths: server-files work may proceed",
+        "history": [
+          {
+            "at": "2026-11-11T08:55:02.069Z",
+            "runId": "run-20261110-g9",
+            "reason": "Operator authorized touching all reserved paths: server-files work may proceed",
+            "wipReviewed": true,
+            "previousAllowedPaths": [
+              "apps/account/src/app/globals.css",
+              "apps/admin/src/app/globals.css",
+              "apps/assets/src/app/globals.css",
+              "apps/booking/src/app/globals.css",
+              "apps/compat/src/app/globals.css",
+              "apps/finance/src/app/globals.css",
+              "apps/forms/src/app/globals.css",
+              "apps/launcher/src/app/globals.css",
+              "apps/learn/src/app/globals.css",
+              "apps/legal-portal/src/app/globals.css",
+              "apps/legal/src/app/globals.css",
+              "apps/manufacturing/src/app/globals.css",
+              "apps/people/src/app/globals.css",
+              "apps/pms/src/app/globals.css",
+              "apps/portal/src/app/globals.css",
+              "apps/pos/src/app/globals.css",
+              "apps/projects/src/app/globals.css",
+              "apps/recruit/src/app/globals.css",
+              "apps/sales/src/app/globals.css",
+              "apps/service/src/app/globals.css",
+              "apps/supply/src/app/globals.css",
+              "apps/support/src/app/globals.css",
+              "packages/server-assets/src/adapters/asset_purchase_source.rs",
+              "packages/server-assets/src/adapters/asset_wire.rs",
+              "packages/server-assets/src/adapters/field_service_workspace.rs",
+              "packages/server-assets/src/adapters/maintenance.rs",
+              "packages/server-assets/src/application/asset.rs",
+              "packages/server-brand/src/adapters/branding_http.rs",
+              "packages/server-commerce/src/adapters/pos_catalog.rs",
+              "packages/server-commerce/src/adapters/quality_masters.rs",
+              "packages/server-commerce/src/adapters/quality_receipt_origin.rs",
+              "packages/server-commerce/src/adapters/quality_return_join.rs",
+              "packages/server-commerce/src/adapters/quality_return_origin.rs",
+              "packages/server-commerce/src/adapters/quality_scrap_stock.rs",
+              "packages/server-files/src/adapters/business_evidence.rs",
+              "packages/server-files/src/adapters/count_history_attachment_sources.rs",
+              "packages/server-files/src/adapters/field_attachment_ancestry.rs",
+              "packages/server-files/src/adapters/field_attachment_routing.rs",
+              "packages/server-files/src/adapters/field_visit_link.rs",
+              "packages/server-files/src/adapters/postgres_attachment_scan.rs",
+              "packages/server-files/src/adapters/quality_disposition_evidence.rs",
+              "packages/server-files/src/adapters/quality_inspection_descriptors.rs"
+            ],
+            "previousReason": "Pre-existing dirty files and concurrently observed editor sessions. Preserve WIP; holder is not identified. Lead must reconcile a handoff before narrowing/releasing these exact paths.",
+            "previousStatus": "active"
+          }
+        ],
+        "handoff": {
+          "at": "2026-11-11T08:55:02.069Z",
+          "runId": "run-20261110-g9",
+          "reason": "Operator authorized touching all reserved paths: server-files work may proceed",
+          "wipReviewed": true,
+          "previousAllowedPaths": [
+            "apps/account/src/app/globals.css",
+            "apps/admin/src/app/globals.css",
+            "apps/assets/src/app/globals.css",
+            "apps/booking/src/app/globals.css",
+            "apps/compat/src/app/globals.css",
+            "apps/finance/src/app/globals.css",
+            "apps/forms/src/app/globals.css",
+            "apps/launcher/src/app/globals.css",
+            "apps/learn/src/app/globals.css",
+            "apps/legal-portal/src/app/globals.css",
+            "apps/legal/src/app/globals.css",
+            "apps/manufacturing/src/app/globals.css",
+            "apps/people/src/app/globals.css",
+            "apps/pms/src/app/globals.css",
+            "apps/portal/src/app/globals.css",
+            "apps/pos/src/app/globals.css",
+            "apps/projects/src/app/globals.css",
+            "apps/recruit/src/app/globals.css",
+            "apps/sales/src/app/globals.css",
+            "apps/service/src/app/globals.css",
+            "apps/supply/src/app/globals.css",
+            "apps/support/src/app/globals.css",
+            "packages/server-assets/src/adapters/asset_purchase_source.rs",
+            "packages/server-assets/src/adapters/asset_wire.rs",
+            "packages/server-assets/src/adapters/field_service_workspace.rs",
+            "packages/server-assets/src/adapters/maintenance.rs",
+            "packages/server-assets/src/application/asset.rs",
+            "packages/server-brand/src/adapters/branding_http.rs",
+            "packages/server-commerce/src/adapters/pos_catalog.rs",
+            "packages/server-commerce/src/adapters/quality_masters.rs",
+            "packages/server-commerce/src/adapters/quality_receipt_origin.rs",
+            "packages/server-commerce/src/adapters/quality_return_join.rs",
+            "packages/server-commerce/src/adapters/quality_return_origin.rs",
+            "packages/server-commerce/src/adapters/quality_scrap_stock.rs",
+            "packages/server-files/src/adapters/business_evidence.rs",
+            "packages/server-files/src/adapters/count_history_attachment_sources.rs",
+            "packages/server-files/src/adapters/field_attachment_ancestry.rs",
+            "packages/server-files/src/adapters/field_attachment_routing.rs",
+            "packages/server-files/src/adapters/field_visit_link.rs",
+            "packages/server-files/src/adapters/postgres_attachment_scan.rs",
+            "packages/server-files/src/adapters/quality_disposition_evidence.rs",
+            "packages/server-files/src/adapters/quality_inspection_descriptors.rs"
+          ],
+          "previousReason": "Pre-existing dirty files and concurrently observed editor sessions. Preserve WIP; holder is not identified. Lead must reconcile a handoff before narrowing/releasing these exact paths.",
+          "previousStatus": "active"
+        }
       }
     ],
     "tasks": [
@@ -11196,28 +11302,21 @@
           "owner:operations"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g8",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T07:38:28.686Z",
-          "heartbeatAt": "2026-11-11T08:08:07.372Z",
-          "expiresAt": "2026-11-11T08:38:07.372Z",
-          "generation": 9
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired before reservation release; WIP reviewed",
         "nextAction": "PgStaffTaskSources + fail-closed delegate traits committed. BLOCKER: application holds repository and sources as two &mut ports, so the delegate cannot use the same transaction connection; composition would need a second pool connection (non-transactional reads). Fix: thread the caller connection into StaffTaskSources (prepare_with/connection-carrying pattern as done for collaboration/payroll), then mount staff_work_router and switch the workplace route.",
         "handoff": {
-          "runId": "run-20261110-g7",
+          "runId": "run-20261110-g8",
           "agentId": "lead",
-          "at": "2026-11-11T07:38:28.626Z",
+          "at": "2026-11-11T08:55:02.036Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired between worker dispatch and claim; WIP reviewed",
-          "nextAction": "Staff-work owner slice + follow-ups committed (c506f1682, latest fix). Mount staff_work_router in composition with a StaffTaskSources implementation (Identity same_person, People active_staff/name, Projects/Work purchase scopes, Collaboration post/notify, Files attachments, Workflow approvals, PMS feature_enabled), then switch the workplace staff-tasks route (currently staffHandler from server-work_projection)."
+          "reason": "Recovery: Lease expired before reservation release; WIP reviewed",
+          "nextAction": "PgStaffTaskSources + fail-closed delegate traits committed. BLOCKER: application holds repository and sources as two &mut ports, so the delegate cannot use the same transaction connection; composition would need a second pool connection (non-transactional reads). Fix: thread the caller connection into StaffTaskSources (prepare_with/connection-carrying pattern as done for collaboration/payroll), then mount staff_work_router and switch the workplace route."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
@@ -11303,28 +11402,21 @@
           "owner:procurement"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g8",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T07:38:28.661Z",
-          "heartbeatAt": "2026-11-11T08:08:07.372Z",
-          "expiresAt": "2026-11-11T08:38:07.372Z",
-          "generation": 9
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired before reservation release; WIP reviewed",
         "nextAction": "Full supplier-promise detail shape committed. Remaining: mount the history/detail router with purchase facts supplied by composition, switch the Supply route for GET+POST once attachments parity (Files WIP) and the notification consumer exist.",
         "handoff": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "at": "2026-11-10T22:49:18.933Z",
+          "runId": "run-20261110-g8",
+          "agentId": "lead",
+          "at": "2026-11-11T08:55:02.036Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
-          "nextAction": "Supplier-promise command ingress committed (3526ac7f6), suite 5/5. Route switch is blocked on parity: attachmentSetIds rejected natively (Files port WIP), TS staff_notifications not replaced by an outbox consumer, and native GET detail lacks the order/lines/schedule/canRecord/purchase shape. Mount backend + resolve those before switching."
+          "reason": "Recovery: Lease expired before reservation release; WIP reviewed",
+          "nextAction": "Full supplier-promise detail shape committed. Remaining: mount the history/detail router with purchase facts supplied by composition, switch the Supply route for GET+POST once attachments parity (Files WIP) and the notification consumer exist."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-procurement",
@@ -15497,8 +15589,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 9,
-    "updatedAt": "2026-11-11T08:08:07.373Z",
+    "lastCoordinatorGeneration": 10,
+    "updatedAt": "2026-11-11T08:55:02.110Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15541,10 +15633,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g7",
-      "runId": "run-20261110-g8",
-      "at": "2026-11-11T07:38:28.628Z",
-      "reason": "Lease expired between worker dispatch and claim; WIP reviewed",
+      "previousRunId": "run-20261110-g8",
+      "runId": "run-20261110-g9",
+      "at": "2026-11-11T08:55:02.038Z",
+      "reason": "Lease expired before reservation release; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
