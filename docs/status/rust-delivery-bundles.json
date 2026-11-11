@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 362,
+    "revision": 368,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g4",
+      "runId": "run-20261110-g5",
       "agentId": "lead",
-      "startedAt": "2026-11-11T01:25:04.841Z",
-      "heartbeatAt": "2026-11-11T01:53:46.921Z",
-      "expiresAt": "2026-11-11T02:23:46.921Z",
-      "generation": 5,
-      "tokenHash": "ffee6e06f57d2514b38b7159648b13abb19e1502dcd6c382264f6207fa03cbf9"
+      "startedAt": "2026-11-11T03:13:45.284Z",
+      "heartbeatAt": "2026-11-11T03:13:45.376Z",
+      "expiresAt": "2026-11-11T03:43:45.376Z",
+      "generation": 6,
+      "tokenHash": "de399ef30a173b6153e735b3b6cb75082f9c7795a528286acc8f9f5f17e90e51"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -12911,20 +12911,27 @@
           "owner:collaboration"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g5",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T03:13:45.315Z",
+          "heartbeatAt": "2026-11-11T03:13:45.376Z",
+          "expiresAt": "2026-11-11T03:43:45.376Z",
+          "generation": 6
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired during payroll integration; WIP reviewed, previous process stopped",
-        "nextAction": "Social/messaging/teams/channels/inbox/work HTTP ingress committed (cee146e36; 11 cargo HTTP tests). Remaining: composition backends/mounts for 4 routers (Files MessagingFilesPort absent -> 503), switch feature-apps feed/messaging/collaboration/inbox routes; mention drain/AI reply stay TS",
+        "blocker": null,
+        "nextAction": "PgSocialUnit/PgMessagingUnit/PgMessagingTeamUnit/PgInboxUnit committed (1d7ed28f6; 4+1 suites, lib 61). Mount social+messaging+inbox routers in composition (Files port absent -> 503; InboxTargetPort + SocialRecordPort must be supplied or those reads fail closed), switch feature-apps feed/inbox/messaging routes only where ports exist; collaboration_work backend + mention drain/AI reply remain retained",
         "handoff": {
-          "runId": "run-20261110-g3",
-          "agentId": "lead",
-          "at": "2026-11-11T01:25:04.840Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Coordinator lease expired during payroll integration; WIP reviewed, previous process stopped",
+          "runId": "run-20261110-g4",
+          "agentId": "worker-b",
+          "at": "2026-11-11T03:13:45.284Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Coordinator lease expired during collaboration mount review; WIP reviewed, previous process stopped",
           "nextAction": "Social/messaging/teams/channels/inbox/work HTTP ingress committed (cee146e36; 11 cargo HTTP tests). Remaining: composition backends/mounts for 4 routers (Files MessagingFilesPort absent -> 503), switch feature-apps feed/messaging/collaboration/inbox routes; mention drain/AI reply stay TS"
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -15370,8 +15377,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 5,
-    "updatedAt": "2026-11-11T01:53:46.922Z",
+    "lastCoordinatorGeneration": 6,
+    "updatedAt": "2026-11-11T03:13:45.377Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15414,10 +15421,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g3",
-      "runId": "run-20261110-g4",
-      "at": "2026-11-11T01:25:04.842Z",
-      "reason": "Coordinator lease expired during payroll integration; WIP reviewed, previous process stopped",
+      "previousRunId": "run-20261110-g4",
+      "runId": "run-20261110-g5",
+      "at": "2026-11-11T03:13:45.285Z",
+      "reason": "Coordinator lease expired during collaboration mount review; WIP reviewed, previous process stopped",
       "wipReviewed": true,
       "previousRunStopped": true
     }
