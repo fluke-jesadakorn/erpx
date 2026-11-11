@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 453,
+    "revision": 454,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -12541,7 +12541,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead mounts the detail HTTP route and Files/Records evidence ports, switches People payroll to payroll_source, and waits for the Learning consumption writer before election-eligibility closes",
+        "nextAction": "Native election detail GET /benefits/{id} is mounted and the People route prefers it (0fa8bb750; workspace-http 3/3, workspace 21/21, command 13/13, transport 15/15, services 21/21, typecheck). Remaining: BenefitsEvidencePort + BenefitsLearningPort over the caller unit (trait needs connection-carrying ports like Learning), and the People payroll_source switch.",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
@@ -15654,7 +15654,7 @@
       }
     },
     "lastCoordinatorGeneration": 11,
-    "updatedAt": "2026-11-11T11:28:48.359Z",
+    "updatedAt": "2026-11-11T11:29:02.703Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
