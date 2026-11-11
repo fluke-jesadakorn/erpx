@@ -90620,6 +90620,89 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "collaboration.rust-collaboration-workspace.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/collaboration/rust-collaboration-workspace.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native collaboration workspace retains source visibility, scope and owner eligibility."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "collaboration_workspace"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml"
+      ]
+    },
+    {
+      "id": "collaboration.rust-collaboration-workspace-postgres.integration",
+      "lane": "integration",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/integration/collaboration/rust-collaboration-workspace-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native collaboration workspace retains source visibility, scope and owner eligibility."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "collaboration_workspace_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

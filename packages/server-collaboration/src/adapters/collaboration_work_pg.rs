@@ -9,20 +9,36 @@ use crate::adapters::collaboration_work::{
     CurrentCollaborationEffects, apply_plan, read_card, read_relation, retain_effects,
 };
 use crate::adapters::command_ledger::{self, Error, fingerprint, source_changed};
-use crate::application::collaboration_work::{CollaborationSourcePort, CollaborationUnit};
+use crate::application::collaboration_work::{
+    CollaborationSourcePort, CollaborationUnit, SourcePresentation,
+};
 use crate::domain::collaboration_work::{
     AuthorizedActor, CardAction, Change, CurrentCard, CurrentRelation, OwnerPlan, Receipt,
+    WORKSPACE_SOURCE_TYPES,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::record_source_contract::{SourceRecord, SourceReference};
+use erpx_server_shared::public::record_source_contract::{
+    SourceKind, SourceRecord, SourceReference,
+};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, UserId,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::{PgConnection, Row};
 
 type Unit = (String, i32, String, String);
 type Eligibility = (String, Option<String>, Option<String>);
+
+fn changed() -> Error {
+    source_changed(
+        "COLLABORATION_SOURCE_CHANGED",
+        "The collaboration record changed. Refresh and retry.",
+    )
+}
+
+fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str, Error> {
+    value.get(key).and_then(Value::as_str).ok_or_else(changed)
+}
 
 /// Selected Work facts supplied by composition. The unit revalidates the
 /// assignment and principal on every call; the selected branch/department is
@@ -72,6 +88,110 @@ impl CollaborationScope {
     }
 }
 
+/// Row caps retained for the bounded legacy workspace read.
+pub const WORKSPACE_RELATION_LIMIT: i64 = 500;
+pub const WORKSPACE_CARD_LIMIT: i64 = 500;
+pub const WORKSPACE_PEOPLE_LIMIT: i64 = 200;
+
+/// Display facts for one source the source owner made visible.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ResolvedSource {
+    pub kind: SourceKind,
+    pub id: String,
+    pub title: String,
+    pub href: Option<String>,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+}
+
+/// Resolved display facts plus the retained source witness.
+#[derive(Clone, Debug)]
+pub struct VisibleSource<W> {
+    pub source: ResolvedSource,
+    witness: W,
+}
+
+impl<W> VisibleSource<W> {
+    pub fn witness(&self) -> &W {
+        &self.witness
+    }
+
+    pub fn into_parts(self) -> (ResolvedSource, W) {
+        (self.source, self.witness)
+    }
+}
+
+/// One simple `record_relations`/`action_cards` visibility read over the caller
+/// connection plus the source witnesses it retained. No receipt or ledger row is
+/// written and nothing is committed.
+#[derive(Clone, Debug)]
+pub struct CollaborationWorkspace<W> {
+    pub relations: Vec<Value>,
+    pub cards: Vec<Value>,
+    pub people: Vec<Value>,
+    pub source_types: Vec<&'static str>,
+    pub can_write: bool,
+    pub can_review: bool,
+    sources: Vec<VisibleSource<W>>,
+}
+
+impl<W> CollaborationWorkspace<W> {
+    pub fn witness_count(&self) -> usize {
+        self.sources.len()
+    }
+
+    pub fn visible_sources(&self) -> &[VisibleSource<W>] {
+        &self.sources
+    }
+
+    /// Revalidate every retained source witness on the caller's transaction.
+    pub async fn require_current<S>(&self, sources: &mut S) -> Result<(), Error>
+    where
+        S: CollaborationSourcePort<Error = Error, Witness = W>,
+        W: Sync,
+    {
+        for visible in &self.sources {
+            sources.require_current(&visible.witness).await?;
+        }
+        Ok(())
+    }
+}
+
+/// True when the source owner hid the record (retained 403/404 null behaviour).
+/// Any other failure stays an error and is never turned into a hidden row.
+pub fn hidden_source(error: &Error) -> bool {
+    matches!(
+        error,
+        PgTransactionError::Business(BusinessError {
+            kind: FailureKind::Forbidden | FailureKind::NotFound,
+            ..
+        })
+    )
+}
+
+/// A source is visible only when the prepared record matches the requested
+/// identity and the caller's Company. Titles fall back to the prepared record;
+/// an absent destination is never invented.
+pub fn resolve_source(
+    company: &str,
+    kind: SourceKind,
+    id: &str,
+    record: SourceRecord,
+    presentation: SourcePresentation,
+) -> Option<ResolvedSource> {
+    if record.kind != kind || record.id != id || record.company_id != company {
+        return None;
+    }
+    Some(ResolvedSource {
+        kind,
+        id: id.into(),
+        title: presentation.title.unwrap_or(record.title),
+        href: presentation.href,
+        branch_id: record.branch_id,
+        department_id: record.department_id,
+    })
+}
+
 pub struct PgCollaborationUnit<'c, S>
 where
     S: CollaborationSourcePort<Error = Error>,
@@ -81,6 +201,7 @@ where
     key: CommandKey,
     sources: &'c mut S,
     actor: Option<AuthorizedActor>,
+    can_write: Option<bool>,
     current: Option<CurrentCollaborationEffects>,
     unit: Option<Unit>,
     change: Option<Change>,
@@ -111,6 +232,7 @@ where
             key,
             sources,
             actor: None,
+            can_write: None,
             current: None,
             unit: None,
             change: None,
@@ -228,6 +350,16 @@ where
             .bind(self.scope.company_id.as_str())
             .fetch_one(&mut *self.connection)
             .await?;
+        let can_write = if write {
+            true
+        } else {
+            sqlx::query_scalar("SELECT iam_role_allows($1,$2,'records.write')")
+                .bind(&role)
+                .bind(self.scope.company_id.as_str())
+                .fetch_one(&mut *self.connection)
+                .await?
+        };
+        self.can_write = Some(can_write);
         let actor = AuthorizedActor {
             user_id: self.scope.user_id.as_str().into(),
             company_id: self.scope.company_id.as_str().into(),
@@ -235,6 +367,154 @@ where
         };
         self.actor = Some(actor.clone());
         Ok(actor)
+    }
+
+    /// Resolve one stored source for display through the source port. Missing,
+    /// foreign or source-owner-hidden rows are `None`, matching the retained
+    /// `visibleSource` null behaviour; no destination is invented here.
+    pub async fn visible_source(
+        &mut self,
+        kind: SourceKind,
+        id: &str,
+    ) -> Result<Option<VisibleSource<S::Witness>>, Error> {
+        let reference = SourceReference {
+            kind,
+            id: id.into(),
+            expected_version: None,
+        };
+        let (record, witness) = match self.sources.prepare(&reference).await {
+            Ok(prepared) => prepared,
+            Err(error) if hidden_source(&error) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let presentation = self.sources.present(&reference).await?;
+        Ok(resolve_source(
+            self.scope.company_id.as_str(),
+            kind,
+            id,
+            record,
+            presentation,
+        )
+        .map(|source| VisibleSource { source, witness }))
+    }
+
+    /// Legacy Collaboration workspace read: visible relations, visible cards
+    /// with source display facts, eligible people, the non-Field source list and
+    /// the caller's current write/review authority. Read-only and bounded; no
+    /// owner effects or ledger rows are written.
+    pub async fn workspace(&mut self) -> Result<CollaborationWorkspace<S::Witness>, Error> {
+        let actor = self.verify_authority(false).await?;
+        let mut sources = Vec::new();
+        let relation_rows: Vec<String> = sqlx::query_scalar(
+            "WITH s AS MATERIALIZED (SELECT * FROM collaboration_record_relations r \
+             WHERE r.company_id=$1 AND r.status='active' \
+             AND r.source_type<>'field_service_order' AND r.target_type<>'field_service_order' \
+             ORDER BY r.updated_at DESC,r.id LIMIT $2) \
+             SELECT to_jsonb(s)::text FROM s",
+        )
+        .bind(self.scope.company_id.as_str())
+        .bind(WORKSPACE_RELATION_LIMIT)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        let mut relations = Vec::new();
+        for raw in relation_rows {
+            let row: Value = serde_json::from_str(&raw).map_err(|_| changed())?;
+            let Ok(source_kind) = SourceKind::parse(text(&row, "source_type")?) else {
+                continue;
+            };
+            let Ok(target_kind) = SourceKind::parse(text(&row, "target_type")?) else {
+                continue;
+            };
+            let Some(left) = self
+                .visible_source(source_kind, text(&row, "source_id")?)
+                .await?
+            else {
+                continue;
+            };
+            let Some(right) = self
+                .visible_source(target_kind, text(&row, "target_id")?)
+                .await?
+            else {
+                continue;
+            };
+            sources.push(left);
+            sources.push(right);
+            relations.push(row);
+        }
+        let card_rows: Vec<String> = sqlx::query_scalar(
+            "WITH s AS MATERIALIZED (SELECT c.*, \
+               CASE WHEN EXISTS(SELECT 1 FROM assignments x \
+                 JOIN hr_people p ON p.user_id=x.user_id AND p.company_id=x.company_id \
+                 JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id \
+                 WHERE x.company_id=c.company_id AND x.user_id=c.owner_id \
+                 AND iam_assignment_active(x.id,$5) AND iam_principal_active(x.user_id,x.company_id,$5) \
+                 AND iam_role_allows(x.role,x.company_id,'records.write') \
+                 AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=c.branch_id) \
+                   OR (x.scope_kind='department' AND x.scope_node_id=c.department_id)) \
+                 AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active') \
+               THEN 1 ELSE 0 END owner_eligible, \
+               (SELECT legal_name FROM hr_people WHERE company_id=c.company_id AND user_id=c.owner_id \
+                 AND merged_into_id IS NULL LIMIT 1) owner_name \
+             FROM collaboration_action_cards c \
+             WHERE c.company_id=$1 AND c.source_type<>'field_service_order' \
+             AND ($2::text IS NULL OR c.branch_id=$2) \
+             AND ($3::text IS NULL OR c.department_id=$3) \
+             ORDER BY c.updated_at DESC,c.id LIMIT $4) \
+             SELECT to_jsonb(s)::text FROM s",
+        )
+        .bind(self.scope.company_id.as_str())
+        .bind(self.scope.branch_id.as_deref())
+        .bind(self.scope.department_id.as_deref())
+        .bind(WORKSPACE_CARD_LIMIT)
+        .bind(self.scope.now)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        let mut cards = Vec::new();
+        for raw in card_rows {
+            let mut card: Value = serde_json::from_str(&raw).map_err(|_| changed())?;
+            let Ok(kind) = SourceKind::parse(text(&card, "source_type")?) else {
+                continue;
+            };
+            let Some(source) = self.visible_source(kind, text(&card, "source_id")?).await? else {
+                continue;
+            };
+            if let Value::Object(fields) = &mut card {
+                fields.insert(
+                    "source_title".into(),
+                    Value::String(source.source.title.clone()),
+                );
+                if let Some(href) = &source.source.href {
+                    fields.insert("source_href".into(), Value::String(href.clone()));
+                }
+            }
+            sources.push(source);
+            cards.push(card);
+        }
+        let people_rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT DISTINCT p.user_id,p.legal_name FROM hr_people p \
+             JOIN assignments x ON x.user_id=p.user_id AND x.company_id=p.company_id \
+             WHERE p.company_id=$1 AND p.status='active' \
+             AND iam_assignment_active(x.id,$2) \
+             AND iam_role_allows(x.role,x.company_id,'records.write') \
+             ORDER BY p.legal_name LIMIT $3",
+        )
+        .bind(self.scope.company_id.as_str())
+        .bind(self.scope.now)
+        .bind(WORKSPACE_PEOPLE_LIMIT)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        Ok(CollaborationWorkspace {
+            relations,
+            cards,
+            people: people_rows
+                .into_iter()
+                .map(|(id, name)| json!({"id": id, "name": name}))
+                .collect(),
+            source_types: WORKSPACE_SOURCE_TYPES.to_vec(),
+            can_write: self.can_write.unwrap_or(false),
+            can_review: actor.can_review,
+            sources,
+        })
     }
 
     /// Retained owner eligibility for one action-card owner. A missing active
@@ -708,5 +988,20 @@ where
 {
     PgCollaborationUnit::read_only(connection, scope, sources)
         .current_relation(id)
+        .await
+}
+
+/// Read-only legacy workspace helper for composition HTTP reads.
+pub async fn read_scope_workspace<S>(
+    connection: &mut PgConnection,
+    scope: CollaborationScope,
+    sources: &mut S,
+) -> Result<CollaborationWorkspace<S::Witness>, PgTransactionError<BusinessError>>
+where
+    S: CollaborationSourcePort<Error = PgTransactionError<BusinessError>>,
+    S::Witness: Sync,
+{
+    PgCollaborationUnit::read_only(connection, scope, sources)
+        .workspace()
         .await
 }

@@ -4,6 +4,20 @@ use erpx_server_shared::public::record_source_contract::{
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 
+/// Source families shown by the legacy Collaboration workspace. Field service
+/// orders are served by the separate native Field collaboration surface, so
+/// the retained read excludes them here and from its row lists.
+pub const WORKSPACE_SOURCE_TYPES: [&str; 8] = [
+    "commerce_order",
+    "support_ticket",
+    "staff_task",
+    "pos_sale",
+    "pms_record",
+    "asset",
+    "maintenance_plan",
+    "maintenance_work",
+];
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RelationKind {
     Related,

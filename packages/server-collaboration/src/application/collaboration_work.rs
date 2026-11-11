@@ -10,6 +10,14 @@ use erpx_server_shared::public::record_source_contract::{
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::future::Future;
 
+/// Owner-supplied display facts for one resolved source. The title may be
+/// omitted because [`CollaborationSourcePort::prepare`] already returns it;
+/// the destination is only known to the source owner.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SourcePresentation {
+    pub title: Option<String>,
+    pub href: Option<String>,
+}
 /// Collaboration owns this port; composition delegates it to Records and the source owner.
 pub trait CollaborationSourcePort: Send {
     type Error: From<BusinessError> + Send;
@@ -22,6 +30,14 @@ pub trait CollaborationSourcePort: Send {
         &mut self,
         witness: &Self::Witness,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send;
+    /// Additive display-only hook. The default keeps every existing implementor
+    /// compiling and defers the destination to the prepared record title.
+    fn present(
+        &mut self,
+        _source: &SourceReference,
+    ) -> impl Future<Output = Result<SourcePresentation, Self::Error>> + Send {
+        async { Ok(SourcePresentation::default()) }
+    }
 }
 struct PreparedSource<W> {
     record: SourceRecord,
