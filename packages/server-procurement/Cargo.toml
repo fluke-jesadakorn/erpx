@@ -34,6 +34,18 @@ name = "supplier_promise_history_postgres"
 path = "../../tests/integration/procurement/rust-supplier-promise-history-postgres.test.rs"
 
 [[test]]
+name = "supplier_promise_detail"
+path = "../../tests/unit/procurement/rust-supplier-promise-detail.test.rs"
+
+[[test]]
+name = "supplier_promise_detail_http"
+path = "../../tests/unit/procurement/rust-supplier-promise-detail-http.test.rs"
+
+[[test]]
+name = "supplier_promise_detail_postgres"
+path = "../../tests/integration/procurement/rust-supplier-promise-detail-postgres.test.rs"
+
+[[test]]
 name = "supplier_promise_command"
 path = "../../tests/unit/procurement/rust-supplier-promise-command.test.rs"
 

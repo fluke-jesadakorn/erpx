@@ -91309,6 +91309,161 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "operations.rust-staff-task-sources.unit",
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/unit/operations/rust-staff-task-sources.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Staff task source delegates retain owner facts and fail closed per missing port."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "staff_task_sources"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/Cargo.toml"
+      ]
+    },
+    {
+      "id": "procurement.rust-supplier-promise-detail.unit",
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/unit/procurement/rust-supplier-promise-detail.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native supplier-promise detail retains purchase-order shape and scope."
+      },
+      "apps": [
+        "supply"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_promise_detail"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ]
+    },
+    {
+      "id": "procurement.rust-supplier-promise-detail-http.unit",
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/unit/procurement/rust-supplier-promise-detail-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native supplier-promise detail retains purchase-order shape and scope."
+      },
+      "apps": [
+        "supply"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_promise_detail_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ]
+    },
+    {
+      "id": "procurement.rust-supplier-promise-detail-postgres.integration",
+      "lane": "integration",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/integration/procurement/rust-supplier-promise-detail-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native supplier-promise detail retains purchase-order shape and scope."
+      },
+      "apps": [
+        "supply"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_promise_detail_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

@@ -1,15 +1,20 @@
-//! PostgreSQL read adapter for native Procurement supplier promise history.
+//! PostgreSQL read adapter for native Procurement supplier promise detail.
 //!
-//! The caller owns the retained serializable Holding transaction. Only
-//! Procurement-owned promise tables and the Procurement-owned open-promise
-//! view are read. No command, Commerce, Inventory, Finance, Records or IAM
-//! mutation SQL is invented here; composition supplies the current actor and
-//! any cross-owner purchase admission.
+//! The caller owns the retained serializable Holding transaction. The detail
+//! read reuses the retained TypeScript reader's SQL: the scoped Commerce
+//! purchase-order header and its lines (`commerce_orders`,
+//! `commerce_order_lines`, `commerce_products`, `finance_parties`) plus the
+//! Procurement-owned promise tables and open-promise view. Those cross-owner
+//! statements are read-only and are the same source the retained adapter
+//! queries; no Commerce, Inventory, Finance, Records or IAM row is mutated and
+//! no purchase admission is inferred. Composition supplies the current actor,
+//! the commercial package overlay and the Holding transaction.
 use crate::application::supplier_promise_history::{
     SupplierPromiseHistoryFuture, SupplierPromiseHistoryRepository,
 };
 use crate::domain::supplier_promise_history::{
-    OpenPromiseRow, SupplierPromiseLineRow, SupplierPromiseRow,
+    OpenPromiseRow, SupplierPromiseLineRow, SupplierPromiseOrderRow,
+    SupplierPromiseReadActor, SupplierPromiseRow, SupplierPromiseSourceLineRow,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId};
@@ -38,6 +43,114 @@ pub struct PgSupplierPromiseHistoryRead<'a> {
 impl<'a> PgSupplierPromiseHistoryRead<'a> {
     pub fn new(connection: &'a mut PgConnection) -> Self {
         Self { connection }
+    }
+
+    /// Scoped purchase-order header. Branch/department are applied exactly as
+    /// the retained reader's `scope` predicate: a workspace-restricted order is
+    /// invisible, not silently widened.
+    pub async fn order(
+        &mut self,
+        actor: &SupplierPromiseReadActor,
+        order_id: &str,
+    ) -> Result<Option<SupplierPromiseOrderRow>, Error> {
+        serializable(&mut *self.connection).await?;
+        let row = sqlx::query(
+            "SELECT o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.number,o.party_id,\
+             o.warehouse_id,o.currency,o.order_date,o.due_date,o.note,o.state,\
+             o.subtotal_minor,o.tax_minor,o.source_id,o.version,o.created_by,o.approved_by,\
+             o.created_at,o.updated_at,o.price_list_id,o.price_list_version,o.discount_reason,\
+             o.discount_approval_required,o.discount_approved_by,o.discount_approved_at,\
+             p.name AS supplier_name \
+             FROM commerce_orders o JOIN finance_parties p ON p.id=o.party_id \
+             WHERE o.id=$1 AND o.company_id=$2 AND o.kind='purchase' \
+             AND ($3::text IS NULL OR o.branch_id=$3) \
+             AND ($4::text IS NULL OR o.department_id=$4)",
+        )
+        .bind(order_id)
+        .bind(actor.company_id.as_str())
+        .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
+        .bind(actor.department_id.as_ref().map(|value| value.as_str()))
+        .fetch_optional(&mut *self.connection)
+        .await?;
+        row.map(|row| {
+            Ok(SupplierPromiseOrderRow {
+                id: row.try_get("id")?,
+                company_id: row.try_get("company_id")?,
+                branch_id: row.try_get("branch_id")?,
+                department_id: row.try_get("department_id")?,
+                kind: row.try_get("kind")?,
+                number: row.try_get("number")?,
+                party_id: row.try_get("party_id")?,
+                warehouse_id: row.try_get("warehouse_id")?,
+                currency: row.try_get("currency")?,
+                order_date: row.try_get("order_date")?,
+                due_date: row.try_get("due_date")?,
+                note: row.try_get("note")?,
+                state: row.try_get("state")?,
+                subtotal_minor: row.try_get("subtotal_minor")?,
+                tax_minor: row.try_get("tax_minor")?,
+                source_id: row.try_get("source_id")?,
+                version: row.try_get("version")?,
+                created_by: row.try_get("created_by")?,
+                approved_by: row.try_get("approved_by")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+                price_list_id: row.try_get("price_list_id")?,
+                price_list_version: row.try_get("price_list_version")?,
+                discount_reason: row.try_get("discount_reason")?,
+                discount_approval_required: row.try_get("discount_approval_required")?,
+                discount_approved_by: row.try_get("discount_approved_by")?,
+                discount_approved_at: row.try_get("discount_approved_at")?,
+                supplier_name: row.try_get("supplier_name")?,
+            })
+        })
+        .transpose()
+    }
+
+    /// Commerce order lines joined to the product SKU. Outstanding/unconfirmed
+    /// quantities are a Procurement presentation projection applied by the
+    /// domain, not persisted or recomputed here.
+    pub async fn source_lines(
+        &mut self,
+        company: &CompanyId,
+        order_id: &str,
+    ) -> Result<Vec<SupplierPromiseSourceLineRow>, Error> {
+        serializable(&mut *self.connection).await?;
+        let rows = sqlx::query(
+            "SELECT l.id,l.order_id,l.product_id,l.description,l.quantity_milli,\
+             l.fulfilled_milli,l.price_minor,l.tax_bps,l.subtotal_minor,l.tax_minor,\
+             l.ordinal,l.list_price_minor,l.discount_bps,l.item_type,p.sku \
+             FROM commerce_order_lines l \
+             JOIN commerce_orders o ON o.id=l.order_id AND o.company_id=$2 \
+             JOIN commerce_products p ON p.id=l.product_id AND p.company_id=$2 \
+             WHERE l.order_id=$1 \
+             ORDER BY l.ordinal,l.id LIMIT 10001",
+        )
+        .bind(order_id)
+        .bind(company.as_str())
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.iter()
+            .map(|row| {
+                Ok(SupplierPromiseSourceLineRow {
+                    id: row.try_get("id")?,
+                    order_id: row.try_get("order_id")?,
+                    product_id: row.try_get("product_id")?,
+                    description: row.try_get("description")?,
+                    quantity_milli: row.try_get("quantity_milli")?,
+                    fulfilled_milli: row.try_get("fulfilled_milli")?,
+                    price_minor: row.try_get("price_minor")?,
+                    tax_bps: row.try_get("tax_bps")?,
+                    subtotal_minor: row.try_get("subtotal_minor")?,
+                    tax_minor: row.try_get("tax_minor")?,
+                    ordinal: row.try_get("ordinal")?,
+                    list_price_minor: row.try_get("list_price_minor")?,
+                    discount_bps: row.try_get("discount_bps")?,
+                    item_type: row.try_get("item_type")?,
+                    sku: row.try_get("sku")?,
+                })
+            })
+            .collect()
     }
 
     pub async fn history(
@@ -162,6 +275,26 @@ impl<'a> PgSupplierPromiseHistoryRead<'a> {
 
 impl SupplierPromiseHistoryRepository for PgSupplierPromiseHistoryRead<'_> {
     type Error = Error;
+
+    fn order<'a>(
+        &'a mut self,
+        actor: &'a SupplierPromiseReadActor,
+        order_id: &'a str,
+    ) -> SupplierPromiseHistoryFuture<'a, Option<SupplierPromiseOrderRow>, Self::Error> {
+        Box::pin(async move {
+            PgSupplierPromiseHistoryRead::order(self, actor, order_id).await
+        })
+    }
+
+    fn source_lines<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        order_id: &'a str,
+    ) -> SupplierPromiseHistoryFuture<'a, Vec<SupplierPromiseSourceLineRow>, Self::Error> {
+        Box::pin(async move {
+            PgSupplierPromiseHistoryRead::source_lines(self, company, order_id).await
+        })
+    }
 
     fn history<'a>(
         &'a mut self,

@@ -25,7 +25,11 @@ pub struct SupplierPromiseHistoryHttpRequest<'a> {
 
 #[derive(Clone, Debug)]
 pub struct SupplierPromiseHistoryHttpResponse {
-    /// Owner read data. The backend adds the validated current context.
+    /// Owner read data. For the retained Supply detail contract composition
+    /// returns the serialized `SupplierPromiseDetail`: `order`, `lines`
+    /// (with `outstanding_milli`/`unconfirmed_milli`), `history`, `schedule`,
+    /// `open`, `canRecord` and the optional composition-supplied `purchase`.
+    /// The router never reshapes or invents any of those facts.
     pub data: serde_json::Value,
     pub context: serde_json::Value,
 }

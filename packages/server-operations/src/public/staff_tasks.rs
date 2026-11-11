@@ -1,5 +1,8 @@
 //! Native Staff Work task/alert commands and bounded Work reads.
 pub const CONTRACT_VERSION: &str = "operations.staff-tasks.v1";
+pub use crate::adapters::staff_task_sources::{
+    FailClosedStaffTaskFactDelegates, PgStaffTaskSources, StaffTaskFactDelegates,
+};
 pub use crate::adapters::staff_tasks::{PgStaffTasks, lock_staff_task_sources, read_staff_task};
 pub use crate::application::staff_tasks::{
     AlertPlan, DelegateTaskPlan, DelegationFact, PostFact, ProjectFact, RevokeDelegationPlan,

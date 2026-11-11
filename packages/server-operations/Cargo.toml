@@ -53,6 +53,10 @@ name = "staff_work"
 path = "../../tests/unit/operations/rust-staff-work.test.rs"
 
 [[test]]
+name = "staff_task_sources"
+path = "../../tests/unit/operations/rust-staff-task-sources.test.rs"
+
+[[test]]
 name = "staff_work_application"
 path = "../../tests/unit/operations/rust-staff-work-application.test.rs"
 

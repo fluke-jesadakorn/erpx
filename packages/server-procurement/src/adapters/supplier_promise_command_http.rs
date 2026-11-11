@@ -101,9 +101,14 @@ pub trait SupplierPromiseCommandHttpBackend: Send + Sync {
         request: SupplierPromiseCommandHttpRequest<'a>,
     ) -> SupplierPromiseCommandHttpFuture<'a, SupplierPromiseCommandHttpResponse>;
 
-    /// Bounded detail read for the same route. Composition should reuse the
-    /// existing native supplier promise history read for `data` and attach the
-    /// current `canRecord`/purchase overlay it already exposes.
+    /// Bounded detail read for the same route. Composition resolves the
+    /// Account session, current Company/workspace and the commercial package
+    /// decision in the retained serializable Holding transaction, calls
+    /// `supplier_promise_detail` with the `purchase` overlay it read (or `None`
+    /// when package enforcement is disabled) and returns the serialized
+    /// `SupplierPromiseDetail` as `data`. The owner already computes
+    /// `canRecord`; composition must not replace it with a locally invented
+    /// purchase decision.
     fn detail<'a>(
         &'a self,
         request: SupplierPromiseDetailHttpRequest<'a>,
