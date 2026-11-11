@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 519,
+    "revision": 521,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g19",
       "agentId": "lead",
       "startedAt": "2026-11-11T20:40:13.583Z",
-      "heartbeatAt": "2026-11-11T20:40:13.583Z",
-      "expiresAt": "2026-11-11T21:10:13.584Z",
+      "heartbeatAt": "2026-11-11T20:48:35.254Z",
+      "expiresAt": "2026-11-11T21:18:35.254Z",
       "generation": 20,
       "tokenHash": "8fc6c10a8a1be4265e431eced543c1903883ad502a561a1bad7d0cabb664f98e"
     },
@@ -9843,8 +9843,8 @@
           "runId": "run-20261110-g19",
           "agentId": "lead",
           "claimedAt": "2026-11-11T20:40:13.608Z",
-          "heartbeatAt": "2026-11-11T20:40:13.608Z",
-          "expiresAt": "2026-11-11T21:10:13.608Z",
+          "heartbeatAt": "2026-11-11T20:48:35.254Z",
+          "expiresAt": "2026-11-11T21:18:35.254Z",
           "generation": 20
         },
         "baseSha": null,
@@ -9853,7 +9853,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "All three Commercial owner slices implemented: package-grant HTTP (58eda9738, partially switched), capability decision port + grouped access + modes/revision (554c07d5a), subscription/grace/recovery reads (554c07d5a). Tests: capability 6/6 + PG 3/3, subscriptions 7/7 + PG 3/3, grants 2/2 + PG 1/1, company packages 7/7, commercial units 154/154. Remaining: bind the decision/subscription readers into composition package pages and retire the TS readers; Billing must expose a Company subscription port for Stripe status; grace end is intentionally null until owner policy exists.",
+        "nextAction": "All owner slices implemented and the package page binds the native subscription/grace projection (457da3351): new GET commercial/companies/{id}/subscriptions served by PgCompanySubscriptionReader and merged into providerCompanyPackageOverview alongside the native overview. Checks: transport 11/11, capability 6/6 + PG 3/3, subscriptions 7/7 + PG 3/3, grants 2/2 + PG 1/1, company packages 7/7, erpx-service, typecheck, catalogue 1126. Remaining: bind capability-decision into an owner consumer (composition currently uses PgCompanyPurchaseReader directly); Billing must expose a Company subscription port for Stripe status; grace end intentionally null.",
         "handoff": {
           "runId": "run-20261110-g18",
           "agentId": "lead",
@@ -15959,7 +15959,7 @@
       }
     },
     "lastCoordinatorGeneration": 20,
-    "updatedAt": "2026-11-11T20:40:13.630Z",
+    "updatedAt": "2026-11-11T20:48:48.176Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
