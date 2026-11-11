@@ -182,6 +182,10 @@ name = "account_security_postgres"
 path = "../../tests/integration/identity_access/rust-account-security-postgres.test.rs"
 
 [[test]]
+name = "directory_sign_in_http"
+path = "../../tests/unit/identity_access/rust-directory-sign-in-http.test.rs"
+
+[[test]]
 name = "directory_policy"
 path = "../../tests/unit/identity_access/rust-directory-policy.test.rs"
 

@@ -202,6 +202,23 @@ struct AccountSecurityKeysDocument {
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DirectoryProvenanceKeyDocument {
+    id: String,
+    key_hex: String,
+}
+/// Opt-in native Directory sign-in. Both members are supplied together or not
+/// at all; the composition mounts the Directory router only for an explicit
+/// pair, so an unconfigured document keeps the previous surface exactly.
+#[cfg_attr(
+    not(feature = "directory-ldaps"),
+    allow(dead_code, reason = "Decoded only to reject an unavailable feature in this build")
+)]
+struct DirectoryConfiguration {
+    profiles: std::path::PathBuf,
+    provenance_keys: Vec<(String, [u8; 32])>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConfigurationDocument {
     version: u8,
     mode: String,
@@ -318,6 +335,15 @@ struct ConfigurationDocument {
     service_package_lifecycle: Option<ServicePackageDocument>,
     #[serde(default)]
     account_security_keys: Option<AccountSecurityKeysDocument>,
+    /// Absolute path to the private Directory credential profile file. Opt-in:
+    /// neither this nor `directory_provenance_keys` is required, and the native
+    /// Directory sign-in route stays unmounted unless both are present.
+    #[serde(default)]
+    directory_profiles: Option<String>,
+    /// Explicit provenance ring keys for the same environment as `environment`.
+    /// Opt-in and only read when `directory_profiles` is also present.
+    #[serde(default)]
+    directory_provenance_keys: Option<Vec<DirectoryProvenanceKeyDocument>>,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Profile {
@@ -403,6 +429,11 @@ pub struct DevelopmentApiConfiguration {
     service_package_lifecycle: Option<ServicePackageConfiguration>,
     account_security_keys:
         Option<Arc<erpx_server_identity_access::public::account_security::AccountMfaKeyring>>,
+    #[cfg_attr(
+        not(feature = "directory-ldaps"),
+        allow(dead_code, reason = "Only read by the opt-in Directory router")
+    )]
+    directory: Option<DirectoryConfiguration>,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1154,6 +1185,45 @@ impl DevelopmentApiConfiguration {
                 ))
             }
         };
+        // Native Directory sign-in is strictly opt-in: it mounts only for an
+        // explicit profile file plus provenance key pair. A document that
+        // supplies just one half keeps the route absent (fail-closed) instead
+        // of inventing a key ring or an ambient profile path.
+        let directory = match (doc.directory_profiles, doc.directory_provenance_keys) {
+            (Some(profiles), Some(keys)) => {
+                let profiles = std::path::PathBuf::from(profiles);
+                if !profiles.is_absolute() || keys.is_empty() || keys.len() > 8 {
+                    return Err("PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID");
+                }
+                let mut ids = BTreeSet::new();
+                let mut provenance_keys = Vec::new();
+                for key in keys {
+                    let valid_id = !key.id.is_empty()
+                        && key.id.len() <= 80
+                        && key
+                            .id
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-');
+                    if !valid_id || !ids.insert(key.id.clone()) || key.key_hex.len() != 64 {
+                        return Err("PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID");
+                    }
+                    let bytes: [u8; 32] = hex::decode(key.key_hex)
+                        .map_err(|_| "PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?
+                        .try_into()
+                        .map_err(|_| "PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?;
+                    provenance_keys.push((key.id, bytes));
+                }
+                Some(DirectoryConfiguration {
+                    profiles,
+                    provenance_keys,
+                })
+            }
+            _ => None,
+        };
+        #[cfg(not(feature = "directory-ldaps"))]
+        if directory.is_some() {
+            return Err("PRIVATE_API_DIRECTORY_FEATURE_REQUIRED");
+        }
         let service_package_lifecycle = match doc.service_package_lifecycle {
             None => None,
             Some(input) => {
@@ -1672,6 +1742,7 @@ impl DevelopmentApiConfiguration {
             account_bootstrap: doc.account_bootstrap,
             service_package_lifecycle,
             account_security_keys,
+            directory,
         })
     }
     pub fn from_file(path: &Path) -> Result<Self, &'static str> {
@@ -2087,6 +2158,84 @@ fn finance_composition_environment(
         Profile::Production => FinanceJournalEnvironment::Production,
     }
 }
+/// Optional native Directory sign-in router. It is built only when the
+/// configuration supplies both an absolute profile file and its explicit
+/// provenance key ring; any missing member leaves the route unmounted. The
+/// adapters validate the profile/ring/environment pairing again at construction
+/// so a mismatched document cannot mount a partially configured surface.
+#[cfg(feature = "directory-ldaps")]
+async fn directory_sign_in_router(
+    config: &DevelopmentApiConfiguration,
+    pools: &[DatabasePool],
+    clock: Arc<dyn Clock + Send + Sync>,
+    secrets: Arc<dyn AuthenticationSecrets>,
+    invalidation: Arc<PostgresAccountWorkContextInvalidation>,
+    account: Arc<AccountAuthentication>,
+) -> Result<Option<Router>, &'static str> {
+    use erpx_server_identity_access::public::directory::{
+        DirectoryAuthentication, DirectoryDatabaseBindings, DirectoryHoldingDatabase,
+        DirectoryProfileStore, LdapDirectoryProvider, PostgresDirectory,
+        directory_account_router,
+        provenance::ProvenanceKeyRing,
+    };
+    let Some(configuration) = &config.directory else {
+        return Ok(None);
+    };
+    let ring = ProvenanceKeyRing::from_keys(
+        config.environment.clone(),
+        configuration.provenance_keys.clone(),
+    )
+    .map_err(|_| "PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?;
+    let profiles = Arc::new(
+        DirectoryProfileStore::load(&configuration.profiles, Arc::new(ring))
+            .await
+            .map_err(|_| "PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?,
+    );
+    let mut holdings = BTreeMap::new();
+    for (index, holding) in config.holdings.iter().enumerate() {
+        let audience = config
+            .policy
+            .holdings
+            .iter()
+            .find(|origin| origin.host == holding.host)
+            .map(|origin| origin.audience.clone())
+            .ok_or("PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?;
+        holdings.insert(
+            holding.registration.holding_id.clone(),
+            DirectoryHoldingDatabase {
+                audience,
+                write_binding: holding.registration.write_binding.clone(),
+                pool: pools[index + 1].clone(),
+            },
+        );
+    }
+    let directory = Arc::new(
+        PostgresDirectory::new(
+            DirectoryDatabaseBindings {
+                control: pools[0].clone(),
+                holdings,
+                registry: config.holdings_registry.clone(),
+                environment: config.environment.clone(),
+            },
+            profiles.clone(),
+            clock.clone(),
+            secrets,
+            invalidation,
+        )
+        .map_err(|_| "PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?,
+    );
+    let provider = Arc::new(LdapDirectoryProvider::new(profiles, clock.clone()));
+    let directory = Arc::new(DirectoryAuthentication::new(
+        directory.clone(),
+        provider,
+        directory.clone(),
+        directory.clone(),
+        directory.clone(),
+        clock,
+    ));
+    Ok(Some(directory_account_router(account, directory)))
+}
+
 async fn assemble_checked(
     config: &DevelopmentApiConfiguration,
     pools: &[DatabasePool],
@@ -2162,6 +2311,19 @@ async fn assemble_checked(
         )
         .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
     );
+    #[cfg(feature = "directory-ldaps")]
+    let directory_sign_in = directory_sign_in_router(
+        config,
+        pools,
+        clock.clone(),
+        secrets.clone(),
+        invalidation.clone(),
+        auth.clone(),
+    )
+    .await?;
+    #[cfg(not(feature = "directory-ldaps"))]
+    let directory_sign_in: Option<Router> = None;
+    let directory_sign_in_mounted = directory_sign_in.is_some();
     let mut router = foundation_router();
     if config.profile == Profile::Test {
         router = router.merge(test_account_password_hash_router());
@@ -2303,6 +2465,9 @@ async fn assemble_checked(
             .merge(account_sso_router(sso));
     } else {
         router = router.merge(account_session_router(auth));
+    }
+    if let Some(directory) = directory_sign_in {
+        router = router.merge(directory);
     }
     let mut finance_targets = BTreeSet::new();
     let mut finance_service_invoice_targets = BTreeSet::new();
@@ -6349,6 +6514,7 @@ async fn assemble_checked(
         #[cfg(not(feature = "existing-business"))]
         organization_targets: BTreeSet::new(),
         account_bootstrap: config.account_bootstrap,
+        directory_sign_in: directory_sign_in_mounted,
     });
     Ok(CheckedAssembly {
         router: router.layer(middleware::from_fn_with_state(state, boundary)),
@@ -6421,6 +6587,7 @@ struct Boundary {
     inventory_stock_targets: BTreeSet<(String, String)>,
     organization_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
+    directory_sign_in: bool,
 }
 enum BoundaryDenial {
     InvalidAuthority,
@@ -7756,6 +7923,10 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .path()
                 .starts_with("/api/auth/reset-password/")
             && host == state.policy.account_host);
+    let directory_sign_in = state.directory_sign_in
+        && request.method() == axum::http::Method::POST
+        && request.uri().path() == "/api/auth/directory/sign-in"
+        && host == state.policy.account_host;
     let support_ticket = request.method() == axum::http::Method::POST
         && match request
             .uri()
@@ -9230,9 +9401,11 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || field_attachment
         || field_attachment_bind
         || test_password_hash
-        || bootstrap)
+        || bootstrap
+        || directory_sign_in)
         || !(test_password_hash
             || bootstrap
+            || directory_sign_in
             || account_mfa
             || service_packages
             || field_work_roles
@@ -10098,5 +10271,99 @@ mod control_read_configuration_tests {
                 "postgresql://erpx_dev_control_read_app@127.0.0.1:5432/erpx_dev_control_read"
             ))
         ));
+    }
+}
+
+#[cfg(test)]
+mod directory_configuration_tests {
+    use super::DevelopmentApiConfiguration;
+
+    fn document() -> serde_json::Value {
+        let database = |token: &str| {
+            serde_json::json!({"url":format!("postgres://erpx_test_admin:synthetic@127.0.0.1:5432/erpx_dev_rust_{token}"),"leaseToken":token})
+        };
+        serde_json::json!({
+            "version":1,"mode":"development","transport":"direct-loopback",
+            "listen":"127.0.0.1:43117","accountHost":"account.example.test",
+            "requireEmailVerification":true,"passwordWorkers":1,
+            "maximumRequests":8,"requestTimeoutMs":5000,
+            "control":database("00000000000000000000000000000000"),
+            "holdings":[
+                {"holdingId":"h001","slug":"acme","host":"acme.example.test","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES","database":database("11111111111111111111111111111111")},
+                {"holdingId":"h002","slug":"northstar","host":"northstar.example.test","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":database("22222222222222222222222222222222")}
+            ]
+        })
+    }
+
+    fn configured() -> serde_json::Value {
+        let mut document = document();
+        document["directoryProfiles"] = "/run/erpx/directory-profiles.json".into();
+        document["directoryProvenanceKeys"] =
+            serde_json::json!([{"id": "current", "keyHex": "07".repeat(32)}]);
+        document
+    }
+
+    #[test]
+    fn absent_or_partial_directory_configuration_never_mounts() {
+        let parsed = DevelopmentApiConfiguration::parse(&document().to_string()).unwrap();
+        assert!(parsed.directory.is_none());
+        for key in ["directoryProfiles", "directoryProvenanceKeys"] {
+            let mut partial = document();
+            let configured = configured();
+            partial[key] = configured[key].clone();
+            let parsed = DevelopmentApiConfiguration::parse(&partial.to_string()).unwrap();
+            assert!(parsed.directory.is_none(), "{key} alone must not mount");
+        }
+    }
+
+    #[cfg(feature = "directory-ldaps")]
+    #[test]
+    fn an_explicit_absolute_profile_and_provenance_ring_configure_the_router() {
+        let parsed = DevelopmentApiConfiguration::parse(&configured().to_string()).unwrap();
+        let directory = parsed.directory.expect("directory configuration");
+        assert_eq!(directory.profiles, std::path::Path::new("/run/erpx/directory-profiles.json"));
+        assert_eq!(directory.provenance_keys, vec![("current".to_owned(), [7u8; 32])]);
+    }
+
+    #[cfg(not(feature = "directory-ldaps"))]
+    #[test]
+    fn a_configured_directory_requires_the_compiled_feature() {
+        assert_eq!(
+            DevelopmentApiConfiguration::parse(&configured().to_string()).err(),
+            Some("PRIVATE_API_DIRECTORY_FEATURE_REQUIRED")
+        );
+    }
+
+    #[cfg(feature = "directory-ldaps")]
+    #[test]
+    fn relative_profile_bad_keys_and_duplicates_are_rejected() {
+        for (field, value) in [
+            ("directoryProfiles", "relative/directory-profiles.json"),
+            ("directoryProvenanceKeys", ""),
+        ] {
+            let mut document = configured();
+            document[field] = value.into();
+            assert!(
+                DevelopmentApiConfiguration::parse(&document.to_string()).is_err(),
+                "{field}"
+            );
+        }
+        for keys in [
+            serde_json::json!([]),
+            serde_json::json!([{"id": "current", "keyHex": "07"}]),
+            serde_json::json!([{"id": "current", "keyHex": "zz".repeat(32)}]),
+            serde_json::json!([
+                {"id": "current", "keyHex": "07".repeat(32)},
+                {"id": "current", "keyHex": "08".repeat(32)}
+            ]),
+            serde_json::json!([{"id": "bad id", "keyHex": "07".repeat(32)}]),
+        ] {
+            let mut document = configured();
+            document["directoryProvenanceKeys"] = keys;
+            assert!(
+                DevelopmentApiConfiguration::parse(&document.to_string()).is_err(),
+                "{document}"
+            );
+        }
     }
 }
