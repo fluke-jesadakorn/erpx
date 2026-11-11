@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 374,
+    "revision": 378,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g5",
+      "runId": "run-20261110-g6",
       "agentId": "lead",
-      "startedAt": "2026-11-11T03:13:45.284Z",
-      "heartbeatAt": "2026-11-11T03:40:44.449Z",
-      "expiresAt": "2026-11-11T04:10:44.449Z",
-      "generation": 6,
-      "tokenHash": "de399ef30a173b6153e735b3b6cb75082f9c7795a528286acc8f9f5f17e90e51"
+      "startedAt": "2026-11-11T04:25:19.281Z",
+      "heartbeatAt": "2026-11-11T04:25:19.369Z",
+      "expiresAt": "2026-11-11T04:55:19.369Z",
+      "generation": 7,
+      "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -12912,12 +12912,12 @@
         ],
         "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261110-g5",
+          "runId": "run-20261110-g6",
           "agentId": "lead",
-          "claimedAt": "2026-11-11T03:13:45.315Z",
-          "heartbeatAt": "2026-11-11T03:40:44.449Z",
-          "expiresAt": "2026-11-11T04:10:44.449Z",
-          "generation": 6
+          "claimedAt": "2026-11-11T04:25:19.306Z",
+          "heartbeatAt": "2026-11-11T04:25:19.369Z",
+          "expiresAt": "2026-11-11T04:55:19.369Z",
+          "generation": 7
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -12925,14 +12925,14 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Messaging router mounted; overview/members reads and room create/send/read + team/channel create are native (934bfdaa). Attachments stay 503 (Files port absent); messages with files and team manage remain TS; history/teams-channels/channels reads not yet switched. Remaining: InboxTargetPort (Work destinations) before inbox switch, collaboration_work backend, messaging history/team-channel reads, feed subpaths. Mention drain/AI reply stay TS.",
+        "nextAction": "Inbox router mounted with PgInboxTargets + PgInboxUnit; inbox people/notices reads native (46af5eb48); summary/notifications and inbox POST stay TS (owner source scopes + state/notice writers missing). Collaboration work unit committed (229768676); HTTP backend/route switch still needs composition workspace assembly. Messaging history/team-channel reads and feed subpaths remain TS; attachments 503 (Files WIP).",
         "handoff": {
-          "runId": "run-20261110-g4",
-          "agentId": "worker-b",
-          "at": "2026-11-11T03:13:45.284Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Coordinator lease expired during collaboration mount review; WIP reviewed, previous process stopped",
-          "nextAction": "Social/messaging/teams/channels/inbox/work HTTP ingress committed (cee146e36; 11 cargo HTTP tests). Remaining: composition backends/mounts for 4 routers (Files MessagingFilesPort absent -> 503), switch feature-apps feed/messaging/collaboration/inbox routes; mention drain/AI reply stay TS"
+          "runId": "run-20261110-g5",
+          "agentId": "lead",
+          "at": "2026-11-11T04:25:19.280Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Coordinator lease expired during collaboration inbox integration; WIP reviewed, previous process stopped",
+          "nextAction": "Messaging router mounted; overview/members reads and room create/send/read + team/channel create are native (934bfdaa). Attachments stay 503 (Files port absent); messages with files and team manage remain TS; history/teams-channels/channels reads not yet switched. Remaining: InboxTargetPort (Work destinations) before inbox switch, collaboration_work backend, messaging history/team-channel reads, feed subpaths. Mention drain/AI reply stay TS."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -15377,8 +15377,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 6,
-    "updatedAt": "2026-11-11T03:40:44.449Z",
+    "lastCoordinatorGeneration": 7,
+    "updatedAt": "2026-11-11T04:25:19.370Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15421,10 +15421,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g4",
-      "runId": "run-20261110-g5",
-      "at": "2026-11-11T03:13:45.285Z",
-      "reason": "Coordinator lease expired during collaboration mount review; WIP reviewed, previous process stopped",
+      "previousRunId": "run-20261110-g5",
+      "runId": "run-20261110-g6",
+      "at": "2026-11-11T04:25:19.282Z",
+      "reason": "Coordinator lease expired during collaboration inbox integration; WIP reviewed, previous process stopped",
       "wipReviewed": true,
       "previousRunStopped": true
     }
