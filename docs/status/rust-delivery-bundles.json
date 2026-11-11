@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 431,
+    "revision": 439,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g9",
+      "runId": "run-20261110-g10",
       "agentId": "lead",
-      "startedAt": "2026-11-11T08:55:02.036Z",
-      "heartbeatAt": "2026-11-11T08:55:02.109Z",
-      "expiresAt": "2026-11-11T09:25:02.109Z",
-      "generation": 10,
-      "tokenHash": "ace211dc654c0de43619777961c9b98e0e1f049d229e326bffddede47789ca99"
+      "startedAt": "2026-11-11T09:58:45.487Z",
+      "heartbeatAt": "2026-11-11T09:58:45.678Z",
+      "expiresAt": "2026-11-11T10:28:45.678Z",
+      "generation": 11,
+      "tokenHash": "0ced6e75701f162f2f68f201fdf9c79e87ba9ec9b4123f4befa42ff035f3ee6c"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -12329,14 +12329,21 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261110-g10",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T09:58:45.567Z",
+          "heartbeatAt": "2026-11-11T09:58:45.678Z",
+          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "generation": 11
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+        "blocker": null,
         "nextAction": "Structure and actuals routers mounted with purchase/staff facts (cadc1aa2e). Remaining attachment packet needs a Files-side ProjectAttachmentFilesPort adapter (server-files paths are in the external-WIP reservation); after that mount and record migrated",
         "handoff": {
           "runId": "run-20261110-g1",
@@ -12519,14 +12526,21 @@
         "resources": [
           "owner:benefits"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261110-g10",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T09:58:45.591Z",
+          "heartbeatAt": "2026-11-11T09:58:45.678Z",
+          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "generation": 11
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+        "blocker": null,
         "nextAction": "Lead mounts the detail HTTP route and Files/Records evidence ports, switches People payroll to payroll_source, and waits for the Learning consumption writer before election-eligibility closes",
         "handoff": {
           "runId": "run-20261110-g1",
@@ -12617,14 +12631,21 @@
         "resources": [
           "owner:learning"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261110-g10",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T09:58:45.615Z",
+          "heartbeatAt": "2026-11-11T09:58:45.678Z",
+          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "generation": 11
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+        "blocker": null,
         "nextAction": "ConsumeBenefit is mounted. Remaining: Files LearningEvidencePort adapter (task migrate.files.learning-evidence-port is blocked by the external-WIP reservation on server-files paths), Benefits port binding + learning_certificate_id persistence, workplace continuation switch",
         "handoff": {
           "runId": "run-20261110-g1",
@@ -13074,14 +13095,21 @@
           "owner:collaboration"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g10",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T09:58:45.542Z",
+          "heartbeatAt": "2026-11-11T09:58:45.678Z",
+          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "generation": 11
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
-        "nextAction": "Collaboration: social feed, messaging overview/create/send/read/members (Control-name objects), inbox people/notices/summary, workspace + relation/card commands are native and switched. Remaining: inbox notifications blocked in child task migrate.collaboration.inbox-owner-targets (calendar owner is TS-only; crm/finance/commerce/payroll visibility checks incomplete); messaging history needs Files decoration (server-files WIP).",
+        "blocker": null,
+        "nextAction": "Files MessagingFilesPort/LearningEvidencePort/ProjectAttachmentFilesPort are implemented and committed (0398719c1; 23/23 tests). Next: compose the messaging Files audience + original store, pass files:Some(...) to MessagingHttpTarget, decorate messaging history with files rows and switch it; bind LearningEvidencePort into benefits/learning; bind project attachment port.",
         "handoff": {
           "runId": "run-20261110-g6",
           "agentId": "lead",
@@ -15381,8 +15409,15 @@
         "resources": [
           "owner:files"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g10",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T09:58:45.517Z",
+          "heartbeatAt": "2026-11-11T09:58:45.678Z",
+          "expiresAt": "2026-11-11T10:28:45.678Z",
+          "generation": 11
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -15579,18 +15614,18 @@
       "totalPackets": 53,
       "migratedPackets": 14,
       "statusCounts": {
-        "pending": 25,
-        "in_progress": 0,
-        "ready_for_integration": 10,
-        "integrating": 0,
+        "pending": 24,
+        "in_progress": 1,
+        "ready_for_integration": 7,
+        "integrating": 3,
         "migrated": 14,
         "blocked": 4,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 10,
-    "updatedAt": "2026-11-11T08:55:02.110Z",
+    "lastCoordinatorGeneration": 11,
+    "updatedAt": "2026-11-11T09:58:45.679Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15633,10 +15668,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g8",
-      "runId": "run-20261110-g9",
-      "at": "2026-11-11T08:55:02.038Z",
-      "reason": "Lease expired before reservation release; WIP reviewed",
+      "previousRunId": "run-20261110-g9",
+      "runId": "run-20261110-g10",
+      "at": "2026-11-11T09:58:45.489Z",
+      "reason": "Lease expired after Files adapters commit; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
