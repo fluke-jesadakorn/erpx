@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 508,
+    "revision": 511,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g16",
+      "runId": "run-20261110-g17",
       "agentId": "lead",
-      "startedAt": "2026-11-11T17:54:42.827Z",
-      "heartbeatAt": "2026-11-11T17:54:42.827Z",
-      "expiresAt": "2026-11-11T18:24:42.829Z",
-      "generation": 17,
-      "tokenHash": "19c4efe52e582987d06bffa4d7dd8bbe9bb362466b886900e21088d7a5939651"
+      "startedAt": "2026-11-11T18:36:30.718Z",
+      "heartbeatAt": "2026-11-11T18:36:30.718Z",
+      "expiresAt": "2026-11-11T19:06:30.719Z",
+      "generation": 18,
+      "tokenHash": "200c85ccb15f61a66253fd18ae4621a9999d6a089195134bc1b4644838c3715e"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9933,14 +9933,21 @@
           "owner:identity_access"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g17",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T18:36:30.743Z",
+          "heartbeatAt": "2026-11-11T18:36:30.743Z",
+          "expiresAt": "2026-11-11T19:06:30.743Z",
+          "generation": 18
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired during a long slice review; WIP and processes reconciled, same lead resumed",
-        "nextAction": "Holding IAM roles/reviews/access-reviews route dispatches native (f449e4640; 9/4 suites, typecheck). Remaining: platform/iam route still TS (platform namespace has no HTTP ingress), directory auth/source-admin mount, and principals/conflicts/emergency packet",
+        "blocker": null,
+        "nextAction": "Holding IAM roles/reviews/access-reviews native and switched; native Directory sign-in router mounted opt-in (cd8eb75c7) with directoryProfiles + directoryProvenanceKeys, boundary admission and absence fail-closed; 5/5 new HTTP cases + account/auth/directory suites pass. Remaining: platform/iam route still TS (platform namespace has no HTTP ingress), directory source-admin mount, principals/conflicts/emergency packet.",
         "handoff": {
           "runId": "run-20261110-g2",
           "agentId": "lead",
@@ -10029,28 +10036,21 @@
           "owner:organization"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g16",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T17:54:42.883Z",
-          "heartbeatAt": "2026-11-11T17:54:42.883Z",
-          "expiresAt": "2026-11-11T18:24:42.883Z",
-          "generation": 17
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after directory sign-in mount; WIP reviewed",
         "nextAction": "Access projection and position-move consumers now prefer native (bc5138db3): People catch-all position-move list/preview/submit/cancel, Admin technology screen and technology organization view; ERPX_NATIVE_ORGANIZATION_CONFIG unset keeps TS. Production position-move drain supervisor added (9532fd57e). Remaining: switch feature-admin technology JSON API, people_payroll workspace/move adapters, organization drafts/presentation queries; retire the TS lifecycle drain once the native worker is the only drain; then remove TS access adapters.",
         "handoff": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "at": "2026-11-10T17:06:47.987Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Native access/position-move contracts are frozen and tested; bind after migrate.organization.position_moves_apply lands and lead mounts the routers"
+          "runId": "run-20261110-g16",
+          "agentId": "lead",
+          "at": "2026-11-11T18:36:30.717Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Lease expired after directory sign-in mount; WIP reviewed",
+          "nextAction": "Access projection and position-move consumers now prefer native (bc5138db3): People catch-all position-move list/preview/submit/cancel, Admin technology screen and technology organization view; ERPX_NATIVE_ORGANIZATION_CONFIG unset keeps TS. Production position-move drain supervisor added (9532fd57e). Remaining: switch feature-admin technology JSON API, people_payroll workspace/move adapters, organization drafts/presentation queries; retire the TS lifecycle drain once the native worker is the only drain; then remove TS access adapters."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-organization",
@@ -12507,28 +12507,21 @@
           "owner:projects"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g16",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T17:54:42.859Z",
-          "heartbeatAt": "2026-11-11T17:54:42.859Z",
-          "expiresAt": "2026-11-11T18:24:42.859Z",
-          "generation": 17
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after directory sign-in mount; WIP reviewed",
         "nextAction": "Native project attachment BIND is mounted and switched (e36f681dc + supervisor 9532fd57e): POST /project-attachments/{set}/bind with replay ledger (project.attachment.bind), Files set/link reads, projects.wbs purchase admission, project version step; workplace bind route uses native only for target_type=project when configured. Checks: attachment http 2/2, unit 11/11, files policy 5/5, PG 1/1, files PG 5/5, transport 12/12, typecheck, catalogue 1119. Remaining: native project attachment STAGE (set create/reserve/upload/complete) and project attachment list/status/content reads still TS Files routes.",
         "handoff": {
-          "runId": "run-20261110-g10",
+          "runId": "run-20261110-g16",
           "agentId": "lead",
-          "at": "2026-11-11T12:18:27.956Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
-          "nextAction": "Structure and actuals routers mounted with purchase/staff facts (cadc1aa2e). Remaining attachment packet needs a Files-side ProjectAttachmentFilesPort adapter (server-files paths are in the external-WIP reservation); after that mount and record migrated"
+          "at": "2026-11-11T18:36:30.717Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Lease expired after directory sign-in mount; WIP reviewed",
+          "nextAction": "Native project attachment BIND is mounted and switched (e36f681dc + supervisor 9532fd57e): POST /project-attachments/{set}/bind with replay ledger (project.attachment.bind), Files set/link reads, projects.wbs purchase admission, project version step; workplace bind route uses native only for target_type=project when configured. Checks: attachment http 2/2, unit 11/11, files policy 5/5, PG 1/1, files PG 5/5, transport 12/12, typecheck, catalogue 1119. Remaining: native project attachment STAGE (set create/reserve/upload/complete) and project attachment list/status/content reads still TS Files routes."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-projects",
@@ -15958,8 +15951,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 17,
-    "updatedAt": "2026-11-11T17:54:56.746Z",
+    "lastCoordinatorGeneration": 18,
+    "updatedAt": "2026-11-11T18:36:42.852Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16002,10 +15995,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g15",
-      "runId": "run-20261110-g16",
-      "at": "2026-11-11T17:54:42.829Z",
-      "reason": "Lease expired after projects/organization integration commits; WIP reviewed",
+      "previousRunId": "run-20261110-g16",
+      "runId": "run-20261110-g17",
+      "at": "2026-11-11T18:36:30.719Z",
+      "reason": "Lease expired after directory sign-in mount; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
