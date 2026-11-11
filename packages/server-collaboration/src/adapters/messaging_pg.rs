@@ -348,6 +348,45 @@ impl<'c> PgMessagingUnit<'c> {
         read_history(&mut *self.connection, &actor, room_id, before, after, limit).await
     }
 
+    /// Bounded file rows for the retained history decoration. Composition
+    /// attaches these to each message; bytes never leave the Files store.
+    pub async fn files_for_messages(
+        &mut self,
+        message_ids: &[String],
+    ) -> Result<Vec<Value>, Error> {
+        self.verify_authority().await?;
+        if message_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        if message_ids.len() > 100 {
+            return Err(BusinessError::invalid(
+                "MESSAGING_HISTORY_LIMIT",
+                "Message history is too large to decorate.",
+            )
+            .into());
+        }
+        Ok(sqlx::query(
+            "SELECT id,message_id,original_name,media_type,bytes,created_at \
+             FROM messaging_files WHERE message_id = ANY($1::text[]) \
+             ORDER BY created_at,id LIMIT 1000",
+        )
+        .bind(message_ids)
+        .fetch_all(&mut *self.connection)
+        .await?
+        .into_iter()
+        .map(|row| {
+            serde_json::json!({
+                "id": row.try_get::<String, _>(0).unwrap_or_default(),
+                "message_id": row.try_get::<Option<String>, _>(1).unwrap_or(None),
+                "name": row.try_get::<String, _>(2).unwrap_or_default(),
+                "type": row.try_get::<String, _>(3).unwrap_or_default(),
+                "bytes": row.try_get::<i64, _>(4).unwrap_or_default(),
+                "created_at": row.try_get::<i64, _>(5).unwrap_or_default(),
+            })
+        })
+        .collect())
+    }
+
     pub async fn room(&mut self, id: &str) -> Result<Option<RoomSnapshot>, Error> {
         read_room(&mut *self.connection, &self.scope.company_id, id).await
     }
