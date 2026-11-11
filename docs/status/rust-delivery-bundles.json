@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 420,
+    "revision": 424,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g7",
+      "runId": "run-20261110-g8",
       "agentId": "lead",
-      "startedAt": "2026-11-11T06:43:23.643Z",
-      "heartbeatAt": "2026-11-11T07:01:58.960Z",
-      "expiresAt": "2026-11-11T07:31:58.960Z",
-      "generation": 8,
-      "tokenHash": "ec111e50cf441c619cd31c308824ec2f216e1caa3f69083545c35ad9762badc4"
+      "startedAt": "2026-11-11T07:38:28.627Z",
+      "heartbeatAt": "2026-11-11T07:38:28.726Z",
+      "expiresAt": "2026-11-11T08:08:28.726Z",
+      "generation": 9,
+      "tokenHash": "1cf3d4127debb90bd93ea00de1cfc343b844280ac6be93b5a11d512a91441e8b"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -11195,14 +11195,14 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "ready_for_integration",
+        "status": "integrating",
         "claim": {
-          "runId": "run-20261110-g7",
+          "runId": "run-20261110-g8",
           "agentId": "lead",
-          "claimedAt": "2026-11-11T06:43:52.865Z",
-          "heartbeatAt": "2026-11-11T07:01:58.960Z",
-          "expiresAt": "2026-11-11T07:31:58.960Z",
-          "generation": 8
+          "claimedAt": "2026-11-11T07:38:28.686Z",
+          "heartbeatAt": "2026-11-11T07:38:28.726Z",
+          "expiresAt": "2026-11-11T08:08:28.726Z",
+          "generation": 9
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -11212,12 +11212,12 @@
         "blocker": null,
         "nextAction": "Staff-work owner slice + follow-ups committed (c506f1682, latest fix). Mount staff_work_router in composition with a StaffTaskSources implementation (Identity same_person, People active_staff/name, Projects/Work purchase scopes, Collaboration post/notify, Files attachments, Workflow approvals, PMS feature_enabled), then switch the workplace staff-tasks route (currently staffHandler from server-work_projection).",
         "handoff": {
-          "runId": "run-20261110-g6",
-          "agentId": "worker-ops",
-          "at": "2026-11-11T06:43:23.642Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
-          "nextAction": "Implement the first inventoried operations packet (migrate.operations.staff-work), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+          "runId": "run-20261110-g7",
+          "agentId": "lead",
+          "at": "2026-11-11T07:38:28.626Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Lease expired between worker dispatch and claim; WIP reviewed",
+          "nextAction": "Staff-work owner slice + follow-ups committed (c506f1682, latest fix). Mount staff_work_router in composition with a StaffTaskSources implementation (Identity same_person, People active_staff/name, Projects/Work purchase scopes, Collaboration post/notify, Files attachments, Workflow approvals, PMS feature_enabled), then switch the workplace staff-tasks route (currently staffHandler from server-work_projection)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
@@ -11302,14 +11302,21 @@
         "resources": [
           "owner:procurement"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261110-g8",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T07:38:28.661Z",
+          "heartbeatAt": "2026-11-11T07:38:28.726Z",
+          "expiresAt": "2026-11-11T08:08:28.726Z",
+          "generation": 9
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+        "blocker": null,
         "nextAction": "Supplier-promise command ingress committed (3526ac7f6), suite 5/5. Route switch is blocked on parity: attachmentSetIds rejected natively (Files port WIP), TS staff_notifications not replaced by an outbox consumer, and native GET detail lacks the order/lines/schedule/canRecord/purchase shape. Mount backend + resolve those before switching.",
         "handoff": {
           "runId": "run-20261110-g1",
@@ -15482,16 +15489,16 @@
       "statusCounts": {
         "pending": 25,
         "in_progress": 0,
-        "ready_for_integration": 10,
-        "integrating": 0,
+        "ready_for_integration": 8,
+        "integrating": 2,
         "migrated": 14,
         "blocked": 4,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 8,
-    "updatedAt": "2026-11-11T07:01:58.960Z",
+    "lastCoordinatorGeneration": 9,
+    "updatedAt": "2026-11-11T07:38:28.726Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15534,10 +15541,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g6",
-      "runId": "run-20261110-g7",
-      "at": "2026-11-11T06:43:23.644Z",
-      "reason": "Lease expired during sales/operations handoff; WIP reviewed",
+      "previousRunId": "run-20261110-g7",
+      "runId": "run-20261110-g8",
+      "at": "2026-11-11T07:38:28.628Z",
+      "reason": "Lease expired between worker dispatch and claim; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
