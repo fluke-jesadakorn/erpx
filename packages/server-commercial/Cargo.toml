@@ -58,5 +58,21 @@ path = "../../tests/integration/commercial/rust-package-grants-postgres.test.rs"
 name = "purchase_postgres"
 path = "../../tests/integration/commercial/rust-purchase-postgres.test.rs"
 
+[[test]]
+name = "capability_decision"
+path = "../../tests/unit/commercial/rust-capability-decision.test.rs"
+
+[[test]]
+name = "capability_decision_postgres"
+path = "../../tests/integration/commercial/rust-capability-decision-postgres.test.rs"
+
+[[test]]
+name = "subscriptions"
+path = "../../tests/unit/commercial/rust-subscriptions.test.rs"
+
+[[test]]
+name = "subscriptions_postgres"
+path = "../../tests/integration/commercial/rust-subscriptions-postgres.test.rs"
+
 [lints]
 workspace = true

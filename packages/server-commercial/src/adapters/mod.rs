@@ -1,5 +1,7 @@
+pub mod capability_decision_postgres;
 pub mod company_packages_http;
 pub mod package_catalogue;
+pub mod subscription_sources;
 pub mod package_grants_http;
 pub mod package_review;
 pub mod postgres_grant_commands;

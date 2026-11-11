@@ -1,5 +1,7 @@
+pub mod capability_decision;
 pub mod purchases;
 pub mod package_review;
+pub mod subscriptions;
 
 pub mod canonical_purchase_write;
 

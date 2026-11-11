@@ -32,6 +32,19 @@ pub fn purchase_wire_revision(
     history: &[CompanyPackageHistoryRight],
     now: TimestampMillis,
 ) -> Result<String, BusinessError> {
+    let source = capability_revision_source(company_id, grants, history, now)?;
+    Ok(hex::encode(Sha256::digest(source.as_bytes())))
+}
+
+/// The exact retained `capabilityRevisionSource` payload. Both the legacy
+/// purchase wire revision and the native entitlement decision hash this same
+/// source, so a policy change cannot silently fork their observation.
+pub(crate) fn capability_revision_source(
+    company_id: &str,
+    grants: &[CompanyPackageGrant],
+    history: &[CompanyPackageHistoryRight],
+    now: TimestampMillis,
+) -> Result<String, BusinessError> {
     let now = now.get() as f64;
     let collator = package_id_collator()?;
     let mut grant_rows = Vec::new();
@@ -49,6 +62,10 @@ pub fn purchase_wire_revision(
         history_rows.push(format!("[{},{},{},{},{},{}]", text(&right.package_id)?, number(right.package_version), number(right.source_grant_version), text(&right.source_event_id)?, number(right.retained_at), text(phase)?));
     }
     history_rows.sort_by(|a, b| collator.compare(a, b));
-    let source = format!("{{\"companyId\":{},\"grants\":[{}],\"history\":[{}]}}", text(company_id)?, grant_rows.join(","), history_rows.join(","));
-    Ok(hex::encode(Sha256::digest(source.as_bytes())))
+    Ok(format!(
+        "{{\"companyId\":{},\"grants\":[{}],\"history\":[{}]}}",
+        text(company_id)?,
+        grant_rows.join(","),
+        history_rows.join(",")
+    ))
 }
