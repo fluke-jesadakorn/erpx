@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 408,
+    "revision": 414,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g6",
+      "runId": "run-20261110-g7",
       "agentId": "lead",
-      "startedAt": "2026-11-11T04:25:19.281Z",
-      "heartbeatAt": "2026-11-11T06:04:21.913Z",
-      "expiresAt": "2026-11-11T06:34:21.913Z",
-      "generation": 7,
-      "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
+      "startedAt": "2026-11-11T06:43:23.643Z",
+      "heartbeatAt": "2026-11-11T06:43:52.988Z",
+      "expiresAt": "2026-11-11T07:13:52.988Z",
+      "generation": 8,
+      "tokenHash": "ec111e50cf441c619cd31c308824ec2f216e1caa3f69083545c35ad9762badc4"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10682,14 +10682,14 @@
         "resources": [
           "owner:sales"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261110-g6",
-          "agentId": "worker-sales",
-          "claimedAt": "2026-11-11T06:04:21.841Z",
-          "heartbeatAt": "2026-11-11T06:04:21.913Z",
-          "expiresAt": "2026-11-11T06:34:21.913Z",
-          "generation": 7
+          "runId": "run-20261110-g7",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T06:43:52.891Z",
+          "heartbeatAt": "2026-11-11T06:43:52.988Z",
+          "expiresAt": "2026-11-11T07:13:52.988Z",
+          "generation": 8
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -10697,8 +10697,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried sales packet (migrate.sales.confirmed-cancellation), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
-        "handoff": null,
+        "nextAction": "Confirmed-sale cancellation owner slice committed (a67782d58). Remaining: composition backend + sales_order_cancellation_router mount, workplace commerce cancel route switch via nativeSalesConfirmedCancellation, then retire the confirmed path.",
+        "handoff": {
+          "runId": "run-20261110-g6",
+          "agentId": "worker-sales",
+          "at": "2026-11-11T06:43:23.642Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
+          "nextAction": "Implement the first inventoried sales packet (migrate.sales.confirmed-cancellation), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-sales",
         "plannedPackage": "erpx-server-sales",
@@ -11152,14 +11159,14 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261110-g6",
-          "agentId": "worker-ops",
-          "claimedAt": "2026-11-11T06:04:21.871Z",
-          "heartbeatAt": "2026-11-11T06:04:21.913Z",
-          "expiresAt": "2026-11-11T06:34:21.913Z",
-          "generation": 7
+          "runId": "run-20261110-g7",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T06:43:52.865Z",
+          "heartbeatAt": "2026-11-11T06:43:52.988Z",
+          "expiresAt": "2026-11-11T07:13:52.988Z",
+          "generation": 8
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -11167,8 +11174,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried operations packet (migrate.operations.staff-work), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": null,
+        "nextAction": "Staff-work owner slice + ingress committed; mount staff_work router in composition, migrate the ops source read, and switch the workplace operations consumer.",
+        "handoff": {
+          "runId": "run-20261110-g6",
+          "agentId": "worker-ops",
+          "at": "2026-11-11T06:43:23.642Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
+          "nextAction": "Implement the first inventoried operations packet (migrate.operations.staff-work), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
         "plannedPackage": "erpx-server-operations",
@@ -12569,28 +12583,21 @@
           "owner:talent"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g6",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T05:59:07.943Z",
-          "heartbeatAt": "2026-11-11T06:04:21.913Z",
-          "expiresAt": "2026-11-11T06:34:21.913Z",
-          "generation": 7
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
         "nextAction": "Candidate/application/proposal/privacy commands are native and switched (faa1f6357); offers deliberately remain TS until the Finance talent-offer money-snapshot producer exists, and hire-handoff reads still use talentDetail TS. Remaining: Finance talent.offer-money-snapshot port, feature-talent hire-handoff page switch, People hire intake consumption.",
         "handoff": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "at": "2026-11-10T22:49:18.933Z",
+          "runId": "run-20261110-g6",
+          "agentId": "lead",
+          "at": "2026-11-11T06:43:23.642Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
-          "nextAction": "Talent lifecycle committed (2160e26fef85a0b803ac509e2ce83efaabd37159; 8/6/5/3/4 suites). Remaining: composition lifecycle backend/mount + feature-recruit route switch; Finance talent-offer money-snapshot producer missing (offers fail closed); People hire-intake must consume talent_hire_handoffs; keep Talent as sole candidate-privacy writer"
+          "reason": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
+          "nextAction": "Candidate/application/proposal/privacy commands are native and switched (faa1f6357); offers deliberately remain TS until the Finance talent-offer money-snapshot producer exists, and hire-handoff reads still use talentDetail TS. Remaining: Finance talent.offer-money-snapshot port, feature-talent hire-handoff page switch, People hire intake consumption."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-talent",
@@ -12932,28 +12939,21 @@
           "owner:collaboration"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g6",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T04:25:19.306Z",
-          "heartbeatAt": "2026-11-11T06:04:21.913Z",
-          "expiresAt": "2026-11-11T06:34:21.913Z",
-          "generation": 7
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
         "nextAction": "Collaboration: social feed, messaging overview/create/send/read/members (Control-name objects), inbox people/notices/summary, workspace + relation/card commands are native and switched. Remaining: inbox notifications blocked in child task migrate.collaboration.inbox-owner-targets (calendar owner is TS-only; crm/finance/commerce/payroll visibility checks incomplete); messaging history needs Files decoration (server-files WIP).",
         "handoff": {
-          "runId": "run-20261110-g5",
+          "runId": "run-20261110-g6",
           "agentId": "lead",
-          "at": "2026-11-11T04:25:19.280Z",
+          "at": "2026-11-11T06:43:23.642Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Coordinator lease expired during collaboration inbox integration; WIP reviewed, previous process stopped",
-          "nextAction": "Messaging router mounted; overview/members reads and room create/send/read + team/channel create are native (934bfdaa). Attachments stay 503 (Files port absent); messages with files and team manage remain TS; history/teams-channels/channels reads not yet switched. Remaining: InboxTargetPort (Work destinations) before inbox switch, collaboration_work backend, messaging history/team-channel reads, feed subpaths. Mention drain/AI reply stay TS."
+          "reason": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
+          "nextAction": "Collaboration: social feed, messaging overview/create/send/read/members (Control-name objects), inbox people/notices/summary, workspace + relation/card commands are native and switched. Remaining: inbox notifications blocked in child task migrate.collaboration.inbox-owner-targets (calendar owner is TS-only; crm/finance/commerce/payroll visibility checks incomplete); messaging history needs Files decoration (server-files WIP)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -15445,8 +15445,8 @@
       "migratedPackets": 13,
       "statusCounts": {
         "pending": 25,
-        "in_progress": 2,
-        "ready_for_integration": 9,
+        "in_progress": 0,
+        "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 13,
         "blocked": 4,
@@ -15454,8 +15454,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T06:04:21.914Z",
+    "lastCoordinatorGeneration": 8,
+    "updatedAt": "2026-11-11T06:43:52.988Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15498,10 +15498,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g5",
-      "runId": "run-20261110-g6",
-      "at": "2026-11-11T04:25:19.282Z",
-      "reason": "Coordinator lease expired during collaboration inbox integration; WIP reviewed, previous process stopped",
+      "previousRunId": "run-20261110-g6",
+      "runId": "run-20261110-g7",
+      "at": "2026-11-11T06:43:23.644Z",
+      "reason": "Lease expired during sales/operations handoff; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
