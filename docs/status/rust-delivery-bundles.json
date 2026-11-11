@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 403,
+    "revision": 405,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g6",
       "agentId": "lead",
       "startedAt": "2026-11-11T04:25:19.281Z",
-      "heartbeatAt": "2026-11-11T05:59:08.011Z",
-      "expiresAt": "2026-11-11T06:29:08.011Z",
+      "heartbeatAt": "2026-11-11T06:02:09.121Z",
+      "expiresAt": "2026-11-11T06:32:09.121Z",
       "generation": 7,
       "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
     },
@@ -12559,8 +12559,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T05:59:07.943Z",
-          "heartbeatAt": "2026-11-11T05:59:08.011Z",
-          "expiresAt": "2026-11-11T06:29:08.011Z",
+          "heartbeatAt": "2026-11-11T06:02:09.121Z",
+          "expiresAt": "2026-11-11T06:32:09.121Z",
           "generation": 7
         },
         "baseSha": null,
@@ -12569,7 +12569,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lifecycle router mounted (552931e06) over PgTalentCandidates/PgTalentApplications/PgTalentOffers; offers fail closed until the Finance talent-offer money-snapshot producer exists. Remaining: switch feature-recruit talent route for candidate/applications/proposals/privacy/hire-handoff only (keep offers TS); People hire intake must consume talent_hire_handoffs.",
+        "nextAction": "Candidate/application/proposal/privacy commands are native and switched (faa1f6357); offers deliberately remain TS until the Finance talent-offer money-snapshot producer exists, and hire-handoff reads still use talentDetail TS. Remaining: Finance talent.offer-money-snapshot port, feature-talent hire-handoff page switch, People hire intake consumption.",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
@@ -12922,8 +12922,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T04:25:19.306Z",
-          "heartbeatAt": "2026-11-11T05:59:08.011Z",
-          "expiresAt": "2026-11-11T06:29:08.011Z",
+          "heartbeatAt": "2026-11-11T06:02:09.121Z",
+          "expiresAt": "2026-11-11T06:32:09.121Z",
           "generation": 7
         },
         "baseSha": null,
@@ -15441,7 +15441,7 @@
       }
     },
     "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T05:59:08.011Z",
+    "updatedAt": "2026-11-11T06:02:09.121Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
