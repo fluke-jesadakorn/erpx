@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 405,
+    "revision": 408,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g6",
       "agentId": "lead",
       "startedAt": "2026-11-11T04:25:19.281Z",
-      "heartbeatAt": "2026-11-11T06:02:09.121Z",
-      "expiresAt": "2026-11-11T06:32:09.121Z",
+      "heartbeatAt": "2026-11-11T06:04:21.913Z",
+      "expiresAt": "2026-11-11T06:34:21.913Z",
       "generation": 7,
       "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
     },
@@ -10682,8 +10682,15 @@
         "resources": [
           "owner:sales"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g6",
+          "agentId": "worker-sales",
+          "claimedAt": "2026-11-11T06:04:21.841Z",
+          "heartbeatAt": "2026-11-11T06:04:21.913Z",
+          "expiresAt": "2026-11-11T06:34:21.913Z",
+          "generation": 7
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11145,8 +11152,15 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g6",
+          "agentId": "worker-ops",
+          "claimedAt": "2026-11-11T06:04:21.871Z",
+          "heartbeatAt": "2026-11-11T06:04:21.913Z",
+          "expiresAt": "2026-11-11T06:34:21.913Z",
+          "generation": 7
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12559,8 +12573,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T05:59:07.943Z",
-          "heartbeatAt": "2026-11-11T06:02:09.121Z",
-          "expiresAt": "2026-11-11T06:32:09.121Z",
+          "heartbeatAt": "2026-11-11T06:04:21.913Z",
+          "expiresAt": "2026-11-11T06:34:21.913Z",
           "generation": 7
         },
         "baseSha": null,
@@ -12922,8 +12936,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T04:25:19.306Z",
-          "heartbeatAt": "2026-11-11T06:02:09.121Z",
-          "expiresAt": "2026-11-11T06:32:09.121Z",
+          "heartbeatAt": "2026-11-11T06:04:21.913Z",
+          "expiresAt": "2026-11-11T06:34:21.913Z",
           "generation": 7
         },
         "baseSha": null,
@@ -15430,8 +15444,8 @@
       "totalPackets": 53,
       "migratedPackets": 13,
       "statusCounts": {
-        "pending": 27,
-        "in_progress": 0,
+        "pending": 25,
+        "in_progress": 2,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 13,
@@ -15441,7 +15455,7 @@
       }
     },
     "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T06:02:09.121Z",
+    "updatedAt": "2026-11-11T06:04:21.914Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
