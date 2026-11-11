@@ -921,7 +921,10 @@ dependencies = [
 name = "erpx-server-files"
 version = "0.1.0"
 dependencies = [
+ "erpx-server-collaboration",
  "erpx-server-identity-access",
+ "erpx-server-learning",
+ "erpx-server-projects",
  "erpx-server-records",
  "erpx-server-runtime",
  "erpx-server-shared",

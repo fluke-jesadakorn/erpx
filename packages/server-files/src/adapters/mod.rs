@@ -59,3 +59,9 @@ pub(crate) mod quality_inspection_evidence;
 pub(crate) mod field_attachment_ancestry;
 
 pub(crate) mod field_attachment_routing;
+
+pub(crate) mod learning_evidence;
+
+pub(crate) mod project_attachment;
+
+pub(crate) mod messaging_files;

@@ -24,6 +24,9 @@ erpx-server-runtime.workspace = true
 erpx-server-identity-access.workspace = true
 erpx-server-workflow.workspace = true
 erpx-server-records.workspace = true
+erpx-server-learning.workspace = true
+erpx-server-projects.workspace = true
+erpx-server-collaboration.workspace = true
 sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -128,3 +131,27 @@ path = "../../tests/integration/files/rust-attachment-read-postgres.test.rs"
 [[test]]
 name = "business_evidence_postgres"
 path = "../../tests/integration/files/rust-business-evidence-postgres.test.rs"
+
+[[test]]
+name = "learning_evidence_policy"
+path = "../../tests/unit/files/rust-learning-evidence-policy.test.rs"
+
+[[test]]
+name = "project_attachment_files"
+path = "../../tests/unit/files/rust-project-attachment-files.test.rs"
+
+[[test]]
+name = "messaging_files_policy"
+path = "../../tests/unit/files/rust-messaging-files.test.rs"
+
+[[test]]
+name = "learning_evidence_postgres"
+path = "../../tests/integration/files/rust-learning-evidence-postgres.test.rs"
+
+[[test]]
+name = "project_attachment_postgres"
+path = "../../tests/integration/files/rust-project-attachment-postgres.test.rs"
+
+[[test]]
+name = "messaging_files_postgres"
+path = "../../tests/integration/files/rust-messaging-files-postgres.test.rs"

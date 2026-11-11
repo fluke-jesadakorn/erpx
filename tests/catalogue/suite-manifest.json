@@ -59238,39 +59238,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "none",
       "requires": {
@@ -59384,39 +59352,7 @@
       "lane": "integration",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "postgres",
       "requires": {
@@ -59962,39 +59898,7 @@
       "lane": "integration",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "postgres",
       "requires": {
@@ -60126,39 +60030,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "none",
       "requires": {
@@ -60335,39 +60207,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "none",
       "requires": {
@@ -60481,39 +60321,7 @@
       "lane": "provider",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "provider",
       "requires": {
@@ -66859,39 +66667,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "none",
       "requires": {
@@ -67005,7 +66781,7 @@
       "lane": "provider",
       "owner": "files",
       "modules": [
-        "legal"
+        "manage_erpx"
       ],
       "fixture": "provider",
       "requires": {
@@ -67745,7 +67521,7 @@
       "lane": "provider",
       "owner": "files",
       "modules": [
-        "legal"
+        "manage_erpx"
       ],
       "fixture": "provider",
       "requires": {
@@ -69165,39 +68941,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "none",
       "requires": {
@@ -69315,39 +69059,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "none",
       "requires": {
@@ -69461,39 +69173,7 @@
       "lane": "integration",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "postgres",
       "requires": {
@@ -69999,39 +69679,7 @@
       "lane": "integration",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "postgres",
       "requires": {
@@ -70145,39 +69793,7 @@
       "lane": "provider",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "provider",
       "requires": {
@@ -73584,8 +73200,7 @@
       "lane": "integration",
       "owner": "files",
       "modules": [
-        "field_service",
-        "inventory"
+        "manage_erpx"
       ],
       "fixture": "postgres",
       "requires": {
@@ -73695,8 +73310,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "field_service",
-        "inventory"
+        "manage_erpx"
       ],
       "fixture": "none",
       "requires": {
@@ -74819,7 +74433,7 @@
     },
     {
       "modules": [
-        "field_service"
+        "manage_erpx"
       ],
       "requires": {
         "jobs": false,
@@ -76606,39 +76220,7 @@
       "lane": "provider",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "provider",
       "requires": {
@@ -84389,39 +83971,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "none",
       "requires": {
@@ -84536,39 +84086,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "none",
       "requires": {
@@ -84683,39 +84201,7 @@
       "lane": "integration",
       "owner": "files",
       "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
+        "manage_erpx"
       ],
       "fixture": "postgres",
       "requires": {
@@ -91452,6 +90938,255 @@
         "Cargo.lock",
         "rust-toolchain.toml",
         "packages/server-procurement/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
+    },
+    {
+      "id": "files.rust-learning-evidence-policy.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/files/rust-learning-evidence-policy.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files cross-owner evidence/attachment adapters retain scan, audience and policy checks."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "learning_evidence_policy"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ]
+    },
+    {
+      "id": "files.rust-project-attachment-files.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/files/rust-project-attachment-files.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files cross-owner evidence/attachment adapters retain scan, audience and policy checks."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "project_attachment_files"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ]
+    },
+    {
+      "id": "files.rust-messaging-files-policy.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/files/rust-messaging-files.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files cross-owner evidence/attachment adapters retain scan, audience and policy checks."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "messaging_files_policy"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ]
+    },
+    {
+      "id": "files.rust-learning-evidence-postgres.integration",
+      "lane": "integration",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/files/rust-learning-evidence-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files cross-owner evidence/attachment adapters retain scan, audience and policy checks."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "learning_evidence_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
+    },
+    {
+      "id": "files.rust-project-attachment-postgres.integration",
+      "lane": "integration",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/files/rust-project-attachment-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files cross-owner evidence/attachment adapters retain scan, audience and policy checks."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "project_attachment_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
+    },
+    {
+      "id": "files.rust-messaging-files-postgres.integration",
+      "lane": "integration",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/files/rust-messaging-files-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files cross-owner evidence/attachment adapters retain scan, audience and policy checks."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "messaging_files_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
       ],
       "postgres": {
         "mode": "template",

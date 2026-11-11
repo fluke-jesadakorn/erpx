@@ -34,3 +34,9 @@ pub mod quality_inspection_evidence;
 pub mod field_attachment_ancestry;
 
 pub mod field_attachment_routing;
+
+pub mod learning_evidence;
+
+pub mod project_attachment;
+
+pub mod messaging_files;
