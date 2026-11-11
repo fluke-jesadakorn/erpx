@@ -316,6 +316,48 @@ async fn notify(
     Ok(())
 }
 
+/// Write the approver notification for one opened Staff Work approval step.
+/// Operations owns `staff_notifications`; Workflow/Composition must not write
+/// it directly. Idempotent per command and user.
+pub async fn notify_staff_task_approval(
+    connection: &mut PgConnection,
+    key: &str,
+    company_id: &str,
+    user_id: &str,
+    task_id: &str,
+    version: i64,
+    phase: &str,
+    now: i64,
+) -> Result<(), BusinessError> {
+    let label = match phase {
+        "start" => "Start",
+        "completion" => "Completion",
+        _ => "Request",
+    };
+    sqlx::query(
+        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+         record_version,message,created_at) VALUES($1,$2,$3,'task',$4,$5,$6,$7) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(format!("staff-task-notice-{key}-{user_id}"))
+    .bind(company_id)
+    .bind(user_id)
+    .bind(task_id)
+    .bind(version)
+    .bind(format!("{label} approval needs your decision"))
+    .bind(now)
+    .execute(&mut *connection)
+    .await
+    .map_err(|_| {
+        BusinessError::new(
+            FailureKind::Unavailable,
+            "STAFF_TASK_NOTIFICATION_UNAVAILABLE",
+            "The Staff Work notification could not be written.",
+        )
+    })?;
+    Ok(())
+}
+
 async fn readback_task(
     connection: &mut PgConnection,
     company_id: &str,
