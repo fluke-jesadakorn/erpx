@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 501,
+    "revision": 508,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g15",
+      "runId": "run-20261110-g16",
       "agentId": "lead",
-      "startedAt": "2026-11-11T15:50:07.480Z",
-      "heartbeatAt": "2026-11-11T16:47:38.180Z",
-      "expiresAt": "2026-11-11T17:17:38.180Z",
-      "generation": 16,
-      "tokenHash": "5f600a2b739485f539e81acad0416403c04893dcf231bef4f618bf9c258c7509"
+      "startedAt": "2026-11-11T17:54:42.827Z",
+      "heartbeatAt": "2026-11-11T17:54:42.827Z",
+      "expiresAt": "2026-11-11T18:24:42.829Z",
+      "generation": 17,
+      "tokenHash": "19c4efe52e582987d06bffa4d7dd8bbe9bb362466b886900e21088d7a5939651"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10028,15 +10028,22 @@
         "resources": [
           "owner:organization"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "ready_for_integration",
+        "claim": {
+          "runId": "run-20261110-g16",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T17:54:42.883Z",
+          "heartbeatAt": "2026-11-11T17:54:42.883Z",
+          "expiresAt": "2026-11-11T18:24:42.883Z",
+          "generation": 17
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Mounts are committed (access + position-move routers). Next: switch the People catch-all/Admin technology consumers to the native access read, schedule drain_due_position_moves in the native job tick, then retire the TS access adapters and People catch-all branches.",
+        "blocker": null,
+        "nextAction": "Access projection and position-move consumers now prefer native (bc5138db3): People catch-all position-move list/preview/submit/cancel, Admin technology screen and technology organization view; ERPX_NATIVE_ORGANIZATION_CONFIG unset keeps TS. Production position-move drain supervisor added (9532fd57e). Remaining: switch feature-admin technology JSON API, people_payroll workspace/move adapters, organization drafts/presentation queries; retire the TS lifecycle drain once the native worker is the only drain; then remove TS access adapters.",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
@@ -12499,15 +12506,22 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "ready_for_integration",
+        "claim": {
+          "runId": "run-20261110-g16",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T17:54:42.859Z",
+          "heartbeatAt": "2026-11-11T17:54:42.859Z",
+          "expiresAt": "2026-11-11T18:24:42.859Z",
+          "generation": 17
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
-        "nextAction": "Structure and actuals routers mounted with purchase/staff facts (cadc1aa2e). Remaining attachment packet needs a Files-side ProjectAttachmentFilesPort adapter (server-files paths are in the external-WIP reservation); after that mount and record migrated",
+        "blocker": null,
+        "nextAction": "Native project attachment BIND is mounted and switched (e36f681dc + supervisor 9532fd57e): POST /project-attachments/{set}/bind with replay ledger (project.attachment.bind), Files set/link reads, projects.wbs purchase admission, project version step; workplace bind route uses native only for target_type=project when configured. Checks: attachment http 2/2, unit 11/11, files policy 5/5, PG 1/1, files PG 5/5, transport 12/12, typecheck, catalogue 1119. Remaining: native project attachment STAGE (set create/reserve/upload/complete) and project attachment list/status/content reads still TS Files routes.",
         "handoff": {
           "runId": "run-20261110-g10",
           "agentId": "lead",
@@ -15936,16 +15950,16 @@
       "statusCounts": {
         "pending": 24,
         "in_progress": 0,
-        "ready_for_integration": 4,
+        "ready_for_integration": 6,
         "integrating": 0,
         "migrated": 20,
-        "blocked": 5,
+        "blocked": 3,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 16,
-    "updatedAt": "2026-11-11T16:48:39.420Z",
+    "lastCoordinatorGeneration": 17,
+    "updatedAt": "2026-11-11T17:54:56.746Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15988,10 +16002,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g14",
-      "runId": "run-20261110-g15",
-      "at": "2026-11-11T15:50:07.481Z",
-      "reason": "Lease expired after staff-work approval planning commit; WIP reviewed",
+      "previousRunId": "run-20261110-g15",
+      "runId": "run-20261110-g16",
+      "at": "2026-11-11T17:54:42.829Z",
+      "reason": "Lease expired after projects/organization integration commits; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
