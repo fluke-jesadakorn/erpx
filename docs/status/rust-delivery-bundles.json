@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 372,
+    "revision": 374,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g5",
       "agentId": "lead",
       "startedAt": "2026-11-11T03:13:45.284Z",
-      "heartbeatAt": "2026-11-11T03:37:29.311Z",
-      "expiresAt": "2026-11-11T04:07:29.311Z",
+      "heartbeatAt": "2026-11-11T03:40:44.449Z",
+      "expiresAt": "2026-11-11T04:10:44.449Z",
       "generation": 6,
       "tokenHash": "de399ef30a173b6153e735b3b6cb75082f9c7795a528286acc8f9f5f17e90e51"
     },
@@ -12915,8 +12915,8 @@
           "runId": "run-20261110-g5",
           "agentId": "lead",
           "claimedAt": "2026-11-11T03:13:45.315Z",
-          "heartbeatAt": "2026-11-11T03:37:29.311Z",
-          "expiresAt": "2026-11-11T04:07:29.311Z",
+          "heartbeatAt": "2026-11-11T03:40:44.449Z",
+          "expiresAt": "2026-11-11T04:10:44.449Z",
           "generation": 6
         },
         "baseSha": null,
@@ -12925,7 +12925,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Messaging router mounted with PgMessagingUnit/PgMessagingTeamUnit (fb5c3b676); feature-apps messaging overview + room/team members now native, attachments remain 503 (Files port absent), history/send/read/teams-channels still TS. Remaining: switch messaging history/send/read with a native client, inbox router (needs InboxTargetPort), collaboration_work backend, then feed subpaths; mention drain/AI reply stay TS.",
+        "nextAction": "Messaging router mounted; overview/members reads and room create/send/read + team/channel create are native (934bfdaa). Attachments stay 503 (Files port absent); messages with files and team manage remain TS; history/teams-channels/channels reads not yet switched. Remaining: InboxTargetPort (Work destinations) before inbox switch, collaboration_work backend, messaging history/team-channel reads, feed subpaths. Mention drain/AI reply stay TS.",
         "handoff": {
           "runId": "run-20261110-g4",
           "agentId": "worker-b",
@@ -15378,7 +15378,7 @@
       }
     },
     "lastCoordinatorGeneration": 6,
-    "updatedAt": "2026-11-11T03:37:29.311Z",
+    "updatedAt": "2026-11-11T03:40:44.449Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
