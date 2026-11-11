@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 474,
+    "revision": 480,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g12",
+      "runId": "run-20261110-g13",
       "agentId": "lead",
-      "startedAt": "2026-11-11T12:49:09.678Z",
-      "heartbeatAt": "2026-11-11T12:58:57.501Z",
-      "expiresAt": "2026-11-11T13:28:57.501Z",
-      "generation": 13,
-      "tokenHash": "422b9344fc0f00a55877b5e88040013ff034bb8c91781c2b64bacc2f00332b40"
+      "startedAt": "2026-11-11T13:57:43.615Z",
+      "heartbeatAt": "2026-11-11T13:57:43.615Z",
+      "expiresAt": "2026-11-11T14:27:43.616Z",
+      "generation": 14,
+      "tokenHash": "6ef47ea31272bd8ed4acb46bb1651c869efaaa46dd702e9e055a42aa88a5fd55"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10134,15 +10134,51 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "44ab017744a96545f6a230bb551d0f3b32365133",
+        "lastPushedSha": "44ab017744a96545f6a230bb551d0f3b32365133",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "44ab017744a96545f6a230bb551d0f3b32365133",
+            "sourceKind": "committed",
+            "note": "Control-read binding, executive mount and backend compile together."
+          },
+          {
+            "command": "bun run test:integration -- --suite=platform_administration.rust-platform-executive-postgres.integration",
+            "result": "passed",
+            "sourceSha": "44ab017744a96545f6a230bb551d0f3b32365133",
+            "sourceKind": "committed",
+            "note": "2/2 native executive PostgreSQL cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=platform_administration.native-platform-administration-transport.unit",
+            "result": "passed",
+            "sourceSha": "44ab017744a96545f6a230bb551d0f3b32365133",
+            "sourceKind": "committed",
+            "note": "19/19 transport cases pass including the native executive client."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "44ab017744a96545f6a230bb551d0f3b32365133",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects pass with the admin route switch."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "44ab017744a96545f6a230bb551d0f3b32365133",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 33 modules, 1113 suites."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
-        "nextAction": "Operations projection router mounted (9f3754e05) and admin route prefers it when configured. Remaining: Control-read pool/config for executive mount; then remove the retained operations fallback and switch the Manage ERPX executive screen",
+        "blocker": null,
+        "nextAction": "Executive read is native and the admin route switches to it; operations projection already native. Pre-existing unrelated failure remains in platform-administration-postgres native_engineering_identity test (owner identity roster fixture), not part of this packet.",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
@@ -11303,12 +11339,12 @@
         ],
         "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261110-g12",
+          "runId": "run-20261110-g13",
           "agentId": "lead",
-          "claimedAt": "2026-11-11T12:59:05.141Z",
-          "heartbeatAt": "2026-11-11T12:59:05.141Z",
-          "expiresAt": "2026-11-11T13:29:05.141Z",
-          "generation": 13
+          "claimedAt": "2026-11-11T13:58:07.535Z",
+          "heartbeatAt": "2026-11-11T13:58:07.535Z",
+          "expiresAt": "2026-11-11T14:28:07.535Z",
+          "generation": 14
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -11316,14 +11352,14 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Unit threading done (60d9a1b8b). Owner read ports being added: People active-staff/person-name, Identity same-person, Projects project, Collaboration readable-post. Still MISSING before mount: Workflow approval task-route/approval-view/open-approval/prepare-decision/close-approvals (Rust owner has decision only when an instance exists; no approval opening) and Files task-attachment rows. Mount staff_work_router + switch workplace route only after those ports exist.",
+        "nextAction": "Read ports committed (4f53295b8): People active-staff/person-name, Identity same-person, Projects project, Collaboration readable-post (4 suites, 11 cases). Remaining before mount: Workflow approval task-route/view/open/prepare-decision/close (Rust workflow has decision only when an instance exists, no approval opening) and Files task-attachment rows; then composition StaffWorkHttpBackend + staff_work_router mount + workplace route switch.",
         "handoff": {
-          "runId": "run-20261110-g10",
+          "runId": "run-20261110-g12",
           "agentId": "lead",
-          "at": "2026-11-11T12:18:27.956Z",
+          "at": "2026-11-11T13:57:43.615Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
-          "nextAction": "Connection threading committed (60d9a1b8b): StaffTaskRepository::connection lends the unit to StaffTaskSources/StaffTaskFactDelegates (unit 7/7, 5/5, 3/3; PG 4/4; HTTP 7/7). Remaining: implement composition StaffWorkHttpBackend delegates (People active staff, Projects, Identity same-person, Collaboration post, Workflow route/approvals, Files attachments, team feature), mount staff_work_router, switch workplace staff-tasks route."
+          "reason": "Recovery: Lease expired after platform executive mount; WIP reviewed",
+          "nextAction": "Unit threading done (60d9a1b8b). Owner read ports being added: People active-staff/person-name, Identity same-person, Projects project, Collaboration readable-post. Still MISSING before mount: Workflow approval task-route/approval-view/open-approval/prepare-decision/close-approvals (Rust owner has decision only when an instance exists; no approval opening) and Files task-attachment rows. Mount staff_work_router + switch workplace route only after those ports exist."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
@@ -15769,20 +15805,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 53,
-      "migratedPackets": 17,
+      "migratedPackets": 18,
       "statusCounts": {
         "pending": 24,
         "in_progress": 0,
-        "ready_for_integration": 7,
+        "ready_for_integration": 6,
         "integrating": 0,
-        "migrated": 17,
+        "migrated": 18,
         "blocked": 5,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 13,
-    "updatedAt": "2026-11-11T12:59:05.169Z",
+    "lastCoordinatorGeneration": 14,
+    "updatedAt": "2026-11-11T13:58:07.561Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15825,10 +15861,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g11",
-      "runId": "run-20261110-g12",
-      "at": "2026-11-11T12:49:09.679Z",
-      "reason": "Lease expired after benefits migration record; WIP reviewed",
+      "previousRunId": "run-20261110-g12",
+      "runId": "run-20261110-g13",
+      "at": "2026-11-11T13:57:43.616Z",
+      "reason": "Lease expired after platform executive mount; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
