@@ -16,9 +16,9 @@ use erpx_server_learning::public::eligibility_facts::{
     learning_eligibility_facts, lock_learning_benefit_sources,
 };
 use erpx_server_learning::public::learning::{
-    AssignmentChange, AssignmentRequest, CertificateRevocation, LearningActor, PgLearning,
-    change_assignment, create_assignment, learning_detail, learning_workspace,
-    revoke_certificate,
+    AssignmentChange, AssignmentRequest, CertificateRevocation, CourseChange, CourseRequest,
+    LearningActor, PgLearning, change_assignment, change_course, create_assignment, create_course,
+    learning_detail, learning_workspace, revoke_certificate,
 };
 use erpx_server_learning::public::learning_http::{
     LearningHttpBackend, LearningHttpCommand, LearningHttpFuture, LearningHttpRequest,
@@ -142,6 +142,15 @@ fn context(current: &AuthorizedWorkContext) -> Value {
 
 #[derive(Clone)]
 pub enum AssignmentCommand {
+    CreateCourse {
+        input: CourseRequest,
+        idempotency_key: String,
+    },
+    ChangeCourse {
+        course_id: String,
+        input: CourseChange,
+        idempotency_key: String,
+    },
     Create {
         input: AssignmentRequest,
         idempotency_key: String,
@@ -397,17 +406,43 @@ impl<C: Clock + Send + Sync + 'static> LearningService<C> {
                         let now = clock.now();
                         let selected = current.selection();
                         let workspace = selected.workspace();
-                        let mut evidence =
-                            erpx_server_files::public::learning_evidence::PgLearningEvidence::new(
-                                workspace.company_id.clone(),
-                                current.user_id().as_str().to_owned(),
-                                workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
-                                workspace.department_id.as_ref().map(|id| id.as_str().to_owned()),
-                                now,
-                            );
-                        let mut repository =
-                            PgLearning::with_evidence(connection, &mut evidence);
+                        let evidence_scope = (
+                            workspace.company_id.clone(),
+                            current.user_id().as_str().to_owned(),
+                            workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+                            workspace.department_id.as_ref().map(|id| id.as_str().to_owned()),
+                        );
                         let data = match command {
+                            AssignmentCommand::CreateCourse {
+                                input,
+                                idempotency_key,
+                            } => {
+                                let key = erpx_server_shared::public::CommandKey::new(
+                                    idempotency_key,
+                                )?;
+                                let mut repository = PgLearning::new(connection);
+                                create_course(&mut repository, &actor, &key, &input, now.get())
+                                    .await?
+                            }
+                            AssignmentCommand::ChangeCourse {
+                                course_id,
+                                input,
+                                idempotency_key,
+                            } => {
+                                let key = erpx_server_shared::public::CommandKey::new(
+                                    idempotency_key,
+                                )?;
+                                let mut repository = PgLearning::new(connection);
+                                change_course(
+                                    &mut repository,
+                                    &actor,
+                                    &key,
+                                    &course_id,
+                                    &input,
+                                    now.get(),
+                                )
+                                .await?
+                            }
                             AssignmentCommand::Create {
                                 input,
                                 idempotency_key,
@@ -415,6 +450,13 @@ impl<C: Clock + Send + Sync + 'static> LearningService<C> {
                                 let key = erpx_server_shared::public::CommandKey::new(
                                     idempotency_key,
                                 )?;
+                                let (company_id, actor_id, branch_id, department_id) =
+                                    evidence_scope.clone();
+                                let mut evidence = erpx_server_files::public::learning_evidence::PgLearningEvidence::new(
+                                    company_id, actor_id, branch_id, department_id, now,
+                                );
+                                let mut repository =
+                                    PgLearning::with_evidence(connection, &mut evidence);
                                 create_assignment(&mut repository, &actor, &key, &input, now.get())
                                     .await?
                             }
@@ -426,6 +468,13 @@ impl<C: Clock + Send + Sync + 'static> LearningService<C> {
                                 let key = erpx_server_shared::public::CommandKey::new(
                                     idempotency_key,
                                 )?;
+                                let (company_id, actor_id, branch_id, department_id) =
+                                    evidence_scope.clone();
+                                let mut evidence = erpx_server_files::public::learning_evidence::PgLearningEvidence::new(
+                                    company_id, actor_id, branch_id, department_id, now,
+                                );
+                                let mut repository =
+                                    PgLearning::with_evidence(connection, &mut evidence);
                                 change_assignment(
                                     &mut repository,
                                     &actor,
@@ -444,6 +493,13 @@ impl<C: Clock + Send + Sync + 'static> LearningService<C> {
                                 let key = erpx_server_shared::public::CommandKey::new(
                                     idempotency_key,
                                 )?;
+                                let (company_id, actor_id, branch_id, department_id) =
+                                    evidence_scope.clone();
+                                let mut evidence = erpx_server_files::public::learning_evidence::PgLearningEvidence::new(
+                                    company_id, actor_id, branch_id, department_id, now,
+                                );
+                                let mut repository =
+                                    PgLearning::with_evidence(connection, &mut evidence);
                                 revoke_certificate(
                                     &mut repository,
                                     &actor,
@@ -622,6 +678,40 @@ impl<C: Clock + Send + Sync + 'static> LearningHttpBackend for LearningBackend<C
                         .await
                         .map_err(business)
                 }
+                LearningHttpCommand::CreateCourse {
+                    input,
+                    idempotency_key,
+                } => self
+                    .service
+                    .assignment_command(
+                        request.host,
+                        proof,
+                        move || Ok(selection),
+                        AssignmentCommand::CreateCourse {
+                            input,
+                            idempotency_key,
+                        },
+                    )
+                    .await
+                    .map_err(business),
+                LearningHttpCommand::ChangeCourse {
+                    course_id,
+                    input,
+                    idempotency_key,
+                } => self
+                    .service
+                    .assignment_command(
+                        request.host,
+                        proof,
+                        move || Ok(selection),
+                        AssignmentCommand::ChangeCourse {
+                            course_id,
+                            input,
+                            idempotency_key,
+                        },
+                    )
+                    .await
+                    .map_err(business),
                 LearningHttpCommand::CreateAssignment {
                     input,
                     idempotency_key,
