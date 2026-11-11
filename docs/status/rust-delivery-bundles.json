@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 527,
+    "revision": 530,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g21",
+      "runId": "run-20261110-g22",
       "agentId": "lead",
-      "startedAt": "2026-11-11T22:17:01.090Z",
-      "heartbeatAt": "2026-11-11T22:17:01.090Z",
-      "expiresAt": "2026-11-11T22:47:01.091Z",
-      "generation": 22,
-      "tokenHash": "58a00ff435f42fb8e18e5af4b6a8b8cf341d4cbd8444c01d904ba4c927d29791"
+      "startedAt": "2026-11-11T22:57:11.626Z",
+      "heartbeatAt": "2026-11-11T22:57:11.626Z",
+      "expiresAt": "2026-11-11T23:27:11.627Z",
+      "generation": 23,
+      "tokenHash": "a18dcb0c97c946008d1983bf04df63dd5bec392c688a6fe6b71fd52b2075dae8"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -14135,28 +14135,21 @@
           "owner:work_projection"
         ],
         "status": "blocked",
-        "claim": {
-          "runId": "run-20261110-g21",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T22:17:01.120Z",
-          "heartbeatAt": "2026-11-11T22:17:01.120Z",
-          "expiresAt": "2026-11-11T22:47:01.120Z",
-          "generation": 22
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after runtime supervisor commit; WIP reviewed",
         "nextAction": "BLOCKED on presentation/flow facts: native snapshot + home-unread + navigation/report reads are implemented and the snapshot/home-unread routes are mounted (1a9480f26, 4be98c9de), but navigation/summary/CSV need title/detail/status/dueAt/blocker/flow and report owner facts that still live in every source owner TS (Finance expansion, Legal, Organization, POS, CRM, Support, Maintenance, Projects, Field, Collaboration, Operations). Porting all source-owner work projections is required before switching navigation/summary/CSV.",
         "handoff": {
-          "runId": "run-20261110-g20",
+          "runId": "run-20261110-g21",
           "agentId": "lead",
-          "at": "2026-11-11T22:17:01.089Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after home-unread commit; WIP reviewed",
-          "nextAction": "Native reads + route mounted: snapshot (availability-only), navigation, report projection; GET /work/native-snapshot mounted (1a9480f26) with boundary admission; consumer workSnapshotAvailability switches when ERPX_NATIVE_WORK_PROJECTION_CONFIG is set. Checks: work lib 49/49, navigation PG 1/1, report PG 2/2, snapshot maintenance 1/1, work-attention 30/30, private-api 12/12, typecheck, catalogue 1128. Remaining: presentation/flow facts (title/detail/status/blocker, routing flow) and native Home-unread owner read + owner report fact ports before navigation/summary/CSV can switch."
+          "at": "2026-11-11T22:57:11.625Z",
+          "previousStatus": "blocked",
+          "reason": "Recovery: Lease expired after runtime supervisor commit; WIP reviewed",
+          "nextAction": "BLOCKED on presentation/flow facts: native snapshot + home-unread + navigation/report reads are implemented and the snapshot/home-unread routes are mounted (1a9480f26, 4be98c9de), but navigation/summary/CSV need title/detail/status/dueAt/blocker/flow and report owner facts that still live in every source owner TS (Finance expansion, Legal, Organization, POS, CRM, Support, Maintenance, Projects, Field, Collaboration, Operations). Porting all source-owner work projections is required before switching navigation/summary/CSV."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-work-projection",
@@ -14222,15 +14215,22 @@
         "resources": [
           "owner:runtime"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "ready_for_integration",
+        "claim": {
+          "runId": "run-20261110-g22",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T22:57:11.654Z",
+          "heartbeatAt": "2026-11-11T22:57:11.654Z",
+          "expiresAt": "2026-11-11T23:27:11.654Z",
+          "generation": 23
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the native general outbox supervisor and worker entrypoint from inventory.runtime, run cargo check -p erpx-server-runtime and the registered worker-attestation/outbox cargo suites, and request the lead composition mount.",
+        "nextAction": "Native OutboxSupervisor complete (59ba285c7): claim/renew/complete/fail, retry backoff min(60s,2^attempt), dead-letter at attempt 6, lease-lost handling, attestation rows, one heavy slot, per-Holding isolation, restart logs. Checks: supervisor unit 7/7 + PG 8/8, runtime TS 114/28, worker/outbox/workflow suites, erpx-service, catalogue 1132. Remaining to mount: composition needs a native general OutboxJobHandler (server-workflow job-projector is still TS) before the outbox-supervisor entrypoint can acknowledge generic events; then register the CLI/production supervisor.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-runtime",
@@ -15955,9 +15955,9 @@
       "totalPackets": 53,
       "migratedPackets": 20,
       "statusCounts": {
-        "pending": 22,
+        "pending": 21,
         "in_progress": 0,
-        "ready_for_integration": 7,
+        "ready_for_integration": 8,
         "integrating": 0,
         "migrated": 20,
         "blocked": 4,
@@ -15965,8 +15965,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 22,
-    "updatedAt": "2026-11-11T22:17:01.143Z",
+    "lastCoordinatorGeneration": 23,
+    "updatedAt": "2026-11-11T22:57:11.679Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16009,10 +16009,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g20",
-      "runId": "run-20261110-g21",
-      "at": "2026-11-11T22:17:01.091Z",
-      "reason": "Lease expired after home-unread commit; WIP reviewed",
+      "previousRunId": "run-20261110-g21",
+      "runId": "run-20261110-g22",
+      "at": "2026-11-11T22:57:11.627Z",
+      "reason": "Lease expired after runtime supervisor commit; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
