@@ -2,6 +2,7 @@ import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { hasPermission } from '@erpx/feature-identity_access/lib/permissions';
 import {
+  nativeOrganizationAccessPage,
   nativeOrganizationFailure,
   nativeOrganizationWorkspace,
 } from '@erpx/feature-organization/lib/native-organization';
@@ -192,22 +193,17 @@ export async function nativeAdminOrganization(
  * The retained projection is still read first so People/current-private
  * redaction remain authoritative; replacing it is all-or-nothing. */
 export async function readAdminOrganization(
-  retained: OrganizationAccessData | Promise<OrganizationAccessData>,
+  retained:
+    | OrganizationAccessData
+    | Promise<OrganizationAccessData>
+    | (() => Promise<OrganizationAccessData>),
   actor: WorkContext,
   holdingSlug: string,
   query: Record<string, string | undefined>,
   incoming: Pick<Headers, 'get'>,
 ): Promise<OrganizationAccessData> {
-  const [retainedProjection, native] = await Promise.all([
-    retained,
-    nativeAdminOrganization(actor, holdingSlug, query, incoming),
-  ]);
-  return native
-    ? composeAdminOrganizationAccess(retainedProjection, native, {
-        userId: actor.userId,
-        companyId: actor.companyId,
-        branchId: actor.branchId,
-        departmentId: actor.departmentId,
-      })
-    : retainedProjection;
+  void query;
+  const projection = () =>
+    typeof retained === 'function' ? retained() : Promise.resolve(retained);
+  return nativeOrganizationAccessPage(actor, holdingSlug, incoming, projection);
 }

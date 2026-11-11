@@ -30,6 +30,25 @@ vi.mock('@erpx/feature-organization/lib/native-organization', () => {
     nativeOrganizationWorkspace: native.workspace,
     nativeOrganizationFailure: native.failure,
     NativeOrganizationError,
+    nativeOrganizationAccessPage: async (
+      _actor: unknown,
+      _slug: string,
+      _incoming: unknown,
+      retained: () => Promise<Record<string, unknown>>,
+    ) => {
+      let workspace: Record<string, unknown> | undefined;
+      try {
+        workspace = (await native.workspace()) as Record<string, unknown> | undefined;
+      } catch (error) {
+        const failure = (
+          native.failure as (value: unknown) => { status: number; code: string; message: string } | undefined
+        )(error);
+        if (failure) throw Object.assign(new Error(failure.message), failure);
+        throw error;
+      }
+      const projection = await retained();
+      return workspace ? { ...projection, positions: workspace.positions } : projection;
+    },
   };
 });
 

@@ -27,7 +27,7 @@ export async function GET(request: Request, context: Context) {
       actor = await requireWorkContext(holdingSlug),
       { write } = await holdingResources(actor.holdingId);
     const organization = () =>
-      readAdminOrganization(organizationAccessData(write, actor), actor, holdingSlug, {}, request.headers);
+      readAdminOrganization(() => organizationAccessData(write, actor), actor, holdingSlug, {}, request.headers);
     return Response.json(
       canonicalDestinationLinks({
         data: path[0] === "organization" ? await organization()
