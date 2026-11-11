@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 400,
+    "revision": 403,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g6",
       "agentId": "lead",
       "startedAt": "2026-11-11T04:25:19.281Z",
-      "heartbeatAt": "2026-11-11T05:58:56.382Z",
-      "expiresAt": "2026-11-11T06:28:56.382Z",
+      "heartbeatAt": "2026-11-11T05:59:08.011Z",
+      "expiresAt": "2026-11-11T06:29:08.011Z",
       "generation": 7,
       "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
     },
@@ -12555,14 +12555,21 @@
           "owner:talent"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g6",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T05:59:07.943Z",
+          "heartbeatAt": "2026-11-11T05:59:08.011Z",
+          "expiresAt": "2026-11-11T06:29:08.011Z",
+          "generation": 7
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
-        "nextAction": "Talent lifecycle committed (2160e26fef85a0b803ac509e2ce83efaabd37159; 8/6/5/3/4 suites). Remaining: composition lifecycle backend/mount + feature-recruit route switch; Finance talent-offer money-snapshot producer missing (offers fail closed); People hire-intake must consume talent_hire_handoffs; keep Talent as sole candidate-privacy writer",
+        "blocker": null,
+        "nextAction": "Lifecycle router mounted (552931e06) over PgTalentCandidates/PgTalentApplications/PgTalentOffers; offers fail closed until the Finance talent-offer money-snapshot producer exists. Remaining: switch feature-recruit talent route for candidate/applications/proposals/privacy/hire-handoff only (keep offers TS); People hire intake must consume talent_hire_handoffs.",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
@@ -12915,8 +12922,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T04:25:19.306Z",
-          "heartbeatAt": "2026-11-11T05:58:56.382Z",
-          "expiresAt": "2026-11-11T06:28:56.382Z",
+          "heartbeatAt": "2026-11-11T05:59:08.011Z",
+          "expiresAt": "2026-11-11T06:29:08.011Z",
           "generation": 7
         },
         "baseSha": null,
@@ -15434,7 +15441,7 @@
       }
     },
     "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T05:58:56.383Z",
+    "updatedAt": "2026-11-11T05:59:08.011Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
