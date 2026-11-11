@@ -22,6 +22,7 @@ pub type CompanyPackageReadHttpFuture<'a, T> =
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CompanyPackageReadHttpKind {
     Overview,
+    Subscriptions,
     Admission {
         capabilities: Vec<String>,
         purpose: CapabilityPurpose,
@@ -246,9 +247,40 @@ pub fn company_package_router(
             "/api/v1/holdings/{holding_slug}/commercial/companies/{company_id}/purchase-admission",
             get(admission),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/commercial/companies/{company_id}/subscriptions",
+            get(subscriptions),
+        )
         .with_state(Arc::new(CompanyPackageHttpState {
             targets: configured,
         })))
+}
+
+async fn subscriptions(
+    State(state): State<Arc<CompanyPackageHttpState>>,
+    Path((slug, company)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let target = target(&state, &headers, &slug)?;
+        let company = CompanyId::new(&company)?;
+        target
+            .backend
+            .read(CompanyPackageReadHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                company: &company,
+                kind: CompanyPackageReadHttpKind::Subscriptions,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
 }
 
 fn status(kind: FailureKind) -> StatusCode {

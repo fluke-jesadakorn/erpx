@@ -312,6 +312,7 @@ function transportCall(
   actor: NativeCompanyPackageActor,
   holdingId: string,
   companyId: string,
+  suffix: 'packages' | 'subscriptions' = 'packages',
   signal?: AbortSignal,
 ): Promise<Response> {
   const host = incoming.get('host');
@@ -338,7 +339,7 @@ function transportCall(
   const origin = incoming.get('origin');
   if (origin) headers.set('origin', origin);
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/commercial/companies/${encodeURIComponent(companyId)}/packages`,
+    `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/commercial/companies/${encodeURIComponent(companyId)}/${suffix}`,
     config.privateBaseUrl,
   );
   const controller = new AbortController();
@@ -415,12 +416,28 @@ async function boundedJson(response: Response): Promise<unknown> {
   }
 }
 
+export type NativeCompanyPackagesClient = ((
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeCompanyPackageActor,
+  holdingId: string,
+  companyId: string,
+  signal?: AbortSignal,
+) => Promise<NativeServicePackageOverview>) & {
+  subscriptions: (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeCompanyPackageActor,
+    holdingId: string,
+    companyId: string,
+    signal?: AbortSignal,
+  ) => Promise<Record<string, unknown>>;
+};
+
 export function createNativeCompanyPackagesClient(
   raw: NativeCompanyPackagesConfiguration,
   transport: NativeCompanyPackagesTransport = directHttp,
-) {
+): NativeCompanyPackagesClient {
   const config = nativeCompanyPackagesConfiguration(JSON.stringify(raw));
-  return async (
+  const overview = async (
     incoming: Pick<Headers, 'get'>,
     actor: NativeCompanyPackageActor,
     holdingId: string,
@@ -447,6 +464,7 @@ export function createNativeCompanyPackagesClient(
         actor,
         holdingId,
         companyId,
+        'packages',
         signal,
       ).catch((error: unknown) => {
         if (error instanceof NativeCompanyPackagesError) throw error;
@@ -457,6 +475,46 @@ export function createNativeCompanyPackagesClient(
       return failure('NATIVE_COMMERCIAL_RESPONSE_INVALID');
     return packageOverview(value.data, holding, companyId, actor, value.context);
   };
+  const subscriptions = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeCompanyPackageActor,
+    holdingId: string,
+    companyId: string,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>> => {
+    const holding = config.holdings.find((entry) => entry.holdingId === holdingId);
+    if (!holding) return failure('NATIVE_COMMERCIAL_AUTHORITY_INVALID');
+    const value = await boundedJson(
+      await transportCall(
+        transport,
+        config,
+        incoming,
+        actor,
+        holdingId,
+        companyId,
+        'subscriptions',
+        signal,
+      ).catch((error: unknown) => {
+        if (error instanceof NativeCompanyPackagesError) throw error;
+        return failure('NATIVE_COMMERCIAL_UNAVAILABLE');
+      }),
+    );
+    if (!exact(value, ['data', 'context']) || !record(value.data))
+      return failure('NATIVE_COMMERCIAL_RESPONSE_INVALID');
+    if (
+      value.data.companyId !== companyId ||
+      typeof value.data.revision !== 'string' ||
+      !integer(value.data.observedAt) ||
+      !Array.isArray(value.data.subscriptions) ||
+      !Array.isArray(value.data.history) ||
+      !Array.isArray(value.data.transitions)
+    )
+      return failure('NATIVE_COMMERCIAL_RESPONSE_INVALID');
+    if (!contextValue(value.context, holding, companyId, actor))
+      return failure('NATIVE_COMMERCIAL_CONTEXT_CHANGED');
+    return value.data;
+  };
+  return Object.assign(overview, { subscriptions });
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */

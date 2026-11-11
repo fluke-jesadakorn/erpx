@@ -144,6 +144,29 @@ describe('native Commercial package transport', () => {
     ).toThrow(NativeCompanyPackagesError);
   });
 
+  it('reads the native subscription and grace projection for the package page', async () => {
+    const subscriptions = {
+      companyId: 'company',
+      revision: 'b'.repeat(64),
+      observedAt: 1000,
+      subscriptions: [],
+      history: [],
+      transitions: [],
+    };
+    const transport = vi.fn().mockResolvedValue(ok({ data: subscriptions, context }));
+    const client = createNativeCompanyPackagesClient(
+      nativeCompanyPackagesConfiguration(config()),
+      transport,
+    );
+    await expect(client.subscriptions(incoming(), actor, 'h001', 'company')).resolves.toEqual(
+      subscriptions,
+    );
+    const [, url] = transport.mock.calls[0];
+    expect(url.toString()).toBe(
+      'http://127.0.0.1:44991/api/v1/holdings/acme/commercial/companies/company/subscriptions',
+    );
+  });
+
   it('forwards the current session, Provider assignment and exact Holding target', async () => {
     const transport = vi.fn().mockResolvedValue(ok({ data: overview, context }));
     const client = createNativeCompanyPackagesClient(

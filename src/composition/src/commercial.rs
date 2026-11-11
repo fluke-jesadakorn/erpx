@@ -231,6 +231,16 @@ impl<C: Clock + Send + Sync + 'static> CommercialService<C> {
                                 serde_json::to_value(overview)
                                     .map_err(|_| PgTransactionError::Business(unavailable()))?
                             }
+                            CompanyPackageReadHttpKind::Subscriptions => {
+                                let mut subscriptions =
+                                    erpx_server_commercial::public::subscriptions::PgCompanySubscriptionReader::new(
+                                        company.clone(),
+                                        connection,
+                                    );
+                                let read = subscriptions.inspect(now).await?;
+                                serde_json::to_value(read)
+                                    .map_err(|_| PgTransactionError::Business(unavailable()))?
+                            }
                             CompanyPackageReadHttpKind::Admission {
                                 capabilities,
                                 purpose,

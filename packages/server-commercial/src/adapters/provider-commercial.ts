@@ -41,7 +41,13 @@ export async function providerCompanyPackageOverview(holdingId:string,companyId:
   const [{requestHeaders},platform]=await Promise.all([currentSession(),requirePlatformContext()]);
   if(!platform.iam?.roleRevision)throw new ApiError(403,'PLATFORM_COMMERCIAL_REQUIRED','Current Platform Commercial authority is required.');
   const client=createNativeCompanyPackagesClient(nativeCompanyPackagesConfiguration(raw));
-  return client(incoming??requestHeaders,{userId:platform.userId,platformAssignmentId:platform.assignmentId,platformRole:platform.role,roleRevision:platform.iam.roleRevision,modules:platform.modules,permissions:platform.iam.permissions??[]},holdingId,companyId);
+  const actor={userId:platform.userId,platformAssignmentId:platform.assignmentId,platformRole:platform.role,roleRevision:platform.iam.roleRevision,modules:platform.modules,permissions:platform.iam.permissions??[]};
+  const incomingHeaders=incoming??requestHeaders;
+  const [overview,subscriptions]=await Promise.all([
+    client(incomingHeaders,actor,holdingId,companyId),
+    client.subscriptions(incomingHeaders,actor,holdingId,companyId),
+  ]);
+  return {...overview,subscription:subscriptions};
 }
 
 /** Selector presence only; an unset configuration never falls back to the retained TypeScript reader. */
