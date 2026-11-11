@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 480,
+    "revision": 482,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g13",
       "agentId": "lead",
       "startedAt": "2026-11-11T13:57:43.615Z",
-      "heartbeatAt": "2026-11-11T13:57:43.615Z",
-      "expiresAt": "2026-11-11T14:27:43.616Z",
+      "heartbeatAt": "2026-11-11T14:03:17.661Z",
+      "expiresAt": "2026-11-11T14:33:17.661Z",
       "generation": 14,
       "tokenHash": "6ef47ea31272bd8ed4acb46bb1651c869efaaa46dd702e9e055a42aa88a5fd55"
     },
@@ -11337,13 +11337,13 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": {
           "runId": "run-20261110-g13",
           "agentId": "lead",
           "claimedAt": "2026-11-11T13:58:07.535Z",
-          "heartbeatAt": "2026-11-11T13:58:07.535Z",
-          "expiresAt": "2026-11-11T14:28:07.535Z",
+          "heartbeatAt": "2026-11-11T14:03:17.661Z",
+          "expiresAt": "2026-11-11T14:33:17.661Z",
           "generation": 14
         },
         "baseSha": null,
@@ -11352,7 +11352,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Read ports committed (4f53295b8): People active-staff/person-name, Identity same-person, Projects project, Collaboration readable-post (4 suites, 11 cases). Remaining before mount: Workflow approval task-route/view/open/prepare-decision/close (Rust workflow has decision only when an instance exists, no approval opening) and Files task-attachment rows; then composition StaffWorkHttpBackend + staff_work_router mount + workplace route switch.",
+        "nextAction": "BLOCKED on the Workflow approval-planning engine: Staff Work review commands need taskRoute/openApproval/approvalView/prepareDecision/closeApprovals, and the Rust workflow crate only decides an existing approval instance. TS approval-planning composes Organization, Identity, People-payroll, Files and Operations effect ports; it must be ported before a non-regressing mount. Ready: People/Identity/Projects/Collaboration read ports (4f53295b8) and Files task-attachment read (4333f98b2).",
         "handoff": {
           "runId": "run-20261110-g12",
           "agentId": "lead",
@@ -15809,16 +15809,16 @@
       "statusCounts": {
         "pending": 24,
         "in_progress": 0,
-        "ready_for_integration": 6,
+        "ready_for_integration": 5,
         "integrating": 0,
         "migrated": 18,
-        "blocked": 5,
+        "blocked": 6,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 14,
-    "updatedAt": "2026-11-11T13:58:07.561Z",
+    "updatedAt": "2026-11-11T14:03:17.708Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
