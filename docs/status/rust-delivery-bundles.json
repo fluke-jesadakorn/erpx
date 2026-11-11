@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 354,
+    "revision": 358,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g4",
       "agentId": "lead",
       "startedAt": "2026-11-11T01:25:04.841Z",
-      "heartbeatAt": "2026-11-11T01:27:14.454Z",
-      "expiresAt": "2026-11-11T01:57:14.454Z",
+      "heartbeatAt": "2026-11-11T01:41:53.390Z",
+      "expiresAt": "2026-11-11T02:11:53.390Z",
       "generation": 5,
       "tokenHash": "ffee6e06f57d2514b38b7159648b13abb19e1502dcd6c382264f6207fa03cbf9"
     },
@@ -11587,22 +11587,65 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g4",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T01:25:04.866Z",
-          "heartbeatAt": "2026-11-11T01:27:14.454Z",
-          "expiresAt": "2026-11-11T01:57:14.454Z",
-          "generation": 5
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c187c21ef8c0bcfe2cadc87541f3eac68ee76829",
+        "lastPushedSha": "c187c21ef8c0bcfe2cadc87541f3eac68ee76829",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-people-payroll --locked",
+            "result": "passed",
+            "sourceSha": "c187c21ef8c0bcfe2cadc87541f3eac68ee76829",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles with the shared-connection journal seam."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "c187c21ef8c0bcfe2cadc87541f3eac68ee76829",
+            "sourceKind": "committed",
+            "note": "Composition mounts the payroll command router with the Finance journal bridge."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --lib --test payroll_run_command --test payroll_run_http --locked",
+            "result": "passed",
+            "sourceSha": "c187c21ef8c0bcfe2cadc87541f3eac68ee76829",
+            "sourceKind": "committed",
+            "note": "15 lib + 5 command + 1 HTTP cases pass."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --test payroll_run_postgres --locked",
+            "result": "passed",
+            "sourceSha": "c187c21ef8c0bcfe2cadc87541f3eac68ee76829",
+            "sourceKind": "committed",
+            "note": "Postgres command/post case passes through prepare_journal with the caller connection."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "c187c21ef8c0bcfe2cadc87541f3eac68ee76829",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects pass with the native payroll command client and post dispatch."
+          },
+          {
+            "command": "bun run test:unit -- --suite=people_payroll.native-payroll-summary-transport.unit",
+            "result": "passed",
+            "sourceSha": "c187c21ef8c0bcfe2cadc87541f3eac68ee76829",
+            "sourceKind": "committed",
+            "note": "8/8 native payroll transport cases pass."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "c187c21ef8c0bcfe2cadc87541f3eac68ee76829",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID with 1076 suites."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Payroll run create/calculate/cancel/detail native and mounted; workplace create/calculate/cancel switched (c683bd036). Remaining: post stays TS because PayrollJournalPort cannot share the caller connection with PgPayrollCommand; detail read switch; employees/leave/expenses; Benefits payroll-input port.",
+        "nextAction": "Payroll run commands + summary migrated; employees/leave/expenses + detail read tracked in migrate.people_payroll.employees_leave_expenses",
         "handoff": {
           "runId": "run-20261110-g3",
           "agentId": "worker-a",
@@ -15199,6 +15242,56 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.people_payroll.employees_leave_expenses",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "people_payroll",
+        "workflowIds": [
+          "people_payroll/employees",
+          "people_payroll/payroll-summaries",
+          "people_payroll/feature-leave-requests",
+          "people_payroll/feature-expenses",
+          "people_payroll/feature-payroll-runs"
+        ],
+        "workstream": "S09",
+        "kind": "migration",
+        "title": "Port People employees, leave and expense commands plus payroll detail read",
+        "scope": "Port the remaining People Payroll surfaces: employees/engagements, leave requests/approvals, expense claims/reimbursement, and the payroll run detail read; then retire those TS application writers and switch the workplace people routes.",
+        "dependsOn": [
+          "inventory.people_payroll",
+          "ports.people"
+        ],
+        "requiredPorts": [
+          "finance"
+        ],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "packages/server-people_payroll/Cargo.toml",
+          "packages/feature-people_payroll/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the owner-native employee/leave/expense commands and the detail read, run people_payroll cargo + registered suites, report the composition/route switch requests.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-people-payroll",
+        "plannedPackage": "erpx-server-people-payroll",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -15207,21 +15300,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 51,
-      "migratedPackets": 11,
+      "totalPackets": 52,
+      "migratedPackets": 12,
       "statusCounts": {
-        "pending": 25,
+        "pending": 26,
         "in_progress": 0,
-        "ready_for_integration": 11,
+        "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 11,
+        "migrated": 12,
         "blocked": 4,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 5,
-    "updatedAt": "2026-11-11T01:27:14.455Z",
+    "updatedAt": "2026-11-11T01:41:53.390Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
