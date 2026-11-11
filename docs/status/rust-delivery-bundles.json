@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 513,
+    "revision": 516,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g17",
+      "runId": "run-20261110-g18",
       "agentId": "lead",
-      "startedAt": "2026-11-11T18:36:30.718Z",
-      "heartbeatAt": "2026-11-11T18:36:30.718Z",
-      "expiresAt": "2026-11-11T19:06:30.719Z",
-      "generation": 18,
-      "tokenHash": "200c85ccb15f61a66253fd18ae4621a9999d6a089195134bc1b4644838c3715e"
+      "startedAt": "2026-11-11T19:52:13.370Z",
+      "heartbeatAt": "2026-11-11T19:52:13.370Z",
+      "expiresAt": "2026-11-11T20:22:13.371Z",
+      "generation": 19,
+      "tokenHash": "9de9b77ec64d018eedef8553248dca2b97c7c8ef185167ab10122f80d804037d"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9838,15 +9838,22 @@
         "resources": [
           "owner:commercial"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "ready_for_integration",
+        "claim": {
+          "runId": "run-20261110-g18",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T19:52:13.399Z",
+          "heartbeatAt": "2026-11-11T19:52:13.399Z",
+          "expiresAt": "2026-11-11T20:22:13.399Z",
+          "generation": 19
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried commercial packet (migrate.commercial.package_grant_http), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
+        "nextAction": "Package-grant HTTP native and partially switched (58eda9738): owner router can preview/apply single+batch with MFA/authority/token/replay; platform route uses native for POST packages/preview|apply when configured, all other commercial paths stay TS. checks: package_grants_http 2/2, company_packages 7/7, PG 1/1, commercial units 154/154, erpx-service, typecheck, catalogue 1122. Retained: settlement-obligation changes fail closed until the obligation port lands; legacy-grants/* and GET paths stay TS. Remaining packets: entitlement_port, subscription_grace.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commercial",
@@ -9933,28 +9940,21 @@
           "owner:identity_access"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g17",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T18:36:30.743Z",
-          "heartbeatAt": "2026-11-11T18:36:30.743Z",
-          "expiresAt": "2026-11-11T19:06:30.743Z",
-          "generation": 18
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after commercial package-grant commit; WIP reviewed",
         "nextAction": "Holding IAM roles/reviews/access-reviews native and switched; native Directory sign-in router mounted opt-in (cd8eb75c7) with directoryProfiles + directoryProvenanceKeys, boundary admission and absence fail-closed; 5/5 new HTTP cases + account/auth/directory suites pass. Remaining: platform/iam route still TS (platform namespace has no HTTP ingress), directory source-admin mount, principals/conflicts/emergency packet.",
         "handoff": {
-          "runId": "run-20261110-g2",
+          "runId": "run-20261110-g17",
           "agentId": "lead",
-          "at": "2026-11-11T00:26:58.538Z",
+          "at": "2026-11-11T19:52:13.369Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Coordinator lease expired during a long slice review; WIP and processes reconciled, same lead resumed",
-          "nextAction": "Holding IAM roles/reviews/access-reviews route dispatches native (f449e4640; 9/4 suites, typecheck). Remaining: platform/iam route still TS (platform namespace has no HTTP ingress), directory auth/source-admin mount, and principals/conflicts/emergency packet"
+          "reason": "Recovery: Lease expired after commercial package-grant commit; WIP reviewed",
+          "nextAction": "Holding IAM roles/reviews/access-reviews native and switched; native Directory sign-in router mounted opt-in (cd8eb75c7) with directoryProfiles + directoryProvenanceKeys, boundary admission and absence fail-closed; 5/5 new HTTP cases + account/auth/directory suites pass. Remaining: platform/iam route still TS (platform namespace has no HTTP ingress), directory source-admin mount, principals/conflicts/emergency packet."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-identity-access",
@@ -10036,28 +10036,21 @@
           "owner:organization"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g17",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T18:40:09.726Z",
-          "heartbeatAt": "2026-11-11T18:40:09.726Z",
-          "expiresAt": "2026-11-11T19:10:09.726Z",
-          "generation": 18
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after commercial package-grant commit; WIP reviewed",
         "nextAction": "Access projection and position-move consumers prefer native: People catch-all position-move read/commands, Admin technology JSON API (lazy retained fallback, 02e99cf87), technology/organization screens; production position-move drain supervised (9532fd57e). Remaining: people_payroll workspace/move adapters, organization drafts/presentation queries, TS lifecycle drain retirement, then remove the TS access adapters.",
         "handoff": {
-          "runId": "run-20261110-g16",
+          "runId": "run-20261110-g17",
           "agentId": "lead",
-          "at": "2026-11-11T18:36:30.717Z",
+          "at": "2026-11-11T19:52:13.369Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after directory sign-in mount; WIP reviewed",
-          "nextAction": "Access projection and position-move consumers now prefer native (bc5138db3): People catch-all position-move list/preview/submit/cancel, Admin technology screen and technology organization view; ERPX_NATIVE_ORGANIZATION_CONFIG unset keeps TS. Production position-move drain supervisor added (9532fd57e). Remaining: switch feature-admin technology JSON API, people_payroll workspace/move adapters, organization drafts/presentation queries; retire the TS lifecycle drain once the native worker is the only drain; then remove TS access adapters."
+          "reason": "Recovery: Lease expired after commercial package-grant commit; WIP reviewed",
+          "nextAction": "Access projection and position-move consumers prefer native: People catch-all position-move read/commands, Admin technology JSON API (lazy retained fallback, 02e99cf87), technology/organization screens; production position-move drain supervised (9532fd57e). Remaining: people_payroll workspace/move adapters, organization drafts/presentation queries, TS lifecycle drain retirement, then remove the TS access adapters."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-organization",
@@ -15948,9 +15941,9 @@
       "totalPackets": 53,
       "migratedPackets": 20,
       "statusCounts": {
-        "pending": 24,
+        "pending": 23,
         "in_progress": 0,
-        "ready_for_integration": 6,
+        "ready_for_integration": 7,
         "integrating": 0,
         "migrated": 20,
         "blocked": 3,
@@ -15958,8 +15951,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 18,
-    "updatedAt": "2026-11-11T18:40:09.750Z",
+    "lastCoordinatorGeneration": 19,
+    "updatedAt": "2026-11-11T19:52:13.423Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16002,10 +15995,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g16",
-      "runId": "run-20261110-g17",
-      "at": "2026-11-11T18:36:30.719Z",
-      "reason": "Lease expired after directory sign-in mount; WIP reviewed",
+      "previousRunId": "run-20261110-g17",
+      "runId": "run-20261110-g18",
+      "at": "2026-11-11T19:52:13.371Z",
+      "reason": "Lease expired after commercial package-grant commit; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
