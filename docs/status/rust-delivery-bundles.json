@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 483,
+    "revision": 485,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g13",
       "agentId": "lead",
       "startedAt": "2026-11-11T13:57:43.615Z",
-      "heartbeatAt": "2026-11-11T14:04:09.636Z",
-      "expiresAt": "2026-11-11T14:34:09.636Z",
+      "heartbeatAt": "2026-11-11T14:11:30.342Z",
+      "expiresAt": "2026-11-11T14:41:30.342Z",
       "generation": 14,
       "tokenHash": "6ef47ea31272bd8ed4acb46bb1651c869efaaa46dd702e9e055a42aa88a5fd55"
     },
@@ -11342,8 +11342,8 @@
           "runId": "run-20261110-g13",
           "agentId": "lead",
           "claimedAt": "2026-11-11T13:58:07.535Z",
-          "heartbeatAt": "2026-11-11T14:04:09.636Z",
-          "expiresAt": "2026-11-11T14:34:09.636Z",
+          "heartbeatAt": "2026-11-11T14:11:30.342Z",
+          "expiresAt": "2026-11-11T14:41:30.342Z",
           "generation": 14
         },
         "baseSha": null,
@@ -11352,7 +11352,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "BLOCKED on the Workflow approval-planning engine: Staff Work review commands need taskRoute/openApproval/approvalView/prepareDecision/closeApprovals, and the Rust workflow crate only decides an existing approval instance. TS approval-planning composes Organization, Identity, People-payroll, Files and Operations effect ports; it must be ported before a non-regressing mount. Ready: People/Identity/Projects/Collaboration read ports (4f53295b8) and Files task-attachment read (4333f98b2).",
+        "nextAction": "BLOCKED on Workflow approval planning. Ported prerequisites: People/Identity/Projects/Collaboration read ports (4f53295b8), Files staff-task attachments (4333f98b2), and the composed staff_work_router mount (lead, no consumer switch). Remaining: taskRoute/openApproval/approvalView/prepareDecision/closeApprovals. taskRoute also needs Organization department routing (departmentRoute -> seats/policy/reporting chain), which has no Rust port and Organization already depends on Workflow, so the department-route port must come from Organization. Then switch workplace staff-tasks.",
         "handoff": {
           "runId": "run-20261110-g12",
           "agentId": "lead",
@@ -15818,7 +15818,7 @@
       }
     },
     "lastCoordinatorGeneration": 14,
-    "updatedAt": "2026-11-11T14:04:09.637Z",
+    "updatedAt": "2026-11-11T14:11:30.389Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
