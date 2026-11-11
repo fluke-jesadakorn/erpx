@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 388,
+    "revision": 390,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g6",
       "agentId": "lead",
       "startedAt": "2026-11-11T04:25:19.281Z",
-      "heartbeatAt": "2026-11-11T05:34:17.746Z",
-      "expiresAt": "2026-11-11T06:04:17.746Z",
+      "heartbeatAt": "2026-11-11T05:36:46.766Z",
+      "expiresAt": "2026-11-11T06:06:46.766Z",
       "generation": 7,
       "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
     },
@@ -12915,8 +12915,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T04:25:19.306Z",
-          "heartbeatAt": "2026-11-11T05:34:17.746Z",
-          "expiresAt": "2026-11-11T06:04:17.746Z",
+          "heartbeatAt": "2026-11-11T05:36:46.766Z",
+          "expiresAt": "2026-11-11T06:06:46.766Z",
           "generation": 7
         },
         "baseSha": null,
@@ -12925,7 +12925,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Relation/card POST is native and switched (c921ca39a): unit prepare/require_current now carry the transaction, composition resolves all 7 owner sources with witness revalidation and owner table locks; CSV export, inbox summary/notifications (owner source scopes), messaging history/team-channel reads, feed subpaths, mention drain/AI reply and attachments (Files WIP) remain TS.",
+        "nextAction": "Collaboration commands+workspace+inbox people/notices+social feed+messaging create/send/read are native (c921ca39a/82eeb270e). PARITY BLOCKERS before final switch: messaging members read returns user ids while TS returns account-name objects (reverted to retained reader in 82eeb270e); messaging history needs Files decoration (message.files) and TS shape; team-channel read shape unverified; inbox summary/notifications need the full owner source-scope set (finance/commerce/People/payroll/count/procurement). Next: add account-name projection to the owner messaging member read and Files decoration, wire inbox owner scopes, then switch those routes and mark collaboration migrated.",
         "handoff": {
           "runId": "run-20261110-g5",
           "agentId": "lead",
@@ -15378,7 +15378,7 @@
       }
     },
     "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T05:34:17.746Z",
+    "updatedAt": "2026-11-11T05:36:46.767Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
