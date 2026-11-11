@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 494,
+    "revision": 497,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g15",
       "agentId": "lead",
       "startedAt": "2026-11-11T15:50:07.480Z",
-      "heartbeatAt": "2026-11-11T15:50:07.480Z",
-      "expiresAt": "2026-11-11T16:20:07.481Z",
+      "heartbeatAt": "2026-11-11T16:00:32.332Z",
+      "expiresAt": "2026-11-11T16:30:32.332Z",
       "generation": 16,
       "tokenHash": "5f600a2b739485f539e81acad0416403c04893dcf231bef4f618bf9c258c7509"
     },
@@ -11502,14 +11502,21 @@
           "owner:procurement"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g15",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T16:00:32.358Z",
+          "heartbeatAt": "2026-11-11T16:00:32.358Z",
+          "expiresAt": "2026-11-11T16:30:32.358Z",
+          "generation": 16
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired before reservation release; WIP reviewed",
-        "nextAction": "Full supplier-promise detail shape committed. Remaining: mount the history/detail router with purchase facts supplied by composition, switch the Supply route for GET+POST once attachments parity (Files WIP) and the notification consumer exist.",
+        "blocker": null,
+        "nextAction": "Supply GET is native and switched (18489ac36): composition returns the full SupplierPromiseDetail with the supply.purchasing purchase overlay; the order page and the supplier-promises route prefer the native detail; history client accepts the detail shape. Checks: detail unit 8/8, history HTTP 3/3, detail HTTP 3/3, detail PG 5/5, history PG 4/4, native transport 8/8, typecheck, catalogue. Remaining: POST command router mount + notification consumer, and attachment parity.",
         "handoff": {
           "runId": "run-20261110-g8",
           "agentId": "lead",
@@ -15875,7 +15882,7 @@
       }
     },
     "lastCoordinatorGeneration": 16,
-    "updatedAt": "2026-11-11T15:50:27.945Z",
+    "updatedAt": "2026-11-11T16:00:40.759Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
