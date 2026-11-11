@@ -14,6 +14,7 @@ import {
   talentWorkspace,
 } from "@erpx/server-talent/public/talent";
 import {nativeTalentRequisitionCommand,nativeTalentWorkspace} from "@erpx/feature-talent/public/native-talent-page";
+import {nativeTalentLifecycleAvailable,nativeTalentLifecycleCommand} from "@erpx/server-talent/public/native-talent-lifecycle-page";
 import { candidatePrivacySchema,changeCandidatePrivacy } from "@erpx/server-people_payroll/public/people-handoffs";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -76,7 +77,13 @@ export async function POST(r: Request, c: C) {
       i = await readInput(r);
     let data;
     const native = await nativeTalentRequisitionCommand(a, i, key);
+    const lifecycle = native
+      ? undefined
+      : nativeTalentLifecycleAvailable()
+        ? await nativeTalentLifecycleCommand(r, (await c.params).holdingSlug, i, key)
+        : undefined;
     if (native) data = native;
+    else if (lifecycle !== undefined) data = lifecycle;
     else if (i.entity === "candidate-privacy") {
       const privacy = candidatePrivacyRequestSchema.parse(i);
       data = await changeCandidatePrivacy(

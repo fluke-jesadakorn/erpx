@@ -41,7 +41,8 @@
     "./application/talent": "./src/application/talent.ts",
     "./domain/product-entry": "./src/domain/product-entry.ts",
     "./domain/requisition": "./src/domain/requisition.ts",
-    "./domain/talent": "./src/domain/talent.ts"
+    "./domain/talent": "./src/domain/talent.ts",
+    "./public/native-talent-lifecycle-page": "./src/public/native-talent-lifecycle-page.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
