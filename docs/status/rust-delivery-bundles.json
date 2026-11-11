@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 471,
+    "revision": 474,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g12",
       "agentId": "lead",
       "startedAt": "2026-11-11T12:49:09.678Z",
-      "heartbeatAt": "2026-11-11T12:50:40.002Z",
-      "expiresAt": "2026-11-11T13:20:40.002Z",
+      "heartbeatAt": "2026-11-11T12:58:57.501Z",
+      "expiresAt": "2026-11-11T13:28:57.501Z",
       "generation": 13,
       "tokenHash": "422b9344fc0f00a55877b5e88040013ff034bb8c91781c2b64bacc2f00332b40"
     },
@@ -11302,14 +11302,21 @@
           "owner:operations"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g12",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T12:59:05.141Z",
+          "heartbeatAt": "2026-11-11T12:59:05.141Z",
+          "expiresAt": "2026-11-11T13:29:05.141Z",
+          "generation": 13
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
-        "nextAction": "Connection threading committed (60d9a1b8b): StaffTaskRepository::connection lends the unit to StaffTaskSources/StaffTaskFactDelegates (unit 7/7, 5/5, 3/3; PG 4/4; HTTP 7/7). Remaining: implement composition StaffWorkHttpBackend delegates (People active staff, Projects, Identity same-person, Collaboration post, Workflow route/approvals, Files attachments, team feature), mount staff_work_router, switch workplace staff-tasks route.",
+        "blocker": null,
+        "nextAction": "Unit threading done (60d9a1b8b). Owner read ports being added: People active-staff/person-name, Identity same-person, Projects project, Collaboration readable-post. Still MISSING before mount: Workflow approval task-route/approval-view/open-approval/prepare-decision/close-approvals (Rust owner has decision only when an instance exists; no approval opening) and Files task-attachment rows. Mount staff_work_router + switch workplace route only after those ports exist.",
         "handoff": {
           "runId": "run-20261110-g10",
           "agentId": "lead",
@@ -15775,7 +15782,7 @@
       }
     },
     "lastCoordinatorGeneration": 13,
-    "updatedAt": "2026-11-11T12:50:40.002Z",
+    "updatedAt": "2026-11-11T12:59:05.169Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
