@@ -16,7 +16,9 @@ use erpx_server_learning::public::eligibility_facts::{
     learning_eligibility_facts, lock_learning_benefit_sources,
 };
 use erpx_server_learning::public::learning::{
-    LearningActor, PgLearning, learning_detail, learning_workspace,
+    AssignmentChange, AssignmentRequest, CertificateRevocation, LearningActor, PgLearning,
+    change_assignment, create_assignment, learning_detail, learning_workspace,
+    revoke_certificate,
 };
 use erpx_server_learning::public::learning_http::{
     LearningHttpBackend, LearningHttpCommand, LearningHttpFuture, LearningHttpRequest,
@@ -136,6 +138,24 @@ fn context(current: &AuthorizedWorkContext) -> Value {
         "permissions": current.command_iam_metadata().permissions,
         "expiresAt": current.expires_at(),
     })
+}
+
+#[derive(Clone)]
+pub enum AssignmentCommand {
+    Create {
+        input: AssignmentRequest,
+        idempotency_key: String,
+    },
+    Change {
+        assignment_id: String,
+        input: AssignmentChange,
+        idempotency_key: String,
+    },
+    Revoke {
+        certificate_id: String,
+        input: CertificateRevocation,
+        idempotency_key: String,
+    },
 }
 
 pub struct LearningService<C> {
@@ -327,6 +347,124 @@ impl<C: Clock + Send + Sync + 'static> LearningService<C> {
             .await
     }
 
+    pub async fn assignment_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: AssignmentCommand,
+    ) -> Result<LearningHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "records.write".into(),
+                    module: Some("learning".into()),
+                    destination: "learning".into(),
+                    api: true,
+                },
+                LearningSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let actor = learning_actor(current)?;
+                        let now = clock.now();
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let mut evidence =
+                            erpx_server_files::public::learning_evidence::PgLearningEvidence::new(
+                                workspace.company_id.clone(),
+                                current.user_id().as_str().to_owned(),
+                                workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+                                workspace.department_id.as_ref().map(|id| id.as_str().to_owned()),
+                                now,
+                            );
+                        let mut repository =
+                            PgLearning::with_evidence(connection, &mut evidence);
+                        let data = match command {
+                            AssignmentCommand::Create {
+                                input,
+                                idempotency_key,
+                            } => {
+                                let key = erpx_server_shared::public::CommandKey::new(
+                                    idempotency_key,
+                                )?;
+                                create_assignment(&mut repository, &actor, &key, &input, now.get())
+                                    .await?
+                            }
+                            AssignmentCommand::Change {
+                                assignment_id,
+                                input,
+                                idempotency_key,
+                            } => {
+                                let key = erpx_server_shared::public::CommandKey::new(
+                                    idempotency_key,
+                                )?;
+                                change_assignment(
+                                    &mut repository,
+                                    &actor,
+                                    &key,
+                                    &assignment_id,
+                                    &input,
+                                    now.get(),
+                                )
+                                .await?
+                            }
+                            AssignmentCommand::Revoke {
+                                certificate_id,
+                                input,
+                                idempotency_key,
+                            } => {
+                                let key = erpx_server_shared::public::CommandKey::new(
+                                    idempotency_key,
+                                )?;
+                                revoke_certificate(
+                                    &mut repository,
+                                    &actor,
+                                    &key,
+                                    &certificate_id,
+                                    &input,
+                                    now.get(),
+                                )
+                                .await?
+                            }
+                        };
+                        Ok(LearningHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn consume_benefit<Input>(
         &self,
         host: &str,
@@ -484,6 +622,58 @@ impl<C: Clock + Send + Sync + 'static> LearningHttpBackend for LearningBackend<C
                         .await
                         .map_err(business)
                 }
+                LearningHttpCommand::CreateAssignment {
+                    input,
+                    idempotency_key,
+                } => self
+                    .service
+                    .assignment_command(
+                        request.host,
+                        proof,
+                        move || Ok(selection),
+                        AssignmentCommand::Create {
+                            input,
+                            idempotency_key,
+                        },
+                    )
+                    .await
+                    .map_err(business),
+                LearningHttpCommand::ChangeAssignment {
+                    assignment_id,
+                    input,
+                    idempotency_key,
+                } => self
+                    .service
+                    .assignment_command(
+                        request.host,
+                        proof,
+                        move || Ok(selection),
+                        AssignmentCommand::Change {
+                            assignment_id,
+                            input,
+                            idempotency_key,
+                        },
+                    )
+                    .await
+                    .map_err(business),
+                LearningHttpCommand::RevokeCertificate {
+                    certificate_id,
+                    input,
+                    idempotency_key,
+                } => self
+                    .service
+                    .assignment_command(
+                        request.host,
+                        proof,
+                        move || Ok(selection),
+                        AssignmentCommand::Revoke {
+                            certificate_id,
+                            input,
+                            idempotency_key,
+                        },
+                    )
+                    .await
+                    .map_err(business),
                 _ => Err(command_unavailable()),
             }
         })
