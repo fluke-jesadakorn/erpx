@@ -61,7 +61,8 @@
     "./domain/providers": "./src/domain/providers.ts",
     "./domain/assistant": "./src/domain/assistant.ts",
     "./domain/transport": "./src/domain/transport.ts",
-    "./domain/gateway": "./src/domain/gateway.ts"
+    "./domain/gateway": "./src/domain/gateway.ts",
+    "./public/native-agent-governance": "./src/public/native-agent-governance.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

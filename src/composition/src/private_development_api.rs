@@ -2514,6 +2514,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut support_ticket_portal_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut agent_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_retention_targets = Vec::new();
@@ -2932,6 +2934,26 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+                }
+                #[cfg(feature = "existing-business")]
+                {
+                    agent_targets.push(crate::agent_governance::agent_target(
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        Arc::new(crate::agent_governance::AgentGovernanceBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::agent_governance::AgentGovernanceService::new(
+                                authorizer.clone(),
+                                crate::agent_governance::AgentGovernanceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    ));
                 }
                 {
                     let support_workspace_backend =
@@ -4529,6 +4551,13 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        #[cfg(feature = "existing-business")]
+        if !agent_targets.is_empty() {
+            router = router.merge(
+                erpx_server_agent::public::governance::agent_governance_http_router(agent_targets)
+                    .map_err(|_| "PRIVATE_API_AGENT_CONFIGURATION_INVALID")?,
+            );
+        }
         #[cfg(feature = "existing-business")]
         if !support_ticket_portal_targets.is_empty() {
             router = router.merge(

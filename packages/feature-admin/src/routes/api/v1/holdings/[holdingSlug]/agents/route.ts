@@ -7,6 +7,7 @@ import {
   nativeAgentEvidenceFailure,
   nativeAgentEvidenceFromHeaders,
 } from "@erpx/server-agent/public/native-agent-evidence-page";
+import { nativeAgentCommand, nativeAgentGovernanceAvailable } from "@erpx/server-agent/public/native-agent-governance";
 import {
   agentWorkspace,
   changeAgentRecord,
@@ -81,6 +82,13 @@ export async function POST(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       i = await r.json();
     let data;
+    const nativeGovernance =
+      nativeAgentGovernanceAvailable() &&
+      ["agent", "version", "pool", "assignment", "session"].includes(i?.entity);
+    if (nativeGovernance) {
+      data = await nativeAgentCommand(r, (await c.params).holdingSlug, i, key);
+      return Response.json(canonicalDestinationLinks({ data }), { headers });
+    }
     if (typeof i.id === "string" && i.entity === "pool") data = await changeAgentPool(a,i.id,i,key);
     else if (typeof i.id === "string" && i.entity === "session") data = await changePrivateSession(a,i.id,i,key);
     else if (typeof i.id === "string" && ["agent","version","assignment"].includes(i.entity))
