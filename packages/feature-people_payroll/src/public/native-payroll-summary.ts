@@ -72,10 +72,10 @@ export type NativePayrollRun = Readonly<{
 }> & Record<string, unknown>;
 
 export type NativePeoplePayrollTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
 
@@ -288,9 +288,10 @@ function transportCall(
   holdings: Map<string, { holdingId: string; holdingSlug: string }>,
   incoming: Pick<Headers, 'get'>,
   holdingSlug: string,
-  path: 'summary' | 'runs',
+  path: string,
   input: NativePeoplePayrollReadInput,
   signal?: AbortSignal,
+  init?: { method: 'GET' | 'POST'; body?: string; key?: string; origin?: string },
 ): Promise<Response> {
   const host = incoming.get('host');
   const holding = host ? holdings.get(host) : undefined;
@@ -326,6 +327,16 @@ function transportCall(
     headers.set('x-erpx-context-revision', String(input.expected.revision));
     headers.set('x-erpx-context-assignment-version', String(input.expected.assignmentVersion));
   }
+  const method = init?.method ?? 'GET';
+  if (method === 'POST') {
+    if (!init?.key || !/^[a-zA-Z0-9:_.-]{8,180}$/.test(init.key))
+      return Promise.reject(
+        new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_REQUEST_INVALID'),
+      );
+    headers.set('content-type', 'application/json');
+    headers.set('idempotency-key', init.key);
+    if (init.origin) headers.set('origin', init.origin);
+  }
   const url = new URL(
     `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/people/payroll/${path}`,
     base,
@@ -336,7 +347,7 @@ function transportCall(
   signal?.addEventListener('abort', cancel, { once: true });
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(cancel, 30000);
-  return transport('GET', url, headers, undefined, controller.signal).finally(() => {
+  return transport(method, url, headers, init?.body, controller.signal).finally(() => {
     clearTimeout(timer);
     signal?.removeEventListener('abort', cancel);
   });
@@ -488,15 +499,52 @@ export function createNativePeoplePayrollClient(
     context(value.context, actor, input);
     return runRows(value.data);
   };
-  return { summary, runs };
+  const command = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativePeoplePayrollPageContext,
+    input: NativePeoplePayrollReadInput,
+    commandPath: string,
+    body: unknown,
+    key: string,
+    origin: string,
+  ) => {
+    if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+      return Promise.reject(
+        new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_CONTEXT_CHANGED'),
+      );
+    if (!/^runs(?:\/[A-Za-z0-9_-]{1,120}(?:\/(?:calculate|cancel))?)?$/.test(commandPath))
+      return Promise.reject(
+        new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_REQUEST_INVALID'),
+      );
+    const response = await transportCall(
+      transport,
+      config.base,
+      config.holdings,
+      incoming,
+      input.holdingSlug,
+      commandPath,
+      input,
+      undefined,
+      { method: 'POST', body: JSON.stringify(body), key, origin },
+    ).catch((error: unknown) => {
+      if (error instanceof NativePeoplePayrollError) throw error;
+      return failure('NATIVE_PEOPLE_PAYROLL_UNAVAILABLE');
+    });
+    const value = await boundedJson(response);
+    if (!record(value) || !('data' in value))
+      return failure('NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID');
+    return (value as { data: unknown }).data;
+  };
+
+  return { summary, runs, command };
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */
 export function directHttp(
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ): Promise<Response> {
   return new Promise((resolve, reject) => {
@@ -528,6 +576,6 @@ export function directHttp(
       agent.destroy();
       reject(error);
     });
-    outgoing.end();
+    outgoing.end(body);
   });
 }

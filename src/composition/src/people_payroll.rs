@@ -14,6 +14,15 @@ use erpx_server_identity_access::public::{
 use erpx_server_people_payroll::public::payroll_summary::{
     PayrollReadActor, PgPayrollRead, payroll_runs, payroll_summary,
 };
+use erpx_server_people_payroll::public::payroll_run::{
+    NoPayrollJournalPort, PayrollCommandActor, calculate_payroll_run, cancel_payroll_run,
+    create_payroll_run, payroll_run_detail, post_payroll,
+};
+use erpx_server_people_payroll::public::payroll_run::PgPayrollCommand;
+use erpx_server_people_payroll::public::payroll_run_http::{
+    PayrollCommandHttpBackend, PayrollCommandHttpFuture, PayrollCommandHttpKind,
+    PayrollCommandHttpRequest, PayrollCommandHttpResponse, PayrollCommandHttpTarget,
+};
 use erpx_server_people_payroll::public::payroll_summary_http::{
     PayrollReadHttpBackend, PayrollReadHttpFuture, PayrollReadHttpKind, PayrollReadHttpRequest,
     PayrollReadHttpResponse, PayrollReadHttpTarget, people_payroll_router,
@@ -266,6 +275,149 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
     }
 }
 
+fn payroll_command_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<PayrollCommandActor, BusinessError> {
+    use sha2::{Digest, Sha256};
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    let mut hasher = Sha256::new();
+    hasher.update(context(current).to_string().as_bytes());
+    let work_context = hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    Ok(PayrollCommandActor {
+        user_id: current.user_id().as_str().to_owned(),
+        holding_id: current.holding_id().clone(),
+        company_id: workspace.company_id.clone(),
+        branch_id: workspace.branch_id.clone(),
+        department_id: workspace.department_id.clone(),
+        assignment_id: assignment.id.as_str().to_owned(),
+        role: assignment.role.clone(),
+        permissions: current.command_iam_metadata().permissions.clone(),
+        work_context,
+        expires_at: current.expires_at(),
+    })
+}
+
+impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
+    pub async fn command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        kind: PayrollCommandHttpKind,
+        body: Value,
+        key: Option<erpx_server_shared::public::CommandKey>,
+    ) -> Result<PayrollCommandHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        let mutation = kind.is_mutation();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = mutation;
+            Ok(request)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                Self::access(),
+                PeoplePayrollSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let kind = kind.clone();
+                    let body = body.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let actor = payroll_command_actor(current)?;
+                        let now = clock.now();
+                        let mut repository = PgPayrollCommand::new(connection, &actor);
+                        let data = match kind {
+                            PayrollCommandHttpKind::Create => {
+                                let key = command_key(key)?;
+                                create_payroll_run(&actor, &body, &key, &mut repository, now).await?
+                            }
+                            PayrollCommandHttpKind::Calculate { run_id } => {
+                                let key = command_key(key)?;
+                                calculate_payroll_run(
+                                    &actor,
+                                    &run_id,
+                                    &body,
+                                    &key,
+                                    &mut repository,
+                                    now,
+                                )
+                                .await?
+                            }
+                            PayrollCommandHttpKind::Cancel { run_id } => {
+                                let key = command_key(key)?;
+                                cancel_payroll_run(
+                                    &actor,
+                                    &run_id,
+                                    &body,
+                                    &key,
+                                    &mut repository,
+                                    now,
+                                )
+                                .await?
+                            }
+                            PayrollCommandHttpKind::Post { run_id } => {
+                                let key = command_key(key)?;
+                                let mut journal = NoPayrollJournalPort;
+                                post_payroll(
+                                    &actor,
+                                    &run_id,
+                                    &body,
+                                    &key,
+                                    &mut repository,
+                                    &mut journal,
+                                    now,
+                                )
+                                .await?
+                            }
+                            PayrollCommandHttpKind::Detail { run_id } => {
+                                payroll_run_detail(&actor, &run_id, &mut repository, now).await?
+                            }
+                        };
+                        Ok(PayrollCommandHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
+fn command_key(
+    key: Option<erpx_server_shared::public::CommandKey>,
+) -> Result<erpx_server_shared::public::CommandKey, BusinessError> {
+    key.ok_or_else(|| {
+        BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
+    })
+}
+
 pub struct PeoplePayrollBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
@@ -304,6 +456,29 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+
+impl<C: Clock + Send + Sync + 'static> PayrollCommandHttpBackend for PeoplePayrollBackend<C> {
+    fn command<'a>(
+        &'a self,
+        request: PayrollCommandHttpRequest<'a>,
+    ) -> PayrollCommandHttpFuture<'a, PayrollCommandHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .command(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.kind.clone(),
+                    request.body.clone(),
+                    request.key.cloned(),
+                )
+                .await
+                .map_err(business)
+        })
     }
 }
 

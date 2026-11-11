@@ -92,6 +92,32 @@ export async function nativePeoplePayrollRuns(
   )({ holdingSlug, ...scope(actor), expected: expected(actor) });
 }
 
+
+/** Dispatch a payroll run command (create/calculate/cancel) to the native owner. */
+export async function nativePeoplePayrollCommand(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativePeoplePayrollPageContext,
+  holdingSlug: string,
+  commandPath: string,
+  body: unknown,
+  key: string,
+  origin?: string,
+): Promise<unknown | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_CONTEXT_CHANGED');
+  return native.command(
+    incoming,
+    actor,
+    { holdingSlug, ...scope(actor), expected: expected(actor) },
+    commandPath,
+    body,
+    key,
+    origin ?? `https://${incoming.get('host') ?? ''}`,
+  );
+}
+
 /** Bounded failure policy for the retained page/route error handling. */
 export function nativePeoplePayrollFailure(
   error: unknown,

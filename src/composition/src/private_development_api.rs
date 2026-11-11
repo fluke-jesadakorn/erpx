@@ -2557,6 +2557,7 @@ async fn assemble_checked(
         let mut project_actuals_targets = Vec::new();
         let mut operations_targets = Vec::new();
         let mut people_payroll_targets = Vec::new();
+        let mut people_payroll_command_targets = Vec::new();
         let mut asset_targets = Vec::new();
         let mut bank_targets = Vec::new();
         let mut generic_payment_targets = Vec::new();
@@ -3786,12 +3787,8 @@ async fn assemble_checked(
                         )),
                     },
                 );
-                people_payroll_targets.push(
-                erpx_server_people_payroll::public::payroll_summary_http::PayrollReadHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::people_payroll::PeoplePayrollBackend::new(
+                let people_payroll_backend =
+                    Arc::new(crate::people_payroll::PeoplePayrollBackend::new(
                         config.policy.clone(),
                         Arc::new(FinanceJournalReadScopeHeaders),
                         Arc::new(crate::people_payroll::PeoplePayrollService::new(
@@ -3802,9 +3799,23 @@ async fn assemble_checked(
                             ),
                             Arc::new(SharedClock(clock.clone())),
                         )),
-                    )),
-                },
-            );
+                    ));
+                people_payroll_targets.push(
+                    erpx_server_people_payroll::public::payroll_summary_http::PayrollReadHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: people_payroll_backend.clone(),
+                    },
+                );
+                people_payroll_command_targets.push(
+                    erpx_server_people_payroll::public::payroll_run_http::PayrollCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: people_payroll_backend.clone(),
+                    },
+                );
                 if !operations_targets.iter().any(|target: &erpx_server_operations::public::operations_http::OperationsHttpTarget| {
                     target.host == holding.host
                         && target.holding_slug == holding.registration.slug
@@ -4777,6 +4788,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_people_payroll::public::payroll_summary_http::people_payroll_router(
                     people_payroll_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !people_payroll_command_targets.is_empty() {
+            router = router.merge(
+                erpx_server_people_payroll::public::payroll_run_http::people_payroll_command_router(
+                    people_payroll_command_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_CONFIGURATION_INVALID")?,
             );
