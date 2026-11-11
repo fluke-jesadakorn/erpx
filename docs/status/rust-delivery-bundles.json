@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 349,
+    "revision": 353,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g3",
+      "runId": "run-20261110-g4",
       "agentId": "lead",
-      "startedAt": "2026-11-11T00:26:58.539Z",
-      "heartbeatAt": "2026-11-11T00:26:58.636Z",
-      "expiresAt": "2026-11-11T00:56:58.636Z",
-      "generation": 4,
-      "tokenHash": "975eab4cc3cd7dd576b25a62845517ad3ceb71efa0c8b450e72e5879cbff2bf9"
+      "startedAt": "2026-11-11T01:25:04.841Z",
+      "heartbeatAt": "2026-11-11T01:25:04.927Z",
+      "expiresAt": "2026-11-11T01:55:04.927Z",
+      "generation": 5,
+      "tokenHash": "ffee6e06f57d2514b38b7159648b13abb19e1502dcd6c382264f6207fa03cbf9"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -11587,14 +11587,14 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261110-g3",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-11T00:27:13.038Z",
-          "heartbeatAt": "2026-11-11T00:27:13.038Z",
-          "expiresAt": "2026-11-11T00:57:13.038Z",
-          "generation": 4
+          "runId": "run-20261110-g4",
+          "agentId": "lead",
+          "claimedAt": "2026-11-11T01:25:04.866Z",
+          "heartbeatAt": "2026-11-11T01:25:04.927Z",
+          "expiresAt": "2026-11-11T01:55:04.927Z",
+          "generation": 5
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -11602,13 +11602,13 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried people_payroll packet (migrate.people_payroll.payroll-run-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
+        "nextAction": "Payroll run create/calculate/cancel/detail native and mounted; workplace create/calculate/cancel switched (c683bd036). Remaining: post stays TS because PayrollJournalPort cannot share the caller connection with PgPayrollCommand; detail read switch; employees/leave/expenses; Benefits payroll-input port.",
         "handoff": {
-          "runId": "run-20261110-g2",
+          "runId": "run-20261110-g3",
           "agentId": "worker-a",
-          "at": "2026-11-11T00:26:58.538Z",
+          "at": "2026-11-11T01:25:04.840Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during a long slice review; WIP and processes reconciled, same lead resumed",
+          "reason": "Recovery: Coordinator lease expired during payroll integration; WIP reviewed, previous process stopped",
           "nextAction": "Implement the first inventoried people_payroll packet (migrate.people_payroll.payroll-run-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -12811,28 +12811,21 @@
           "owner:collaboration"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g3",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T00:26:58.570Z",
-          "heartbeatAt": "2026-11-11T00:26:58.636Z",
-          "expiresAt": "2026-11-11T00:56:58.636Z",
-          "generation": 4
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired during payroll integration; WIP reviewed, previous process stopped",
         "nextAction": "Social/messaging/teams/channels/inbox/work HTTP ingress committed (cee146e36; 11 cargo HTTP tests). Remaining: composition backends/mounts for 4 routers (Files MessagingFilesPort absent -> 503), switch feature-apps feed/messaging/collaboration/inbox routes; mention drain/AI reply stay TS",
         "handoff": {
-          "runId": "run-20261110-g2",
-          "agentId": "worker-b",
-          "at": "2026-11-11T00:26:58.538Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during a long slice review; WIP and processes reconciled, same lead resumed",
-          "nextAction": "Implement the first inventoried collaboration packet (migrate.collaboration.social_http), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+          "runId": "run-20261110-g3",
+          "agentId": "lead",
+          "at": "2026-11-11T01:25:04.840Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Coordinator lease expired during payroll integration; WIP reviewed, previous process stopped",
+          "nextAction": "Social/messaging/teams/channels/inbox/work HTTP ingress committed (cee146e36; 11 cargo HTTP tests). Remaining: composition backends/mounts for 4 routers (Files MessagingFilesPort absent -> 503), switch feature-apps feed/messaging/collaboration/inbox routes; mention drain/AI reply stay TS"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -15218,8 +15211,8 @@
       "migratedPackets": 11,
       "statusCounts": {
         "pending": 25,
-        "in_progress": 1,
-        "ready_for_integration": 10,
+        "in_progress": 0,
+        "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 11,
         "blocked": 4,
@@ -15227,8 +15220,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 4,
-    "updatedAt": "2026-11-11T00:27:13.039Z",
+    "lastCoordinatorGeneration": 5,
+    "updatedAt": "2026-11-11T01:25:04.927Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15271,10 +15264,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g2",
-      "runId": "run-20261110-g3",
-      "at": "2026-11-11T00:26:58.540Z",
-      "reason": "Coordinator lease expired during a long slice review; WIP and processes reconciled, same lead resumed",
+      "previousRunId": "run-20261110-g3",
+      "runId": "run-20261110-g4",
+      "at": "2026-11-11T01:25:04.842Z",
+      "reason": "Coordinator lease expired during payroll integration; WIP reviewed, previous process stopped",
       "wipReviewed": true,
       "previousRunStopped": true
     }
