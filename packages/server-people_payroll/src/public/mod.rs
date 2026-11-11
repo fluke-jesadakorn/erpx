@@ -8,6 +8,10 @@ pub mod field_service_worker;
 
 pub mod payroll_accounting;
 
+pub mod payroll_run;
+
+pub mod payroll_run_http;
+
 pub mod payroll_summary;
 
 pub mod payroll_summary_http;

@@ -52,6 +52,18 @@ name = "payroll_accounting"
 path = "../../tests/unit/people_payroll/rust-payroll-accounting.test.rs"
 
 [[test]]
+name = "payroll_run_command"
+path = "../../tests/unit/people_payroll/rust-payroll-run-command.rs"
+
+[[test]]
+name = "payroll_run_http"
+path = "../../tests/unit/people_payroll/rust-payroll-run-http.rs"
+
+[[test]]
+name = "payroll_run_postgres"
+path = "../../tests/integration/people_payroll/rust-payroll-run-postgres.rs"
+
+[[test]]
 name = "payroll_summary"
 path = "../../tests/unit/people_payroll/rust-payroll-summary.test.rs"
 

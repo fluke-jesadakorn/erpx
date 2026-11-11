@@ -7,6 +7,8 @@ pub(crate) mod finance_journal_names;
 pub(crate) mod field_service_worker;
 
 pub(crate) mod payroll_accounting_input;
+pub(crate) mod payroll_run;
+pub(crate) mod payroll_run_http;
 pub(crate) mod payroll_summary_http;
 pub(crate) mod payroll_summary_read;
 
