@@ -378,18 +378,7 @@ where
     if !facts.can_read() {
         return Err(task_not_found().into());
     }
-    if let Some(post_id) = row_source_post(row) {
-        if sources.readable_post(actor, post_id).await?.is_none() {
-            return Err(task_not_found().into());
-        }
-    }
     Ok(facts)
-}
-
-fn row_source_post(_row: &TaskRow) -> Option<&str> {
-    // The source-post link lives in Collaboration. Composition enriches it
-    // before the command/read; an absent link is an ordinary owner task.
-    None
 }
 
 async fn require_manage<R, S>(
@@ -525,6 +514,7 @@ where
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn save_task<R, S>(
     actor: &StaffTaskActor,
     repository: &mut R,
@@ -674,15 +664,15 @@ where
         .as_ref()
         .map(|_row| input.expected_version + 1)
         .unwrap_or(1);
-    if let Some(current) = current.as_ref() {
-        if current.version != input.expected_version {
-            return Err(BusinessError::new(
-                FailureKind::Conflict,
-                "TASK_VERSION_CHANGED",
-                "The task changed. Reload it and review again.",
-            )
-            .into());
-        }
+    if let Some(current) = current.as_ref()
+        && current.version != input.expected_version
+    {
+        return Err(BusinessError::new(
+            FailureKind::Conflict,
+            "TASK_VERSION_CHANGED",
+            "The task changed. Reload it and review again.",
+        )
+        .into());
     }
     let branch_id = current
         .as_ref()
@@ -1051,7 +1041,7 @@ where
     S: StaffTaskSources,
     R::Error: From<S::Error> + From<BusinessError>,
 {
-    if warning_window_ms < 0 || warning_window_ms > 7 * 86_400_000 {
+    if !(0..=7 * 86_400_000).contains(&warning_window_ms) {
         return Err(BusinessError::invalid(
             "TASK_ALERT_WINDOW_INVALID",
             "Use a bounded task alert window.",
@@ -1073,13 +1063,13 @@ where
         if !sources.feature_enabled(&task.company_id).await? {
             continue;
         }
-        if task.project_owner_id.is_none() {
-            if let Some(project_id) = task.project_id.clone() {
-                task.project_owner_id = sources
-                    .project(&task.company_id, &project_id)
-                    .await?
-                    .map(|project| project.owner_user_id);
-            }
+        if task.project_owner_id.is_none()
+            && let Some(project_id) = task.project_id.clone()
+        {
+            task.project_owner_id = sources
+                .project(&task.company_id, &project_id)
+                .await?
+                .map(|project| project.owner_user_id);
         }
         let is_overdue = task.due_at < now;
         let phase = if is_overdue { "overdue" } else { "due-soon" };

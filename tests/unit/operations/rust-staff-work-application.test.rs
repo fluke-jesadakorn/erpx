@@ -20,6 +20,7 @@ struct Repo {
     writes: usize,
 }
 impl Repo {
+    #[allow(clippy::too_many_arguments)]
     fn store(
         &mut self,
         key: &str,
@@ -660,6 +661,7 @@ async fn delegation_and_revocation_are_owner_commands() {
     );
 }
 
+#[allow(clippy::field_reassign_with_default)]
 #[tokio::test]
 async fn alerts_are_counted_once_per_task_version_and_user() {
     let now = 1_790_000_000_000;

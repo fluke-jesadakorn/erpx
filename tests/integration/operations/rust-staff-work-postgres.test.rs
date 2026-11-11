@@ -79,6 +79,7 @@ fn save_plan(key: &str, now: i64) -> SaveTaskPlan {
     }
 }
 
+#[allow(clippy::drop_non_drop)]
 #[tokio::test]
 async fn creates_transitions_and_replays_staff_tasks_with_a_ledger() {
     fixture::with_database(2, |holding| async move {

@@ -288,6 +288,7 @@ async fn write_ledger(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn notify(
     connection: &mut PgConnection,
     key: &str,
@@ -803,7 +804,7 @@ impl StaffTaskRepository for PgStaffTasks<'_> {
                  t.creator_user_id,t.project_id,d.delegate_user_id,\
                  (SELECT coalesce(jsonb_agg(DISTINCT user_id),'[]'::jsonb) \
                     FROM (SELECT jsonb_array_elements_text(t.start_approvers_json::jsonb) user_id \
-                          UNION SELECT jsonb_array_elements_text(t.completion_approvers_json::jsonb) user_id) u) approvers \
+                          UNION SELECT jsonb_array_elements_text(t.completion_approvers_json::jsonb) user_id) u)::text approvers \
                  FROM staff_tasks t \
                  LEFT JOIN LATERAL (SELECT sd.delegate_user_id FROM staff_task_delegations sd \
                    WHERE sd.task_id=t.id AND sd.company_id=t.company_id AND sd.status='active' \
