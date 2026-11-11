@@ -84,6 +84,10 @@ async function read(request: Request, holdingSlug: string, path: string): Promis
   return payload?.data;
 }
 
+export function nativeInboxSummary(request: Request, holdingSlug: string) {
+  return read(request, holdingSlug, '/summary');
+}
+
 export function nativeInboxPeople(request: Request, holdingSlug: string, query: string) {
   return read(request, holdingSlug, `/people?q=${encodeURIComponent(query)}`);
 }

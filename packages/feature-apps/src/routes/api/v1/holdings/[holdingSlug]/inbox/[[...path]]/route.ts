@@ -7,7 +7,7 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { inboxPage, inboxSummary, sendNotice, changeInboxState } from "@erpx/server-collaboration/public/inbox";
 import {messagingPeople} from '@erpx/server-collaboration/public/messaging';
-import {nativeInboxAvailable, nativeInboxNotices, nativeInboxPeople} from "@erpx/server-collaboration/public/native-inbox-page";
+import {nativeInboxAvailable, nativeInboxNotices, nativeInboxPeople, nativeInboxSummary} from "@erpx/server-collaboration/public/native-inbox-page";
 
 export const dynamic = "force-dynamic";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
@@ -23,7 +23,7 @@ export async function GET(request:Request,context:Context){
       search:q.get("search")??undefined,cursor:q.get("cursor")??undefined,
       limit:q.has("limit")?Number(q.get("limit")):undefined,
     }));
-    if(path.length===1&&path[0]==="summary")return response(await inboxSummary(write,actor));
+    if(path.length===1&&path[0]==="summary")return response(nativeInboxAvailable()?await nativeInboxSummary(request,holdingSlug):await inboxSummary(write,actor));
     if(path.length===1&&path[0]==="people")return response(nativeInboxAvailable()?await nativeInboxPeople(request,holdingSlug,q.get("q")??""):await messagingPeople(write,actor,q.get("q")??""));
     if(path.length===1&&path[0]==="notices"){
       if(nativeInboxAvailable())return response(await nativeInboxNotices(request,holdingSlug));
