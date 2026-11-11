@@ -52,3 +52,11 @@ path = "../../tests/integration/shared.work/rust-work-snapshot-maintenance-postg
 [[test]]
 name = "work_card_preferences_postgres"
 path = "../../tests/integration/shared.work/rust-work-card-preferences-postgres.test.rs"
+
+[[test]]
+name = "work_report_projection_postgres"
+path = "../../tests/integration/shared.work/rust-work-report-projection-postgres.test.rs"
+
+[[test]]
+name = "work_navigation_postgres"
+path = "../../tests/integration/shared.work/rust-work-navigation-postgres.test.rs"

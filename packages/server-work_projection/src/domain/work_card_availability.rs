@@ -51,8 +51,16 @@ const CATALOGUE: &[(&str, Option<&str>, Option<&str>)] = &[
     ("overtime", Some("overtime"), Some("overtime")),
     ("leave", Some("leave"), Some("leave")),
     ("services", Some("service_request"), Some("service_request")),
-    ("equipment", Some("equipment_request"), Some("equipment_request")),
-    ("purchases", Some("purchase_request"), Some("purchase_request")),
+    (
+        "equipment",
+        Some("equipment_request"),
+        Some("equipment_request"),
+    ),
+    (
+        "purchases",
+        Some("purchase_request"),
+        Some("purchase_request"),
+    ),
     ("approvals", None, None),
     ("team", None, None),
     ("counts", Some("stock_count"), Some("stock_count")),
@@ -91,7 +99,7 @@ const SHORTCUT_DESTINATIONS: &[&str] = &[
     "executive-canvas",
 ];
 
-fn is_my_action(item: &WorkItemFact) -> bool {
+pub fn is_my_action(item: &WorkItemFact) -> bool {
     item.queue == WorkQueue::Todo && item.can_act.unwrap_or(true)
 }
 
@@ -116,7 +124,7 @@ fn merge_key(item: &WorkItemFact) -> String {
 }
 
 /// Mirrors `mergeWorkItems` for the fields that affect card visibility.
-fn merged_items(items: &[WorkItemFact]) -> Vec<WorkItemFact> {
+pub fn merge_work_items(items: &[WorkItemFact]) -> Vec<WorkItemFact> {
     let mut merged: BTreeMap<String, WorkItemFact> = BTreeMap::new();
     for item in items {
         let key = merge_key(item);
@@ -169,7 +177,10 @@ fn merged_items(items: &[WorkItemFact]) -> Vec<WorkItemFact> {
         if hold.queue == WorkQueue::Completed {
             continue;
         }
-        if let Some(hold) = values.iter_mut().find(|item| item.kind == "quality_hold" && item.id == hold.id) {
+        if let Some(hold) = values
+            .iter_mut()
+            .find(|item| item.kind == "quality_hold" && item.id == hold.id)
+        {
             for relationship in &alert.relationships {
                 if !hold.relationships.iter().any(|value| value == relationship) {
                     hold.relationships.push(relationship.clone());
@@ -212,9 +223,10 @@ fn card_matches(item: &WorkItemFact, id: &str, kind: Option<&str>) -> bool {
 }
 
 fn creation_enables(capabilities: &WorkCapabilitiesFact, id: &str, new_kind: Option<&str>) -> bool {
-    capabilities.creation.iter().any(|kind| {
-        Some(kind.as_str()) == new_kind || (id == "tasks" && kind == "conversation")
-    })
+    capabilities
+        .creation
+        .iter()
+        .any(|kind| Some(kind.as_str()) == new_kind || (id == "tasks" && kind == "conversation"))
 }
 
 /// Returns the exact card IDs the TypeScript summary would render for this
@@ -225,7 +237,7 @@ pub fn available_work_card_ids(
     capabilities: &WorkCapabilitiesFact,
     destination_ids: &[String],
 ) -> BTreeSet<String> {
-    let items = merged_items(&snapshot.items);
+    let items = merge_work_items(&snapshot.items);
     let mut available = BTreeSet::new();
     for (id, kind, new_kind) in CATALOGUE {
         let matches = items
@@ -276,11 +288,7 @@ mod tests {
             roster_access: true,
             unavailable: Vec::new(),
         };
-        let available = available_work_card_ids(
-            &WorkSnapshotFact::default(),
-            &capabilities,
-            &[],
-        );
+        let available = available_work_card_ids(&WorkSnapshotFact::default(), &capabilities, &[]);
         assert!(available.contains("tasks"));
         assert!(available.contains("team"));
         assert!(available.contains("shifts"));
@@ -294,14 +302,18 @@ mod tests {
         let mut approval = item("approval-1", "expense", WorkQueue::Todo);
         approval.relationships = vec!["approval".into()];
         let available = available_work_card_ids(
-            &WorkSnapshotFact { items: vec![approval.clone()] },
+            &WorkSnapshotFact {
+                items: vec![approval.clone()],
+            },
             &capabilities,
             &[],
         );
         assert!(available.contains("approvals"));
         approval.queue = WorkQueue::Completed;
         let available = available_work_card_ids(
-            &WorkSnapshotFact { items: vec![approval] },
+            &WorkSnapshotFact {
+                items: vec![approval],
+            },
             &capabilities,
             &[],
         );
@@ -315,11 +327,8 @@ mod tests {
         let snapshot = WorkSnapshotFact {
             items: vec![team_item, item("expense-1", "expense", WorkQueue::Waiting)],
         };
-        let without_team = available_work_card_ids(
-            &snapshot,
-            &WorkCapabilitiesFact::default(),
-            &[],
-        );
+        let without_team =
+            available_work_card_ids(&snapshot, &WorkCapabilitiesFact::default(), &[]);
         assert!(!without_team.contains("team"));
         assert!(without_team.contains("expenses"));
         assert!(!without_team.contains("tasks"));
@@ -339,10 +348,7 @@ mod tests {
         let available = available_work_card_ids(
             &WorkSnapshotFact::default(),
             &WorkCapabilitiesFact::default(),
-            &[
-                "finance-payments".into(),
-                "not-a-shortcut".into(),
-            ],
+            &["finance-payments".into(), "not-a-shortcut".into()],
         );
         assert!(available.contains("finance-payments"));
         assert!(!available.contains("not-a-shortcut"));

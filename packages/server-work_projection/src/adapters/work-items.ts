@@ -3,6 +3,7 @@ import { measureReads } from "@erpx/server-runtime/public/runtime/read-metrics";
 import { withPolicyReadSnapshot } from "@erpx/server-identity_access/public/iam-read-snapshot";
 import { enrichFlowWork } from "@erpx/server-workflow/public/flow-work";
 import "server-only";
+import { headers } from "next/headers";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { getDomainWork } from "@erpx/server-work_projection/adapters/domain-work";
 import { getWork } from "@erpx/server-work_projection/public/work";
@@ -12,6 +13,12 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { createWorkSnapshot, type WorkSnapshotPorts } from "@erpx/server-work_projection/application/work-items";
 import { mergeWorkItems, nextWorkSteps as decideNextWorkSteps, type WorkSnapshot } from "@erpx/server-work_projection/domain/work-items";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import {
+    nativeWorkSnapshotConfigured,
+    readNativeWorkSnapshot,
+    type NativeWorkSnapshotAvailability,
+    type NativeWorkSnapshotItem,
+} from "@erpx/server-work_projection/adapters/native-work-snapshot";
 export { mergeWorkItems };
 export type { WorkSnapshot };
 export function nextWorkSteps(items: WorkItem[], now = Date.now()) { return decideNextWorkSteps(items, now); }
@@ -85,3 +92,34 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
 export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot> { const { write } = await holdingResources(actor.holdingId); return createWorkSnapshot(workSnapshotPorts(write)).readWorkSnapshot(actor); }
 export async function workSnapshot(actor: WorkContext): Promise<WorkSnapshot> { const { write } = await holdingResources(actor.holdingId); const load=async () => { const measured = await measureReads(() => withPolicyReadSnapshot(() => createWorkSnapshot(workSnapshotPorts(write)).readWorkSnapshot(actor))); if (process.env.ERPX_PERF_LOG === '1') console.info(JSON.stringify({ event: "work_snapshot", ...measured.metrics, items: measured.result.items.length })); return measured.result; }; return process.env.ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG === undefined && process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_CONFIG === undefined && !actor.modules.includes('field_service') ? cachedWorkSnapshot(actor,write,load) : load(); }
 export async function workItems(actor: WorkContext) { return (await workSnapshot(actor)).items; }
+
+function availabilityFromSnapshot(snapshot: WorkSnapshot): NativeWorkSnapshotAvailability {
+    return {
+        items: snapshot.items.map((item): NativeWorkSnapshotItem => ({
+            id: item.id,
+            type: item.type,
+            queue: item.queue,
+            canAct: item.canAct ?? null,
+            actionKind: item.actionKind ?? null,
+            relationships: item.relationships ? [...item.relationships] : [],
+            updatedAt: item.updatedAt,
+            sourceId: null,
+            href: item.href,
+        })),
+        unavailableSources: [...snapshot.unavailableSources],
+    };
+}
+
+/**
+ * Request-scoped availability consumer for the native Work snapshot.
+ *
+ * The native route returns only owner availability facts, so callers that need
+ * `title`/`detail`/`status`/`flow` keep `workSnapshot`. When
+ * `ERPX_NATIVE_WORK_PROJECTION_CONFIG` is set this consumer never falls back to
+ * the retained TS SQL read: configuration, transport, context and contract
+ * failures surface as named `ApiError`s.
+ */
+export async function workSnapshotAvailability(actor: WorkContext): Promise<NativeWorkSnapshotAvailability> {
+    if (nativeWorkSnapshotConfigured()) return readNativeWorkSnapshot(await headers(), actor);
+    return availabilityFromSnapshot(await workSnapshot(actor));
+}

@@ -58,6 +58,7 @@
     "./adapters/presentation-context-queries": "./src/adapters/presentation-context-queries.ts",
     "./adapters/work-card-preferences": "./src/adapters/work-card-preferences.ts",
     "./adapters/native-work-card-preferences": "./src/adapters/native-work-card-preferences.ts",
+    "./adapters/native-work-snapshot": "./src/adapters/native-work-snapshot.ts",
     "./adapters/work": "./src/adapters/work.ts",
     "./adapters/work-role-options": "./src/adapters/work-role-options.ts",
     "./adapters/executive-metric-watermarks": "./src/adapters/executive-metric-watermarks.ts",

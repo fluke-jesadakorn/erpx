@@ -6,7 +6,7 @@
 use crate::adapters::work_snapshot_sources::{
     approval_items, maintenance_items, organization_workspace_change_items, preventive_plan_items,
 };
-use crate::domain::work_card_availability::WorkItemFact;
+use crate::domain::work_card_availability::{WorkItemFact, merge_work_items};
 use erpx_server_identity_access::public::command_metadata::project_command_iam;
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_identity_access::public::work_context::WorkScopeKind;
@@ -216,8 +216,10 @@ pub async fn read_native_work_snapshot(
             "maintenanceWork" | "preventivePlanWork" | "organizationChangeWork"
         )
     });
+    // The retained snapshot returns `mergeWorkItems(rows)`; compose the same
+    // duplicate/quality-alert merge before handing facts to any consumer.
     Ok(NativeWorkSnapshot {
-        items,
+        items: merge_work_items(&items),
         unavailable_sources,
     })
 }

@@ -395,6 +395,246 @@
       }
     },
     {
+      "id": "shared.work.rust-work-navigation-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.work",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/integration/shared.work/rust-work-navigation-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Work Projection navigation composes the real snapshot and capability reads on the caller transaction, keeps unavailable sources explicit, and never invents Home or routing facts."
+      },
+      "applications": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "apps": [
+        "workplace"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-work-projection",
+        "targets": [
+          "work_navigation_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-work_projection/Cargo.toml",
+        "packages/server-work_projection/src/domain/work_navigation.rs",
+        "packages/server-work_projection/src/adapters/work_navigation_read.rs",
+        "packages/server-work_projection/src/adapters/work_snapshot_read.rs",
+        "packages/server-work_projection/src/adapters/work_snapshot_sources.rs",
+        "packages/server-work_projection/src/public/work_navigation_read.rs",
+        "tests/support/rust-postgres.rs",
+        "tests/support/rust-effective-authority.rs",
+        "tests/support/maintenance/parts-facts.rs",
+        "tests/integration/shared.work/rust-work-navigation-postgres.test.rs",
+        "packages/server-maintenance/src/adapters/read.rs",
+        "packages/server-workflow/src/adapters/approval_oversight_postgres.rs"
+      ],
+      "packages": [
+        "@erpx/server-work_projection",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-workflow",
+        "@erpx/server-maintenance",
+        "@erpx/server-identity_access"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "shared.work.rust-work-report-projection-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.work",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/integration/shared.work/rust-work-report-projection-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Work Projection report reads retain the exact mode predicates, counts, money, estimates, stage counts, 50-row page and CSV ordering over the authorized scoped rows."
+      },
+      "applications": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "apps": [
+        "workplace"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-work-projection",
+        "targets": [
+          "work_report_projection_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-work_projection/Cargo.toml",
+        "packages/server-work_projection/src/adapters/work_report_read.rs",
+        "packages/server-work_projection/src/public/work_report_read.rs",
+        "tests/support/rust-postgres.rs",
+        "tests/integration/shared.work/rust-work-report-projection-postgres.test.rs",
+        "packages/server-work_projection/src/adapters/work-reports.ts",
+        "packages/server-work_projection/src/application/work-reports.ts"
+      ],
+      "packages": [
+        "@erpx/server-work_projection",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "pms.booking-payment-recovery.e2e",
       "lane": "e2e",
       "owner": "pms",
@@ -35398,6 +35638,7 @@
         "tests/unit/shared.work/work-attention.test.ts",
         "tests/unit/shared.work/navigation-streaming.test.ts",
         "tests/unit/shared.work/navigation-snapshot.test.ts",
+        "tests/unit/shared.work/native-work-snapshot.test.ts",
         "tests/unit/shared.work/home-cache.test.ts",
         "tests/unit/shared.work/home-lazy-loading.test.ts"
       ],
