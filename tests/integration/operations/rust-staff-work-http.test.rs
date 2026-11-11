@@ -341,3 +341,31 @@ async fn backend_business_errors_map_to_the_exact_http_status() {
     assert_eq!(value["error"]["code"], "TASK_VERSION_CHANGED");
     task.abort();
 }
+
+/// A reviewed/approver command whose Workflow source is not mounted must stay
+/// fail-closed on the wire: the named source-required code is preserved and no
+/// approval receipt is fabricated.
+#[tokio::test]
+async fn workflow_source_required_errors_stay_fail_closed_on_the_wire() {
+    let backend = Arc::new(Backend::failing(BusinessError::new(
+        FailureKind::Unavailable,
+        "TASK_WORKFLOW_APPROVAL_VIEW_SOURCE_REQUIRED",
+        "Staff Work requires the current Workflow approval view, which composition has not mounted.",
+    )));
+    let (address, task) = start(backend.clone()).await;
+    let (status, value, _) = call(
+        address,
+        "POST",
+        "/api/v1/holdings/acme/staff-tasks/task-1/transition",
+        &JSON,
+        r#"{"action":"approve","expectedVersion":1,"note":""}"#,
+    )
+    .await;
+    assert_eq!(status, 503, "{value}");
+    assert_eq!(
+        value["error"]["code"],
+        "TASK_WORKFLOW_APPROVAL_VIEW_SOURCE_REQUIRED"
+    );
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 1);
+    task.abort();
+}

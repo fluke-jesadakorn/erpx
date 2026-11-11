@@ -2,11 +2,12 @@
 //! implied: the real PostgreSQL adapter has its own companion test.
 use erpx_server_operations::public::staff_tasks::{
     AlertPlan, AlertTask, ApprovalView, AttachmentRow, DecisionFact, DelegateTaskCommand,
-    DelegationFact, DelegationHistoryRow, PostFact, ProjectFact, RevokeTaskDelegationCommand,
-    RouteFact, SaveTaskCommand, StaffFact, StaffTaskActor, StaffTaskFuture, StaffTaskRepository,
-    StaffTaskSources, StoredTaskReceipt, TaskAccessFacts, TaskAction, TaskReceipt, TaskRow,
-    TransitionTaskCommand, delegate_task, escalate_staff_tasks, list_tasks, revoke_task_delegation,
-    save_task, task_detail, transition_task,
+    DelegationFact, DelegationHistoryRow, PgStaffTaskSources, PostFact, ProjectFact,
+    RevokeTaskDelegationCommand, RouteFact, SaveTaskCommand, StaffFact, StaffTaskActor,
+    StaffTaskFactDelegates, StaffTaskFuture, StaffTaskRepository, StaffTaskSources,
+    StoredTaskReceipt, TaskAccessFacts, TaskAction, TaskReceipt, TaskRow, TransitionTaskCommand,
+    delegate_task, escalate_staff_tasks, list_tasks, revoke_task_delegation, save_task,
+    task_detail, transition_task,
 };
 use erpx_server_shared::public::BusinessError;
 use std::collections::{HashMap, HashSet};
@@ -711,4 +712,170 @@ async fn alerts_are_counted_once_per_task_version_and_user() {
 #[allow(dead_code)]
 fn facts() -> TaskAccessFacts {
     TaskAccessFacts::default()
+}
+
+/// Mirrors the composition binding: only the six People/Identity/Projects/
+/// Collaboration/Files read ports are served, so the Workflow methods keep the
+/// trait's fail-closed defaults.
+struct MountedFacts;
+
+impl StaffTaskFactDelegates for MountedFacts {
+    fn active_staff<'a>(
+        &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
+        _company: &'a str,
+        _user: &'a str,
+    ) -> StaffTaskFuture<'a, Option<StaffFact>, BusinessError> {
+        Box::pin(async move {
+            Ok(Some(StaffFact {
+                branch_id: Some("branch".into()),
+                department_id: Some("department".into()),
+            }))
+        })
+    }
+
+    fn project<'a>(
+        &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
+        _company: &'a str,
+        _id: &'a str,
+    ) -> StaffTaskFuture<'a, Option<ProjectFact>, BusinessError> {
+        Box::pin(async move { Ok(None) })
+    }
+
+    fn same_person<'a>(
+        &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
+        actor: &'a StaffTaskActor,
+        user: &'a str,
+    ) -> StaffTaskFuture<'a, bool, BusinessError> {
+        Box::pin(async move { Ok(actor.user_id == user) })
+    }
+
+    fn readable_post<'a>(
+        &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
+        _actor: &'a StaffTaskActor,
+        _id: &'a str,
+    ) -> StaffTaskFuture<'a, Option<PostFact>, BusinessError> {
+        Box::pin(async move { Ok(None) })
+    }
+
+    fn attachments<'a>(
+        &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
+        _actor: &'a StaffTaskActor,
+        _task: &'a str,
+    ) -> StaffTaskFuture<'a, Vec<AttachmentRow>, BusinessError> {
+        Box::pin(async move { Ok(Vec::new()) })
+    }
+
+    fn person_name<'a>(
+        &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
+        _company: &'a str,
+        user: &'a str,
+    ) -> StaffTaskFuture<'a, Option<String>, BusinessError> {
+        Box::pin(async move { Ok(Some(user.to_owned())) })
+    }
+}
+
+fn reviewed_task() -> TaskRow {
+    TaskRow {
+        id: "task-reviewed".into(),
+        company_id: "company".into(),
+        branch_id: Some("branch".into()),
+        department_id: Some("department".into()),
+        title: "Review deliveries".into(),
+        description: String::new(),
+        creator_user_id: "creator".into(),
+        assignee_user_id: "worker".into(),
+        due_at: Some(1_800_000_000_000),
+        project_id: None,
+        start_approvers_json: r#"["head"]"#.into(),
+        completion_approvers_json: "[]".into(),
+        state: "start_approval".into(),
+        blocked_reason: None,
+        revision: 1,
+        version: 1,
+        template_id: None,
+        template_version: None,
+        schedule_id: None,
+        occurrence_at: None,
+        completion_note: String::new(),
+        active_delegation_id: None,
+        active_delegate_user_id: None,
+        active_delegate_name: None,
+        active_delegate_expires_at: None,
+        active_delegate_reason: None,
+        active_delegate_version: None,
+        created_at: 1,
+        updated_at: 1,
+    }
+}
+
+/// The mounted composition delegate serves an ordinary workspace read and save,
+/// but a reviewed task or approval command must refuse with the Workflow
+/// source-required code instead of fabricating an approval.
+#[tokio::test]
+async fn mounted_owner_facts_serve_reads_and_workflow_stays_fail_closed() {
+    let now = 1_790_000_000_000;
+    let mut repo = Repo::default();
+    let mut sources = PgStaffTaskSources::new(MountedFacts);
+
+    let created = save_task(
+        &actor("creator"),
+        &mut repo,
+        &mut sources,
+        None,
+        &save("Inspect deliveries"),
+        "key-mounted",
+        false,
+        now,
+    )
+    .await
+    .unwrap();
+    assert_eq!(created, TaskReceipt::new("task-key-mounted", "ready", 1));
+
+    let rows = list_tasks(&actor("creator"), &mut repo, &mut sources, None, now)
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].id, "task-key-mounted");
+
+    let mut reviewed = save("Reviewed deliveries");
+    reviewed.start_approvers = vec!["head".into()];
+    let error = save_task(
+        &actor("creator"),
+        &mut repo,
+        &mut sources,
+        None,
+        &reviewed,
+        "key-reviewed",
+        false,
+        now,
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error.code, "TASK_WORKFLOW_ROUTE_SOURCE_REQUIRED");
+    assert_eq!(repo.writes, 1, "a refused reviewed save writes nothing");
+
+    repo.tasks.insert("task-reviewed".into(), reviewed_task());
+    let error = transition_task(
+        &actor("head"),
+        &mut repo,
+        &mut sources,
+        "task-reviewed",
+        &TransitionTaskCommand {
+            action: TaskAction::Approve,
+            expected_version: 1,
+            note: String::new(),
+            attachment_set_ids: Vec::new(),
+        },
+        "key-approve",
+        now,
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error.code, "TASK_WORKFLOW_APPROVAL_VIEW_SOURCE_REQUIRED");
 }

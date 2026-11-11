@@ -1,6 +1,8 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_assets::public::record_source as asset_source;
+use erpx_server_collaboration::public::staff_facts::readable_post;
 use erpx_server_field_service::public::source_record::read_source_record;
+use erpx_server_files::public::staff_task_attachments::task_attachments;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::{parse_inbound_account_request, unique_request_header},
@@ -9,7 +11,11 @@ use erpx_server_identity_access::public::{
         WorkAuthorizationRequest,
     },
     operations_recipients::operations_recipient_allowed,
-    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
+    staff_facts::same_person as identity_same_person,
+    work_context::{
+        ExpectedWorkSelection, HoldingWorkspaceRequest, WorkAssignmentFact, WorkScopeKind,
+        WorkspaceLineageFact,
+    },
 };
 use erpx_server_operations::public::field_exceptions::Exception;
 use erpx_server_operations::public::field_policy::{
@@ -30,8 +36,19 @@ use erpx_server_operations::public::queue_read::{
     OperationsPeopleDirectory, OperationsReadActor, OperationsSourceVisibility, PersonOption,
     QueueException, SourceView, operations_detail, operations_workspace,
 };
+use erpx_server_operations::public::staff_tasks::{
+    AttachmentRow, PgStaffTaskSources, PgStaffTasks, PostFact, ProjectFact, StaffFact,
+    StaffTaskActor, StaffTaskFactDelegates, StaffTaskFuture, delegate_task, list_tasks,
+    lock_staff_task_sources, revoke_task_delegation, save_task, task_detail, transition_task,
+};
+use erpx_server_operations::public::staff_work_http::{
+    StaffWorkHttpBackend, StaffWorkHttpCommand, StaffWorkHttpCommandRequest, StaffWorkHttpFuture,
+    StaffWorkHttpReadKind, StaffWorkHttpReadRequest, StaffWorkHttpResponse,
+};
 use erpx_server_people_payroll::public::operations_people::read_operations_people;
+use erpx_server_people_payroll::public::staff_facts as people_staff_facts;
 use erpx_server_pos::public::record_source as pos_source;
+use erpx_server_projects::public::staff_facts::staff_project;
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::record_source_contract::{
@@ -1409,4 +1426,720 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
 #[allow(dead_code)]
 fn _router(targets: Vec<OperationsHttpTarget>) -> Result<axum::Router, BusinessError> {
     erpx_server_operations::public::operations_http::operations_router(targets)
+}
+
+// ---------------------------------------------------------------------------
+// Native Staff Work mounting.
+//
+// Only the five mounted owner read ports are served: People (active staff and
+// display name), Identity (same person), Projects (owner/title), Collaboration
+// (readable post) and Files (task attachments). The Workflow approval route/
+// view/open/decision/close ports and the PMS feature fact remain fail-closed so
+// a reviewed task or approval decision refuses with its named source-required
+// code instead of a fabricated approval. The workplace `staff-tasks` route is
+// still retained TypeScript; this mount alone changes no consumer behaviour.
+// ---------------------------------------------------------------------------
+
+fn staff_source_required(code: &'static str, message: &'static str) -> BusinessError {
+    BusinessError::new(FailureKind::Unavailable, code, message)
+}
+
+/// Composition binding for the Staff Work cross-owner facts.
+///
+/// Each read runs on the owner's retained serializable unit. Without a unit the
+/// delegate refuses with the same named source-required code as the trait
+/// default, so a fact is never fabricated.
+#[derive(Clone, Copy, Debug, Default)]
+struct StaffWorkFactDelegates;
+
+impl StaffTaskFactDelegates for StaffWorkFactDelegates {
+    fn active_staff<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        company_id: &'a str,
+        user_id: &'a str,
+    ) -> StaffTaskFuture<'a, Option<StaffFact>, BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_PEOPLE_ACTIVE_STAFF_SOURCE_REQUIRED",
+                    "Staff Work requires the current People active-staff port, which composition has not mounted.",
+                ));
+            };
+            let fact = people_staff_facts::active_staff(connection, company_id, user_id).await?;
+            Ok(fact.map(|fact| StaffFact {
+                branch_id: fact.branch_id,
+                department_id: fact.department_id,
+            }))
+        })
+    }
+
+    fn project<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        company_id: &'a str,
+        project_id: &'a str,
+    ) -> StaffTaskFuture<'a, Option<ProjectFact>, BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_PROJECT_SOURCE_REQUIRED",
+                    "Staff Work requires the current Projects port, which composition has not mounted.",
+                ));
+            };
+            let fact = staff_project(connection, company_id, project_id).await?;
+            Ok(fact.map(|fact| ProjectFact {
+                owner_user_id: fact.owner_user_id,
+                title: fact.title,
+            }))
+        })
+    }
+
+    fn same_person<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        actor: &'a StaffTaskActor,
+        user_id: &'a str,
+    ) -> StaffTaskFuture<'a, bool, BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_IDENTITY_SAME_PERSON_SOURCE_REQUIRED",
+                    "Staff Work requires the current Identity same-person port, which composition has not mounted.",
+                ));
+            };
+            identity_same_person(connection, &actor.company_id, &actor.user_id, user_id).await
+        })
+    }
+
+    fn readable_post<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        actor: &'a StaffTaskActor,
+        post_id: &'a str,
+    ) -> StaffTaskFuture<'a, Option<PostFact>, BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_COLLABORATION_POST_SOURCE_REQUIRED",
+                    "Staff Work requires the current Collaboration post-read port, which composition has not mounted.",
+                ));
+            };
+            let fact =
+                readable_post(connection, &actor.company_id, &actor.user_id, post_id).await?;
+            Ok(fact.map(|fact| PostFact {
+                id: fact.id,
+                author_id: fact.author_id,
+            }))
+        })
+    }
+
+    fn attachments<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        actor: &'a StaffTaskActor,
+        task_id: &'a str,
+    ) -> StaffTaskFuture<'a, Vec<AttachmentRow>, BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_FILES_ATTACHMENT_SOURCE_REQUIRED",
+                    "Staff Work requires the current Files attachment port, which composition has not mounted.",
+                ));
+            };
+            let facts = task_attachments(connection, &actor.company_id, task_id).await?;
+            Ok(facts
+                .into_iter()
+                .map(|fact| AttachmentRow {
+                    id: fact.id,
+                    original_name: fact.original_name,
+                    bytes: fact.bytes,
+                    media_type: fact.media_type,
+                })
+                .collect())
+        })
+    }
+
+    fn person_name<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        company_id: &'a str,
+        user_id: &'a str,
+    ) -> StaffTaskFuture<'a, Option<String>, BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_PEOPLE_NAME_SOURCE_REQUIRED",
+                    "Staff Work requires the current People display-name port, which composition has not mounted.",
+                ));
+            };
+            people_staff_facts::person_name(connection, company_id, user_id).await
+        })
+    }
+}
+
+/// Take the Staff Work owner locks as the attempt-local source preparation, so
+/// every fact read and owner ledger write shares the same serializable unit the
+/// owner expects.
+#[derive(Clone, Copy)]
+struct StaffWorkSources;
+
+impl HoldingWorkSourcePreparation for StaffWorkSources {
+    fn prepare<'c>(
+        &'c self,
+        connection: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move { lock_staff_task_sources(connection).await })
+    }
+}
+
+fn staff_work_actor(
+    user_id: &str,
+    workspace: &WorkspaceLineageFact,
+    assignment: &WorkAssignmentFact,
+    permissions: Vec<String>,
+    modules: Vec<String>,
+    expires_at: i64,
+) -> StaffTaskActor {
+    StaffTaskActor {
+        user_id: user_id.to_owned(),
+        assignment_id: assignment.id.as_str().to_owned(),
+        company_id: workspace.company_id.as_str().to_owned(),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        permissions,
+        modules,
+        expires_at,
+    }
+}
+
+fn current_staff_actor(current: &AuthorizedWorkContext) -> StaffTaskActor {
+    let selected = current.selection();
+    staff_work_actor(
+        current.user_id().as_str(),
+        selected.workspace(),
+        selected.assignment(),
+        current.command_iam_metadata().permissions.clone(),
+        current.modules().to_vec(),
+        current.expires_at(),
+    )
+}
+
+#[derive(Clone)]
+pub struct StaffWorkConfiguration {
+    holding: HoldingId,
+    company: CompanyId,
+}
+
+impl StaffWorkConfiguration {
+    pub fn new(holding: HoldingId, company: CompanyId) -> Self {
+        Self { holding, company }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        &self.company
+    }
+}
+
+pub struct StaffWorkService<C> {
+    authorizer: Arc<HoldingWorkAuthorizer>,
+    configuration: StaffWorkConfiguration,
+    clock: Arc<C>,
+}
+
+impl<C: Clock + Send + Sync + 'static> StaffWorkService<C> {
+    pub fn new(
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        configuration: StaffWorkConfiguration,
+        clock: Arc<C>,
+    ) -> Self {
+        Self {
+            authorizer,
+            configuration,
+            clock,
+        }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        self.configuration.company()
+    }
+
+    fn access() -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: "module.operations.read".into(),
+            module: Some("operations".into()),
+            destination: "operations".into(),
+            api: true,
+        }
+    }
+
+    fn command_access() -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: "records.write".into(),
+            module: Some("operations".into()),
+            destination: "operations".into(),
+            api: true,
+        }
+    }
+
+    fn input<Input>(
+        &self,
+        input: Input,
+    ) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        }
+    }
+
+    pub async fn read<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        kind: StaffWorkHttpReadKind,
+    ) -> Result<StaffWorkHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                StaffWorkSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let kind = kind.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("module.operations.read")?;
+                        let actor = current_staff_actor(current);
+                        let now = clock.now().get();
+                        let mut repository = PgStaffTasks::new(connection);
+                        let mut sources = PgStaffTaskSources::new(StaffWorkFactDelegates);
+                        let data = match kind {
+                            StaffWorkHttpReadKind::Workspace { project_id } => {
+                                serde_json::to_value(
+                                    list_tasks(
+                                        &actor,
+                                        &mut repository,
+                                        &mut sources,
+                                        project_id.as_deref(),
+                                        now,
+                                    )
+                                    .await?,
+                                )
+                                .map_err(|_| unavailable())?
+                            }
+                            StaffWorkHttpReadKind::Detail(id) => serde_json::to_value(
+                                task_detail(&actor, &mut repository, &mut sources, &id, now)
+                                    .await?,
+                            )
+                            .map_err(|_| unavailable())?,
+                        };
+                        Ok(StaffWorkHttpResponse {
+                            data,
+                            context: context_value(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: StaffWorkHttpCommand,
+        key: CommandKey,
+    ) -> Result<StaffWorkHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                {
+                    let company = company.clone();
+                    move || {
+                        let mut request = input()?;
+                        if request.company_id != company {
+                            return Err(scope());
+                        }
+                        request.mutation = true;
+                        Ok(request)
+                    }
+                },
+                Self::command_access(),
+                StaffWorkSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let actor = current_staff_actor(current);
+                        let now = clock.now().get();
+                        let mut repository = PgStaffTasks::new(connection);
+                        let mut sources = PgStaffTaskSources::new(StaffWorkFactDelegates);
+                        let receipt = match command {
+                            StaffWorkHttpCommand::Save {
+                                id,
+                                revision,
+                                command,
+                            } => {
+                                save_task(
+                                    &actor,
+                                    &mut repository,
+                                    &mut sources,
+                                    id.as_deref(),
+                                    &command,
+                                    key.as_str(),
+                                    revision,
+                                    now,
+                                )
+                                .await?
+                            }
+                            StaffWorkHttpCommand::Transition { id, command } => {
+                                transition_task(
+                                    &actor,
+                                    &mut repository,
+                                    &mut sources,
+                                    &id,
+                                    &command,
+                                    key.as_str(),
+                                    now,
+                                )
+                                .await?
+                            }
+                            StaffWorkHttpCommand::Delegate { id, command } => {
+                                delegate_task(
+                                    &actor,
+                                    &mut repository,
+                                    &mut sources,
+                                    &id,
+                                    &command,
+                                    key.as_str(),
+                                    now,
+                                )
+                                .await?
+                            }
+                            StaffWorkHttpCommand::Revoke { id, command, .. } => {
+                                revoke_task_delegation(
+                                    &actor,
+                                    &mut repository,
+                                    &mut sources,
+                                    &id,
+                                    &command,
+                                    key.as_str(),
+                                    now,
+                                )
+                                .await?
+                            }
+                        };
+                        Ok(StaffWorkHttpResponse {
+                            data: serde_json::to_value(receipt).map_err(|_| unavailable())?,
+                            context: context_value(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
+pub struct StaffWorkBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<StaffWorkService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> StaffWorkBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<StaffWorkService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+
+    fn command_context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let (proof, mut selection) = self.context(headers)?;
+        let revision = unique_request_header(headers, "x-erpx-context-revision")?
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "STAFF_TASK_CONTEXT_REQUIRED",
+                    "Use the current work revision.",
+                )
+            })?
+            .parse()
+            .map_err(|_| {
+                BusinessError::invalid(
+                    "STAFF_TASK_CONTEXT_REQUIRED",
+                    "Use the current work revision.",
+                )
+            })?;
+        let assignment = unique_request_header(headers, "x-erpx-context-assignment")?
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "STAFF_TASK_CONTEXT_REQUIRED",
+                    "Choose the current assignment.",
+                )
+            })?
+            .to_owned();
+        let assignment_version =
+            unique_request_header(headers, "x-erpx-context-assignment-version")?
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "STAFF_TASK_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?
+                .parse()
+                .map_err(|_| {
+                    BusinessError::invalid(
+                        "STAFF_TASK_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?;
+        selection.mutation = true;
+        selection.expected = Some(ExpectedWorkSelection {
+            revision,
+            assignment_id: AssignmentId::new(assignment)?,
+            assignment_version,
+        });
+        Ok((proof, selection))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> StaffWorkHttpBackend for StaffWorkBackend<C> {
+    fn read<'a>(
+        &'a self,
+        request: StaffWorkHttpReadRequest<'a>,
+    ) -> StaffWorkHttpFuture<'a, StaffWorkHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .read(request.host, proof, move || Ok(selection), request.kind)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn command<'a>(
+        &'a self,
+        request: StaffWorkHttpCommandRequest<'a>,
+    ) -> StaffWorkHttpFuture<'a, StaffWorkHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            self.service
+                .command(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.command,
+                    request.key,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+#[cfg(test)]
+mod staff_work_tests {
+    use super::*;
+    use erpx_server_operations::public::staff_tasks::TaskScope;
+    use erpx_server_shared::public::RecordId;
+
+    fn workspace() -> WorkspaceLineageFact {
+        WorkspaceLineageFact {
+            company_id: CompanyId::new("company").unwrap(),
+            branch_id: Some(RecordId::new("branch").unwrap()),
+            department_id: Some(RecordId::new("department").unwrap()),
+            branch_slug: Some("branch".into()),
+            department_slug: Some("department".into()),
+        }
+    }
+
+    fn assignment() -> WorkAssignmentFact {
+        WorkAssignmentFact {
+            id: AssignmentId::new("assignment").unwrap(),
+            user_id: erpx_server_shared::public::UserId::new("user").unwrap(),
+            company_id: CompanyId::new("company").unwrap(),
+            role: "manager".into(),
+            modules: vec!["operations".into()],
+            scope_kind: WorkScopeKind::Department,
+            scope_node_id: Some(RecordId::new("department").unwrap()),
+            version: 3,
+            valid_from: 0,
+            valid_until: 9_999_999_999_999,
+            revoked: false,
+        }
+    }
+
+    #[test]
+    fn actor_carries_the_selected_context_facts() {
+        let actor = staff_work_actor(
+            "user",
+            &workspace(),
+            &assignment(),
+            vec!["records.read".into(), "records.write".into()],
+            vec!["operations".into()],
+            9_999_999_999_999,
+        );
+        assert_eq!(actor.user_id, "user");
+        assert_eq!(actor.assignment_id, "assignment");
+        assert_eq!(actor.company_id, "company");
+        assert_eq!(actor.branch_id.as_deref(), Some("branch"));
+        assert_eq!(actor.department_id.as_deref(), Some("department"));
+        assert!(actor.require_read(0).is_ok());
+        assert!(actor.require_write(0).is_ok());
+    }
+
+    #[tokio::test]
+    async fn delegates_refuse_without_the_owner_unit() {
+        let mut delegates = StaffWorkFactDelegates;
+        let actor = staff_work_actor(
+            "user",
+            &workspace(),
+            &assignment(),
+            vec!["records.read".into()],
+            vec!["operations".into()],
+            9_999_999_999_999,
+        );
+        let error = delegates
+            .active_staff(None::<&mut PgConnection>, "company", "user")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "TASK_PEOPLE_ACTIVE_STAFF_SOURCE_REQUIRED");
+
+        let error = delegates
+            .project(None::<&mut PgConnection>, "company", "project")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "TASK_PROJECT_SOURCE_REQUIRED");
+
+        let error = delegates
+            .same_person(None::<&mut PgConnection>, &actor, "user")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "TASK_IDENTITY_SAME_PERSON_SOURCE_REQUIRED");
+
+        let error = delegates
+            .readable_post(None::<&mut PgConnection>, &actor, "post")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "TASK_COLLABORATION_POST_SOURCE_REQUIRED");
+
+        let error = delegates
+            .attachments(None::<&mut PgConnection>, &actor, "task-1")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "TASK_FILES_ATTACHMENT_SOURCE_REQUIRED");
+
+        let error = delegates
+            .person_name(None::<&mut PgConnection>, "company", "user")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "TASK_PEOPLE_NAME_SOURCE_REQUIRED");
+    }
+
+    #[tokio::test]
+    async fn workflow_and_feature_facts_stay_fail_closed() {
+        // The delegate overrides no Workflow or PMS method, so the trait defaults
+        // keep refusing with their named source-required codes.
+        let mut delegates =
+            erpx_server_operations::public::staff_tasks::FailClosedStaffTaskFactDelegates;
+        let scope = TaskScope {
+            company_id: "company".into(),
+            branch_id: None,
+            department_id: None,
+        };
+        let error = delegates
+            .task_route(
+                None::<&mut PgConnection>,
+                &scope,
+                "creator",
+                "assignee",
+                "start",
+                &[],
+                false,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "TASK_WORKFLOW_ROUTE_SOURCE_REQUIRED");
+
+        let error = delegates
+            .feature_enabled(None::<&mut PgConnection>, "company")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "TASK_PMS_FEATURE_SOURCE_REQUIRED");
+    }
 }
