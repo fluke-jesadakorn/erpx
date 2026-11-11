@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 385,
+    "revision": 386,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -12925,7 +12925,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "All 8 source reads now exist (933f460c2) and collaboration_work GET workspace is native (1a63db1ee), router mounted. Remaining: collaboration POST (relation/card commands) still TS because the composed source port does not revalidate witnesses; inbox summary/notifications walk owner scopes; messaging history/team-channel reads; feed subpaths; attachments 503 (Files WIP); CSV export TS.",
+        "nextAction": "Witness plumbing landed (a199f08e6): require_current_with + composition dispatch over all 7 witness kinds; unit revalidates retained witnesses. BLOCKER for POST switch: the collaboration command path never calls visible_source, so no witnesses are prepared for create-relation/create-card/change (TS validated via sourceRecordGuards). Next: resolve every change source in prepare and retain witnesses, then switch POST; inbox summary/notifications, messaging history/channels and feed subpaths remain TS.",
         "handoff": {
           "runId": "run-20261110-g5",
           "agentId": "lead",
@@ -15378,7 +15378,7 @@
       }
     },
     "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T05:28:47.127Z",
+    "updatedAt": "2026-11-11T05:29:05.083Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
