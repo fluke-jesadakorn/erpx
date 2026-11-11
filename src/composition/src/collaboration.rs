@@ -8,6 +8,21 @@ use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::social::{
     PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, execute, lock_social_sources,
 };
+use erpx_server_collaboration::public::messaging_http::{
+    MessagingAttachmentReply, MessagingChannelsData, MessagingHistoryData,
+    MessagingHttpAttachmentRequest, MessagingHttpBackend, MessagingHttpCommand,
+    MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
+    MessagingHttpReadRequest, MessagingHttpReceipt, MessagingHttpTarget, MessagingMembersData,
+    MessagingOverviewData, MessagingReadKind,
+};
+use erpx_server_collaboration::public::messaging_native::{
+    Change as RoomChange, HistoryCursor, PgMessagingUnit, Receipt as RoomReceipt, RoomView,
+    lock_messaging_sources, execute as execute_room,
+};
+use erpx_server_collaboration::public::messaging_teams::{
+    Change as TeamChange, PgMessagingTeamUnit, Receipt as TeamReceipt,
+    lock_messaging_team_sources, execute as execute_team,
+};
 use erpx_server_collaboration::public::social_http::{
     SocialFeedData, SocialHttpBackend, SocialHttpCommandRequest, SocialHttpFuture,
     SocialHttpReadReply, SocialHttpReadRequest, SocialHttpTarget, SocialReadKind,
@@ -453,5 +468,337 @@ pub fn social_target(
         holding_slug,
         origin,
         backend,
+    }
+}
+
+fn messaging_scope(
+    current: &AuthorizedWorkContext,
+    company: &CompanyId,
+    name: String,
+    now: i64,
+) -> Result<erpx_server_collaboration::public::messaging_native::MessagingScope, BusinessError> {
+    erpx_server_collaboration::public::messaging_native::MessagingScope::new(
+        company.as_str(),
+        current.user_id().as_str(),
+        current.selection().assignment().id.as_str(),
+        name,
+        now,
+    )
+}
+
+fn room_view(room: &erpx_server_collaboration::public::messaging_native::RoomSnapshot) -> RoomView {
+    RoomView {
+        id: room.id.clone(),
+        kind: room.kind.as_str().to_owned(),
+        name: room.name.clone(),
+        owner_id: room.owner_id.clone(),
+        version: room.version,
+        last_seq: room.last_seq,
+        unread: 0,
+        members: room.members.clone(),
+        last_message_at: None,
+    }
+}
+
+fn attachment_unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "FILES_PORT_UNAVAILABLE",
+        "Messaging attachments are unavailable.",
+    )
+}
+
+pub struct MessagingService<C> {
+    authorizer: Arc<HoldingWorkAuthorizer>,
+    configuration: SocialConfiguration,
+    clock: Arc<C>,
+}
+
+impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
+    pub fn new(
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        configuration: SocialConfiguration,
+        clock: Arc<C>,
+    ) -> Self {
+        Self {
+            authorizer,
+            configuration,
+            clock,
+        }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        self.configuration.company()
+    }
+
+    pub async fn read(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        kind: MessagingReadKind,
+    ) -> Result<MessagingHttpReadReply, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected {
+                        return Err(scope_error());
+                    }
+                    request.mutation = false;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("collaboration".into()),
+                    destination: "messaging".into(),
+                    api: true,
+                },
+                CollaborationSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let kind = kind.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_error().into());
+                        }
+                        let now = clock.now().get();
+                        let name = display_name(connection, &company, current.user_id().as_str())
+                            .await;
+                        let scope = messaging_scope(current, &company, name, now)?;
+                        Ok(match kind {
+                            MessagingReadKind::Overview => {
+                                let mut rooms = PgMessagingUnit::read_only(connection, scope.clone());
+                                let rooms = rooms.overview().await?;
+                                let mut teams =
+                                    PgMessagingTeamUnit::read_only(connection, scope);
+                                let teams = teams.teams().await?;
+                                MessagingHttpReadReply::Overview(Box::new(
+                                    MessagingOverviewData { teams, rooms },
+                                ))
+                            }
+                            MessagingReadKind::History {
+                                room_id,
+                                before,
+                                after,
+                                limit,
+                            } => {
+                                let mut unit =
+                                    PgMessagingUnit::read_only(connection, scope);
+                                let room = unit.room(&room_id).await?.map(|room| room_view(&room));
+                                let messages =
+                                    unit.history(&room_id, before, after, limit).await?;
+                                let has_more = messages.len() >= limit;
+                                let room = room.ok_or_else(|| {
+                                    BusinessError::new(
+                                        FailureKind::NotFound,
+                                        "NOT_FOUND",
+                                        "Not found.",
+                                    )
+                                })?;
+                                MessagingHttpReadReply::History(Box::new(MessagingHistoryData {
+                                    room,
+                                    messages,
+                                    has_more,
+                                }))
+                            }
+                            MessagingReadKind::Members { id, is_team } => {
+                                let members = if is_team {
+                                    let mut teams =
+                                        PgMessagingTeamUnit::read_only(connection, scope);
+                                    teams.members(&id).await?
+                                } else {
+                                    let mut unit =
+                                        PgMessagingUnit::read_only(connection, scope);
+                                    unit.room_members(&id).await?
+                                };
+                                MessagingHttpReadReply::Members(Box::new(MessagingMembersData {
+                                    id,
+                                    is_team,
+                                    members,
+                                }))
+                            }
+                            MessagingReadKind::TeamChannels { team_id } => {
+                                let mut teams =
+                                    PgMessagingTeamUnit::read_only(connection, scope);
+                                let team = teams.team(&team_id).await?.ok_or_else(|| {
+                                    BusinessError::new(
+                                        FailureKind::NotFound,
+                                        "NOT_FOUND",
+                                        "Not found.",
+                                    )
+                                })?;
+                                let channels = teams.channels(&team_id, 100).await?;
+                                MessagingHttpReadReply::Channels(Box::new(
+                                    MessagingChannelsData { team, channels },
+                                ))
+                            }
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn command(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        command: MessagingHttpCommand,
+        key: erpx_server_shared::public::CommandKey,
+    ) -> Result<MessagingHttpReceipt, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected {
+                        return Err(scope_error());
+                    }
+                    request.mutation = true;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.write".into(),
+                    module: Some("collaboration".into()),
+                    destination: "messaging".into(),
+                    api: true,
+                },
+                CollaborationSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_error().into());
+                        }
+                        let now = clock.now().get();
+                        let name = display_name(connection, &company, current.user_id().as_str())
+                            .await;
+                        let scope = messaging_scope(current, &company, name, now)?;
+                        Ok(match command {
+                            MessagingHttpCommand::Room(change) => {
+                                lock_messaging_sources(connection).await?;
+                                let mut unit =
+                                    PgMessagingUnit::new(connection, scope, key.clone());
+                                let receipt = execute_room(&mut unit, &key, change).await?;
+                                MessagingHttpReceipt::Room { receipt }
+                            }
+                            MessagingHttpCommand::Team(change) => {
+                                lock_messaging_team_sources(connection).await?;
+                                let mut unit =
+                                    PgMessagingTeamUnit::new(connection, scope, key.clone());
+                                let receipt = execute_team(&mut unit, &key, change).await?;
+                                MessagingHttpReceipt::Team { receipt }
+                            }
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
+pub struct MessagingBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<MessagingService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> MessagingBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<MessagingService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> MessagingHttpBackend for MessagingBackend<C> {
+    fn read<'a>(
+        &'a self,
+        request: MessagingHttpReadRequest<'a>,
+    ) -> MessagingHttpFuture<'a, MessagingHttpReadReply> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .read(request.host, proof, selection, request.kind)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn command<'a>(
+        &'a self,
+        request: MessagingHttpCommandRequest<'a>,
+    ) -> MessagingHttpFuture<'a, MessagingHttpReceipt> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .command(
+                    request.host,
+                    proof,
+                    selection,
+                    request.command,
+                    request.key,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn attachment<'a>(
+        &'a self,
+        _request: MessagingHttpAttachmentRequest<'a>,
+        _files: &'a dyn erpx_server_collaboration::public::messaging_http::MessagingFilesPort,
+    ) -> MessagingHttpFuture<'a, MessagingAttachmentReply> {
+        Box::pin(async { Err(attachment_unavailable()) })
     }
 }

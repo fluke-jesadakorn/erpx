@@ -2518,6 +2518,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut social_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut messaging_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_retention_targets = Vec::new();
@@ -2936,6 +2938,31 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+                }
+                #[cfg(feature = "existing-business")]
+                {
+                    messaging_targets.push(
+                        erpx_server_collaboration::public::messaging_http::MessagingHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: Arc::new(
+                                crate::collaboration::MessagingBackend::new(
+                                    config.policy.clone(),
+                                    Arc::new(FinanceJournalReadScopeHeaders),
+                                    Arc::new(crate::collaboration::MessagingService::new(
+                                        authorizer.clone(),
+                                        crate::collaboration::SocialConfiguration::new(
+                                            holding.registration.holding_id.clone(),
+                                            company.clone(),
+                                        ),
+                                        Arc::new(SharedClock(clock.clone())),
+                                    )),
+                                ),
+                            ),
+                            files: None,
+                        },
+                    );
                 }
                 #[cfg(feature = "existing-business")]
                 {
@@ -4573,6 +4600,15 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        #[cfg(feature = "existing-business")]
+        if !messaging_targets.is_empty() {
+            router = router.merge(
+                erpx_server_collaboration::public::messaging_http::messaging_router(
+                    messaging_targets,
+                )
+                .map_err(|_| "PRIVATE_API_COLLABORATION_CONFIGURATION_INVALID")?,
+            );
+        }
         #[cfg(feature = "existing-business")]
         if !social_targets.is_empty() {
             router = router.merge(

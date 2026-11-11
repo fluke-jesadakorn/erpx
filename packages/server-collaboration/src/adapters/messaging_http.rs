@@ -90,6 +90,7 @@ pub struct MessagingHttpReadRequest<'a> {
     pub kind: MessagingReadKind,
 }
 
+#[derive(Clone)]
 pub enum MessagingHttpCommand {
     Room(Change),
     Team(crate::domain::messaging_teams::Change),

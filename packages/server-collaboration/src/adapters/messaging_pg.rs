@@ -736,6 +736,12 @@ impl<'c> PgMessagingTeamUnit<'c> {
         }
     }
 
+    pub async fn teams(&mut self) -> Result<Vec<TeamSnapshot>, Error> {
+        self.verify_authority().await?;
+        crate::adapters::messaging_teams::read_teams(&mut *self.connection, &self.scope.company_id)
+            .await
+    }
+
     pub async fn team(&mut self, id: &str) -> Result<Option<TeamSnapshot>, Error> {
         read_team(&mut *self.connection, &self.scope.company_id, id).await
     }

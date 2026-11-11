@@ -66,6 +66,32 @@ async fn room_members(c: &mut PgConnection, id: &str) -> Result<Vec<String>, Err
     .await?)
 }
 
+pub async fn read_teams(
+    c: &mut PgConnection,
+    company: &CompanyId,
+) -> Result<Vec<TeamSnapshot>, Error> {
+    let rows = sqlx::query(
+        "SELECT id,company_id,name,owner_id,version,created_at FROM messaging_teams WHERE company_id=$1 ORDER BY name,id LIMIT 200",
+    )
+    .bind(company.as_str())
+    .fetch_all(&mut *c)
+    .await?;
+    let mut teams = Vec::with_capacity(rows.len());
+    for row in rows {
+        let id: String = row.try_get(0)?;
+        teams.push(TeamSnapshot {
+            id: id.clone(),
+            company_id: row.try_get(1)?,
+            name: row.try_get(2)?,
+            owner_id: row.try_get(3)?,
+            version: row.try_get(4)?,
+            members: team_members(c, &id).await?,
+            created_at: row.try_get(5)?,
+        });
+    }
+    Ok(teams)
+}
+
 pub async fn read_team(
     c: &mut PgConnection,
     company: &CompanyId,
