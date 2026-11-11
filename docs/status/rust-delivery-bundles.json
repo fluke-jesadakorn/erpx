@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 465,
+    "revision": 470,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g11",
+      "runId": "run-20261110-g12",
       "agentId": "lead",
-      "startedAt": "2026-11-11T12:18:27.956Z",
-      "heartbeatAt": "2026-11-11T12:18:27.956Z",
-      "expiresAt": "2026-11-11T12:48:27.957Z",
-      "generation": 12,
-      "tokenHash": "f5fc5344f9717c3fff6ed5683a54fbe565a312841f29f95fc80a58faed06572a"
+      "startedAt": "2026-11-11T12:49:09.678Z",
+      "heartbeatAt": "2026-11-11T12:49:09.678Z",
+      "expiresAt": "2026-11-11T13:19:09.679Z",
+      "generation": 13,
+      "tokenHash": "422b9344fc0f00a55877b5e88040013ff034bb8c91781c2b64bacc2f00332b40"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -15488,29 +15488,93 @@
         "resources": [
           "owner:files"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g11",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T12:19:03.059Z",
-          "heartbeatAt": "2026-11-11T12:19:03.059Z",
-          "expiresAt": "2026-11-11T12:49:03.059Z",
-          "generation": 12
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+        "lastPushedSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "Benefits detail/commands and the native payroll benefit-input read compile together."
+          },
+          {
+            "command": "bun run test:unit -- --suite=benefits.rust-benefits-command.unit",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "13/13 Benefits command cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=files.rust-benefit-evidence-policy.unit",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "3/3 Benefits evidence policy cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=learning.rust-learning.unit",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "25/25 Learning cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=benefits.rust-benefits-workspace-http.integration",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "3/3 detail/workspace HTTP cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=benefits.rust-benefits-command-composed-http-postgres.integration",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "3/3 composed HTTP+PostgreSQL command cases pass."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --test payroll_run_command --locked",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "8/8 native payroll run command cases pass including benefit components."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --test payroll_run_postgres --locked",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "1/1 PostgreSQL run case proves released benefit rows are read in the same unit."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects pass."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "d2bde01318f1ca9fca4faa6e9df2fa810301e986",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 33 modules, 1109 suites."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "PgLearningEvidence is bound into the Learning command path (877ea6927) and PgBenefitsEvidence into Benefits commands (402dd7d12). Remaining: no separate action; close when Benefits election eligibility closes (payroll_source switch).",
+        "nextAction": "Learning and Benefits evidence ports are implemented over the caller unit and bound into both command paths; no separate consumer remains.",
         "handoff": {
-          "runId": "run-20261110-g10",
+          "runId": "run-20261110-g11",
           "agentId": "lead",
-          "at": "2026-11-11T12:18:27.956Z",
+          "at": "2026-11-11T12:49:09.678Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
-          "nextAction": "PgLearningEvidence implemented and registered (0398719c1; unit 4/4, PG 4/4). Remaining: wire it into the Learning command backend (create/change assignment evidence) and the Benefits evidence port, then switch consumers."
+          "reason": "Recovery: Lease expired after benefits migration record; WIP reviewed",
+          "nextAction": "PgLearningEvidence is bound into the Learning command path (877ea6927) and PgBenefitsEvidence into Benefits commands (402dd7d12). Remaining: no separate action; close when Benefits election eligibility closes (payroll_source switch)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-files",
@@ -15698,20 +15762,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 53,
-      "migratedPackets": 16,
+      "migratedPackets": 17,
       "statusCounts": {
         "pending": 24,
         "in_progress": 0,
-        "ready_for_integration": 8,
+        "ready_for_integration": 7,
         "integrating": 0,
-        "migrated": 16,
+        "migrated": 17,
         "blocked": 5,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 12,
-    "updatedAt": "2026-11-11T12:48:25.632Z",
+    "lastCoordinatorGeneration": 13,
+    "updatedAt": "2026-11-11T12:49:48.418Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15754,10 +15818,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g10",
-      "runId": "run-20261110-g11",
-      "at": "2026-11-11T12:18:27.957Z",
-      "reason": "Lease expired after benefits ports commit; WIP reviewed",
+      "previousRunId": "run-20261110-g11",
+      "runId": "run-20261110-g12",
+      "at": "2026-11-11T12:49:09.679Z",
+      "reason": "Lease expired after benefits migration record; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
