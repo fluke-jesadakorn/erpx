@@ -45,7 +45,10 @@ const open={id:'promise-line-a1',promise_id:'promise-2',order_id:'order-1',compa
   order_line_id:'order-line-a',ordinal:0,quantity_milli:4000,fulfilled_snapshot_milli:4000,
   promised_date:'2026-11-08',product_id:'product-a',description:'Bounded part',
   fulfilled_milli:4000,prior_quantity:0,remaining_milli:4000};
-const data={order_id:'order-1',history:[history,withdrawn],lines:[line],open:[open]};
+const order={id:'order-1',company_id:'company',version:2,state:'confirmed'};
+const orderLine={id:'order-line-a',order_id:'order-1',ordinal:0,outstanding_milli:4000,unconfirmed_milli:0};
+const data={order,lines:[orderLine],history:[history,withdrawn],schedule:[line],open:[open],canRecord:true,purchase:{newWork:true,settleExisting:true,history:true,revision:'rev-1'}};
+const historyResult={order_id:'order-1',history:[history,withdrawn],lines:[line],open:[open]};
 const input={holdingSlug:'acme',expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3}};
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 
@@ -54,7 +57,7 @@ describe('native Procurement supplier promise history transport',()=>{
   const transport=vi.fn().mockResolvedValue(ok({data,context}));
   const client=createNativeSupplierPromiseHistoryClient(nativeProcurementConfiguration(config()),transport);
   const result=await client.history(incoming(),actor,'order-1',input);
-  expect(result).toEqual(data);
+  expect(result).toEqual(historyResult);
   const [method,url,headers,body]=transport.mock.calls[0];
   expect(method).toBe('GET');
   expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/procurement/purchase-orders/order-1/supplier-promises');
@@ -65,6 +68,13 @@ describe('native Procurement supplier promise history transport',()=>{
   expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
   expect(headers.get('idempotency-key')).toBeNull();
   expect(body).toBeUndefined();
+ });
+
+ it('returns the full native detail with purchase overlay for the Supply route',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data,context}));
+  const client=createNativeSupplierPromiseHistoryClient(nativeProcurementConfiguration(config()),transport);
+  const result=await client.detail(incoming(),actor,'order-1',input);
+  expect(result).toEqual(data);
  });
 
  it('forwards the selected branch workspace slug as context CAS input',async()=>{

@@ -172,30 +172,78 @@ const openRow = (value: unknown): value is NativeOpenPromiseRow =>
   integer(value.remaining_milli) &&
   value.remaining_milli <= value.quantity_milli;
 
-function historyData(value: unknown, orderId: string, companyId: string): NativeSupplierPromiseHistory {
-  if (!exact(value, ['order_id', 'history', 'lines', 'open']) || value.order_id !== orderId)
-    return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
+export type NativeSupplierPromiseDetail = Readonly<{
+  order: Row;
+  lines: Row[];
+  history: NativeSupplierPromiseHistoryRow[];
+  schedule: NativeSupplierPromiseLineRow[];
+  open: NativeOpenPromiseRow[];
+  canRecord: boolean;
+  purchase?: Row;
+}>;
+
+function orderLineRow(value: unknown, orderId: string): value is Row {
+  return (
+    record(value) &&
+    identifier(value.id) &&
+    value.order_id === orderId &&
+    integer(value.ordinal) &&
+    integer(value.outstanding_milli) &&
+    integer(value.unconfirmed_milli)
+  );
+}
+
+function detailData(
+  value: unknown,
+  orderId: string,
+  companyId: string,
+): NativeSupplierPromiseDetail {
+  if (!record(value) || !record(value.order)) return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
+  const order = value.order;
   if (
+    order.id !== orderId ||
+    order.company_id !== companyId ||
+    !integer(order.version, 1) ||
+    !text(order.state, 40) ||
+    !Array.isArray(value.lines) ||
+    value.lines.length > 10_000 ||
+    !value.lines.every((line) => orderLineRow(line, orderId)) ||
     !Array.isArray(value.history) ||
     value.history.length > 1_000 ||
     !value.history.every(historyRow) ||
-    !Array.isArray(value.lines) ||
-    value.lines.length > 10_000 ||
-    !value.lines.every(lineRow) ||
+    !Array.isArray(value.schedule) ||
+    value.schedule.length > 10_000 ||
+    !value.schedule.every(lineRow) ||
     !Array.isArray(value.open) ||
     value.open.length > 10_000 ||
-    !value.open.every(openRow)
+    !value.open.every(openRow) ||
+    typeof value.canRecord !== 'boolean' ||
+    (value.purchase !== undefined && !record(value.purchase))
   )
     return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
+  return {
+    order,
+    lines: value.lines,
+    history: value.history,
+    schedule: value.schedule,
+    open: value.open,
+    canRecord: value.canRecord,
+    ...(value.purchase !== undefined ? { purchase: value.purchase } : {}),
+  };
+}
+
+function historyData(value: unknown, orderId: string, companyId: string): NativeSupplierPromiseHistory {
+  const detail = detailData(value, orderId, companyId);
+  if (!detail.order.id) return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
 
   const promises = new Map<string, NativeSupplierPromiseHistoryRow>();
-  for (const row of value.history) {
+  for (const row of detail.history) {
     if (row.order_id !== orderId || row.company_id !== companyId || promises.has(row.id))
       return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
     promises.set(row.id, row);
   }
   const lines = new Map<string, NativeSupplierPromiseLineRow>();
-  for (const row of value.lines) {
+  for (const row of detail.schedule) {
     const promise = promises.get(row.promise_id);
     if (
       !promise ||
@@ -207,7 +255,7 @@ function historyData(value: unknown, orderId: string, companyId: string): Native
     lines.set(row.id, row);
   }
   const open = new Set<string>();
-  for (const row of value.open) {
+  for (const row of detail.open) {
     const promise = promises.get(row.promise_id);
     const line = lines.get(row.id);
     if (
@@ -229,9 +277,9 @@ function historyData(value: unknown, orderId: string, companyId: string): Native
   }
   return {
     order_id: orderId,
-    history: value.history as NativeSupplierPromiseHistoryRow[],
-    lines: value.lines as NativeSupplierPromiseLineRow[],
-    open: value.open as NativeOpenPromiseRow[],
+    history: detail.history,
+    lines: detail.schedule,
+    open: detail.open,
   };
 }
 
@@ -529,7 +577,20 @@ export function createNativeSupplierPromiseHistoryClient(
     context(value.context, actor, input);
     return historyData(value.data, orderId, actor.companyId);
   };
-  return { history: historyDataFor };
+  const detailFor = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeProcurementPageContext,
+    orderId: string,
+    input: NativeSupplierPromiseHistoryReadInput,
+    signal?: AbortSignal,
+  ): Promise<NativeSupplierPromiseDetail> => {
+    const value = await boundedJson(await request(incoming, actor, orderId, input, signal));
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_PROCUREMENT_RESPONSE_INVALID');
+    context(value.context, actor, input);
+    return detailData(value.data, orderId, actor.companyId);
+  };
+  return { history: historyDataFor, detail: detailFor };
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */

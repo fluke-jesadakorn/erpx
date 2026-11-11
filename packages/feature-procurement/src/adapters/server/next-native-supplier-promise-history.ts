@@ -1,15 +1,14 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import type { NativeSupplierPromiseHistoryReadInput } from '../../public/native-supplier-promise-history';
-import type { NativeSupplierPromiseHistory } from '../../lib/native-supplier-promise-history-types';
 
-export function createNextNativeSupplierPromiseHistoryReader(
+export function createNextNativeSupplierPromiseHistoryReader<T>(
   read: (
     incoming: Pick<Headers, 'get'>,
     orderId: string,
     input: NativeSupplierPromiseHistoryReadInput,
     signal?: AbortSignal,
-  ) => Promise<NativeSupplierPromiseHistory>,
+  ) => Promise<T>,
 ) {
   return async (orderId: string, input: NativeSupplierPromiseHistoryReadInput, signal?: AbortSignal) =>
     read(await headers(), orderId, input, signal);

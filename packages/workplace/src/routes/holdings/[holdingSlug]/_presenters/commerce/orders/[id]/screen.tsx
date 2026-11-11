@@ -32,7 +32,7 @@ import {salesEditorOptions,type SalesEditorOptions} from "@erpx/server-commerce/
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { supplierPromiseDetail } from "@erpx/server-procurement/public/supplier-promises";
-import { ownedSupplierPromiseHistory } from "@erpx/feature-procurement/public/native-supplier-promise-history-owned";
+import { ownedSupplierPromiseDetail, ownedSupplierPromiseHistory } from "@erpx/feature-procurement/public/native-supplier-promise-history-owned";
 import { SupplierBillCapture } from "@erpx/feature-records/components/loaders/modules--supplier-bill-console";
 import { supplierBillWorkspace, supplierInvoicePolicy } from "@erpx/server-procurement/public/supplier-bill-matching";
 import { SupplierPromiseConsole } from "@erpx/feature-records/components/loaders/modules--supplier-promise-console";
@@ -117,7 +117,12 @@ export default async function OrderPage({
   const matchableReceipts = data.fulfillments.filter(
     (receipt) => !receipt.invoice_id && !activeReceiptIds.has(String(receipt.id)),
   );
-  const supplier = order.kind === "purchase" ? await supplierPromiseDetail(actor, id) : null;
+  const supplier =
+    order.kind === "purchase"
+      ? ((await ownedSupplierPromiseDetail(actor, holdingSlug, id)) as
+          | Awaited<ReturnType<typeof supplierPromiseDetail>>
+          | undefined) ?? (await supplierPromiseDetail(actor, id))
+      : null;
   const nativeSupplierPromise =
     order.kind === "purchase"
       ? await ownedSupplierPromiseHistory(actor, holdingSlug, id).catch((error) =>

@@ -6,8 +6,10 @@ import { requireProcurementPurchasedRead } from '@erpx/server-procurement/public
 import {
   nativeProcurementAvailable,
   nativeProcurementFailure,
+  nativeSupplierPromiseDetail,
   nativeSupplierPromiseHistory,
   nativeSupplierPromiseHistoryPageContext,
+  type NativeSupplierPromiseDetail,
   type NativeSupplierPromiseHistory,
 } from './native-supplier-promise-history-page';
 
@@ -49,6 +51,26 @@ export async function ownedSupplierPromiseHistory(
   await admission(actor);
   try {
     const data = await nativeSupplierPromiseHistory(
+      nativeSupplierPromiseHistoryPageContext(actor),
+      holdingSlug,
+      orderId,
+    );
+    if (!data) unavailable();
+    return data;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+export async function ownedSupplierPromiseDetail(
+  actor: WorkContext,
+  holdingSlug: string,
+  orderId: string,
+): Promise<NativeSupplierPromiseDetail | undefined> {
+  if (!nativeProcurementAvailable()) return undefined;
+  await admission(actor);
+  try {
+    const data = await nativeSupplierPromiseDetail(
       nativeSupplierPromiseHistoryPageContext(actor),
       holdingSlug,
       orderId,

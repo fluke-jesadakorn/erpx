@@ -11,9 +11,13 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    current_package_catalogue,
+};
 use erpx_server_procurement::public::supplier_promise_history::{
-    PgSupplierPromiseHistoryRead, SupplierPromiseHistory, SupplierPromiseReadActor,
-    supplier_promise_history,
+    PgSupplierPromiseHistoryRead, SupplierPromisePurchaseAccess, SupplierPromiseReadActor,
+    supplier_promise_detail,
 };
 use erpx_server_procurement::public::supplier_promise_history_http::{
     SupplierPromiseHistoryHttpBackend, SupplierPromiseHistoryHttpFuture,
@@ -211,10 +215,54 @@ impl<C: Clock + Send + Sync + 'static> ProcurementService<C> {
                         current.require_permission("commerce.read")?;
                         let actor = procurement_actor(current)?;
                         let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let request = |purpose| PurchaseRequest {
+                            capabilities: vec!["supply.purchasing".into()],
+                            purpose,
+                            mode: PackageEnforcementMode::Enforced,
+                        };
+                        let purchase = {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            let history = reader
+                                .inspect(&request(CapabilityPurpose::History), now)
+                                .await
+                                .map_err(business)?;
+                            let new_work = reader
+                                .inspect(&request(CapabilityPurpose::NewWork), now)
+                                .await
+                                .map_err(business)?;
+                            let settle = reader
+                                .inspect(&request(CapabilityPurpose::SettleExisting), now)
+                                .await
+                                .map_err(business)?;
+                            let allowed = |inspection: &erpx_server_commercial::public::purchases::PurchaseInspection| {
+                                inspection
+                                    .access
+                                    .iter()
+                                    .find(|access| access.capability == "supply.purchasing")
+                                    .is_some_and(|access| access.allowed_by_mode)
+                            };
+                            SupplierPromisePurchaseAccess {
+                                new_work: allowed(&new_work),
+                                settle_existing: allowed(&settle),
+                                history: allowed(&history),
+                                revision: history.revision.clone(),
+                            }
+                        };
                         let mut repository = PgSupplierPromiseHistoryRead::new(connection);
-                        let data: SupplierPromiseHistory =
-                            supplier_promise_history(&actor, &mut repository, &order_id, now)
-                                .await?;
+                        let data = supplier_promise_detail(
+                            &actor,
+                            &mut repository,
+                            &order_id,
+                            Some(purchase),
+                            now,
+                        )
+                        .await?;
                         let data = serde_json::to_value(data).map_err(|_| unavailable())?;
                         Ok(SupplierPromiseHistoryHttpResponse {
                             data,

@@ -6,6 +6,7 @@ import {
   nativeProcurementConfiguration,
   NativeProcurementError,
   type NativeProcurementPageContext,
+  type NativeSupplierPromiseDetail,
 } from './native-supplier-promise-history';
 import type { NativeSupplierPromiseHistory } from '../lib/native-supplier-promise-history-types';
 import { createNextNativeSupplierPromiseHistoryReader } from '../adapters/server/next-native-supplier-promise-history';
@@ -17,7 +18,10 @@ export type {
   NativeSupplierPromiseLineRow,
   NativeOpenPromiseRow,
 } from '../lib/native-supplier-promise-history-types';
-export type { NativeProcurementPageContext } from './native-supplier-promise-history';
+export type {
+  NativeProcurementPageContext,
+  NativeSupplierPromiseDetail,
+} from './native-supplier-promise-history';
 
 /** Retained WorkContext render input; the native owner still re-checks scope. */
 export function nativeSupplierPromiseHistoryPageContext(actor: WorkContext): NativeProcurementPageContext {
@@ -61,6 +65,20 @@ function client() {
   const raw = process.env.ERPX_NATIVE_PROCUREMENT_CONFIG;
   if (raw === undefined) return undefined;
   return createNativeSupplierPromiseHistoryClient(nativeProcurementConfiguration(raw));
+}
+
+export async function nativeSupplierPromiseDetail(
+  actor: NativeProcurementPageContext,
+  holdingSlug: string,
+  orderId: string,
+): Promise<NativeSupplierPromiseDetail | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeProcurementError('NATIVE_PROCUREMENT_CONTEXT_CHANGED');
+  return createNextNativeSupplierPromiseHistoryReader((incoming, id, input, signal) =>
+    native.detail(incoming, actor, id, input, signal),
+  )(orderId, { holdingSlug, ...scope(actor), expected: expected(actor) });
 }
 
 export async function nativeSupplierPromiseHistory(
