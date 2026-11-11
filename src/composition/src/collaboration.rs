@@ -530,9 +530,35 @@ fn attachment_unavailable() -> BusinessError {
     )
 }
 
+async fn messaging_member_names(
+    control: &erpx_server_runtime::public::postgres::DatabasePool,
+    ids: &[String],
+) -> Result<Vec<serde_json::Value>, BusinessError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut connection = control
+        .raw()
+        .acquire()
+        .await
+        .map_err(|_| unavailable())?;
+    let rows: Vec<(String, String, String)> = sqlx::query_as(
+        "SELECT id,name,email FROM \"user\" WHERE id = ANY($1::text[]) ORDER BY name,id",
+    )
+    .bind(ids)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|_| unavailable())?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, name, email)| serde_json::json!({"id": id, "name": name, "email": email}))
+        .collect())
+}
+
 pub struct MessagingService<C> {
     authorizer: Arc<HoldingWorkAuthorizer>,
     configuration: SocialConfiguration,
+    control: erpx_server_runtime::public::postgres::DatabasePool,
     clock: Arc<C>,
 }
 
@@ -540,11 +566,13 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
     pub fn new(
         authorizer: Arc<HoldingWorkAuthorizer>,
         configuration: SocialConfiguration,
+        control: erpx_server_runtime::public::postgres::DatabasePool,
         clock: Arc<C>,
     ) -> Self {
         Self {
             authorizer,
             configuration,
+            control,
             clock,
         }
     }
@@ -563,6 +591,7 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
         let clock = self.clock.clone();
+        let control = self.control.clone();
         let expected = company.clone();
         self.authorizer
             .execute_with_sources_deferred(
@@ -588,6 +617,7 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                     let company = company.clone();
                     let clock = clock.clone();
                     let kind = kind.clone();
+                    let control = control.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
                             || current.selection().workspace().company_id != company
@@ -635,19 +665,56 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                 }))
                             }
                             MessagingReadKind::Members { id, is_team } => {
-                                let members = if is_team {
+                                let (ids, detail) = if is_team {
                                     let mut teams =
                                         PgMessagingTeamUnit::read_only(connection, scope);
-                                    teams.members(&id).await?
+                                    let team = teams.team(&id).await?.ok_or_else(|| {
+                                        BusinessError::new(
+                                            FailureKind::NotFound,
+                                            "NOT_FOUND",
+                                            "Not found.",
+                                        )
+                                    })?;
+                                    let ids = teams.members(&id).await?;
+                                    let detail = serde_json::json!({
+                                        "id": team.id,
+                                        "companyId": team.company_id,
+                                        "name": team.name,
+                                        "ownerId": team.owner_id,
+                                        "version": team.version,
+                                        "createdAt": team.created_at,
+                                        "kind": "team",
+                                    });
+                                    (ids, detail)
                                 } else {
                                     let mut unit =
                                         PgMessagingUnit::read_only(connection, scope);
-                                    unit.room_members(&id).await?
+                                    let room = unit.room(&id).await?.ok_or_else(|| {
+                                        BusinessError::new(
+                                            FailureKind::NotFound,
+                                            "NOT_FOUND",
+                                            "Not found.",
+                                        )
+                                    })?;
+                                    let ids = unit.room_members(&id).await?;
+                                    let detail = serde_json::json!({
+                                        "id": room.id,
+                                        "companyId": room.company_id,
+                                        "kind": room.kind.as_str(),
+                                        "name": room.name,
+                                        "ownerId": room.owner_id,
+                                        "version": room.version,
+                                        "lastSeq": room.last_seq,
+                                        "createdAt": room.created_at,
+                                    });
+                                    (ids, detail)
                                 };
+                                let members = messaging_member_names(&control, &ids).await?;
                                 MessagingHttpReadReply::Members(Box::new(MessagingMembersData {
                                     id,
                                     is_team,
                                     members,
+                                    detail,
                                 }))
                             }
                             MessagingReadKind::TeamChannels { team_id } => {

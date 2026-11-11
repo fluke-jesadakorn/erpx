@@ -3008,6 +3008,7 @@ async fn assemble_checked(
                                             holding.registration.holding_id.clone(),
                                             company.clone(),
                                         ),
+                                        pools[0].clone(),
                                         Arc::new(SharedClock(clock.clone())),
                                     )),
                                 ),

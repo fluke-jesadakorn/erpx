@@ -55,7 +55,10 @@ pub struct MessagingHistoryData {
 pub struct MessagingMembersData {
     pub id: String,
     pub is_team: bool,
-    pub members: Vec<String>,
+    /// Account-name objects `{id,name,email}` resolved from the Control database.
+    pub members: Vec<serde_json::Value>,
+    /// Retained room/team detail row the members editor consumes.
+    pub detail: serde_json::Value,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -892,7 +895,8 @@ mod tests {
                         MessagingHttpReadReply::Members(Box::new(MessagingMembersData {
                             id,
                             is_team,
-                            members: vec!["user".into()],
+                            members: vec![serde_json::json!({"id":"user","name":"User","email":"user@example.test"})],
+                            detail: serde_json::json!({"id":"members"}),
                         }))
                     }
                     MessagingReadKind::TeamChannels { team_id } => {

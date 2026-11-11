@@ -98,7 +98,8 @@ impl MessagingHttpBackend for Probe {
                     MessagingHttpReadReply::Members(Box::new(MessagingMembersData {
                         id,
                         is_team,
-                        members: vec!["user".into()],
+                        members: vec![serde_json::json!({"id":"user","name":"User","email":"user@example.test"})],
+                        detail: serde_json::json!({"id":"members"}),
                     }))
                 }
                 MessagingReadKind::TeamChannels { team_id } => {
