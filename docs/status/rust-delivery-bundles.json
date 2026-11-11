@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 441,
+    "revision": 444,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g10",
       "agentId": "lead",
       "startedAt": "2026-11-11T09:58:45.487Z",
-      "heartbeatAt": "2026-11-11T10:01:52.564Z",
-      "expiresAt": "2026-11-11T10:31:52.564Z",
+      "heartbeatAt": "2026-11-11T10:09:30.005Z",
+      "expiresAt": "2026-11-11T10:39:30.005Z",
       "generation": 11,
       "tokenHash": "0ced6e75701f162f2f68f201fdf9c79e87ba9ec9b4123f4befa42ff035f3ee6c"
     },
@@ -12334,8 +12334,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.567Z",
-          "heartbeatAt": "2026-11-11T10:01:52.564Z",
-          "expiresAt": "2026-11-11T10:31:52.564Z",
+          "heartbeatAt": "2026-11-11T10:09:30.005Z",
+          "expiresAt": "2026-11-11T10:39:30.005Z",
           "generation": 11
         },
         "baseSha": null,
@@ -12531,8 +12531,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.591Z",
-          "heartbeatAt": "2026-11-11T10:01:52.564Z",
-          "expiresAt": "2026-11-11T10:31:52.564Z",
+          "heartbeatAt": "2026-11-11T10:09:30.005Z",
+          "expiresAt": "2026-11-11T10:39:30.005Z",
           "generation": 11
         },
         "baseSha": null,
@@ -12631,22 +12631,51 @@
         "resources": [
           "owner:learning"
         ],
-        "status": "integrating",
-        "claim": {
-          "runId": "run-20261110-g10",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T09:58:45.615Z",
-          "heartbeatAt": "2026-11-11T10:01:52.564Z",
-          "expiresAt": "2026-11-11T10:31:52.564Z",
-          "generation": 11
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "877ea69274e678fd8de7fa76a24e422f3c108baf",
+        "lastPushedSha": "877ea69274e678fd8de7fa76a24e422f3c108baf",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "877ea69274e678fd8de7fa76a24e422f3c108baf",
+            "sourceKind": "committed",
+            "note": "Learning course/assignment/certificate commands compile with the Files evidence port bound."
+          },
+          {
+            "command": "bun run test:unit -- --suite=learning.rust-learning.unit",
+            "result": "passed",
+            "sourceSha": "877ea69274e678fd8de7fa76a24e422f3c108baf",
+            "sourceKind": "committed",
+            "note": "21/21 Learning domain cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=learning.rust-learning-http.unit",
+            "result": "passed",
+            "sourceSha": "877ea69274e678fd8de7fa76a24e422f3c108baf",
+            "sourceKind": "committed",
+            "note": "3/3 Learning ingress cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=learning.rust-learning-postgres.integration",
+            "result": "passed",
+            "sourceSha": "877ea69274e678fd8de7fa76a24e422f3c108baf",
+            "sourceKind": "committed",
+            "note": "13/13 PostgreSQL Learning cases pass."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "877ea69274e678fd8de7fa76a24e422f3c108baf",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects pass with the existing native Learning client route."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "ConsumeBenefit is mounted. Remaining: Files LearningEvidencePort adapter (task migrate.files.learning-evidence-port is blocked by the external-WIP reservation on server-files paths), Benefits port binding + learning_certificate_id persistence, workplace continuation switch",
+        "nextAction": "Learning commands/reads/evidence are native and the feature-learn route already dispatches the native client. Retained: Benefits-side learning_certificate_id persistence and the workplace benefit-continuation presenter (Benefits/UI packets).",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
@@ -13099,8 +13128,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.542Z",
-          "heartbeatAt": "2026-11-11T10:01:52.564Z",
-          "expiresAt": "2026-11-11T10:31:52.564Z",
+          "heartbeatAt": "2026-11-11T10:09:30.005Z",
+          "expiresAt": "2026-11-11T10:39:30.005Z",
           "generation": 11
         },
         "baseSha": null,
@@ -15414,8 +15443,8 @@
           "runId": "run-20261110-g10",
           "agentId": "lead",
           "claimedAt": "2026-11-11T09:58:45.517Z",
-          "heartbeatAt": "2026-11-11T10:01:52.564Z",
-          "expiresAt": "2026-11-11T10:31:52.564Z",
+          "heartbeatAt": "2026-11-11T10:09:30.005Z",
+          "expiresAt": "2026-11-11T10:39:30.005Z",
           "generation": 11
         },
         "baseSha": null,
@@ -15612,20 +15641,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 53,
-      "migratedPackets": 14,
+      "migratedPackets": 15,
       "statusCounts": {
         "pending": 24,
         "in_progress": 0,
         "ready_for_integration": 8,
-        "integrating": 3,
-        "migrated": 14,
+        "integrating": 2,
+        "migrated": 15,
         "blocked": 4,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 11,
-    "updatedAt": "2026-11-11T10:01:52.564Z",
+    "updatedAt": "2026-11-11T10:09:30.005Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
