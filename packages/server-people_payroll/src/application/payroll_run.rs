@@ -19,6 +19,7 @@ use crate::domain::payroll_run::{PayrollPreparedJournal, calculated_item_id, sto
 use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
 use serde::Serialize;
 use serde_json::Value;
+use sqlx::PgConnection;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -155,6 +156,24 @@ pub trait PayrollCommandRepository: Send {
         run_id: &'a str,
         payment_only: bool,
     ) -> PayrollCommandFuture<'a, Option<Value>, Self::Error>;
+
+    /// Lends the caller's transaction connection to the composed Finance
+    /// journal port. The default refuses so an in-memory or non-SQL adapter can
+    /// never post payroll without a real Finance journal.
+    fn prepare_journal<'a, J: PayrollJournalPort>(
+        &'a mut self,
+        _journal: &'a mut J,
+        _request: &'a PayrollJournalRequest,
+    ) -> PayrollCommandFuture<'a, PayrollPreparedJournal, Self::Error> {
+        Box::pin(async move {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "PAYROLL_FINANCE_JOURNAL_PORT_UNAVAILABLE",
+                "The Finance payroll journal port is unavailable.",
+            )
+            .into())
+        })
+    }
 }
 
 /// Finance journal planning port. Composition implements this by calling
@@ -164,6 +183,7 @@ pub trait PayrollCommandRepository: Send {
 pub trait PayrollJournalPort: Send {
     fn prepare<'a>(
         &'a mut self,
+        connection: &'a mut PgConnection,
         request: &'a PayrollJournalRequest,
     ) -> PayrollCommandFuture<'a, PayrollPreparedJournal, BusinessError>;
 }
@@ -174,6 +194,7 @@ pub struct NoPayrollJournalPort;
 impl PayrollJournalPort for NoPayrollJournalPort {
     fn prepare<'a>(
         &'a mut self,
+        _connection: &'a mut PgConnection,
         _request: &'a PayrollJournalRequest,
     ) -> PayrollCommandFuture<'a, PayrollPreparedJournal, BusinessError> {
         Box::pin(async { Err(crate::domain::payroll_run::journal_port_unavailable()) })
@@ -579,12 +600,13 @@ pub async fn post_payroll<R: PayrollCommandRepository, J: PayrollJournalPort>(
     let finance_actor = actor.finance_actor()?;
     let journal_key = format!("{}:journal", key.as_str());
     let journal_key = CommandKey::new(journal_key).map_err(|_| request_invalid())?;
-    let prepared_journal = journal
-        .prepare(&PayrollJournalRequest {
-            actor: finance_actor,
-            draft,
-            key: journal_key.as_str().to_owned(),
-        })
+    let journal_request = PayrollJournalRequest {
+        actor: finance_actor,
+        draft,
+        key: journal_key.as_str().to_owned(),
+    };
+    let prepared_journal = repository
+        .prepare_journal(journal, &journal_request)
         .await?;
     journal_result_valid(&prepared_journal)?;
     repository
@@ -1082,8 +1104,9 @@ mod tests {
     #[tokio::test]
     async fn no_journal_port_fails_closed_with_a_named_code() {
         let mut port = NoPayrollJournalPort;
-        let error = port
-            .prepare(&PayrollJournalRequest {
+        let mut repository = Repo::with_run(run());
+        let error = repository
+            .prepare_journal(&mut port, &PayrollJournalRequest {
                 actor: actor().finance_actor().unwrap(),
                 draft: crate::domain::payroll_run::PayrollJournalDraft {
                     chart_id: "chart".into(),

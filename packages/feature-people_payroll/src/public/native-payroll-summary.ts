@@ -512,7 +512,7 @@ export function createNativePeoplePayrollClient(
       return Promise.reject(
         new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_CONTEXT_CHANGED'),
       );
-    if (!/^runs(?:\/[A-Za-z0-9_-]{1,120}(?:\/(?:calculate|cancel))?)?$/.test(commandPath))
+    if (!/^runs(?:\/[A-Za-z0-9_-]{1,120}(?:\/(?:calculate|cancel|post))?)?$/.test(commandPath))
       return Promise.reject(
         new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_REQUEST_INVALID'),
       );

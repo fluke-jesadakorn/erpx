@@ -6,8 +6,9 @@
 //! written exclusively by the composed Finance journal port.
 use crate::application::payroll_run::{
     CancelRunCommand, CommitPostCommand, CreateRunCommand, PayrollCommandFuture,
-    PayrollCommandRepository, SaveCalculationCommand, StoredPayrollReceipt,
+    PayrollCommandRepository, PayrollJournalPort, SaveCalculationCommand, StoredPayrollReceipt,
 };
+use crate::domain::payroll_run::{PayrollJournalRequest, PayrollPreparedJournal};
 use crate::domain::payroll_run::{
     CountryPackFact, CreatePayrollRunInput, PayGroupFact, PayrollAdvanceRepayment,
     PayrollCalculationContext, PayrollCalculationInput, PayrollCompensation, PayrollCostAssignment,
@@ -1313,6 +1314,18 @@ impl<'a> PayrollCommandRepository for PgPayrollCommand<'a> {
                 "paymentBatch": payment_batch,
                 "paymentItems": payment_items,
             })))
+        })
+    }
+
+    fn prepare_journal<'b, J: PayrollJournalPort>(
+        &'b mut self,
+        journal: &'b mut J,
+        request: &'b PayrollJournalRequest,
+    ) -> PayrollCommandFuture<'b, PayrollPreparedJournal, Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let prepared = journal.prepare(&mut *self.connection, request).await?;
+            Ok(prepared)
         })
     }
 }

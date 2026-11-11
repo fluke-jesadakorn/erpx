@@ -82,6 +82,7 @@ struct Journal;
 impl PayrollJournalPort for Journal {
     fn prepare<'a>(
         &'a mut self,
+        _connection: &'a mut sqlx::PgConnection,
         request: &'a PayrollJournalRequest,
     ) -> erpx_server_people_payroll::public::payroll_run::PayrollCommandFuture<
         'a,

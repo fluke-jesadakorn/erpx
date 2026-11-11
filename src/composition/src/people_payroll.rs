@@ -14,8 +14,13 @@ use erpx_server_identity_access::public::{
 use erpx_server_people_payroll::public::payroll_summary::{
     PayrollReadActor, PgPayrollRead, payroll_runs, payroll_summary,
 };
+use erpx_server_finance::public::{
+    FinanceActor, FinanceCollation, JournalAuthority, JournalDraft, JournalError, JournalStatus,
+    PgJournalPreparation, PgJournalStore, embedded_currency_rules, prepare_journal,
+};
 use erpx_server_people_payroll::public::payroll_run::{
-    NoPayrollJournalPort, PayrollCommandActor, calculate_payroll_run, cancel_payroll_run,
+    PayrollCommandActor, PayrollCommandFuture, PayrollJournalDraft, PayrollJournalPort,
+    PayrollJournalRequest, PayrollPreparedJournal, calculate_payroll_run, cancel_payroll_run,
     create_payroll_run, payroll_run_detail, post_payroll,
 };
 use erpx_server_people_payroll::public::payroll_run::PgPayrollCommand;
@@ -29,7 +34,9 @@ use erpx_server_people_payroll::public::payroll_summary_http::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, UserId,
+};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -303,6 +310,158 @@ fn payroll_command_actor(
     })
 }
 
+fn payroll_journal_forbidden() -> JournalError {
+    JournalError {
+        kind: FailureKind::Forbidden,
+        code: "PAYROLL_FINANCE_AUTHORITY_REQUIRED",
+        message: "Choose the current authorized Finance workspace for payroll posting.".to_owned(),
+    }
+}
+
+struct PayrollJournalAuthority<'a> {
+    current: &'a AuthorizedWorkContext,
+}
+
+impl JournalAuthority for PayrollJournalAuthority<'_> {
+    type Error = PgTransactionError<JournalError>;
+
+    async fn authorize(
+        &mut self,
+        actor: &FinanceActor,
+        draft: &JournalDraft,
+    ) -> Result<(), Self::Error> {
+        let expected = crate::finance_journal_actor::finance_actor(self.current);
+        if actor != &expected
+            || !self.current.has_permission("finance.write")
+            || draft.source_type != "payroll"
+            || draft.source_id.is_none()
+        {
+            return Err(payroll_journal_forbidden().into());
+        }
+        Ok(())
+    }
+}
+
+struct PayrollJournalBridge<'a, C> {
+    current: &'a AuthorizedWorkContext,
+    clock: &'a C,
+}
+
+impl<C: Clock + Sync + Send> PayrollJournalPort for PayrollJournalBridge<'_, C> {
+    fn prepare<'b>(
+        &'b mut self,
+        connection: &'b mut PgConnection,
+        request: &'b PayrollJournalRequest,
+    ) -> PayrollCommandFuture<'b, PayrollPreparedJournal, BusinessError> {
+        Box::pin(async move {
+            let actor = FinanceActor {
+                user_id: UserId::new(request.actor.user_id.as_str().to_owned())?,
+                holding_id: request.actor.holding_id.clone(),
+                company_id: request.actor.company_id.clone(),
+                assignment_id: AssignmentId::new(request.actor.assignment_id.as_str().to_owned())?,
+            };
+            let draft = payroll_journal_draft(&request.draft)?;
+            let key = erpx_server_shared::public::CommandKey::new(request.key.clone())?;
+            let rules = embedded_currency_rules().map_err(|_| {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "PAYROLL_FINANCE_CURRENCY_RULES_UNAVAILABLE",
+                    "Finance currency rules are unavailable.",
+                )
+            })?;
+            let collation = FinanceCollation::english().map_err(|_| {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "PAYROLL_FINANCE_COLLATION_UNAVAILABLE",
+                    "Finance collation is unavailable.",
+                )
+            })?;
+            let holding = actor.holding_id.clone();
+            let company = actor.company_id.clone();
+            let mut authority = PayrollJournalAuthority {
+                current: self.current,
+            };
+            let plan = {
+                let mut ports = PgJournalPreparation::new(
+                    connection,
+                    &actor,
+                    &mut authority,
+                    self.clock,
+                    &rules,
+                    &collation,
+                )
+                .map_err(payroll_journal_error)?;
+                prepare_journal(&mut ports, &actor, &draft, &key, JournalStatus::Posted)
+                    .await
+                    .map_err(payroll_journal_error)?
+            };
+            PgJournalStore::new(holding, company, connection)
+                .persist(&plan)
+                .await
+                .map_err(payroll_journal_error)?;
+            let result = plan.result();
+            Ok(PayrollPreparedJournal {
+                id: result.id.clone(),
+                number: result.number.clone(),
+                status: match result.status {
+                    JournalStatus::Posted => "posted".to_owned(),
+                    JournalStatus::Draft => "draft".to_owned(),
+                },
+                version: i64::from(result.version),
+                debit: result.debit.clone(),
+                credit: result.credit.clone(),
+                fx_rate_micros: result.fx_rate_micros,
+                base_currency: result.base_currency.clone(),
+            })
+        })
+    }
+}
+
+fn payroll_journal_error(error: PgTransactionError<JournalError>) -> BusinessError {
+    match error {
+        PgTransactionError::Business(error) => BusinessError::new(
+            error.kind,
+            error.code,
+            "The Finance journal request was rejected.",
+        ),
+        PgTransactionError::Persistence(_) => BusinessError::new(
+            FailureKind::Unavailable,
+            "PAYROLL_FINANCE_UNAVAILABLE",
+            "The Finance journal service is unavailable.",
+        ),
+    }
+}
+
+fn payroll_journal_draft(draft: &PayrollJournalDraft) -> Result<JournalDraft, BusinessError> {
+    let lines = draft
+        .lines
+        .iter()
+        .map(|line| erpx_server_finance::public::JournalLineInput {
+            account_id: line.account_id.clone(),
+            description: Some(line.description.clone()),
+            debit: line.debit.clone(),
+            credit: line.credit.clone(),
+            dimensions: if line.dimensions.is_empty() {
+                None
+            } else {
+                Some(line.dimensions.clone())
+            },
+        })
+        .collect();
+    Ok(JournalDraft {
+        chart_id: draft.chart_id.clone(),
+        period_id: draft.period_id.clone(),
+        entry_date: draft.entry_date.clone(),
+        currency: draft.currency.clone(),
+        fx_rate: draft.fx_rate.clone(),
+        is_opening: draft.is_opening,
+        memo: draft.memo.clone(),
+        source_type: draft.source_type.clone(),
+        source_id: draft.source_id.clone(),
+        lines,
+    })
+}
+
 impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
     pub async fn command<Input>(
         &self,
@@ -383,7 +542,10 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                             }
                             PayrollCommandHttpKind::Post { run_id } => {
                                 let key = command_key(key)?;
-                                let mut journal = NoPayrollJournalPort;
+                                let mut journal = PayrollJournalBridge {
+                                    current,
+                                    clock: clock.as_ref(),
+                                };
                                 post_payroll(
                                     &actor,
                                     &run_id,
