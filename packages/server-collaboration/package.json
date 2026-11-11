@@ -248,7 +248,8 @@
     "./domain/social": "./src/domain/social.ts",
     "./domain/handbook": "./src/domain/handbook.ts",
     "./domain/social-home": "./src/domain/social-home.ts",
-    "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts"
+    "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts",
+    "./public/native-social-page": "./src/public/native-social-page.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

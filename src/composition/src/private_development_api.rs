@@ -2516,6 +2516,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut agent_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut social_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_retention_targets = Vec::new();
@@ -2934,6 +2936,26 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+                }
+                #[cfg(feature = "existing-business")]
+                {
+                    social_targets.push(crate::collaboration::social_target(
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        Arc::new(crate::collaboration::SocialBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::collaboration::SocialService::new(
+                                authorizer.clone(),
+                                crate::collaboration::SocialConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    ));
                 }
                 #[cfg(feature = "existing-business")]
                 {
@@ -4551,6 +4573,13 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        #[cfg(feature = "existing-business")]
+        if !social_targets.is_empty() {
+            router = router.merge(
+                erpx_server_collaboration::public::social_http::social_router(social_targets)
+                    .map_err(|_| "PRIVATE_API_COLLABORATION_CONFIGURATION_INVALID")?,
+            );
+        }
         #[cfg(feature = "existing-business")]
         if !agent_targets.is_empty() {
             router = router.merge(

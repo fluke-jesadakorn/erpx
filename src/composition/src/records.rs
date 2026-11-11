@@ -104,7 +104,7 @@ impl RecordsConfiguration {
 }
 
 #[derive(Clone, Copy)]
-struct RecordsContextGuardImpl;
+pub(crate) struct RecordsContextGuardImpl;
 
 impl RecordContextGuard for RecordsContextGuardImpl {
     type Error = BusinessError;
@@ -166,7 +166,7 @@ impl RecordRegistryGuard for RecordsRegistryGuardImpl {
     }
 }
 
-fn records_actor(current: &AuthorizedWorkContext) -> Result<RecordContextActor, BusinessError> {
+pub(crate) fn records_actor(current: &AuthorizedWorkContext) -> Result<RecordContextActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();
