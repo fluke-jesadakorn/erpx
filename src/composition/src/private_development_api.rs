@@ -2554,6 +2554,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut sales_documents_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut sales_cancellation_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut sales_price_lists_targets = Vec::new();
         let mut files_targets = Vec::new();
         let mut procurement_targets = Vec::new();
@@ -3854,6 +3856,24 @@ async fn assemble_checked(
                     )),
                 ));
                 #[cfg(feature = "existing-business")]
+                #[cfg(feature = "existing-business")]
+                sales_cancellation_targets.push(crate::sales_cancellation::target(
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                    Arc::new(crate::sales_cancellation::SalesCancellationBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::sales_cancellation::SalesCancellationService::new(
+                            authorizer.clone(),
+                            crate::sales_cancellation::SalesCancellationConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                ));
                 sales_documents_targets.push(
                     erpx_server_sales::public::sales_documents_http::SalesDocumentsHttpTarget {
                         host: holding.host.clone(),
@@ -4868,6 +4888,15 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        #[cfg(feature = "existing-business")]
+        if !sales_cancellation_targets.is_empty() {
+            router = router.merge(
+                erpx_server_sales::public::sales_order_cancellation_http::sales_order_cancellation_router(
+                    sales_cancellation_targets,
+                )
+                .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
+            );
+        }
         if !sales_documents_targets.is_empty() {
             router = router.merge(
                 erpx_server_sales::public::sales_documents_http::sales_documents_router(

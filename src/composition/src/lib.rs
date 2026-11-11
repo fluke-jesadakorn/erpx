@@ -141,6 +141,8 @@ pub mod sales;
 #[cfg(feature = "existing-business")]
 pub mod talent;
 #[cfg(feature = "existing-business")]
+pub mod sales_cancellation;
+#[cfg(feature = "existing-business")]
 pub mod talent_lifecycle;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
