@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 386,
+    "revision": 388,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g6",
       "agentId": "lead",
       "startedAt": "2026-11-11T04:25:19.281Z",
-      "heartbeatAt": "2026-11-11T05:28:47.127Z",
-      "expiresAt": "2026-11-11T05:58:47.127Z",
+      "heartbeatAt": "2026-11-11T05:34:17.746Z",
+      "expiresAt": "2026-11-11T06:04:17.746Z",
       "generation": 7,
       "tokenHash": "351f92ca0edd9ebc289b7ca6b440df03829913fcb50f532a5ff7d4fec6c8eb07"
     },
@@ -12915,8 +12915,8 @@
           "runId": "run-20261110-g6",
           "agentId": "lead",
           "claimedAt": "2026-11-11T04:25:19.306Z",
-          "heartbeatAt": "2026-11-11T05:28:47.127Z",
-          "expiresAt": "2026-11-11T05:58:47.127Z",
+          "heartbeatAt": "2026-11-11T05:34:17.746Z",
+          "expiresAt": "2026-11-11T06:04:17.746Z",
           "generation": 7
         },
         "baseSha": null,
@@ -12925,7 +12925,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Witness plumbing landed (a199f08e6): require_current_with + composition dispatch over all 7 witness kinds; unit revalidates retained witnesses. BLOCKER for POST switch: the collaboration command path never calls visible_source, so no witnesses are prepared for create-relation/create-card/change (TS validated via sourceRecordGuards). Next: resolve every change source in prepare and retain witnesses, then switch POST; inbox summary/notifications, messaging history/channels and feed subpaths remain TS.",
+        "nextAction": "Relation/card POST is native and switched (c921ca39a): unit prepare/require_current now carry the transaction, composition resolves all 7 owner sources with witness revalidation and owner table locks; CSV export, inbox summary/notifications (owner source scopes), messaging history/team-channel reads, feed subpaths, mention drain/AI reply and attachments (Files WIP) remain TS.",
         "handoff": {
           "runId": "run-20261110-g5",
           "agentId": "lead",
@@ -15378,7 +15378,7 @@
       }
     },
     "lastCoordinatorGeneration": 7,
-    "updatedAt": "2026-11-11T05:29:05.083Z",
+    "updatedAt": "2026-11-11T05:34:17.746Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
