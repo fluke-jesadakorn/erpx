@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 368,
+    "revision": 370,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g5",
       "agentId": "lead",
       "startedAt": "2026-11-11T03:13:45.284Z",
-      "heartbeatAt": "2026-11-11T03:13:45.376Z",
-      "expiresAt": "2026-11-11T03:43:45.376Z",
+      "heartbeatAt": "2026-11-11T03:25:28.475Z",
+      "expiresAt": "2026-11-11T03:55:28.475Z",
       "generation": 6,
       "tokenHash": "de399ef30a173b6153e735b3b6cb75082f9c7795a528286acc8f9f5f17e90e51"
     },
@@ -12915,8 +12915,8 @@
           "runId": "run-20261110-g5",
           "agentId": "lead",
           "claimedAt": "2026-11-11T03:13:45.315Z",
-          "heartbeatAt": "2026-11-11T03:13:45.376Z",
-          "expiresAt": "2026-11-11T03:43:45.376Z",
+          "heartbeatAt": "2026-11-11T03:25:28.475Z",
+          "expiresAt": "2026-11-11T03:55:28.475Z",
           "generation": 6
         },
         "baseSha": null,
@@ -12925,7 +12925,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "PgSocialUnit/PgMessagingUnit/PgMessagingTeamUnit/PgInboxUnit committed (1d7ed28f6; 4+1 suites, lib 61). Mount social+messaging+inbox routers in composition (Files port absent -> 503; InboxTargetPort + SocialRecordPort must be supplied or those reads fail closed), switch feature-apps feed/inbox/messaging routes only where ports exist; collaboration_work backend + mention drain/AI reply remain retained",
+        "nextAction": "Social feed is native and switched (664913246) with a Records-backed mention resolver. Remaining: mount messaging router (Files port absent -> 503 attachments; implement MessagingHttpBackend data glue), inbox router (needs owner InboxTargetPort for Work destinations; notices work without it), collaboration_work backend; then switch feed subpaths/messaging/inbox/collaboration feature-apps routes. Mention drain + AI reply stay TS.",
         "handoff": {
           "runId": "run-20261110-g4",
           "agentId": "worker-b",
@@ -15378,7 +15378,7 @@
       }
     },
     "lastCoordinatorGeneration": 6,
-    "updatedAt": "2026-11-11T03:13:45.377Z",
+    "updatedAt": "2026-11-11T03:25:28.476Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
