@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 489,
+    "revision": 494,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g14",
+      "runId": "run-20261110-g15",
       "agentId": "lead",
-      "startedAt": "2026-11-11T14:54:26.803Z",
-      "heartbeatAt": "2026-11-11T14:54:51.276Z",
-      "expiresAt": "2026-11-11T15:24:51.276Z",
-      "generation": 15,
-      "tokenHash": "87a8c14764ee430f14ee9ff32e799affcbb41c05b009c2ecc4dd33eaddd63812"
+      "startedAt": "2026-11-11T15:50:07.480Z",
+      "heartbeatAt": "2026-11-11T15:50:07.480Z",
+      "expiresAt": "2026-11-11T16:20:07.481Z",
+      "generation": 16,
+      "tokenHash": "5f600a2b739485f539e81acad0416403c04893dcf231bef4f618bf9c258c7509"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -11337,29 +11337,86 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "blocked",
-        "claim": {
-          "runId": "run-20261110-g14",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T14:54:26.846Z",
-          "heartbeatAt": "2026-11-11T14:54:51.276Z",
-          "expiresAt": "2026-11-11T15:24:51.276Z",
-          "generation": 15
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+        "lastPushedSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+            "sourceKind": "committed",
+            "note": "Staff-work router, approval planning, department route and route client compile together."
+          },
+          {
+            "command": "bun run test:integration -- --suite=workflow.rust-staff-approval-postgres.integration",
+            "result": "passed",
+            "sourceSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+            "sourceKind": "committed",
+            "note": "4/4 open/view/decide/cancel PostgreSQL cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=organization.rust-staff-department-route-postgres.integration",
+            "result": "passed",
+            "sourceSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+            "sourceKind": "committed",
+            "note": "6/6 department route cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.rust-staff-people-postgres.integration",
+            "result": "passed",
+            "sourceSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+            "sourceKind": "committed",
+            "note": "3/3 staff-people cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.rust-staff-work-postgres.integration",
+            "result": "passed",
+            "sourceSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+            "sourceKind": "committed",
+            "note": "4/4 Staff Work PostgreSQL cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.rust-staff-work-http.integration",
+            "result": "passed",
+            "sourceSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+            "sourceKind": "committed",
+            "note": "8/8 Staff Work HTTP cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=operations.rust-staff-work-application.unit",
+            "result": "passed",
+            "sourceSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+            "sourceKind": "committed",
+            "note": "6/6 Staff Work application cases pass."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+            "sourceKind": "committed",
+            "note": "Native Staff Work client and partial route switch typecheck."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "c28b70db012ee2ec7f443057b92a426d9c80d42b",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 33 modules, 1116 suites."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Mounted (2c0814c2a): staff_work_router + StaffWorkBackend with People/Identity/Projects/Collaboration/Files owner facts (unit 6/6, PG 4/4, HTTP 8/8, typecheck, catalogue). Workplace route NOT switched. Remaining blocker: Workflow approval planning (taskRoute/openApproval/approvalView/prepareDecision/closeApprovals) plus Organization department routing (departmentRoute). Then switch the workplace staff-tasks route.",
+        "nextAction": "Native staff-task workspace/detail/save/transition/delegate/revoke are mounted and the workplace route dispatches them; owner ports: People, Identity, Projects, Collaboration, Files, Organization department route and Workflow approvals. Retained on the same route: levels, templates, schedules, milestones, notifications, approvals reroute and appointments (separate packets).",
         "handoff": {
-          "runId": "run-20261110-g13",
+          "runId": "run-20261110-g14",
           "agentId": "lead",
-          "at": "2026-11-11T14:54:26.802Z",
+          "at": "2026-11-11T15:50:07.479Z",
           "previousStatus": "blocked",
-          "reason": "Recovery: Lease expired after operations mount; WIP reviewed",
-          "nextAction": "BLOCKED on Workflow approval planning. Ported prerequisites: People/Identity/Projects/Collaboration read ports (4f53295b8), Files staff-task attachments (4333f98b2), and the composed staff_work_router mount (lead, no consumer switch). Remaining: taskRoute/openApproval/approvalView/prepareDecision/closeApprovals. taskRoute also needs Organization department routing (departmentRoute -> seats/policy/reporting chain), which has no Rust port and Organization already depends on Workflow, so the department-route port must come from Organization. Then switch workplace staff-tasks."
+          "reason": "Recovery: Lease expired after staff-work approval planning commit; WIP reviewed",
+          "nextAction": "Mounted (2c0814c2a): staff_work_router + StaffWorkBackend with People/Identity/Projects/Collaboration/Files owner facts (unit 6/6, PG 4/4, HTTP 8/8, typecheck, catalogue). Workplace route NOT switched. Remaining blocker: Workflow approval planning (taskRoute/openApproval/approvalView/prepareDecision/closeApprovals) plus Organization department routing (departmentRoute). Then switch the workplace staff-tasks route."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
@@ -15805,20 +15862,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 53,
-      "migratedPackets": 18,
+      "migratedPackets": 19,
       "statusCounts": {
         "pending": 24,
         "in_progress": 0,
         "ready_for_integration": 5,
         "integrating": 0,
-        "migrated": 18,
-        "blocked": 6,
+        "migrated": 19,
+        "blocked": 5,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 15,
-    "updatedAt": "2026-11-11T14:54:51.276Z",
+    "lastCoordinatorGeneration": 16,
+    "updatedAt": "2026-11-11T15:50:27.945Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -15861,10 +15918,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g13",
-      "runId": "run-20261110-g14",
-      "at": "2026-11-11T14:54:26.804Z",
-      "reason": "Lease expired after operations mount; WIP reviewed",
+      "previousRunId": "run-20261110-g14",
+      "runId": "run-20261110-g15",
+      "at": "2026-11-11T15:50:07.481Z",
+      "reason": "Lease expired after staff-work approval planning commit; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
