@@ -48,7 +48,8 @@ pub mod private_development_api;
 
 #[cfg(feature = "existing-business")]
 pub mod approval_oversight;
-pub mod work_card_preferences;
+pub mod native_work_snapshot;
+mod work_card_preferences;
 mod asset_command_wire;
 pub mod asset_http;
 

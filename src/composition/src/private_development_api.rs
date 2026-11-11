@@ -5983,6 +5983,7 @@ async fn assemble_checked(
     #[cfg(feature = "existing-business")]
     {
         let mut work_card_targets = Vec::new();
+        let mut work_snapshot_targets = Vec::new();
         for (i, holding) in config.holdings.iter().enumerate() {
             let authorizer = Arc::new(
                 HoldingWorkAuthorizer::new(
@@ -5995,6 +5996,7 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
             );
+            let work_authorizer = authorizer.clone();
             work_card_targets.push(
                 erpx_server_work_projection::public::work_card_preferences_http::WorkCardPreferencesHttpTarget {
                     host: holding.host.clone(),
@@ -6021,11 +6023,47 @@ async fn assemble_checked(
                     ),
                 },
             );
+            work_snapshot_targets.push(
+                erpx_server_work_projection::public::work_snapshot_http::WorkSnapshotHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: config
+                        .policy
+                        .holdings
+                        .iter()
+                        .find(|registered| registered.host == holding.host)
+                        .map(|registered| registered.origin.clone())
+                        .unwrap_or_else(|| format!("https://{}", holding.host)),
+                    backend: Arc::new(
+                        crate::native_work_snapshot::NativeWorkSnapshotBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(
+                                crate::native_work_snapshot::NativeWorkSnapshotService::new(
+                                    work_authorizer,
+                                    crate::native_work_snapshot::NativeWorkSnapshotConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        ),
+                    ),
+                },
+            );
         }
         if !work_card_targets.is_empty() {
             router = router.merge(
                 erpx_server_work_projection::public::work_card_preferences_http::work_card_preferences_router(
                     work_card_targets,
+                )
+                .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !work_snapshot_targets.is_empty() {
+            router = router.merge(
+                erpx_server_work_projection::public::work_snapshot_http::work_snapshot_router(
+                    work_snapshot_targets,
                 )
                 .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
             );
@@ -9391,6 +9429,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ] if !slug.is_empty() => state.policy.audience(host).is_some(),
         _ => false,
     };
+    let work_snapshot = request.method() == axum::http::Method::GET
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", slug, "work", "native-snapshot"] if !slug.is_empty() => {
+                state.policy.audience(host).is_some()
+            }
+            _ => false,
+        };
     let allowed = (matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
@@ -9424,6 +9475,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || service_packages
         || field_work_roles
         || work_card_preferences
+        || work_snapshot
         || field_operations
         || field_support
         || field_collaboration
