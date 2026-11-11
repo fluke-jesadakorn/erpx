@@ -37,16 +37,24 @@ use erpx_server_operations::public::queue_read::{
     QueueException, SourceView, operations_detail, operations_workspace,
 };
 use erpx_server_operations::public::staff_tasks::{
-    AttachmentRow, PgStaffTaskSources, PgStaffTasks, PostFact, ProjectFact, StaffFact,
-    StaffTaskActor, StaffTaskFactDelegates, StaffTaskFuture, delegate_task, list_tasks,
-    lock_staff_task_sources, revoke_task_delegation, save_task, task_detail, transition_task,
+    ApprovalView, AttachmentRow, DecisionFact, PgStaffTaskSources, PgStaffTasks, PostFact,
+    ProjectFact, RouteFact, StaffFact, StaffTaskActor, StaffTaskFactDelegates, StaffTaskFuture,
+    TaskRow, TaskScope, delegate_task, list_tasks, lock_staff_task_sources,
+    notify_staff_task_approval, revoke_task_delegation, save_task, task_detail, transition_task,
 };
 use erpx_server_operations::public::staff_work_http::{
     StaffWorkHttpBackend, StaffWorkHttpCommand, StaffWorkHttpCommandRequest, StaffWorkHttpFuture,
     StaffWorkHttpReadKind, StaffWorkHttpReadRequest, StaffWorkHttpResponse,
 };
 use erpx_server_people_payroll::public::operations_people::read_operations_people;
+use erpx_server_organization::public::staff_department_route::{
+    DepartmentPersonFact, staff_department_route,
+};
 use erpx_server_people_payroll::public::staff_facts as people_staff_facts;
+use erpx_server_workflow::public::staff_approval::{
+    OpenStaffApproval, StaffApprovalStep, close_staff_approvals, open_staff_approval,
+    prepare_staff_decision, staff_approval_view,
+};
 use erpx_server_pos::public::record_source as pos_source;
 use erpx_server_projects::public::staff_facts::staff_project;
 use erpx_server_runtime::public::http_support::HeaderMap;
@@ -1449,8 +1457,133 @@ fn staff_source_required(code: &'static str, message: &'static str) -> BusinessE
 /// Each read runs on the owner's retained serializable unit. Without a unit the
 /// delegate refuses with the same named source-required code as the trait
 /// default, so a fact is never fabricated.
-#[derive(Clone, Copy, Debug, Default)]
-struct StaffWorkFactDelegates;
+#[derive(Clone, Debug, Default)]
+struct StaffWorkFactDelegates {
+    now: i64,
+    actor_user_id: String,
+    actor_assignment_id: String,
+    actor_company_id: String,
+}
+
+struct ComputedRoute {
+    steps: Vec<StaffApprovalStep>,
+    blocked_reason: Option<String>,
+}
+
+fn blocked_route(reason: impl Into<String>) -> ComputedRoute {
+    ComputedRoute {
+        steps: Vec::new(),
+        blocked_reason: Some(reason.into()),
+    }
+}
+
+/// Named-only route validation plus the Organization department route that the
+/// retained TS `taskRoute` computes for a self-submitted task. Every fact is
+/// read on the caller's retained unit; nothing is inferred.
+async fn compute_staff_route(
+    connection: &mut PgConnection,
+    scope: &TaskScope,
+    creator_user_id: &str,
+    assignee_user_id: &str,
+    phase: &str,
+    approvers: &[String],
+    service_task: bool,
+) -> Result<ComputedRoute, BusinessError> {
+    use std::collections::BTreeSet;
+    if approvers.len() > 20
+        || approvers.iter().collect::<BTreeSet<_>>().len() != approvers.len()
+    {
+        return Ok(blocked_route(
+            "Choose up to twenty different ordered approvers per phase.",
+        ));
+    }
+    if people_staff_facts::active_staff(connection, &scope.company_id, assignee_user_id)
+        .await?
+        .is_none()
+    {
+        return Ok(blocked_route("The assignee is not current active staff."));
+    }
+    for user in approvers {
+        if people_staff_facts::active_staff(connection, &scope.company_id, user)
+            .await?
+            .is_none()
+        {
+            return Ok(blocked_route(
+                "Every approver must be current active staff.",
+            ));
+        }
+        if user == assignee_user_id || (phase == "start" && user == creator_user_id) {
+            return Ok(blocked_route(
+                "Assignees cannot approve their work; creators cannot approve their own start request.",
+            ));
+        }
+    }
+    let mut steps = Vec::new();
+    if !approvers.is_empty()
+        && creator_user_id == assignee_user_id
+        && scope.department_id.is_some()
+        && !service_task
+    {
+        let people = people_staff_facts::staff_people(connection, &scope.company_id).await?;
+        let facts: Vec<DepartmentPersonFact> = people
+            .into_iter()
+            .map(|person| DepartmentPersonFact {
+                user_id: person.user_id,
+                person_id: person.person_id,
+                department_id: person.department_id,
+                position_id: person.position_id,
+                level_number: person.level_number,
+                manager_person_id: person.manager_person_id,
+                engagement_id: person.engagement_id,
+                engagement_version: person.engagement_version,
+            })
+            .collect();
+        let route =
+            staff_department_route(connection, &scope.company_id, assignee_user_id, &facts).await?;
+        if let Some(reason) = route.blocked_reason {
+            return Ok(blocked_route(reason));
+        }
+        steps.extend(route.steps.into_iter().map(|step| StaffApprovalStep {
+            user_id: step.user_id,
+            authority: step.authority,
+            candidate_user_ids: step.candidate_user_ids,
+            required_role: None,
+            stage: step.stage,
+            snapshot_json: step.snapshot_json,
+        }));
+    }
+    steps.extend(approvers.iter().map(|user| StaffApprovalStep {
+        user_id: user.clone(),
+        authority: "named".into(),
+        candidate_user_ids: vec![user.clone()],
+        required_role: None,
+        stage: None,
+        snapshot_json: None,
+    }));
+    Ok(ComputedRoute {
+        steps,
+        blocked_reason: None,
+    })
+}
+
+fn route_scope(task: &TaskRow) -> TaskScope {
+    TaskScope {
+        company_id: task.company_id.clone(),
+        branch_id: task.branch_id.clone(),
+        department_id: task.department_id.clone(),
+    }
+}
+
+fn phase_approvers(task: &TaskRow, phase: &str) -> Result<Vec<String>, BusinessError> {
+    match phase {
+        "start" => task.start_approvers(),
+        "completion" => task.completion_approvers(),
+        _ => Err(BusinessError::invalid(
+            "TASK_APPROVAL_PHASE_INVALID",
+            "Use a start or completion task approval phase.",
+        )),
+    }
+}
 
 impl StaffTaskFactDelegates for StaffWorkFactDelegates {
     fn active_staff<'a>(
@@ -1574,6 +1707,220 @@ impl StaffTaskFactDelegates for StaffWorkFactDelegates {
                 ));
             };
             people_staff_facts::person_name(connection, company_id, user_id).await
+        })
+    }
+
+    fn task_route<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        scope: &'a TaskScope,
+        creator_user_id: &'a str,
+        assignee_user_id: &'a str,
+        phase: &'a str,
+        approvers: &'a [String],
+        service_task: bool,
+    ) -> StaffTaskFuture<'a, RouteFact, BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_WORKFLOW_ROUTE_SOURCE_REQUIRED",
+                    "Staff Work requires the current Workflow route port, which composition has not mounted.",
+                ));
+            };
+            let route = compute_staff_route(
+                connection,
+                scope,
+                creator_user_id,
+                assignee_user_id,
+                phase,
+                approvers,
+                service_task,
+            )
+            .await?;
+            Ok(RouteFact {
+                blocked_reason: route.blocked_reason,
+            })
+        })
+    }
+
+    fn approval_view<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        actor: &'a StaffTaskActor,
+        task: &'a TaskRow,
+    ) -> StaffTaskFuture<'a, ApprovalView, BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_WORKFLOW_APPROVAL_VIEW_SOURCE_REQUIRED",
+                    "Staff Work requires the current Workflow approval-view port, which composition has not mounted.",
+                ));
+            };
+            let view = staff_approval_view(
+                connection,
+                &actor.company_id,
+                &actor.user_id,
+                &actor.assignment_id,
+                "",
+                &task.id,
+                self.now,
+            )
+            .await?;
+            Ok(ApprovalView {
+                state: view.state,
+                phase: view.phase,
+                can_decide: view.can_decide,
+                blocked_reason: view.blocked_reason,
+                steps: view.steps,
+            })
+        })
+    }
+
+    fn open_approval<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        key: &'a str,
+        task: &'a TaskRow,
+        phase: &'a str,
+        route: &'a RouteFact,
+        version: i64,
+    ) -> StaffTaskFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_WORKFLOW_ROUTE_SOURCE_REQUIRED",
+                    "Staff Work requires the current Workflow approval route, which composition has not mounted.",
+                ));
+            };
+            if route.blocked_reason.is_some() {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "TASK_ROUTE_INVALID",
+                    "The approval route is invalid for the selected scope.",
+                ));
+            }
+            let approvers = phase_approvers(task, phase)?;
+            let computed = compute_staff_route(
+                connection,
+                &route_scope(task),
+                &task.creator_user_id,
+                &task.assignee_user_id,
+                phase,
+                &approvers,
+                false,
+            )
+            .await?;
+            if computed.blocked_reason.is_some() {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "TASK_ROUTE_INVALID",
+                    "The approval route is invalid for the selected scope.",
+                ));
+            }
+            open_staff_approval(
+                connection,
+                OpenStaffApproval {
+                    key,
+                    company_id: &task.company_id,
+                    branch_id: task.branch_id.as_deref(),
+                    department_id: task.department_id.as_deref(),
+                    task_id: task.id.as_str(),
+                    phase,
+                    requester_user_id: &task.creator_user_id,
+                    assignee_user_id: Some(task.assignee_user_id.as_str()),
+                    record_version: version,
+                    steps: &computed.steps,
+                    now: self.now,
+                },
+            )
+            .await?;
+            if let Some(first) = computed.steps.first() {
+                let users = if first.candidate_user_ids.is_empty() {
+                    vec![first.user_id.clone()]
+                } else {
+                    first.candidate_user_ids.clone()
+                };
+                for user in users {
+                    notify_staff_task_approval(
+                        connection,
+                        key,
+                        &task.company_id,
+                        &user,
+                        &task.id,
+                        version,
+                        phase,
+                        self.now,
+                    )
+                    .await?;
+                }
+            }
+            Ok(())
+        })
+    }
+
+    fn prepare_decision<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        key: &'a str,
+        task: &'a TaskRow,
+        approve: bool,
+        note: &'a str,
+        expected_version: i64,
+    ) -> StaffTaskFuture<'a, DecisionFact, BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_WORKFLOW_DECISION_SOURCE_REQUIRED",
+                    "Staff Work requires the current Workflow decision port, which composition has not mounted.",
+                ));
+            };
+            let decision = prepare_staff_decision(
+                connection,
+                &task.company_id,
+                &self.actor_user_id,
+                &self.actor_assignment_id,
+                "",
+                key,
+                &task.id,
+                approve,
+                note,
+                expected_version,
+                self.now,
+            )
+            .await?;
+            Ok(DecisionFact {
+                phase: decision.phase,
+                final_decision: decision.final_decision,
+            })
+        })
+    }
+
+    fn close_approvals<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        key: &'a str,
+        task_id: &'a str,
+        reason: &'a str,
+        expected_version: i64,
+    ) -> StaffTaskFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_WORKFLOW_DECISION_SOURCE_REQUIRED",
+                    "Staff Work requires the current Workflow decision port, which composition has not mounted.",
+                ));
+            };
+            close_staff_approvals(
+                connection,
+                &self.actor_company_id,
+                key,
+                task_id,
+                &self.actor_user_id,
+                reason,
+                expected_version,
+                self.now,
+            )
+            .await
         })
     }
 }
@@ -1741,7 +2088,12 @@ impl<C: Clock + Send + Sync + 'static> StaffWorkService<C> {
                         let actor = current_staff_actor(current);
                         let now = clock.now().get();
                         let mut repository = PgStaffTasks::new(connection);
-                        let mut sources = PgStaffTaskSources::new(StaffWorkFactDelegates);
+                        let mut sources = PgStaffTaskSources::new(StaffWorkFactDelegates {
+                            now,
+                            actor_user_id: actor.user_id.clone(),
+                            actor_assignment_id: actor.assignment_id.clone(),
+                            actor_company_id: actor.company_id.clone(),
+                        });
                         let data = match kind {
                             StaffWorkHttpReadKind::Workspace { project_id } => {
                                 serde_json::to_value(
@@ -1819,7 +2171,12 @@ impl<C: Clock + Send + Sync + 'static> StaffWorkService<C> {
                         let actor = current_staff_actor(current);
                         let now = clock.now().get();
                         let mut repository = PgStaffTasks::new(connection);
-                        let mut sources = PgStaffTaskSources::new(StaffWorkFactDelegates);
+                        let mut sources = PgStaffTaskSources::new(StaffWorkFactDelegates {
+                            now,
+                            actor_user_id: actor.user_id.clone(),
+                            actor_assignment_id: actor.assignment_id.clone(),
+                            actor_company_id: actor.company_id.clone(),
+                        });
                         let receipt = match command {
                             StaffWorkHttpCommand::Save {
                                 id,
@@ -2065,7 +2422,12 @@ mod staff_work_tests {
 
     #[tokio::test]
     async fn delegates_refuse_without_the_owner_unit() {
-        let mut delegates = StaffWorkFactDelegates;
+        let mut delegates = StaffWorkFactDelegates {
+            now: 9_999_999_999_999,
+            actor_user_id: "user".into(),
+            actor_assignment_id: "assignment".into(),
+            actor_company_id: "company".into(),
+        };
         let actor = staff_work_actor(
             "user",
             &workspace(),

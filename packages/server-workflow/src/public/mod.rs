@@ -28,6 +28,7 @@ pub mod service_invoice_flow;
 pub mod field_journal_flow;
 
 pub mod asset_purchase_receipt;
+pub mod staff_approval;
 pub mod flow_command_target;
 pub mod quality_return_receipts;
 pub mod task_cancel;
