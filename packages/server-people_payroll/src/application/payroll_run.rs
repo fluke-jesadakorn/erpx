@@ -860,6 +860,7 @@ mod tests {
                             department_id: None,
                             evidence_status: "verified".into(),
                         }],
+                        benefits: Vec::new(),
                         thai_statutory: None,
                     }],
                 })

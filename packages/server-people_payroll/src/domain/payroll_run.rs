@@ -9,6 +9,7 @@
 //! supplies the current owner rows, Finance supplies the journal types and the
 //! composition-owned Finance journal port persists the accounting entry in the
 //! same serializable unit.
+use erpx_server_benefits::public::payroll_source::BenefitPayrollInputRow;
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
     UserId,
@@ -719,6 +720,7 @@ pub struct PayrollCalculationInput {
     pub handoffs: Vec<PayrollHandoff>,
     pub advances: Vec<PayrollAdvanceRepayment>,
     pub cost_assignments: Vec<PayrollCostAssignment>,
+    pub benefits: Vec<BenefitPayrollInputRow>,
     pub thai_statutory: Option<ThaiStatutoryEvidence>,
 }
 
@@ -1925,6 +1927,65 @@ fn thai_snapshot(evidence: &ThaiStatutoryEvidence) -> Value {
     })
 }
 
+fn apply_benefits(
+    benefits: &[BenefitPayrollInputRow],
+    deductions_minor: &mut i64,
+    employer_cost_minor: &mut i64,
+    net_minor: &mut i64,
+    applied: &mut Vec<AppliedComponent>,
+) -> Result<(), BusinessError> {
+    for benefit in benefits {
+        if benefit.employee_deduction_minor < 0 || benefit.employer_cost_minor < 0 {
+            return Err(invalid(
+                "PAYROLL_INPUT_INCOMPLETE",
+                "Released Benefits payroll input is invalid.",
+            ));
+        }
+        if benefit.employee_deduction_minor > MAX_SAFE_INTEGER
+            || benefit.employer_cost_minor > MAX_SAFE_INTEGER
+        {
+            return Err(invalid(
+                "MONEY_OVERFLOW",
+                "Payroll exceeds supported precision.",
+            ));
+        }
+        if benefit.employee_deduction_minor > 0 {
+            *deductions_minor = deductions_minor
+                .checked_add(benefit.employee_deduction_minor)
+                .ok_or_else(|| invalid("MONEY_OVERFLOW", "Payroll exceeds supported precision."))?;
+            *net_minor = net_minor
+                .checked_sub(benefit.employee_deduction_minor)
+                .ok_or_else(|| invalid("MONEY_OVERFLOW", "Payroll exceeds supported precision."))?;
+            applied.push(AppliedComponent {
+                code: format!("benefit-deduction:{}", benefit.id),
+                label: format!("Benefit · {}", benefit.plan_name),
+                kind: "deduction".to_owned(),
+                amount: minor_to_decimal(benefit.employee_deduction_minor),
+                amount_minor: benefit.employee_deduction_minor,
+                taxable: None,
+                income_timing: None,
+                social_security_wage: None,
+            });
+        }
+        if benefit.employer_cost_minor > 0 {
+            *employer_cost_minor = employer_cost_minor
+                .checked_add(benefit.employer_cost_minor)
+                .ok_or_else(|| invalid("MONEY_OVERFLOW", "Payroll exceeds supported precision."))?;
+            applied.push(AppliedComponent {
+                code: format!("benefit-employer:{}", benefit.id),
+                label: format!("Benefit employer cost · {}", benefit.plan_name),
+                kind: "employer".to_owned(),
+                amount: minor_to_decimal(benefit.employer_cost_minor),
+                amount_minor: benefit.employer_cost_minor,
+                taxable: None,
+                income_timing: None,
+                social_security_wage: None,
+            });
+        }
+    }
+    Ok(())
+}
+
 pub fn calculate_payroll_item(
     input: &PayrollCalculationInput,
     run: &PayrollRun,
@@ -1952,6 +2013,15 @@ pub fn calculate_payroll_item(
         applied = with_statutory;
         statutory = Some(statutory_json);
     }
+    let mut benefits = input.benefits.clone();
+    benefits.sort_by(|left, right| left.id.cmp(&right.id));
+    apply_benefits(
+        &benefits,
+        &mut deductions_minor,
+        &mut employer_cost_minor,
+        &mut net_minor,
+        &mut applied,
+    )?;
     if net_minor < 0 {
         return Err(invalid(
             "NEGATIVE_NET_PAY",
@@ -2036,7 +2106,7 @@ pub fn calculate_payroll_item(
                 cost_department_id: entry.cost_department_id.as_deref(),
             }).collect::<Vec<_>>(),
         },
-        "benefitInputs": Vec::<Value>::new(),
+        "benefitInputs": benefits,
         "advanceRepayments": input.advances.iter().map(|advance| SnapshotAdvance {
             id: &advance.id,
             version: advance.version,
@@ -3584,6 +3654,7 @@ mod tests {
                 department_id: None,
                 evidence_status: "verified".into(),
             }],
+            benefits: Vec::new(),
             thai_statutory: None,
         }
     }

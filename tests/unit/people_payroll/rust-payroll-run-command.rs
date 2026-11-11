@@ -1,6 +1,7 @@
 //! Native payroll run command policy and calculation tests.
 //! PostgreSQL transaction behaviour and the composed Finance journal port are
 //! proven by sibling integration targets; these are owner unit facts.
+use erpx_server_benefits::public::payroll_source::BenefitPayrollInputRow;
 use erpx_server_people_payroll::public::payroll_run::{
     CreatePayrollRunInput, PayrollCalculationInput, PayrollCommandActor, PayrollCompensation,
     PayrollCostAssignment, PayrollEngagement, PayrollPayee, PayrollRun, PayrollTimeEntry,
@@ -99,6 +100,7 @@ fn calculation_input() -> PayrollCalculationInput {
             department_id: None,
             evidence_status: "verified".into(),
         }],
+        benefits: Vec::new(),
         thai_statutory: None,
     }
 }
@@ -155,6 +157,102 @@ fn calculation_retains_components_and_readiness_prerequisites() {
     assert_eq!(
         result["explanation"]["components"][0]["amountMinor"],
         100_000
+    );
+}
+
+fn benefit_input(
+    id: &str,
+    employee_deduction_minor: i64,
+    employer_cost_minor: i64,
+) -> BenefitPayrollInputRow {
+    BenefitPayrollInputRow {
+        id: id.into(),
+        election_id: format!("election-{id}"),
+        company_id: "company".into(),
+        person_id: "person".into(),
+        engagement_id: "engagement".into(),
+        currency: "THB".into(),
+        employee_deduction_minor,
+        employer_cost_minor,
+        effective_from: "2026-01-01".into(),
+        effective_to: None,
+        source_election_version: 1,
+        status: "released".into(),
+        released_by: "user".into(),
+        created_at: 0,
+        plan_name: "Health Plus".into(),
+    }
+}
+
+#[test]
+fn released_benefits_apply_components_totals_and_snapshot() {
+    let mut input = calculation_input();
+    input.benefits = vec![benefit_input("benefit-input-1", 150_000, 200_000)];
+    let item = calculate_payroll_item(&input, &run()).unwrap();
+    assert_eq!(item.gross_minor, 3_100_000);
+    assert_eq!(item.deductions_minor, 150_000);
+    assert_eq!(item.employer_cost_minor, 200_000);
+    assert_eq!(item.net_minor, 2_950_000);
+    let result: serde_json::Value = serde_json::from_str(&item.result_json).unwrap();
+    let components = result["explanation"]["components"].as_array().unwrap();
+    let deduction = components
+        .iter()
+        .find(|component| component["code"] == "benefit-deduction:benefit-input-1")
+        .expect("benefit deduction component");
+    assert_eq!(deduction["label"], "Benefit · Health Plus");
+    assert_eq!(deduction["kind"], "deduction");
+    assert_eq!(deduction["amount"], "1500.00");
+    assert_eq!(deduction["amountMinor"], 150_000);
+    let employer = components
+        .iter()
+        .find(|component| component["code"] == "benefit-employer:benefit-input-1")
+        .expect("benefit employer component");
+    assert_eq!(employer["label"], "Benefit employer cost · Health Plus");
+    assert_eq!(employer["kind"], "employer");
+    assert_eq!(employer["amount"], "2000.00");
+    assert_eq!(employer["amountMinor"], 200_000);
+    let snapshot: serde_json::Value = serde_json::from_str(&item.input_snapshot_json).unwrap();
+    assert_eq!(snapshot["benefitInputs"].as_array().unwrap().len(), 1);
+    assert_eq!(snapshot["benefitInputs"][0]["id"], "benefit-input-1");
+    assert_eq!(
+        snapshot["benefitInputs"][0]["employee_deduction_minor"],
+        150_000
+    );
+    assert_eq!(snapshot["benefitInputs"][0]["employer_cost_minor"], 200_000);
+    assert_eq!(snapshot["benefitInputs"][0]["engagement_id"], "engagement");
+    assert_eq!(snapshot["benefitInputs"][0]["currency"], "THB");
+    assert_eq!(snapshot["benefitInputs"][0]["status"], "released");
+}
+
+#[test]
+fn zero_amount_benefit_adds_no_component_but_stays_in_snapshot() {
+    let mut input = calculation_input();
+    input.benefits = vec![benefit_input("benefit-input-zero", 0, 0)];
+    let item = calculate_payroll_item(&input, &run()).unwrap();
+    assert_eq!(item.deductions_minor, 0);
+    assert_eq!(item.employer_cost_minor, 0);
+    assert_eq!(item.net_minor, 3_100_000);
+    let result: serde_json::Value = serde_json::from_str(&item.result_json).unwrap();
+    assert!(
+        result["explanation"]["components"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|component| !component["code"]
+                .as_str()
+                .is_some_and(|code| code.starts_with("benefit-")))
+    );
+    let snapshot: serde_json::Value = serde_json::from_str(&item.input_snapshot_json).unwrap();
+    assert_eq!(snapshot["benefitInputs"][0]["id"], "benefit-input-zero");
+}
+
+#[test]
+fn negative_benefit_amount_is_rejected() {
+    let mut input = calculation_input();
+    input.benefits = vec![benefit_input("benefit-input-negative", -1, 0)];
+    assert_eq!(
+        calculate_payroll_item(&input, &run()).unwrap_err().code,
+        "PAYROLL_INPUT_INCOMPLETE"
     );
 }
 

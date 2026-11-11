@@ -70,7 +70,15 @@ async fn setup(pool: &DatabasePool) {
          INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,currency,components_json,status,created_by,created_at,updated_at) \
          VALUES('compensation','engagement','2026-01-01','monthly',1000000,20000,'THB','[]','approved','user',0,0);\
          INSERT INTO hr_time_entries(id,engagement_id,company_id,work_date,regular_hours,overtime_hours,status,version,created_at,updated_at) \
-         VALUES('time','engagement','company','2026-10-01',8,0,'approved',1,0,0);",
+         VALUES('time','engagement','company','2026-10-01',8,0,'approved',1,0,0);\
+         INSERT INTO benefit_plans(id,company_id,name,provider,coverage_type,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,reviewed_by,version,created_at,updated_at) \
+         VALUES('plan','company','Health Plus','Provider','employee','THB',1500,2000,'2026-01-01',NULL,'published','user','user',1,0,0);\
+         INSERT INTO benefit_enrollment_windows(id,company_id,name,opens_on,closes_on,effective_on,status,created_by,reviewed_by,version,created_at,updated_at) \
+         VALUES('window','company','Annual','2026-01-01','2026-01-31','2026-01-01','closed','user','user',1,0,0);\
+         INSERT INTO benefit_elections(id,company_id,person_id,engagement_id,plan_id,plan_version,window_id,window_version,coverage_type,dependent_ids_json,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,submitted_by,provider_reference,acknowledged_by,released_by,version,created_at,updated_at) \
+         VALUES('election','company','person','engagement','plan',1,'window',1,'employee','[]','THB',1500,2000,'2026-01-01',NULL,'released','user','user','ref','user','user',1,0,0);\
+         INSERT INTO benefit_payroll_inputs(id,election_id,company_id,person_id,engagement_id,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,source_election_version,status,released_by,created_at) \
+         VALUES('benefit-input-1','election','company','person','engagement','THB',1500,2000,'2026-01-01',NULL,1,'released','user',0);",
     )
     .execute(pool.raw())
     .await
@@ -152,6 +160,30 @@ async fn create_calculate_and_post_retain_receipts_audit_outbox_and_readback() {
                     };
                     assert_eq!(calculated["status"], "preview");
                     assert_eq!(calculated["totals"]["gross"], 1_000_000);
+                    assert_eq!(calculated["totals"]["deductions"], 1_500);
+                    assert_eq!(calculated["totals"]["employer"], 2_000);
+                    assert_eq!(calculated["totals"]["net"], 998_500);
+                    let item_snapshot: String = sqlx::query_scalar(
+                        "SELECT input_snapshot_json FROM hr_payroll_items WHERE run_id=$1",
+                    )
+                    .bind(&run_id)
+                    .fetch_one(&mut *connection)
+                    .await
+                    .unwrap();
+                    let item_snapshot: serde_json::Value =
+                        serde_json::from_str(&item_snapshot).unwrap();
+                    assert_eq!(
+                        item_snapshot["benefitInputs"][0]["id"],
+                        "benefit-input-1"
+                    );
+                    assert_eq!(
+                        item_snapshot["benefitInputs"][0]["employee_deduction_minor"],
+                        1_500
+                    );
+                    assert_eq!(
+                        item_snapshot["benefitInputs"][0]["employer_cost_minor"],
+                        2_000
+                    );
                     sqlx::query(
                         "UPDATE hr_payroll_runs SET status='approved',approved_by='reviewer' WHERE id=$1",
                     )
@@ -171,7 +203,8 @@ async fn create_calculate_and_post_retain_receipts_audit_outbox_and_readback() {
                             "employerExpenseAccountId": "employer-expense",
                             "employerContributionAccountId": "employer-payable",
                             "socialSecurityPayableAccountId": "sso-payable",
-                            "taxPayableAccountId": "tax-payable"
+                            "taxPayableAccountId": "tax-payable",
+                            "benefitPayableAccountId": "benefit-payable"
                         })
                         .to_string(),
                     )

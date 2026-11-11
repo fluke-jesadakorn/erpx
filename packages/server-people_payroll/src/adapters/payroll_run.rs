@@ -8,13 +8,16 @@ use crate::application::payroll_run::{
     CancelRunCommand, CommitPostCommand, CreateRunCommand, PayrollCommandFuture,
     PayrollCommandRepository, PayrollJournalPort, SaveCalculationCommand, StoredPayrollReceipt,
 };
-use crate::domain::payroll_run::{PayrollJournalRequest, PayrollPreparedJournal};
 use crate::domain::payroll_run::{
     CountryPackFact, CreatePayrollRunInput, PayGroupFact, PayrollAdvanceRepayment,
     PayrollCalculationContext, PayrollCalculationInput, PayrollCompensation, PayrollCostAssignment,
     PayrollEngagement, PayrollHandoff, PayrollMappingFact, PayrollPayee, PayrollPostingBasis,
     PayrollPostingItem, PayrollRun, ThaiPayrollProfile, ThaiPayrollRules, ThaiPriorItem,
     ThaiStatutoryEvidence, idempotency_conflict, not_found, readback_invalid,
+};
+use crate::domain::payroll_run::{PayrollJournalRequest, PayrollPreparedJournal};
+use erpx_server_benefits::public::payroll_source::{
+    BenefitsPayrollQuery, BenefitsPayrollScope, PgBenefitsPayrollSource, payroll_benefit_inputs,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
@@ -804,6 +807,20 @@ impl<'a> PayrollCommandRepository for PgPayrollCommand<'a> {
                     })
                 })
                 .collect::<Result<Vec<_>, sqlx::Error>>()?;
+                let benefits = {
+                    let mut source = PgBenefitsPayrollSource::new(&mut *self.connection);
+                    payroll_benefit_inputs(
+                        &mut source,
+                        &BenefitsPayrollScope::new(company.clone()),
+                        &BenefitsPayrollQuery {
+                            engagement_id: engagement.id.clone(),
+                            currency: run.currency.clone(),
+                            period_start: run.period_start.clone(),
+                            period_end: run.period_end.clone(),
+                        },
+                    )
+                    .await?
+                };
                 let thai_statutory = self.thai_evidence(run, &engagement.id).await?;
                 inputs.push(PayrollCalculationInput {
                     engagement,
@@ -813,6 +830,7 @@ impl<'a> PayrollCommandRepository for PgPayrollCommand<'a> {
                     handoffs,
                     advances,
                     cost_assignments,
+                    benefits,
                     thai_statutory,
                 });
             }

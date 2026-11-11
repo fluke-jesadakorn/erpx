@@ -13,6 +13,7 @@ path = "src/lib.rs"
 [dependencies]
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
+erpx-server-benefits.workspace = true
 sqlx.workspace = true
 
 serde.workspace = true
