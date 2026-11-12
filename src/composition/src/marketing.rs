@@ -3,8 +3,8 @@
 //! campaign ledger, attribution summary and package entitlement facts.
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
-    current_package_catalogue, lock_commercial_authority_sources,
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
+    PurchaseRequest, PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -23,12 +23,16 @@ use erpx_server_marketing::public::campaign_attribution_http::{
     MarketingCampaignHttpResponse,
 };
 use erpx_server_marketing::public::lead_candidate::{
-    MarketingCommandReceipt, MarketingLeadActionInput, MarketingLeadActor, PgMarketingLead,
-    asset_profiles, lead_detail, record_engagement as record_marketing_engagement,
+    MarketingAssetCreateInput, MarketingAssetReviewInput, MarketingCampaignCreateInput,
+    MarketingCommandReceipt, MarketingLeadActionInput, MarketingLeadActor,
+    MarketingLeadCandidateInput, PgMarketingLead, asset_profiles,
+    create_asset as create_marketing_asset, create_campaign as create_marketing_campaign,
+    create_candidate as create_marketing_candidate, lead_detail,
+    record_engagement as record_marketing_engagement, review_asset as review_marketing_asset,
 };
 use erpx_server_marketing::public::lead_candidate_command_http::{
-    MarketingLeadCommandHttpBackend, MarketingLeadCommandHttpFuture,
-    MarketingLeadCommandHttpRequest,
+    MarketingAssetReviewHttpRequest, MarketingCommandHttpRequest, MarketingLeadCommandHttpBackend,
+    MarketingLeadCommandHttpFuture, MarketingLeadCommandHttpRequest,
 };
 use erpx_server_marketing::public::lead_candidate_http::{
     MarketingLeadHttpBackend, MarketingLeadHttpFuture, MarketingLeadHttpReadRequest,
@@ -38,6 +42,7 @@ use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+    TimestampMillis,
 };
 use serde_json::Value;
 use sqlx::PgConnection;
@@ -153,6 +158,52 @@ fn source_not_found() -> BusinessError {
     )
 }
 
+/// Same-unit purchase admission for one Marketing command. `purpose` selects
+/// new-work, settle-existing or replay history admission.
+async fn marketing_purchase_witness(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    catalogue: &CommercialCatalogue,
+    purpose: CapabilityPurpose,
+    now: TimestampMillis,
+) -> Result<PurchaseWitness, Error> {
+    let mut purchases =
+        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, catalogue);
+    let inspection = purchases
+        .inspect(
+            &PurchaseRequest {
+                capabilities: vec!["sales.marketing".into()],
+                purpose,
+                mode: PackageEnforcementMode::Enforced,
+            },
+            now,
+        )
+        .await
+        .map_err(business)?;
+    let witness = inspection.witness.clone();
+    inspection.require_allowed()?;
+    Ok(witness)
+}
+
+/// Revalidate the same-unit purchase witness after the owner command so the
+/// command cannot commit on stale admission facts.
+async fn revalidate_marketing_purchase(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    catalogue: &CommercialCatalogue,
+    witness: &PurchaseWitness,
+    now: TimestampMillis,
+) -> Result<(), Error> {
+    PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, catalogue)
+        .revalidate(witness, now)
+        .await
+        .map_err(business)?
+        .require_allowed()?;
+    Ok(())
+}
+
 async fn candidate_source_witness(
     connection: &mut PgConnection,
     actor: &MarketingLeadActor,
@@ -180,19 +231,101 @@ async fn command_replayed(
     connection: &mut PgConnection,
     key: &CommandKey,
     actor: &MarketingLeadActor,
-    candidate_id: &str,
+    operation: &str,
+    record_id: &str,
 ) -> Result<bool, Error> {
     Ok(sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM command_receipts receipt \
-         WHERE receipt.command_id=$1 AND receipt.operation='marketing.candidate.engagement' \
-         AND receipt.record_id=$2 AND receipt.actor_id=$3 \
-         AND receipt.authority_json::jsonb->>'companyId'=$4)",
+         WHERE receipt.command_id=$1 AND receipt.operation=$2 \
+         AND receipt.record_id=$3 AND receipt.actor_id=$4 \
+         AND receipt.authority_json::jsonb->>'companyId'=$5)",
     )
     .bind(key.as_str())
-    .bind(candidate_id)
+    .bind(operation)
+    .bind(record_id)
     .bind(&actor.user_id)
     .bind(&actor.company_id)
     .fetch_one(&mut *connection)
+    .await?)
+}
+
+/// Witness of the Company's other Marketing campaigns. Campaign creation is
+/// append-only (`marketing_campaigns` has no update path), so an unchanged set
+/// outside the new deterministic id proves no concurrent campaign command
+/// interleaved with this one.
+async fn campaign_set_witness(
+    connection: &mut PgConnection,
+    actor: &MarketingLeadActor,
+    created_id: &str,
+) -> Result<String, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT COALESCE(jsonb_agg(jsonb_build_array(campaign.id, campaign.code, campaign.name) ORDER BY campaign.id), '[]'::jsonb)::text \
+         FROM marketing_campaigns campaign \
+         WHERE campaign.company_id=$1 AND campaign.id<>$2",
+    )
+    .bind(&actor.company_id)
+    .bind(created_id)
+    .fetch_one(&mut *connection)
+    .await?)
+}
+
+/// Witness of the Company's other Marketing assets. Asset creation only
+/// appends, and the retention guard rejects edits to the source columns, so an
+/// unchanged identity/version/status set outside the new deterministic id
+/// proves no concurrent asset command interleaved with this one.
+async fn asset_set_witness(
+    connection: &mut PgConnection,
+    actor: &MarketingLeadActor,
+    created_id: &str,
+) -> Result<String, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT COALESCE(jsonb_agg(jsonb_build_array(asset.id, asset.version, asset.status) ORDER BY asset.id), '[]'::jsonb)::text \
+         FROM marketing_assets asset \
+         WHERE asset.company_id=$1 AND asset.id<>$2",
+    )
+    .bind(&actor.company_id)
+    .bind(created_id)
+    .fetch_one(&mut *connection)
+    .await?)
+}
+
+/// Exact approved form source consumed by candidate capture, mirroring the
+/// owner read (`kind='form'`, `status='active'`, exact version). A missing form
+/// stays `None` so the owner use case keeps its own `MARKETING_FORM_NOT_READY`
+/// denial instead of this witness inventing a different error.
+async fn candidate_form_witness(
+    connection: &mut PgConnection,
+    actor: &MarketingLeadActor,
+    form_id: &str,
+    form_version: i64,
+) -> Result<Option<String>, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT configuration_json FROM marketing_assets \
+         WHERE id=$1 AND company_id=$2 AND kind='form' AND status='active' AND version=$3",
+    )
+    .bind(form_id)
+    .bind(&actor.company_id)
+    .bind(form_version)
+    .fetch_optional(&mut *connection)
+    .await?)
+}
+
+/// Witness of the immutable Marketing asset source reviewed by activate,
+/// reject or retire. Status, reviewer, version and update time are the only
+/// mutable columns and are intentionally excluded.
+async fn asset_source_witness(
+    connection: &mut PgConnection,
+    actor: &MarketingLeadActor,
+    asset_id: &str,
+) -> Result<Option<String>, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT (to_jsonb(asset) - 'status' - 'reviewed_by' - 'version' - 'updated_at')::text \
+         FROM marketing_assets asset \
+         WHERE asset.id=$1 AND asset.company_id=$2",
+    )
+    .bind(asset_id)
+    .bind(&actor.company_id)
+    .fetch_optional(&mut *connection)
     .await?)
 }
 
@@ -344,7 +477,7 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                         let now = clock.now();
                         let catalogue = current_package_catalogue()?;
                         let replayed =
-                            command_replayed(connection, &key, &actor, &candidate_id).await?;
+                            command_replayed(connection, &key, &actor, "marketing.candidate.engagement", &candidate_id).await?;
                         let purpose = if replayed {
                             CapabilityPurpose::History
                         } else {
@@ -400,6 +533,403 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                         .await
                         .map_err(business)?
                         .require_allowed()?;
+                        Ok(receipt)
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Create one native Marketing campaign. The current Account session,
+    /// selected Company workspace, current IAM, same-unit new-work purchase
+    /// admission, Company campaign witness, owner command and receipt stay in
+    /// one serializable Holding transaction.
+    pub async fn create_campaign<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        key: CommandKey,
+        campaign: MarketingCampaignCreateInput,
+    ) -> Result<MarketingCommandReceipt, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.command_input(input),
+                Self::write_access(),
+                MarketingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    let campaign = campaign.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let actor = marketing_actor(current)?;
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let record_id = format!("campaign-{}", key.as_str());
+                        let replayed = command_replayed(
+                            connection,
+                            &key,
+                            &actor,
+                            "marketing.campaign.create",
+                            &record_id,
+                        )
+                        .await?;
+                        let purpose = if replayed {
+                            CapabilityPurpose::History
+                        } else {
+                            CapabilityPurpose::NewWork
+                        };
+                        let witness = marketing_purchase_witness(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            purpose,
+                            now,
+                        )
+                        .await?;
+                        let before = campaign_set_witness(connection, &actor, &record_id).await?;
+                        let receipt = create_marketing_campaign(
+                            &actor,
+                            &campaign,
+                            key.as_str(),
+                            &mut PgMarketingLead,
+                            connection,
+                            now,
+                        )
+                        .await
+                        .map_err(business)?;
+                        let after = campaign_set_witness(connection, &actor, &record_id).await?;
+                        if before != after {
+                            return Err(source_changed().into());
+                        }
+                        revalidate_marketing_purchase(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            &witness,
+                            now,
+                        )
+                        .await?;
+                        Ok(receipt)
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Create one native Marketing lead candidate from an approved form. The
+    /// form configuration witness, same-unit new-work purchase admission,
+    /// owner command, engagement and receipt stay in one serializable Holding
+    /// transaction.
+    pub async fn create_candidate<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        key: CommandKey,
+        candidate: MarketingLeadCandidateInput,
+    ) -> Result<MarketingCommandReceipt, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.command_input(input),
+                Self::write_access(),
+                MarketingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    let candidate = candidate.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let actor = marketing_actor(current)?;
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let record_id = format!("marketing-candidate-{}", key.as_str());
+                        let replayed = command_replayed(
+                            connection,
+                            &key,
+                            &actor,
+                            "marketing.candidate.create",
+                            &record_id,
+                        )
+                        .await?;
+                        let purpose = if replayed {
+                            CapabilityPurpose::History
+                        } else {
+                            CapabilityPurpose::NewWork
+                        };
+                        let witness = marketing_purchase_witness(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            purpose,
+                            now,
+                        )
+                        .await?;
+                        let before = candidate_form_witness(
+                            connection,
+                            &actor,
+                            &candidate.form_id,
+                            candidate.form_version,
+                        )
+                        .await?;
+                        let receipt = create_marketing_candidate(
+                            &actor,
+                            &candidate,
+                            key.as_str(),
+                            &mut PgMarketingLead,
+                            connection,
+                            now,
+                        )
+                        .await
+                        .map_err(business)?;
+                        let after = candidate_form_witness(
+                            connection,
+                            &actor,
+                            &candidate.form_id,
+                            candidate.form_version,
+                        )
+                        .await?;
+                        if before != after {
+                            return Err(source_changed().into());
+                        }
+                        revalidate_marketing_purchase(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            &witness,
+                            now,
+                        )
+                        .await?;
+                        Ok(receipt)
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Draft one native Marketing asset. The Company asset witness, same-unit
+    /// new-work purchase admission and owner command stay in one serializable
+    /// Holding transaction.
+    pub async fn create_asset<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        key: CommandKey,
+        asset: MarketingAssetCreateInput,
+    ) -> Result<MarketingCommandReceipt, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.command_input(input),
+                Self::write_access(),
+                MarketingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    let asset = asset.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let actor = marketing_actor(current)?;
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let record_id = format!("marketing-{}-{}", asset.kind, key.as_str());
+                        let replayed = command_replayed(
+                            connection,
+                            &key,
+                            &actor,
+                            "marketing.asset.create",
+                            &record_id,
+                        )
+                        .await?;
+                        let purpose = if replayed {
+                            CapabilityPurpose::History
+                        } else {
+                            CapabilityPurpose::NewWork
+                        };
+                        let witness = marketing_purchase_witness(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            purpose,
+                            now,
+                        )
+                        .await?;
+                        let before = asset_set_witness(connection, &actor, &record_id).await?;
+                        let receipt = create_marketing_asset(
+                            &actor,
+                            &asset,
+                            key.as_str(),
+                            &mut PgMarketingLead,
+                            connection,
+                            now,
+                        )
+                        .await
+                        .map_err(business)?;
+                        let after = asset_set_witness(connection, &actor, &record_id).await?;
+                        if before != after {
+                            return Err(source_changed().into());
+                        }
+                        revalidate_marketing_purchase(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            &witness,
+                            now,
+                        )
+                        .await?;
+                        Ok(receipt)
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Review one native Marketing asset. Activation is new work; reject and
+    /// retire settle the existing reviewed asset. Replays use history
+    /// admission. The immutable asset source witness, purchase admission and
+    /// owner transition stay in one serializable Holding transaction.
+    pub async fn review_asset<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        asset_id: String,
+        key: CommandKey,
+        review: MarketingAssetReviewInput,
+    ) -> Result<MarketingCommandReceipt, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.command_input(input),
+                Self::write_access(),
+                MarketingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let asset_id = asset_id.clone();
+                    let key = key.clone();
+                    let review = review.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let actor = marketing_actor(current)?;
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let operation = match review.action.as_str() {
+                            "activate" => "marketing.asset.activate",
+                            "reject" => "marketing.asset.reject",
+                            "retire" => "marketing.asset.retire",
+                            _ => return Err(command_body_invalid().into()),
+                        };
+                        let replayed =
+                            command_replayed(connection, &key, &actor, operation, &asset_id)
+                                .await?;
+                        let purpose = if replayed {
+                            CapabilityPurpose::History
+                        } else if review.action == "activate" {
+                            CapabilityPurpose::NewWork
+                        } else {
+                            CapabilityPurpose::SettleExisting
+                        };
+                        let witness = marketing_purchase_witness(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            purpose,
+                            now,
+                        )
+                        .await?;
+                        let before =
+                            asset_source_witness(connection, &actor, &asset_id).await?;
+                        let receipt = review_marketing_asset(
+                            &actor,
+                            &asset_id,
+                            &review,
+                            key.as_str(),
+                            &mut PgMarketingLead,
+                            connection,
+                            now,
+                        )
+                        .await
+                        .map_err(business)?;
+                        let after = asset_source_witness(connection, &actor, &asset_id).await?;
+                        if before != after {
+                            return Err(source_changed().into());
+                        }
+                        revalidate_marketing_purchase(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            &witness,
+                            now,
+                        )
+                        .await?;
                         Ok(receipt)
                     })
                 },
@@ -739,10 +1269,114 @@ impl<C: Clock + Send + Sync + 'static> MarketingLeadCommandHttpBackend for Marke
                 )
                 .await
                 .map_err(business)?;
-            let value = serde_json::to_value(receipt).map_err(|_| unavailable())?;
-            Ok(serde_json::json!({ "data": value }))
+            receipt_reply(receipt)
         })
     }
+
+    fn create_campaign<'a>(
+        &'a self,
+        request: MarketingCommandHttpRequest<'a>,
+    ) -> MarketingLeadCommandHttpFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let campaign: MarketingCampaignCreateInput =
+                serde_json::from_value(request.body.clone()).map_err(|_| command_body_invalid())?;
+            let receipt = self
+                .service
+                .create_campaign(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.key.clone(),
+                    campaign,
+                )
+                .await
+                .map_err(business)?;
+            receipt_reply(receipt)
+        })
+    }
+
+    fn create_candidate<'a>(
+        &'a self,
+        request: MarketingCommandHttpRequest<'a>,
+    ) -> MarketingLeadCommandHttpFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let candidate: MarketingLeadCandidateInput =
+                serde_json::from_value(request.body.clone()).map_err(|_| command_body_invalid())?;
+            let receipt = self
+                .service
+                .create_candidate(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.key.clone(),
+                    candidate,
+                )
+                .await
+                .map_err(business)?;
+            receipt_reply(receipt)
+        })
+    }
+
+    fn create_asset<'a>(
+        &'a self,
+        request: MarketingCommandHttpRequest<'a>,
+    ) -> MarketingLeadCommandHttpFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let asset: MarketingAssetCreateInput =
+                serde_json::from_value(request.body.clone()).map_err(|_| command_body_invalid())?;
+            let receipt = self
+                .service
+                .create_asset(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.key.clone(),
+                    asset,
+                )
+                .await
+                .map_err(business)?;
+            receipt_reply(receipt)
+        })
+    }
+
+    fn review_asset<'a>(
+        &'a self,
+        request: MarketingAssetReviewHttpRequest<'a>,
+    ) -> MarketingLeadCommandHttpFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let review: MarketingAssetReviewInput =
+                serde_json::from_value(request.body.clone()).map_err(|_| command_body_invalid())?;
+            let receipt = self
+                .service
+                .review_asset(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.asset_id.to_owned(),
+                    request.key.clone(),
+                    review,
+                )
+                .await
+                .map_err(business)?;
+            receipt_reply(receipt)
+        })
+    }
+}
+
+fn receipt_reply(receipt: MarketingCommandReceipt) -> Result<serde_json::Value, BusinessError> {
+    let value = serde_json::to_value(receipt).map_err(|_| unavailable())?;
+    Ok(serde_json::json!({ "data": value }))
+}
+
+fn command_body_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "MARKETING_COMMAND_REQUEST_INVALID",
+        "Use one bounded Marketing command.",
+    )
 }
 
 fn command_request_invalid() -> BusinessError {

@@ -126,6 +126,37 @@ export type NativeMarketingLeadInput = Readonly<{
   }>;
 }>;
 
+type NativeMarketingCommandTarget = Pick<
+  NativeMarketingLeadInput,
+  'holdingSlug' | 'branchSlug' | 'departmentSlug' | 'expected'
+>;
+
+export type NativeMarketingCampaignCreateInput = Readonly<{ code: string; name: string }>;
+
+export type NativeMarketingCandidateCreateInput = Readonly<{
+  formId: string;
+  formVersion: number;
+  branchId: string;
+  contactName: string;
+  contactDetail: string;
+  consentEvidence: string;
+  attribution: Readonly<Record<string, string>>;
+  brief: string;
+}>;
+
+export type NativeMarketingAssetCreateInput = Readonly<{
+  kind: 'form' | 'content' | 'domain' | 'provider';
+  name: string;
+  configuration: Readonly<Record<string, unknown>>;
+  preview: Readonly<Record<string, unknown>>;
+}>;
+
+export type NativeMarketingAssetReviewInput = Readonly<{
+  action: 'activate' | 'reject' | 'retire';
+  expectedVersion: number;
+  reason: string;
+}>;
+
 export type NativeMarketingLeadTransport = (
   method: 'GET' | 'POST',
   url: URL,
@@ -168,6 +199,22 @@ const sameSet = (left: readonly string[], right: readonly string[]) => {
   const a = new Set(left);
   const b = new Set(right);
   return a.size === b.size && [...a].every((value) => b.has(value));
+};
+const attribution = (value: Readonly<Record<string, string>>): boolean => {
+  if (!record(value)) return false;
+  const entries = Object.entries(value);
+  return (
+    entries.length <= 50 &&
+    entries.every(
+      ([key, item]) =>
+        key.length > 0 &&
+        key.length <= 200 &&
+        !/[\u0000-\u001f\u007f]/.test(key) &&
+        typeof item === 'string' &&
+        item.length <= 300 &&
+        !/[\u0000-\u001f\u007f]/.test(item),
+    )
+  );
 };
 
 function candidate(value: unknown, actor: NativeMarketingLeadPageContext): NativeMarketingLeadCandidate {
@@ -421,9 +468,10 @@ function commandCall(
   base: URL,
   holdings: Map<string, { holdingId: string; holdingSlug: string }>,
   incoming: Pick<Headers, 'get'>,
-  input: NativeMarketingLeadInput,
+  input: NativeMarketingCommandTarget,
   actor: NativeMarketingLeadPageContext,
   key: string,
+  path: string,
   body: string,
   timeout: number,
   signal?: AbortSignal,
@@ -436,8 +484,7 @@ function commandCall(
     holding.holdingSlug !== input.holdingSlug ||
     holding.holdingId !== actor.holdingId ||
     !key ||
-    key.length > 256 ||
-    !input.candidateId
+    key.length > 256
   )
     return Promise.reject(new NativeMarketingLeadError('NATIVE_MARKETING_LEAD_AUTHORITY_INVALID'));
   const headers = new Headers({
@@ -467,7 +514,6 @@ function commandCall(
   headers.set('x-erpx-context-assignment', input.expected.assignmentId);
   headers.set('x-erpx-context-revision', String(input.expected.revision));
   headers.set('x-erpx-context-assignment-version', String(input.expected.assignmentVersion));
-  const path = `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/marketing/leads/${encodeURIComponent(input.candidateId)}/changes`;
   const url = new URL(path, base);
   const controller = new AbortController();
   const cancel = () => controller.abort();
@@ -479,6 +525,19 @@ function commandCall(
     signal?.removeEventListener('abort', cancel);
   });
 }
+
+const commandPaths = {
+  recordEngagement: (holdingSlug: string, candidateId: string) =>
+    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/marketing/leads/${encodeURIComponent(candidateId)}/changes`,
+  createCampaign: (holdingSlug: string) =>
+    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/marketing/campaigns`,
+  createCandidate: (holdingSlug: string) =>
+    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/marketing/leads`,
+  createAsset: (holdingSlug: string) =>
+    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/marketing/assets`,
+  reviewAsset: (holdingSlug: string, assetId: string) =>
+    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/marketing/assets/${encodeURIComponent(assetId)}/changes`,
+} as const;
 
 function receipt(value: unknown): NativeMarketingLeadCommandReceipt {
   if (
@@ -593,6 +652,43 @@ export function createNativeMarketingLeadClient(
     context(value.context, actor, { ...input, candidateId: candidateId ?? '' });
     return value.data;
   }
+  async function send(
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeMarketingLeadPageContext,
+    input: NativeMarketingCommandTarget,
+    key: string,
+    path: string,
+    body: string,
+    signal?: AbortSignal,
+  ): Promise<NativeMarketingLeadCommandReceipt> {
+    const response = await commandCall(
+      transport,
+      parsed.base,
+      parsed.holdings,
+      incoming,
+      input,
+      actor,
+      key,
+      path,
+      body,
+      parsed.timeout,
+      signal,
+    );
+    const value = await boundedJson(response);
+    if (response.status !== 200) {
+      const error = record(value) ? value.error : undefined;
+      const code = record(error) ? String(error.code ?? '') : '';
+      const message = record(error) ? String(error.message ?? '') : '';
+      return failure(
+        code || 'NATIVE_MARKETING_LEAD_UNAVAILABLE',
+        response.status,
+        message || undefined,
+      );
+    }
+    if (!exact(value, ['data']) || !record(value.data))
+      return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
+    return receipt(value.data);
+  }
   return {
     async detail(
       incoming: Pick<Headers, 'get'>,
@@ -637,40 +733,183 @@ export function createNativeMarketingLeadClient(
         engagement.reason.trim().length < 3
       )
         return failure('NATIVE_MARKETING_LEAD_REQUEST_INVALID');
-      const body = JSON.stringify({
-        action: 'record-engagement',
-        expectedVersion: engagement.expectedVersion,
-        eventType: engagement.eventType,
-        channel: engagement.channel,
-        reason: engagement.reason,
-      });
-      const response = await commandCall(
-        transport,
-        parsed.base,
-        parsed.holdings,
+      const data = await send(
         incoming,
-        input,
         actor,
+        input,
         key,
-        body,
-        parsed.timeout,
+        commandPaths.recordEngagement(input.holdingSlug, input.candidateId),
+        JSON.stringify({
+          action: 'record-engagement',
+          expectedVersion: engagement.expectedVersion,
+          eventType: engagement.eventType,
+          channel: engagement.channel,
+          reason: engagement.reason,
+        }),
         signal,
       );
-      const value = await boundedJson(response);
-      if (response.status !== 200) {
-        const error = record(value) ? value.error : undefined;
-        const code = record(error) ? String(error.code ?? '') : '';
-        const message = record(error) ? String(error.message ?? '') : '';
-        return failure(
-          code || 'NATIVE_MARKETING_LEAD_UNAVAILABLE',
-          response.status,
-          message || undefined,
-        );
-      }
-      if (!exact(value, ['data']) || !record(value.data))
-        return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
-      const data = receipt(value.data);
       if (data.id !== input.candidateId || data.version !== engagement.expectedVersion + 1)
+        return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
+      return data;
+    },
+    async createCampaign(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeMarketingLeadPageContext,
+      input: NativeMarketingCommandTarget,
+      campaign: NativeMarketingCampaignCreateInput,
+      key: string,
+      signal?: AbortSignal,
+    ): Promise<NativeMarketingLeadCommandReceipt> {
+      if (
+        !text(campaign.code, 60) ||
+        !/^[A-Za-z0-9_-]{2,60}$/.test(campaign.code) ||
+        !text(campaign.name, 160) ||
+        campaign.name.trim().length < 2
+      )
+        return failure('NATIVE_MARKETING_LEAD_REQUEST_INVALID');
+      const data = await send(
+        incoming,
+        actor,
+        input,
+        key,
+        commandPaths.createCampaign(input.holdingSlug),
+        JSON.stringify({ code: campaign.code, name: campaign.name }),
+        signal,
+      );
+      if (
+        data.version !== 1 ||
+        data.code !== campaign.code.trim() ||
+        data.name !== campaign.name.trim()
+      )
+        return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
+      return data;
+    },
+    async createCandidate(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeMarketingLeadPageContext,
+      input: NativeMarketingCommandTarget,
+      candidate: NativeMarketingCandidateCreateInput,
+      key: string,
+      signal?: AbortSignal,
+    ): Promise<NativeMarketingLeadCommandReceipt> {
+      if (
+        !identifier(candidate.formId) ||
+        !integer(candidate.formVersion, 1) ||
+        !identifier(candidate.branchId) ||
+        !text(candidate.contactName, 160) ||
+        candidate.contactName.trim().length < 2 ||
+        !text(candidate.contactDetail, 3000) ||
+        candidate.contactDetail.trim().length < 3 ||
+        !text(candidate.consentEvidence, 3000) ||
+        candidate.consentEvidence.trim().length < 3 ||
+        !text(candidate.brief, 3000) ||
+        candidate.brief.trim().length < 3 ||
+        !attribution(candidate.attribution)
+      )
+        return failure('NATIVE_MARKETING_LEAD_REQUEST_INVALID');
+      const data = await send(
+        incoming,
+        actor,
+        input,
+        key,
+        commandPaths.createCandidate(input.holdingSlug),
+        JSON.stringify({
+          formId: candidate.formId,
+          formVersion: candidate.formVersion,
+          branchId: candidate.branchId,
+          contactName: candidate.contactName,
+          contactDetail: candidate.contactDetail,
+          consentEvidence: candidate.consentEvidence,
+          attribution: candidate.attribution,
+          brief: candidate.brief,
+        }),
+        signal,
+      );
+      if (data.status !== 'pending' || data.version !== 1)
+        return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
+      return data;
+    },
+    async createAsset(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeMarketingLeadPageContext,
+      input: NativeMarketingCommandTarget,
+      asset: NativeMarketingAssetCreateInput,
+      key: string,
+      signal?: AbortSignal,
+    ): Promise<NativeMarketingLeadCommandReceipt> {
+      if (
+        !['form', 'content', 'domain', 'provider'].includes(asset.kind) ||
+        !text(asset.name, 160) ||
+        asset.name.trim().length < 2 ||
+        !record(asset.configuration) ||
+        !record(asset.preview) ||
+        (asset.kind === 'form' && asset.configuration.consentRequired !== true)
+      )
+        return failure('NATIVE_MARKETING_LEAD_REQUEST_INVALID');
+      const configuration = JSON.stringify(asset.configuration);
+      const preview = JSON.stringify(asset.preview);
+      if (configuration.length > 65536 || preview.length > 65536)
+        return failure('NATIVE_MARKETING_LEAD_REQUEST_INVALID');
+      const data = await send(
+        incoming,
+        actor,
+        input,
+        key,
+        commandPaths.createAsset(input.holdingSlug),
+        JSON.stringify({
+          kind: asset.kind,
+          name: asset.name,
+          configuration: asset.configuration,
+          preview: asset.preview,
+        }),
+        signal,
+      );
+      if (
+        data.status !== 'draft' ||
+        data.version !== 1 ||
+        data.code !== null ||
+        data.name !== asset.name.trim()
+      )
+        return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
+      return data;
+    },
+    async reviewAsset(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeMarketingLeadPageContext,
+      input: NativeMarketingCommandTarget,
+      assetId: string,
+      review: NativeMarketingAssetReviewInput,
+      key: string,
+      signal?: AbortSignal,
+    ): Promise<NativeMarketingLeadCommandReceipt> {
+      if (
+        !identifier(assetId) ||
+        !['activate', 'reject', 'retire'].includes(review.action) ||
+        !integer(review.expectedVersion, 1) ||
+        !text(review.reason, 3000) ||
+        review.reason.trim().length < 3
+      )
+        return failure('NATIVE_MARKETING_LEAD_REQUEST_INVALID');
+      const data = await send(
+        incoming,
+        actor,
+        input,
+        key,
+        commandPaths.reviewAsset(input.holdingSlug, assetId),
+        JSON.stringify({
+          action: review.action,
+          expectedVersion: review.expectedVersion,
+          reason: review.reason,
+        }),
+        signal,
+      );
+      const status =
+        review.action === 'activate' ? 'active' : review.action === 'reject' ? 'rejected' : 'retired';
+      if (
+        data.id !== assetId ||
+        data.status !== status ||
+        data.version !== review.expectedVersion + 1
+      )
         return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
       return data;
     },
@@ -799,6 +1038,83 @@ export async function nativeMarketingLeadRecordEngagement(
     },
   };
   return native.recordEngagement(incoming, context, input, engagement, key, signal);
+}
+
+function commandTarget(
+  actor: NativeMarketingLeadActor,
+  context: NativeMarketingLeadPageContext,
+): NativeMarketingCommandTarget {
+  return {
+    holdingSlug: actor.holdingSlug,
+    ...scope(context),
+    expected: {
+      companyId: actor.companyId,
+      assignmentId: actor.assignmentId,
+      revision: actor.authority?.revision ?? 0,
+      assignmentVersion: actor.authority?.assignmentVersion ?? 0,
+    },
+  };
+}
+
+export async function nativeMarketingLeadCampaignCreate(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeMarketingLeadActor,
+  campaign: NativeMarketingCampaignCreateInput,
+  key: string,
+  signal?: AbortSignal,
+): Promise<NativeMarketingLeadCommandReceipt | undefined> {
+  const native = commandClient();
+  if (!native) return undefined;
+  const context = nativeMarketingLeadPageContext(actor);
+  return native.createCampaign(incoming, context, commandTarget(actor, context), campaign, key, signal);
+}
+
+export async function nativeMarketingLeadCandidateCreate(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeMarketingLeadActor,
+  candidate: NativeMarketingCandidateCreateInput,
+  key: string,
+  signal?: AbortSignal,
+): Promise<NativeMarketingLeadCommandReceipt | undefined> {
+  const native = commandClient();
+  if (!native) return undefined;
+  const context = nativeMarketingLeadPageContext(actor);
+  return native.createCandidate(incoming, context, commandTarget(actor, context), candidate, key, signal);
+}
+
+export async function nativeMarketingLeadAssetCreate(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeMarketingLeadActor,
+  asset: NativeMarketingAssetCreateInput,
+  key: string,
+  signal?: AbortSignal,
+): Promise<NativeMarketingLeadCommandReceipt | undefined> {
+  const native = commandClient();
+  if (!native) return undefined;
+  const context = nativeMarketingLeadPageContext(actor);
+  return native.createAsset(incoming, context, commandTarget(actor, context), asset, key, signal);
+}
+
+export async function nativeMarketingLeadAssetReview(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeMarketingLeadActor,
+  assetId: string,
+  review: NativeMarketingAssetReviewInput,
+  key: string,
+  signal?: AbortSignal,
+): Promise<NativeMarketingLeadCommandReceipt | undefined> {
+  const native = commandClient();
+  if (!native) return undefined;
+  const context = nativeMarketingLeadPageContext(actor);
+  return native.reviewAsset(
+    incoming,
+    context,
+    commandTarget(actor, context),
+    assetId,
+    review,
+    key,
+    signal,
+  );
 }
 
 export function nativeMarketingLeadFailure(
