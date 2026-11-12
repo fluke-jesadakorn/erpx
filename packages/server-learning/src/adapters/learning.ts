@@ -73,45 +73,6 @@ export function nativeLearningWorkspace(source: DatabaseSource) {
  return async(a:WorkContext,personal=false)=>{access(a);return withLearningPurchasedRead(await database(),a,async write=>{const purchases=await requireLearningPurchasedRead(write,a);return {...await workspace(async()=>write,purchases)(a,personal),...(purchases?{purchases}:{})};});};
 }
 export async function learningWorkspace(a: WorkContext, personal = false) { return nativeLearningWorkspace(lazyDatabase(a))(a, personal); }
-function learningCourseChanges(source: DatabaseSource) {
- const database = databaseSource(source); return createChangeLearningCourse({ ...commandPorts(database),
- async course(a,id) { const write = await database(); return await write
-      .prepare("SELECT * FROM learning_courses WHERE id=? AND company_id=?")
-      .bind(id, a.companyId)
-      .first<Row>(); },
- async prepare(command, input, expected, status) { const write = await database(), { actor: a, key, id, now } = command; return { native: [
-      assertion(
-        write,
-        key,
-        "course",
-        "EXISTS(SELECT 1 FROM learning_courses WHERE id=? AND company_id=? AND version=? AND status=? AND created_by<>?)",
-        [id, a.companyId, input.expectedVersion, expected, a.userId],
-      ),
-      write
-        .prepare(
-          "UPDATE learning_courses SET status=?,reviewed_by=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?",
-        )
-        .bind(status, a.userId, now, now, id),
-      write
-        .prepare("INSERT INTO learning_course_events VALUES(?,?,?,?,?,?,?,?)")
-        .bind(
-          `learning-course-event-${key}`,
-          id,
-          input.expectedVersion + 1,
-          input.action,
-          a.userId,
-          input.reason,
-          status,
-          now,
-        ),
-    ] }; },
- });
-}
-export function nativeLearningCourseChanges(source:DatabaseSource){return async(a:WorkContext,id:string,raw:unknown,key:string)=>{
- access(a,true);const input=courseActionSchema.parse(raw);
- return withLearningPurchasedCommand(await databaseSource(source)(),a,{key,operation:`learning.course.${input.action}`,target:{kind:"course",id},purpose:input.action==="publish"?"new-work":"settle-existing",capabilities:["learn.courses"],permission:"records.review",existing:true},write=>learningCourseChanges(write)(a,id,input,key));
-};}
-export async function changeLearningCourse(a: WorkContext, id: string, raw: unknown, key: string) { return nativeLearningCourseChanges(lazyDatabase(a))(a,id,raw,key); }
 function learningAssignments(source: DatabaseSource) {
  const database=databaseSource(source); return createLearningAssignmentApplication({ ...commandPorts(database),
  async person(a,learnerId) { return learningWorkerPlacement(await database(),a,learnerId); },

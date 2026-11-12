@@ -1,5 +1,5 @@
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
-import {createCourseSeed} from '../../support/helpers/learning-courses';
+import {createCourseSeed,publishCourseSeed} from '../../support/helpers/learning-courses';
 import {readExecutiveMetricProjection as financeProjection} from "@erpx/server-finance/public/executive-metric-projections";
 import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -2581,13 +2581,13 @@ it('requires the actual Project costs add-on and Finance authority for approved 
  }finally{vi.unstubAllEnvs();}
 });
 
-import {changeLearningCourse,createLearningAssignment,changeLearningAssignment,learningWork} from "@erpx/server-learning/public/learning";
+import {createLearningAssignment,changeLearningAssignment,learningWork} from "@erpx/server-learning/public/learning";
 import {listRecords,recordsPage,getRecord,searchReferences} from "@erpx/server-records/public/records";
 import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
 import {publishInboxEvent,inboxPage} from "@erpx/server-collaboration/public/inbox";
 import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";
 import {readExecutiveMetricProjection as learningProjection} from "@erpx/server-learning/public/executive-metric-projections";
-async function learningSourceFixture(){for(const actor of [f.owner,f.tie,f.claimant]){actor.modules=['learning'];await db.prepare("UPDATE assignments SET modules_json='[\"learning\"]' WHERE id=?").bind(actor.assignmentId).run();}const course=await createCourseSeed(db,f.owner,{title:'Actual source Learning course',description:'Original practical course and retained qualification evidence.',provider:'Independent academy',durationMinutes:45,requiredFor:'equipment_operator'},key());await changeLearningCourse(f.tie,String(course.id),{action:'publish',expectedVersion:1,reason:'Independent source and audience review.'},key());const assignment=await createLearningAssignment(f.owner,{courseId:String(course.id),courseVersion:2,learnerId:f.claimant.userId,dueDate:'2026-09-01',reason:'Original assigned learner qualification.'},key());return {courseId:String(course.id),assignmentId:String(assignment.id)};}
+async function learningSourceFixture(){for(const actor of [f.owner,f.tie,f.claimant]){actor.modules=['learning'];await db.prepare("UPDATE assignments SET modules_json='[\"learning\"]' WHERE id=?").bind(actor.assignmentId).run();}const course=await createCourseSeed(db,f.owner,{title:'Actual source Learning course',description:'Original practical course and retained qualification evidence.',provider:'Independent academy',durationMinutes:45,requiredFor:'equipment_operator'},key());await publishCourseSeed(db,String(course.id),f.tie.userId);const assignment=await createLearningAssignment(f.owner,{courseId:String(course.id),courseVersion:2,learnerId:f.claimant.userId,dueDate:'2026-09-01',reason:'Original assigned learner qualification.'},key());return {courseId:String(course.id),assignmentId:String(assignment.id)};}
 async function learningSourceGrant(state:'active'|'draining'='active'){const prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='learn');return packageGrantStore(db,{authorize:async()=>({userId:'isolated-learning-source-provider'}),obligations:async()=>{throw Error('No synthetic Learning withdrawal witness');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'learn',packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Actual Learning source projection workflow',evidence:'test:learning-source-owner'}});}
 it('applies actual Learning scope and purchase before Records, search and both notification limits and prevents Flow resurrection',async()=>{
  try{

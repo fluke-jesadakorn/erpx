@@ -43,3 +43,59 @@ export async function createCourseSeed(
   ]);
   return { id, status: "draft", version: 1 };
 }
+
+export async function publishCourseSeed(
+  database: SqlDatabase,
+  courseId: string,
+  reviewerId: string,
+  expectedVersion = 1,
+) {
+  const now = Date.now(),
+    version = expectedVersion + 1;
+  await database.batch([
+    database
+      .prepare(
+        "UPDATE learning_courses SET status='published',reviewed_by=?,reviewed_at=?,version=?,updated_at=? WHERE id=?",
+      )
+      .bind(reviewerId, now, version, now, courseId),
+    database
+      .prepare("INSERT INTO learning_course_events VALUES(?,?,?,?,?,?,?,?)")
+      .bind(
+        `learning-course-event-publish-${courseId}`,
+        courseId,
+        version,
+        "publish",
+        reviewerId,
+        "Course published by fixture",
+        "published",
+        now,
+      ),
+  ]);
+}
+
+export async function retireCourseSeed(
+  database: SqlDatabase,
+  courseId: string,
+  reviewerId: string,
+) {
+  const now = Date.now();
+  await database.batch([
+    database
+      .prepare(
+        "UPDATE learning_courses SET status='retired',reviewed_by=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?",
+      )
+      .bind(reviewerId, now, now, courseId),
+    database
+      .prepare(
+        "INSERT INTO learning_course_events SELECT ?,?,version,'retire',?,?,'retired',? FROM learning_courses WHERE id=?",
+      )
+      .bind(
+        `learning-course-event-retire-${courseId}`,
+        courseId,
+        reviewerId,
+        "Course retired by fixture",
+        now,
+        courseId,
+      ),
+  ]);
+}

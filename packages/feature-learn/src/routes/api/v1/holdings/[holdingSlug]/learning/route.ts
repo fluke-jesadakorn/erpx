@@ -4,14 +4,12 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {
   changeLearningAssignment,
-  changeLearningCourse,
   createLearningAssignment,
   learningAssignmentDetail,
   learningWorkspace,
 } from "@erpx/server-learning/public/learning";
 import {nativeLearningCommandRoute} from "@erpx/feature-learn/lib/native-learning-command";
 import {nativeLearningAvailable,nativeLearningDetailPage,nativeLearningWorkspacePage} from "@erpx/workplace/lib/native-learning";
-import { certificateRevocationSchema,revokeLearningCertificate } from "@erpx/server-learning/public/learning-eligibility";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
@@ -63,19 +61,21 @@ export async function POST(r: Request, c: C) {
         "NATIVE_LEARNING_UNAVAILABLE",
         "The native Learning command is unavailable.",
       );
-    if (!native && input.entity === "course" && typeof input.id !== "string")
+    if (
+      !native &&
+      (input.entity === "certificate" ||
+        (input.entity === "course" && typeof input.id === "string"))
+    )
       throw new ApiError(
         503,
         "NATIVE_LEARNING_UNAVAILABLE",
-        "The native Learning course command is unavailable.",
+        "The native Learning command is unavailable.",
       );
     const data =
       result ??
-      (input.entity==="certificate"?await revokeLearningCertificate(a,input.id,certificateRevocationSchema.parse({expectedAssignmentVersion:input.expectedAssignmentVersion,reason:input.reason}),key):input.entity === "course"
-        ? await changeLearningCourse(a, String(input.id), input, key)
-        : typeof input.id === "string"
-          ? await changeLearningAssignment(a, input.id, input, key)
-          : await createLearningAssignment(a, input, key));
+      (typeof input.id === "string"
+        ? await changeLearningAssignment(a, input.id, input, key)
+        : await createLearningAssignment(a, input, key));
     return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);

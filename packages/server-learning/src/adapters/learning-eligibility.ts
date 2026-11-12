@@ -38,21 +38,4 @@ export function nativeValidateBenefitLearning(write:SqlDatabase){return createVa
  async current(actor,certificateId,today){const row={learning_certificate_id:certificateId};return Boolean(await write.prepare(`SELECT c.id FROM learning_certificates c ${currentSource} WHERE c.id=? AND c.company_id=? AND a.version=c.source_assignment_version AND a.status IN ('completed','waived') AND p.status='active' AND p.merged_into_id IS NULL AND (c.expires_on IS NULL OR c.expires_on>=?) AND NOT EXISTS(SELECT 1 FROM learning_certificate_revocations r WHERE r.certificate_id=c.id)`).bind(row.learning_certificate_id,actor.companyId,today).first());},
  });}
 export async function validateBenefitLearning(write:SqlDatabase,actor:WorkContext,row:LearningBenefitElection,key:string){return (await nativeValidateBenefitLearning(write)(actor,row,key)??[]) as SqlStatement[];}
-export async function revokeLearningCertificate(actor:WorkContext,id:string,input:LearningRevocationInput,key:string){
- const owner=(await holdingResources(actor.holdingId)).write;
- return withLearningPurchasedCommand(owner,actor,{key,operation:"learning.certificate.revoke",target:{kind:"certificate",id},purpose:"settle-existing",capabilities:["learn.certificates"],permission:"records.review",existing:true,
- sourceWitness:async database=>JSON.stringify(await database.prepare(`SELECT to_jsonb(a)-'updated_at' assignment,to_jsonb(h) handoff,to_jsonb(r) revocation
- FROM learning_certificates c ${currentSource} LEFT JOIN learning_certificate_revocations r ON r.certificate_id=c.id
- WHERE c.id=? AND c.company_id=?`).bind(id,actor.companyId).first())},write=>nativeRevokeLearningCertificate(write,actor,id,input,key));
-}
-async function nativeRevokeLearningCertificate(write:SqlDatabase,actor:WorkContext,id:string,input:LearningRevocationInput,key:string){
- const database=async()=>write;
- return createRevokeLearningCertificate({
- authorize(actor){actor=requirePermission(actor,"records.review");if(!hasModuleAccess(actor.modules,"learning"))throw new ApiError(403,"MODULE_FORBIDDEN","Use an authorized Learning reviewer assignment.");return actor;},
- error:violation=>new ApiError(violation.status,violation.code,violation.message),now:Date.now,
- replay:async(actor,key,operation,id,input)=>replayCommand(await database(),actor,key,operation,id,input),
- async certificate(actor,id,input){const write=await database();return await write.prepare(`SELECT c.* FROM learning_certificates c ${currentSource} WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?) AND a.version=?`).bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,input.expectedAssignmentVersion).first<Certificate>();},
- async prepare(command,input,c){const write=await database(),{actor,id,key,now}=command;return {native:[write.prepare("SELECT id FROM learning_certificates WHERE id=? FOR UPDATE").bind(id),assertion(write,key,"certificate-source","EXISTS(SELECT 1 FROM learning_assignments WHERE id=? AND company_id=? AND version=?)",[c.assignment_id,actor.companyId,input.expectedAssignmentVersion]),write.prepare("INSERT INTO learning_certificate_revocations(id,certificate_id,company_id,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?)").bind(`certificate-revoke-${key}`,id,actor.companyId,actor.userId,input.reason,key,now)]};},
- async commit(command,mutation){return executeCommand(await database(),command.actor,command.key,command.operation,command.input,command.id,command.version,command.result,mutation.native as SqlStatement[]);},
- })(actor,id,input,key);
-}
+
