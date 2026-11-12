@@ -91,3 +91,11 @@ path = "../../tests/unit/people_payroll/rust-workforce.test.rs"
 [[test]]
 name = "workforce_postgres"
 path = "../../tests/integration/people_payroll/rust-workforce-postgres.test.rs"
+
+[[test]]
+name = "leave"
+path = "../../tests/unit/people_payroll/rust-leave.test.rs"
+
+[[test]]
+name = "leave_postgres"
+path = "../../tests/integration/people_payroll/rust-leave-postgres.test.rs"
