@@ -10309,8 +10309,15 @@ pub async fn run_workflow_projection_worker_file(
     path: &Path,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Result<(), &'static str> {
-    let config =
-        DevelopmentApiConfiguration::read_configuration_file(path, Profile::Development)?;
+    run_workflow_projection_worker_with_profile(path, Profile::Development, shutdown).await
+}
+
+pub(crate) async fn run_workflow_projection_worker_with_profile(
+    path: &Path,
+    profile: Profile,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let config = DevelopmentApiConfiguration::read_configuration_file(path, profile)?;
     if config.holdings.is_empty() {
         return Err("WORKFLOW_PROJECTION_TARGET_REQUIRED");
     }
@@ -10494,6 +10501,36 @@ pub async fn run_production_workers_file(
         handles.push(tokio::spawn(async move {
             run_position_move_supervisor(databases, stop).await;
             Ok::<(), &'static str>(())
+        }));
+    }
+    if !config.holdings.is_empty() {
+        let path = path.to_owned();
+        let mut stop = stop.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                if *stop.borrow() {
+                    return Ok::<(), &'static str>(());
+                }
+                let mut worker_stop = stop.clone();
+                let result = run_workflow_projection_worker_with_profile(
+                    &path,
+                    Profile::Production,
+                    async move {
+                        let _ = worker_stop.changed().await;
+                    },
+                )
+                .await;
+                if *stop.borrow() {
+                    return Ok(());
+                }
+                if let Err(code) = result {
+                    eprintln!("production workflow projection worker stopped: {code}; restarting");
+                }
+                tokio::select! {
+                    _ = stop.changed() => return Ok(()),
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+            }
         }));
     }
     shutdown.await;
