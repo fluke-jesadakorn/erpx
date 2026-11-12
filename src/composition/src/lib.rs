@@ -130,6 +130,7 @@ pub mod people_payroll;
 pub mod platform_administration;
 pub mod platform_iam;
 pub mod pms;
+pub mod routine_commands;
 pub mod pos;
 pub mod procurement;
 #[cfg(feature = "existing-business")]

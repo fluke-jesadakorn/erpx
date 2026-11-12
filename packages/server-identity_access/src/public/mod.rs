@@ -115,3 +115,5 @@ pub mod directory_runtime;
 pub mod staff_facts;
 
 pub mod pms_social_event_recipients;
+
+pub mod routine_owner;

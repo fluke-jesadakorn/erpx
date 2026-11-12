@@ -2881,6 +2881,7 @@ async fn assemble_checked(
             erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget,
         > = Vec::new();
         let mut pms_targets = Vec::new();
+        let mut routine_targets = Vec::new();
         let mut pms_stay_room_targets = Vec::new();
         let mut pms_room_command_targets = Vec::new();
         let mut pms_report_targets = Vec::new();
@@ -3309,6 +3310,25 @@ async fn assemble_checked(
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
                         backend: pms_backend.clone(),
+                    },
+                );
+                routine_targets.push(
+                    erpx_server_operations::public::routine_commands_http::RoutineHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::routine_commands::RoutineBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::routine_commands::RoutineService::new(
+                                authorizer.clone(),
+                                crate::routine_commands::RoutineConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
                     },
                 );
                 pms_report_targets.push(erpx_server_pms::public::report::PmsReportHttpTarget {
@@ -5460,6 +5480,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_pms::public::report::pms_report_router(pms_report_targets)
                     .map_err(|_| "PRIVATE_API_PMS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !routine_targets.is_empty() {
+            router = router.merge(
+                erpx_server_operations::public::routine_commands_http::routine_commands_router(
+                    routine_targets,
+                )
+                .map_err(|_| "PRIVATE_API_OPERATIONS_ROUTINES_CONFIGURATION_INVALID")?,
             );
         }
         if !pms_reservation_targets.is_empty() {
