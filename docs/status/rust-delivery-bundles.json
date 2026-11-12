@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 949,
+    "revision": 951,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -13956,7 +13956,14 @@
           "owner:collaboration"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261112-r",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T13:53:12.437Z",
+          "heartbeatAt": "2026-11-12T13:53:12.437Z",
+          "expiresAt": "2026-11-12T14:23:12.438Z",
+          "generation": 43
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -14020,11 +14027,34 @@
             "sourceSha": "c36c1060a2f0471eb7beae26fcda9c919b419f58",
             "sourceKind": "committed",
             "note": "TEST_CATALOGUE_VALID:33 modules,1185 suites."
+          },
+          {
+            "command": "retirement:ts-writes dead support notification effect shims",
+            "result": "passed",
+            "before": 11,
+            "after": 0,
+            "sourceSha": "0435266f1341a90605c4b514cb1aab67e371ff3d",
+            "sourceKind": "committed",
+            "note": "Deleted server-collaboration support-notification-effects (11 INSERT statements into staff_notifications) and its only dependency server-support support-notification-sources; both were orphaned by the native Support ticket/incident/session/SLA commands and had no consumer beyond their own public barrels/exports."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration -p erpx-server-support --locked",
+            "result": "passed",
+            "sourceSha": "0435266f1341a90605c4b514cb1aab67e371ff3d",
+            "sourceKind": "committed",
+            "note": "Native crates remain green."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "0435266f1341a90605c4b514cb1aab67e371ff3d",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID:33 modules,1183 suites."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Messaging history/file content native; attachments bind/content fail-closed. Retired two dead TS shims (field-service notification 219->218 a1049ac1f; orphan operations-exception notifications 218->216 c36c1060a). Remaining: native messaging upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain, and the live support-notification/commercial-effect writers.",
+        "nextAction": "Messaging history/file content native; attachments bind/content fail-closed. Retired the dead Support notification effect shims (11 staff_notifications inserts) plus their projection sources (slice 11->0, 0435266f1). Remaining: native messaging upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain.",
         "handoff": {
           "runId": "run-20261112-o",
           "agentId": "lead",
@@ -23180,7 +23210,7 @@
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:50:51.017Z",
+    "updatedAt": "2026-11-12T13:53:12.477Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
