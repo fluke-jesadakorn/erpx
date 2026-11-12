@@ -122,7 +122,10 @@ fn command_key_required() -> BusinessError {
     )
 }
 
-fn unique_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, BusinessError> {
+pub(crate) fn unique_header<'a>(
+    headers: &'a HeaderMap,
+    name: &str,
+) -> Result<Option<&'a str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
     let first = values.next();
     if values.next().is_some() {
@@ -133,7 +136,7 @@ fn unique_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a st
         .transpose()
 }
 
-fn valid_origin(origin: &str) -> bool {
+pub(crate) fn valid_origin(origin: &str) -> bool {
     origin.strip_prefix("https://").is_some_and(|rest| {
         let (host, port) = match rest.rsplit_once(':') {
             Some((host, port)) => (host, Some(port)),
@@ -394,7 +397,7 @@ fn valid_catalog(value: &Value) -> bool {
     })
 }
 
-fn valid_command(value: &Value) -> bool {
+pub(crate) fn valid_command(value: &Value) -> bool {
     value.as_object().is_some_and(|object| {
         object.len() == 3
             && object
@@ -511,7 +514,7 @@ fn status_code(kind: FailureKind) -> StatusCode {
     }
 }
 
-fn error_response(error: BusinessError) -> Response {
+pub(crate) fn error_response(error: BusinessError) -> Response {
     (
         status_code(error.kind),
         Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
@@ -519,7 +522,7 @@ fn error_response(error: BusinessError) -> Response {
         .into_response()
 }
 
-fn bounded(value: Value) -> Response {
+pub(crate) fn bounded(value: Value) -> Response {
     let mut response = (StatusCode::OK, Json(value)).into_response();
     for (name, value) in [
         (header::CACHE_CONTROL, "private, no-store"),

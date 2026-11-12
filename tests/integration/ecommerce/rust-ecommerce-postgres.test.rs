@@ -23,6 +23,10 @@ use std::{str::FromStr, time::Duration};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
+/// Parallel tests in one process may observe the same clock tick, so the owned
+/// database name also carries a monotonic counter.
+static NEXT_DATABASE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     match error {
         PgTransactionError::Business(error) => error,
@@ -136,12 +140,13 @@ where
             .await
             .expect("test administrator unavailable");
         let token = format!(
-            "{}{}",
+            "{}{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_DATABASE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         );
         let name = format!("erpx_dev_rust_{token}");
         let lease = format!("erpx-rust-test:{token}");

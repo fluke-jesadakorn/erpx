@@ -118,4 +118,5 @@ pub trait EcommerceCommandRepository: Send {
 
 pub mod catalog;
 pub mod channel;
+pub mod listing;
 pub mod review;
