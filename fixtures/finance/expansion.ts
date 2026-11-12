@@ -17,7 +17,8 @@ import {
   snapshotFinancialReport,
   exportFinancialReport,
 } from "@erpx/server-finance/public/finance-planning";
-import {createJournal,createJournalSchema,postJournal,postInvoice,importBankStatement,createPeriod,calculateCloseReconciliations,trialBalance} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../tests/support/helpers/finance-journal-seed';
+import {postInvoice,importBankStatement,createPeriod,calculateCloseReconciliations,trialBalance} from '@erpx/server-finance/public/finance';
 import {
   createBankCsvMapping,
   bankCsvMappingSchema,
@@ -572,21 +573,20 @@ export async function seedFinanceExpansionRehearsal(
   );
   const cashLines = [];
   for (const amount of ["60.01", "39.99"]) {
-    const j = await createJournal(
-      preparer,
-      createJournalSchema.parse({
-        chartId: f.chart,
-        periodId: september,
-        entryDate: "2026-09-04",
-        currency: "THB",
-        lines: [
-          { accountId: f.accounts.cash, debit: amount, credit: "0" },
-          { accountId: f.accounts.revenue, debit: "0", credit: amount },
-        ],
-      }),
-      key(),
-    );
-    await postJournal(approver, String(j.id), key(), { expectedVersion: 1 });
+    const j = await seedFinanceJournal(db, {
+      companyId: preparer.companyId,
+      chartId: f.chart,
+      periodId: september,
+      entryDate: "2026-09-04",
+      currency: "THB",
+      key: key(),
+      createdBy: preparer.userId,
+      status: "posted",
+      lines: [
+        { accountId: f.accounts.cash, debit: amount, credit: "0" },
+        { accountId: f.accounts.revenue, debit: "0", credit: amount },
+      ],
+    });
     cashLines.push(
       String(
         await db

@@ -10,7 +10,8 @@ import {seedExpenseCompany} from "../../expenses/company";
 import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
 import {product,type ProductId} from '@erpx/contracts/product-registry';
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
-import {createAccount,createAccountSchema,createChart,createChartSchema,createJournal,createJournalSchema,createPeriod,createPeriodSchema,postJournalBatch,createParty,createPayment,importBankStatement} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../../tests/support/helpers/finance-journal-seed';
+import {createAccount,createAccountSchema,createChart,createChartSchema,createPeriod,createPeriodSchema,postJournalBatch,createParty,createPayment,importBankStatement} from '@erpx/server-finance/public/finance';
 import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-finance/public/accounting-profiles";
 import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import {createPayGroup,payGroupSchema} from "@erpx/server-people_payroll/public/people-payroll";
@@ -75,7 +76,7 @@ export async function seedEngineeringMoneyPeopleBrowser(input:Input){
   const comparative=await createPeriod(finance,createPeriodSchema.parse({name:'Synthetic comparative 2025',startDate:'2025-01-01',endDate:'2025-12-31'}),key());
   await input.db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'journal','draft',?,?,'Synthetic independent journal reviewer',?)").bind(f.company,approver.userId,finance.userId,now).run();
   for(const [period,date,debit,credit,amount] of [[comparative.id,'2025-01-01','cash','capital','500.00'],[comparative.id,'2025-09-15','cash','revenue','100.00'],[comparative.id,'2025-09-16','expense','cash','40.00'],[f.period,'2026-09-15','cash','revenue','150.00'],[f.period,'2026-09-16','expense','cash','50.00']] as const){
-   const journal=await createJournal(finance,createJournalSchema.parse({chartId:reportChart,periodId:period,entryDate:date,currency:'THB',memo:'Fictional independently reviewed financial reporting source',lines:[{accountId:reportAccounts[debit],debit:amount,credit:'0'},{accountId:reportAccounts[credit],debit:'0',credit:amount}]}),key());
+   const journal=await seedFinanceJournal(input.db,{companyId:f.company,chartId:reportChart,periodId:String(period),entryDate:date,currency:'THB',memo:'Fictional independently reviewed financial reporting source',key:key(),createdBy:finance.userId,lines:[{accountId:reportAccounts[debit],debit:amount,credit:'0'},{accountId:reportAccounts[credit],debit:'0',credit:amount}]});
    await postJournalBatch(approver,{journals:[{id:journal.id,expectedVersion:1}],reason:'Independent reviewer confirmed balanced fictional source amounts.'},key());
   }
   const payroll=await register('payroll-author','payroll_preparer');
