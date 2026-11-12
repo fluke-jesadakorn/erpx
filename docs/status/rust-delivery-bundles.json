@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 585,
+    "revision": 595,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-b",
       "agentId": "lead",
       "startedAt": "2026-11-12T01:52:42.182Z",
-      "heartbeatAt": "2026-11-12T01:52:42.182Z",
-      "expiresAt": "2026-11-12T02:22:42.184Z",
+      "heartbeatAt": "2026-11-12T01:55:41.745Z",
+      "expiresAt": "2026-11-12T02:25:41.745Z",
       "generation": 27,
       "tokenHash": "9f491d39a9b36ce8bd2e2507f2a042cf84dd1a6d8824db3c72895c82066396e3"
     },
@@ -9748,8 +9748,15 @@
         "resources": [
           "owner:brand"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-b",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T01:55:53.700Z",
+          "heartbeatAt": "2026-11-12T01:55:53.700Z",
+          "expiresAt": "2026-11-12T02:25:53.700Z",
+          "generation": 27
+        },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
         "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
         "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
@@ -9789,7 +9796,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
+        "blocker": null,
         "nextAction": "Presentation reads pushed 19580e083 (workspace/document brand, storefront overlay, profiles, executive evidence). Mount request: composition BrandPresentationContext read service; switch work_projection/pms/operations presentation-queries, people_payroll explorer detail, runtime executive brand-evidence. Remaining brand slice: identity-read-port.",
         "handoff": {
           "runId": "run-20261110-g24",
@@ -10686,8 +10693,15 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-b",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T01:55:53.671Z",
+          "heartbeatAt": "2026-11-12T01:55:53.671Z",
+          "expiresAt": "2026-11-12T02:25:53.671Z",
+          "generation": 27
+        },
         "baseSha": null,
         "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
         "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
@@ -10709,11 +10723,23 @@
             "result": "passed",
             "sourceSha": "19580e0835c1dde972e2d399e77a681c8f890638",
             "note": "5/5 journal wire cases pass."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=finance.rust-commerce-goods-journal-postgres.integration",
+            "result": "passed",
+            "sourceSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+            "note": "Registered suite path: 4/4 goods journal cases pass."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=brand.rust-branding-postgres.integration",
+            "result": "passed",
+            "sourceSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+            "note": "Registered suite path: 9/9 branding and presentation read cases pass."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
-        "nextAction": "goods-journal-port pushed 19580e083 (receipt/delivery journal + Company functional-FX valuation on caller transaction). Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets.",
+        "blocker": null,
+        "nextAction": "goods-journal-port pushed 19580e083 and verified through the registered suite. Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets.",
         "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-finance",
@@ -12246,8 +12272,8 @@
           "runId": "run-20261112-b",
           "agentId": "worker-marketing",
           "claimedAt": "2026-11-12T01:52:48.074Z",
-          "heartbeatAt": "2026-11-12T01:52:48.074Z",
-          "expiresAt": "2026-11-12T02:22:48.074Z",
+          "heartbeatAt": "2026-11-12T01:55:41.745Z",
+          "expiresAt": "2026-11-12T02:25:41.745Z",
           "generation": 27
         },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
@@ -12312,11 +12338,29 @@
             "result": "passed",
             "sourceSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
             "note": "18/18 Postgres command cases pass on a leased database."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=marketing.rust-marketing-campaigns.unit",
+            "result": "passed",
+            "sourceSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+            "note": "Registered suite path: 23/23 unit cases pass."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=marketing.rust-marketing-campaign-http.integration",
+            "result": "passed",
+            "sourceSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+            "note": "Registered suite path: 8/8 HTTP transport cases pass."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=marketing.rust-marketing-campaign-postgres.integration",
+            "result": "passed",
+            "sourceSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+            "note": "Registered suite path: 18/18 Postgres command cases pass."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "campaign-asset-commands pushed e75b1d34f (campaign/candidate/asset create + asset review ingress, fail-closed until mount). Remaining: composition MarketingService create_campaign/create_candidate/create_asset/review_asset + backend impl, then switch feature-sales marketing POST branches and add native-marketing-lead create/review helpers.",
+        "nextAction": "campaign commands pushed e75b1d34f and verified via registered suites; mount worker implementing MarketingService create/review + feature-sales switch.",
         "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-marketing",
@@ -12409,11 +12453,11 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": "19580e0835c1dde972e2d399e77a681c8f890638",
-        "implementedCommit": "1ab8ef03975e12fa6be63d943f29637d5711e497",
-        "lastPushedSha": null,
+        "implementedCommit": "05ced9dcf188f324774e558d0b3e3b1918038742",
+        "lastPushedSha": "05ced9dcf188f324774e558d0b3e3b1918038742",
         "checks": [
           {
             "command": "cargo check -p erpx-server-manufacturing --locked",
@@ -12428,11 +12472,59 @@
             "sourceSha": "1ab8ef03975e12fa6be63d943f29637d5711e497",
             "sourceKind": "committed",
             "note": "34/34 owner cases pass: BOM 10+2+4 plus new specification 11+3+4; PostgreSQL cases use ERPX_TEST_ADMIN_URL from .env.local. Content identical to the compiled pre-commit tree."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "05ced9dcf188f324774e558d0b3e3b1918038742",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the specification targets, purchase admission and merged owner router."
+          },
+          {
+            "command": "bun run test:unit -- --suite=manufacturing.rust-manufacturing-specification.unit",
+            "result": "passed",
+            "sourceSha": "05ced9dcf188f324774e558d0b3e3b1918038742",
+            "sourceKind": "committed",
+            "note": "11/11 registered owner unit cases pass through the real catalogue runner."
+          },
+          {
+            "command": "bun run test:unit -- --suite=manufacturing.rust-manufacturing-specification-http.unit",
+            "result": "passed",
+            "sourceSha": "05ced9dcf188f324774e558d0b3e3b1918038742",
+            "sourceKind": "committed",
+            "note": "3/3 router cases pass, including merge with the BOM GET on the same path."
+          },
+          {
+            "command": "bun run test:integration -- --suite=manufacturing.rust-manufacturing-specification-postgres.integration",
+            "result": "passed",
+            "sourceSha": "05ced9dcf188f324774e558d0b3e3b1918038742",
+            "sourceKind": "committed",
+            "note": "4/4 PostgreSQL cases pass: CAS/replay, source guards, Company/branch isolation and full rollback."
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --tests --locked",
+            "result": "passed",
+            "sourceSha": "05ced9dcf188f324774e558d0b3e3b1918038742",
+            "sourceKind": "committed",
+            "note": "34/34 owner cases pass; crate content is unchanged from the earlier run, this commit only adds composition and the route switch."
           }
         ],
-        "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead: mount specification_router + backend in composition, switch the production route spec slices, register the three manufacturing suites, then run the registered spec suites.",
+        "retainedLegacy": [
+          {
+            "path": "packages/server-manufacturing/src/adapters/production.ts",
+            "kind": "test-oracle",
+            "reason": "Retained createSpecification/reviewSpecification wrappers are no longer called by the product route; they remain conformance oracles for Commercial purchase/settlement semantics used by tests/integration/manufacturing/production.test.ts.",
+            "removalCondition": "Delete after the native Commercial purchase-command-boundary/obligation port covers enforce-mode assertions and the oracle cases are ported to the native route."
+          },
+          {
+            "path": "packages/server-manufacturing/src/application/production.ts",
+            "kind": "test-oracle",
+            "reason": "Specification application use cases remain the oracle invoked by tests/unit/planning/production-services.test.ts and the purchase integration oracle.",
+            "removalCondition": "Delete together with the adapter oracle after its assertions are retained natively."
+          }
+        ],
+        "blocker": null,
+        "nextAction": "Native specification create/review/retire is mounted and the Manufacturing product route forwards entity=specification to it (05ced9dcf). Remaining: native Commercial purchase-command-boundary/obligation parity for enforce mode, then delete the retained TS oracle; next manufacturing packets cover orders/material readiness/quality/labor/output/costs/genealogy.",
         "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-manufacturing",
@@ -12769,8 +12861,15 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "blocked",
+        "claim": {
+          "runId": "run-20261112-b",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T01:57:16.972Z",
+          "heartbeatAt": "2026-11-12T01:57:16.972Z",
+          "expiresAt": "2026-11-12T02:27:16.972Z",
+          "generation": 27
+        },
         "baseSha": "c5d734cf8895f5a064a1b692f945a516212d19d9",
         "implementedCommit": "dd392c70c19e127c2c1fe61a1e6514f8364b7523",
         "lastPushedSha": null,
@@ -12791,8 +12890,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead: mount ecommerce_listing_router + backend, switch the Next listing branch, retire TS createListing, then rerun the two registered suites after the PMS untracked suite is registered.",
+        "blocker": null,
+        "nextAction": "BLOCKED on native producer ports before mount/switch: (1) Commerce active_product + functional_currency read port over commerce_products/Company currency, (2) Finance snapshotMoney port (money_transaction_snapshots capture for source_type=ecommerce_listing, amount_kind=unit_price, scale 2) which has no Rust implementation yet and belongs to migrate.finance. Listing owner code and 42/42 tests are complete at dd392c70c; mount EcommerceListingHttpTarget + ecommerce_listing_router after those ports land, then re-point the Next entity===\"listing\" branch and delete TS createListing.",
         "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-ecommerce",
@@ -13685,8 +13784,8 @@
           "runId": "run-20261112-b",
           "agentId": "worker-pms",
           "claimedAt": "2026-11-12T01:53:46.584Z",
-          "heartbeatAt": "2026-11-12T01:53:46.584Z",
-          "expiresAt": "2026-11-12T02:23:46.584Z",
+          "heartbeatAt": "2026-11-12T01:55:41.745Z",
+          "expiresAt": "2026-11-12T02:25:41.745Z",
           "generation": 27
         },
         "baseSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
@@ -13722,11 +13821,46 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.rust-pms-stay-room.unit",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "bun run test:integration -- --suite=pms.rust-stay-room-postgres.integration",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "cargo check -p erpx-service --features production-api",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "stay.assign/stay.move packet 1 slice pushed f53ab9d2d (remote verified): PG repository + HTTP ingress + composition mount + 16 targeted checks green. Remaining in migrate.pms: room/housekeeping commands, reservations/booking lifecycle, guest cashier/stock, night-audit/report reads/settings; next slice should be room_command/task lifecycle against the same PMS unit.",
+        "nextAction": "stay.assign/stay.move packet 1 slice pushed f53ab9d2d; production-api feature check also passes. Room/housekeeping worker in progress; remaining pms packets after it: reservations/booking, guest cashier/stock, night audit/reports/settings.",
         "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-pms",
@@ -16219,20 +16353,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 53,
-      "migratedPackets": 20,
+      "migratedPackets": 21,
       "statusCounts": {
         "pending": 12,
-        "in_progress": 2,
-        "ready_for_integration": 12,
+        "in_progress": 4,
+        "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 20,
-        "blocked": 7,
+        "migrated": 21,
+        "blocked": 6,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 27,
-    "updatedAt": "2026-11-12T01:53:46.619Z",
+    "updatedAt": "2026-11-12T01:57:16.998Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
