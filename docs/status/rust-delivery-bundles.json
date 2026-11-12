@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 817,
+    "revision": 820,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17890,15 +17890,21 @@
           "packages/server-projects/src/**",
           "packages/feature-projects/src/**",
           "tests/unit/files/**",
-          "tests/integration/files/**",
           "tests/unit/projects/**",
-          "tests/integration/projects/**"
+          "tests/integration/files/**"
         ],
         "resources": [
           "owner:projects"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-n",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T10:39:56.228Z",
+          "heartbeatAt": "2026-11-12T10:39:56.228Z",
+          "expiresAt": "2026-11-12T11:09:56.228Z",
+          "generation": 39
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -17999,11 +18005,90 @@
             "sourceSha": "35e816d067ac4e770273b837aecaf00f5f37723b",
             "sourceKind": "committed",
             "note": "TEST_CATALOGUE_VALID:33 modules,1181 suites."
+          },
+          {
+            "command": "retirement:ts-writes packages/server-projects project create/edit writer",
+            "result": "passed",
+            "before": 8,
+            "after": 4,
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "Deleted TS saveProject and its writer-only repository methods/barrels; staff API project create/edit now calls the native project.save command with no TS fallback. Residual 4 are Operations purchase-helper command_assertions guards (purchases 2, task-purchases 1, scheduled-tasks 1), removable only after migrate.operations native commands."
+          },
+          {
+            "command": "cargo check -p erpx-server-projects --locked --all-targets",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "Native project.save owner command + HTTP ingress compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "Composition purchase/staff admission backend and mount compile."
+          },
+          {
+            "command": "bun run test:unit -- --suite=projects.rust-project-save.unit",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "12/12 owner validation/replay/guard cases."
+          },
+          {
+            "command": "bun run test:unit -- --suite=projects.rust-project-save-http.unit",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "6/6 HTTP host/origin/key/body cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=projects.rust-project-save-postgres.postgres.integration",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "8/8 PG create/edit/replay/version/frozen/member cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.staff-work.integration",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "51/51 after project seeding moved to SQL."
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.work-task-files.integration",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "14/14 after removing the retired TS writer oracle."
+          },
+          {
+            "command": "bun run test:integration -- --suite=projects.project-actuals.integration",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "3/3 read/actuals coverage on SQL-seeded projects."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "Clean; no consumer imports the deleted writer."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID:33 modules,1185 suites."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-k lease expired; no mutating coordinator call since; worker WIP for payroll readers committed in 74a94a3be; no live cargo/rust writer process owned by the old coordinator",
-        "nextAction": "KPI 34->32 ->15 ->8 (structure command + collaboration structure sources retired; native-only POST, 35e816d0). Residual 8 blocked on other owner ports: staff-projects 4 need a native project create/edit command route (owner:projects); purchases 2 / task-purchases 1 / scheduled-tasks 1 are command_assertions guard cleanup inside Operations purchase helpers still used by TS routines/staff-task commands, removable only after migrate.operations native commands. Keep in_progress until residual 0 or reassigned.",
+        "blocker": null,
+        "nextAction": "KPI 34->32->15->8->4. Native project.create/project.update owner command, HTTP routes, composition purchase/staff admission and client are live; TS saveProject, writer-only repository/barrels and writer oracles are deleted. Residual 4 = command_assertions guard cleanup inside Operations purchase helpers (purchases 2, task-purchases 1, scheduled-tasks 1), still used by retained TS routines/staff-task commands; remove after migrate.operations native commands.",
         "handoff": {
           "runId": "run-20261112-l",
           "agentId": "lead",
@@ -20926,17 +21011,17 @@
       "migratedPackets": 37,
       "statusCounts": {
         "pending": 31,
-        "in_progress": 3,
+        "in_progress": 4,
         "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 37,
-        "blocked": 14,
+        "blocked": 13,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 39,
-    "updatedAt": "2026-11-12T10:22:52.299Z",
+    "updatedAt": "2026-11-12T10:39:56.256Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
