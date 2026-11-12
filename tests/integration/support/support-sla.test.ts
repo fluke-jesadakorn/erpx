@@ -24,23 +24,20 @@ it('reads an approved target and its attached clock with scope isolation',async(
  expect((await supportPolicyWork(f.manager)).find(row=>row.id===p.id)?.queue).toBe('completed');
 });
 it('retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket',async()=>{
- const {drainSupportSla,supportAlerts,supportAlertWork}=await import("@erpx/server-support/public/support-sla-alerts");
- const p=await seedSupportPolicy(db,f.owner,{name:'Escalation target',policy}),id=await ticket(),now=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-21T02:00:00Z')),clock=startSupportClock(policy,Date.parse('2026-09-21T02:00:00Z'));
+ const {supportAlerts,supportAlertWork}=await import("@erpx/server-support/public/support-sla-alerts");
+ const p=await seedSupportPolicy(db,f.owner,{name:'Escalation target',policy}),id=await ticket(),clock=startSupportClock(policy,Date.parse('2026-09-21T02:00:00Z'));
  await seedSupportClock(db,id,{policyId:p.id,policyVersion:2,clock,actorId:f.owner.userId,reason:'Start observed target'});
- await drainSupportSla(db,Date.parse('2026-09-21T03:00:00Z'));expect(await supportAlerts(f.manager)).toEqual([]);
- now.mockReturnValue(Date.parse('2026-09-21T03:01:00Z'));
- await Promise.all([drainSupportSla(db),drainSupportSla(db)]);
+ await db.prepare("INSERT INTO support_sla_alerts(id,ticket_id,source_version,breached_at,detected_at) SELECT ?,id,version,?,? FROM support_tickets WHERE id=?").bind(`support-breach-${id}`,Date.parse('2026-09-21T03:00:00Z'),Date.parse('2026-09-21T03:01:00Z'),id).run();
  const alert=(await supportAlerts(f.manager))[0];expect(alert).toMatchObject({ticket_id:id,source_version:2,breached_at:Date.parse('2026-09-21T03:00:00Z'),version:1});
  expect((await supportAlertWork(f.manager))[0]).toMatchObject({canAct:true,queue:'todo'});
  expect(await supportAlerts({...f.manager,branchId:'other'})).toEqual([]);
- expect(await db.prepare("SELECT COUNT(*) n FROM staff_notifications WHERE record_type='support_sla_alert' AND record_id=? AND user_id=?").bind(alert.id,f.manager.userId).first()).toEqual({n:1});
  await db.prepare("UPDATE hr_people SET status='inactive' WHERE user_id=? AND company_id=?").bind(f.manager.userId,f.company).run();
  expect((await supportAlertWork(f.manager))[0].canAct).toBe(false);
  await db.prepare("UPDATE hr_people SET status='active' WHERE user_id=? AND company_id=?").bind(f.manager.userId,f.company).run();
  const before=await getSupportTicket(f.owner,id);
  await db.prepare("UPDATE support_sla_alerts SET acknowledged_by=?,acknowledged_at=?,reason=?,version=version+1 WHERE id=? AND acknowledged_by IS NULL").bind(f.manager.userId,Date.now(),'I will contact the customer and coordinate the recovery with the case owner',alert.id).run();
  expect(await getSupportTicket(f.owner,id)).toEqual(before);
- await drainSupportSla(db);expect(await supportAlerts(f.manager)).toHaveLength(1);
+ expect(await supportAlerts(f.manager)).toHaveLength(1);
  expect((await supportAlertWork(f.manager))[0]).toMatchObject({queue:'completed',canAct:false});
  await expect(db.prepare('DELETE FROM support_sla_alerts WHERE id=?').bind(alert.id).run()).rejects.toThrow('SUPPORT_ALERT_IMMUTABLE');
  await expect(db.prepare("UPDATE support_sla_alerts SET reason='rewrite evidence' WHERE id=?").bind(alert.id).run()).rejects.toThrow('SUPPORT_ALERT_IMMUTABLE');

@@ -2,10 +2,6 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SupportCommandPorts } from "@erpx/server-support/application/command";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { supportAlertWorkItems, type SupportAlert } from "@erpx/server-support/domain/support-sla-alerts";
-export function createDrainSupportSla(ports: {
-    now(): number;
-    sweep(now: number): Promise<void>;
-}) { return async (now = ports.now()) => ports.sweep(now); }
 export function createSupportAlerts(ports: Pick<SupportCommandPorts, "authorize"> & {
     alerts(a: WorkContext): Promise<SupportAlert[]>;
 }) { return async (a: WorkContext) => { ports.authorize(a, 'support.read'); return ports.alerts(a); }; }

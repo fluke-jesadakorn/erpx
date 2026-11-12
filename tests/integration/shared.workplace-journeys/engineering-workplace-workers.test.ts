@@ -13,7 +13,6 @@ import {getSupportTicket} from '@erpx/server-support/public/support';
 import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
 import {startSupportClock} from "@erpx/server-support/public/rules/support-clock";
 import {seedSupportClock,seedSupportPolicy} from "../../support/helpers/support-sla-seed";
-import {drainSupportSla} from "@erpx/server-support/public/support-sla-alerts";
 import {savePostDraft,publishPost,postView} from '@erpx/server-collaboration/public/social-home';
 import {drainSocialAgent} from "@erpx/server-collaboration/public/social-agent";
 import {createReport,reportView} from "@erpx/server-runtime/public/executive/reports";
@@ -55,14 +54,6 @@ async function executive(company:typeof f){await selectAiProviders(db,company.ow
 const reply=()=>({result:{body:'Declared fixture reply; a person decides the next step.'},inputTokens:4,outputTokens:3});
 const proposal=()=>({result:{message:'Declared fixture proposal; review before applying.',definition:emptyDefinition('Fictional proposal'),followUps:[]},inputTokens:4,outputTokens:3});
 
-it('delivers one enabled Support breach to the current manager across retries while disabled and unenrolled Companies stay untouched',async()=>{
- const ticket=await supportTicket(f),blocked=await supportTicket(disabled),absent=await supportTicket(unenrolled),before=await getSupportTicket(f.head,ticket);await production();
- await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.manager.assignmentId).run();await Promise.all([drainSupportSla(db),drainSupportSla(db)]);
- expect(await db.prepare('SELECT count(*) n FROM support_sla_alerts WHERE ticket_id=?').bind(ticket).first('n')).toBe(1);expect(await db.prepare("SELECT count(*) n FROM staff_notifications WHERE record_type='support_sla_alert' AND company_id=? AND user_id=?").bind(f.company,f.manager.userId).first('n')).toBe(0);
- f.manager.assignmentId=await f.grant(f.manager,'support_manager');await drainSupportSla(db);await drainSupportSla(db);
- const notices=(await db.prepare("SELECT user_id,record_id FROM staff_notifications WHERE record_type='support_sla_alert' AND company_id=?").bind(f.company).all<{user_id:string;record_id:string}>()).results;expect(notices).toHaveLength(2);expect(notices).toEqual(expect.arrayContaining([f.manager.userId,f.owner.userId].map(user_id=>({user_id,record_id:`support-breach-${ticket}`}))));expect(await getSupportTicket(f.head,ticket)).toEqual(before);
- expect(await db.prepare('SELECT count(*) n FROM support_sla_alerts WHERE ticket_id IN (?,?)').bind(blocked,absent).first('n')).toBe(0);expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);
-});
 it('publishes one explicitly requested Social reply with a single usage receipt while disabled claims and lease recovery remain frozen',async()=>{
  const post=await social(f),blocked=await social(disabled),absent=await social(unenrolled);await db.prepare("UPDATE social_agent_replies SET state='running',lease_until=1 WHERE id=?").bind(blocked.reply).run();const before=await db.prepare('SELECT * FROM social_agent_replies WHERE id=?').bind(blocked.reply).first();await production();const provider=vi.fn(async()=>reply());
  await Promise.all([drainSocialAgent(db,aiEnv,undefined,provider),drainSocialAgent(db,aiEnv,undefined,provider)]);await drainSocialAgent(db,aiEnv,undefined,provider);expect(provider).toHaveBeenCalledTimes(1);
@@ -89,6 +80,6 @@ it('rejects an Executive proposal after Company withdrawal and preserves the sav
  expect(await db.prepare('SELECT state,proposal_json FROM executive_generation_jobs WHERE id=?').bind(own.job).first()).toEqual({state:'running',proposal_json:null});expect(await reportView(db,f.owner,own.report)).toEqual(before);
 });
 it('keeps the ordinary compiled production boundary closed when the engineering attestation is absent',async()=>{
- const ticket=await supportTicket(f),post=await social(f),report=await executive(f);await production();vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN','');const provider=vi.fn();await drainSupportSla(db);expect(await drainSocialAgent(db,aiEnv,post.id,provider)).toBe(false);expect(await drainExecutiveGeneration(db,aiEnv,provider)).toBe(false);expect(provider).not.toHaveBeenCalled();
- expect(await db.prepare('SELECT count(*) n FROM support_sla_alerts WHERE ticket_id=?').bind(ticket).first('n')).toBe(0);expect(await db.prepare('SELECT state,attempt FROM social_agent_replies WHERE id=?').bind(post.reply).first()).toEqual({state:'pending',attempt:0});expect(await db.prepare('SELECT state,attempts FROM executive_generation_jobs WHERE id=?').bind(report.job).first()).toEqual({state:'queued',attempts:0});
+ const post=await social(f),report=await executive(f);await production();vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN','');const provider=vi.fn();expect(await drainSocialAgent(db,aiEnv,post.id,provider)).toBe(false);expect(await drainExecutiveGeneration(db,aiEnv,provider)).toBe(false);expect(provider).not.toHaveBeenCalled();
+ expect(await db.prepare('SELECT state,attempt FROM social_agent_replies WHERE id=?').bind(post.reply).first()).toEqual({state:'pending',attempt:0});expect(await db.prepare('SELECT state,attempts FROM executive_generation_jobs WHERE id=?').bind(report.job).first()).toEqual({state:'queued',attempts:0});
 });

@@ -20,7 +20,6 @@ describe("Support service team policy through typed ports", () => {
     it("uses retained coverage for inactive teams without reading live coverage", async () => { const coverage = vi.fn(async () => []); const data = await createServiceTeamOptions({ owner: async () => true, nodes: async () => [], teams: async () => [{ ...team, active: 0, configuration_json: JSON.stringify(input) }], members: async () => [], history: async () => [], handlers: async () => [], coverage })(actor); expect(data.teams[0].coverage).toEqual([{ category: "it", scope_kind: "branch", scope_node_id: "branch" }]); expect(coverage).not.toHaveBeenCalled(); });
 });
 import { createGetSupportTicket, createSupportWorkspace } from "@erpx/server-support/application/support";
-import { createDrainSupportSla } from "@erpx/server-support/application/support-sla-alerts";
 import { createSupportEvidenceGuard, createBindSupportEvidence, createSupportEvidence } from "@erpx/server-support/application/support-evidence";
 import { createSupportIncident, createChangeSupportIncident } from "@erpx/server-support/application/support-incidents";
 import { createRequestSupportSession, createChangeSupportSession, createSupportSessionContext } from "@erpx/server-support/application/support-sessions";
@@ -35,9 +34,6 @@ const session: SupportSession = { id: "session", status: "pending", requested_fo
 describe("Support ticket lifecycle through semantic ports", () => {
     it("rejects an inaccessible source after the scoped ticket query", async () => { const ports = { ...runtime(), ticket: async () => ticket, sourceVisible: async () => false }; await expect(createGetSupportTicket(ports)(actor, "ticket")).rejects.toMatchObject({ status: 404, code: "SUPPORT_TICKET_NOT_FOUND" }); });
     it("filters source visibility sequentially and keeps order creation capability", async () => { const visible = vi.fn(async (_a: WorkContext, r: SupportRow) => r.id === "visible"); const data = await createSupportWorkspace({ ...runtime(), tickets: async () => [{ ...ticket, id: "hidden" }, { ...ticket, id: "visible" }], sourceVisible: visible, orderSources: async () => [{ id: "order" }] })(actor); expect(data.items).toEqual([{ ...ticket, id: "visible" }]); expect(data.canCreateOrder).toBe(true); expect(visible.mock.calls.map(c => c[1].id)).toEqual(["hidden", "visible"]); });
-});
-describe("Support working-time target and escalation orchestration", () => {
-    it("injects the default sweep clock and preserves explicit retry time", async () => { const sweep = vi.fn(async () => { }), drain = createDrainSupportSla({ now: () => 200, sweep }); await drain(); await drain(100); expect(sweep.mock.calls).toEqual([[200], [100]]); });
 });
 describe("Support evidence and incident ownership", () => {
     it("keeps Service-owned lifecycle and evidence changes out of Helpdesk while retaining readable evidence", async () => {

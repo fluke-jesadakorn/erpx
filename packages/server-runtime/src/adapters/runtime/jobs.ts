@@ -211,10 +211,6 @@ export async function legalWork(env: JobEnv) {
   }
 }
 
-export async function supportWork(env:JobEnv) {
- for(const slot of await activeSlots(env)) await (await import("@erpx/server-support/public/support-sla-alerts")).drainSupportSla(registeredResources(env,slot.id).write);
-}
-
 export async function customerNotificationWork(env:JobEnv) {
  for(const slot of await activeSlots(env)) {
   const write=registeredResources(env,slot.id).write;

@@ -1,14 +1,10 @@
-import { holdingPurchaseReadLocks, observePurchaseResults, purchaseObservationProjection, supportPackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
-import { packageClockSql, purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
-import { supportNotificationEffects } from "@erpx/server-collaboration/public/support-notification-effects";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { supportRecipientEligibility } from "@erpx/server-support/adapters/support-recipient";
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { nativeSupportRuntime } from "@erpx/server-support/adapters/command-runtime";
-import { createDrainSupportSla, createSupportAlerts, createGetSupportAlert, createSupportAlertWork } from "@erpx/server-support/application/support-sla-alerts";
+import { createSupportAlerts, createGetSupportAlert, createSupportAlertWork } from "@erpx/server-support/application/support-sla-alerts";
 import type { SupportAlert as Alert } from "@erpx/server-support/domain/support-sla-alerts";
 const recipient = `m.company_id=t.company_id AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
  AND iam_role_allows(m.role,m.company_id,'support.manage')
@@ -16,25 +12,6 @@ const recipient = `m.company_id=t.company_id AND iam_assignment_active(m.id,floo
  AND ${supportRecipientEligibility().replaceAll('t.owner_id', 'm.user_id')}`;
 const scope = 't.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?)';
 const args = (a: WorkContext) => [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
-export async function drainSupportSla(db: SqlDatabase, now?: number) {
-    const mode = await supportPackageEnforcementMode();
-    const purchased = mode === "enforced" ? `EXISTS(SELECT 1 FROM (SELECT ${packageClockSql} now) purchase_scope WHERE ${purchasedCapabilityPredicate("t.company_id", "support.sla", "settle-existing", "purchase_scope.now")})` : "TRUE";
-    return createDrainSupportSla({ now: Date.now, sweep: async (now) => {
-            const results = await db.batch([
-                ...(mode === "disabled" ? [] : [...holdingPurchaseReadLocks(db), db.prepare("SELECT id FROM support_tickets ORDER BY id FOR SHARE")]),
-                db.prepare(`INSERT INTO support_sla_alerts(id,ticket_id,source_version,breached_at,detected_at)
-   SELECT 'support-breach-'||t.id,t.id,t.version,
-    COALESCE((t.sla_clock_json->>'breachedAt')::bigint,(t.sla_clock_json->>'dueAt')::bigint),?
-   FROM support_tickets t WHERE ((t.sla_clock_json->>'breachedAt')::bigint IS NOT NULL
-     OR (t.sla_clock_json->>'state'='running' AND (t.sla_clock_json->>'dueAt')::bigint<?))
-     AND ${scheduledFeaturePredicate('t.company_id', 'support')} AND ${purchased}
-   ON CONFLICT DO NOTHING`).bind(now, now),
-                supportNotificationEffects(db).slaBreached(purchased).bind(now),
-                ...(mode === "shadow" ? [db.prepare(`WITH observed_clock AS MATERIALIZED (SELECT ${packageClockSql} now) SELECT ${purchaseObservationProjection("source.company_id", "support.sla", "settle-existing", "observed_clock.now")} FROM (SELECT DISTINCT company_id FROM support_tickets) source CROSS JOIN observed_clock`)] : []),
-            ]);
-            if (mode === "shadow") observePurchaseResults(results);
-        } })(now);
-}
 export async function supportAlerts(a: WorkContext): Promise<Alert[]> {
     const runtime = nativeSupportRuntime(a), access = await runtime.requirePurchase("support.sla");
     const rows = await createSupportAlerts({ ...runtime, alerts: async (a) => {

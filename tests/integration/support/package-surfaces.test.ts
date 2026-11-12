@@ -30,7 +30,6 @@ import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/com
 import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
 import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
 import { seedSupportClock, seedSupportPolicy } from "../../support/helpers/support-sla-seed";
-import { drainSupportSla } from "@erpx/server-support/public/support-sla-alerts";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { POST as reserveFile } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/uploads/route";
 import { PUT as uploadFile } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route";
@@ -295,26 +294,6 @@ it("keeps rejection/revocation while draining, hides access expansion and expire
   expect(expired.rows.find(row => row.id === pending.id)).toMatchObject({ effective_status: "expired", canReview: false, canApprove: false });
 });
 
-it("gates actual SLA sweep and notifications while preserving draining and expired settlement", async () => {
-  vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT","disabled");await triage();
-  const p = await seedSupportPolicy(db, f.manager, { name: "Native escalation target", policy, createdBy: f.owner.userId, approvedBy: f.manager.userId });
-  await seedSupportClock(db, ticketId, { policyId: p.id, policyVersion: 2, clock: startSupportClock(policy, Date.now()), actorId: f.manager.userId, reason: "Attach the current target" });
-  const row = await getSupportTicket(f.manager, ticketId), clock = JSON.parse(String(row.sla_clock_json));
-  // A first future purchase gates a legacy report; it never withdraws an
-  // already effective period while the report still needs settlement.
-  vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT","enforced");
-  expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);
-  await store().apply({grant:{companyId:f.company,packageId:'support',packageVersion:1,state:'active',startsAt:Date.now()+60000,endsAt:null,version:1,reason:'First future native purchase',evidence:'test:sla-unstarted-purchase'},expectedVersion:0,idempotencyKey:key()});
-  await drainSupportSla(db, Number(clock.dueAt) + 1);
-  expect(await db.prepare("SELECT count(*) total FROM support_sla_alerts WHERE ticket_id=?").bind(ticketId).first()).toEqual({ total: 0 });
-  await grant("draining"); await drainSupportSla(db, Number(clock.dueAt) + 1);
-  expect(await db.prepare("SELECT count(*) total FROM support_sla_alerts WHERE ticket_id=?").bind(ticketId).first()).toEqual({ total: 1 });
-  const notices = await db.prepare("SELECT count(*) total FROM staff_notifications WHERE record_type='support_sla_alert' AND company_id=?").bind(f.company).first();
-  expect(Number(notices?.total)).toBeGreaterThan(0);
-  await grant("active", "support", Date.now() - 1); await drainSupportSla(db, Number(clock.dueAt) + 1);
-  expect(await db.prepare("SELECT count(*) total FROM staff_notifications WHERE record_type='support_sla_alert' AND company_id=?").bind(f.company).first()).toEqual(notices);
-});
-
 it("protects actual private-file HTTP bytes without purchase and retains held history across draining, inactivation and future renewal", async () => {
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled"); await triage();
   const bytes = new TextEncoder().encode("%PDF-1.4\nPrivate fictional Helpdesk bytes\n%%EOF"), params = { params: Promise.resolve({ holdingSlug: "test" }) };
@@ -362,27 +341,6 @@ it("does not expose actual legacy private-file bytes through a first unstarted f
   const denied = await read(); expect(denied.status).toBe(403); expect(await denied.text()).not.toContain("Unpurchased fictional evidence");
 });
 
-it("keeps shadow UI/file behavior and observes an unpurchased SLA batch without exposing private facts", async () => {
-  vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "shadow");
-  const log = vi.spyOn(console, "info").mockImplementation(() => {});
-  await triage();
-  expect((await supportWorkspace(f.claimant)).canCreate).toBe(true);
-  expect(await createAttachmentSet(db, f.manager, fileInput(), key())).toBeTruthy();
-  const p = await seedSupportPolicy(db, f.manager, { name: "Shadow escalation target", policy, createdBy: f.owner.userId, approvedBy: f.manager.userId });
-  await seedSupportClock(db, ticketId, { policyId: p.id, policyVersion: 2, clock: startSupportClock(policy, Date.now()), actorId: f.manager.userId, reason: "Observe the existing target" });
-  const clock = JSON.parse(String((await getSupportTicket(f.manager, ticketId)).sla_clock_json));
-  vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "enforced"); await drainSupportSla(db, Number(clock.dueAt) + 1);
-  expect(await db.prepare("SELECT count(*) total FROM support_sla_alerts WHERE ticket_id=?").bind(ticketId).first()).toEqual({ total: 0 });
-  vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "shadow"); await drainSupportSla(db, Number(clock.dueAt) + 1);
-  expect(await db.prepare("SELECT count(*) total FROM support_sla_alerts WHERE ticket_id=?").bind(ticketId).first()).toEqual({ total: 1 });
-  const observations = log.mock.calls.map(([value]) => JSON.parse(String(value)));
-  expect(observations.some(value => value.phase === "checked" && value.capability === "support.sla" && value.code === "PACKAGE_REQUIRED")).toBe(true);
-  const keys = ["event", "phase", "companyId", "capability", "purpose", "code", "purchaseRevision"];
-  for (const observation of observations) expect(Object.keys(observation).sort()).toEqual([...keys].sort());
-  expect(JSON.stringify(observations)).not.toMatch(/Private office|printer|userId|"reason"|"evidence"|"grants"/);
-});
-
-const metricFilters = { from: "2026-10-01", to: "2026-10-31", currency: "THB" };
 it("keeps CRM customer source cases behind purchase and current Support authority", async () => {
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled");
   const ticket = await orderTicket(), customerId = String(await db.prepare("SELECT customer_id FROM support_tickets WHERE id=?").bind(ticket.id).first("customer_id"));

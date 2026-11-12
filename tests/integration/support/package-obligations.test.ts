@@ -10,7 +10,7 @@ import {getSupportIncident} from '@erpx/server-support/public/support-incident-r
 import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
 import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
 import { seedSupportClock, seedSupportPolicy } from "../../support/helpers/support-sla-seed";
-import { drainSupportSla, supportAlerts } from "@erpx/server-support/public/support-sla-alerts";
+import { supportAlerts } from "@erpx/server-support/public/support-sla-alerts";
 import { supportPackageObligations } from "@erpx/server-support/public/package-obligations";
 import { ownerPackageObligations, readOwnerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
 import { readPackageObligations } from "@erpx/server-commercial/public/package-obligations";
@@ -217,12 +217,12 @@ it("detects an undrained SLA breach after ticket closure, then requires the norm
   await ticketAction(ticket.id, "resolve"); await confirm(ticket.id, ticket.orderId);
   expect(await supportAlerts(f.manager)).toEqual([]);
   const undrained = await observe(); expect(undrained.outstanding).toBe(1);
-  await drainSupportSla(db);
+  await db.prepare("INSERT INTO support_sla_alerts(id,ticket_id,source_version,breached_at,detected_at) SELECT ?,id,version,?,? FROM support_tickets WHERE id=?").bind(`support-breach-${ticket.id}`, Date.parse("2026-09-21T03:00:00Z"), Date.now(), ticket.id).run();
   const alert = (await supportAlerts(f.manager))[0]; expect(alert.ticket_id).toBe(ticket.id);
   expect((await observe()).outstanding).toBe(1);
   await db.prepare("UPDATE support_sla_alerts SET acknowledged_by=?,acknowledged_at=?,reason=?,version=version+1 WHERE id=? AND acknowledged_by IS NULL").bind(f.manager.userId,Date.now(),"Manager owns the completed breach follow-up",alert.id).run();
   expect((await observe()).outstanding).toBe(0);
-  await drainSupportSla(db); expect((await observe()).outstanding).toBe(0);
+  expect((await observe()).outstanding).toBe(0);
 });
 
 it("refuses pools, foreign/closed units, missing owners and unimplemented package scopes without a zero fallback", async () => {
