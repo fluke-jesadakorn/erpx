@@ -7867,7 +7867,7 @@
           "POS receipt deep-link gate fix",
           "browser refund request + independent approval"
         ],
-        "evidence": "receipt deep link 200 (was PRODUCT_ROLE_REQUIRED); browser refund.request 200 {id:b1470068}; reviewer refund.approve 200 {version:2}; pos_refunds completed approved_by usr_nisa; pos_lines returned 1000/refunded 2500; pos_payments refunded 2500; pos_refund_payments succeeded 2500; finance_payments refund settled POS-REF-\u2026; journal-refund and journal-refund-payment posted 2 lines each balanced 2500; typecheck and POS 13/13 + 17/17",
+        "evidence": "receipt deep link 200 (was PRODUCT_ROLE_REQUIRED); browser refund.request 200 {id:b1470068}; reviewer refund.approve 200 {version:2}; pos_refunds completed approved_by usr_nisa; pos_lines returned 1000/refunded 2500; pos_payments refunded 2500; pos_refund_payments succeeded 2500; finance_payments refund settled POS-REF-…; journal-refund and journal-refund-payment posted 2 lines each balanced 2500; typecheck and POS 13/13 + 17/17",
         "counts": {
           "owners": 3,
           "verified": 30,
@@ -7965,7 +7965,7 @@
           "Identity recipient validation",
           "full exception browser lifecycle"
         ],
-        "evidence": "browser exception open from POS sale adcdf454 v4 \u2192 200; acknowledge v2, start v3, assign v4, escalate v5, resolve v6, approve v7 (reviewed_by usr_nisa), close v8, reopen v9, prioritize high v10, resolve v11, reject v12, cancel v13; final operations_exceptions row cancelled/high/version 13; Operations tests 13/13, 7/7, 5/5, 6/6, 6/6, 3/3; native transport 11/11; typecheck passes",
+        "evidence": "browser exception open from POS sale adcdf454 v4 → 200; acknowledge v2, start v3, assign v4, escalate v5, resolve v6, approve v7 (reviewed_by usr_nisa), close v8, reopen v9, prioritize high v10, resolve v11, reject v12, cancel v13; final operations_exceptions row cancelled/high/version 13; Operations tests 13/13, 7/7, 5/5, 6/6, 6/6, 3/3; native transport 11/11; typecheck passes",
         "counts": {
           "owners": 3,
           "verified": 36,
@@ -7998,7 +7998,7 @@
           "native Maintenance work/plan history",
           "assets package fixtures"
         ],
-        "evidence": "browser maintenance list 200 with AST-ACCEPT \u00b7 Forklift inspection; work detail history Version 1 \u00b7 open \u00b7 Opened for acceptance; plan detail history activate; POS history and Operations pages still 200; Maintenance tests 6/6, 3/3, 2/2, 1/1, 1/1, 2/2, 2/2; Assets tests 4/4, 10/10, 17/17, 2/2, 13/13; typecheck passes",
+        "evidence": "browser maintenance list 200 with AST-ACCEPT · Forklift inspection; work detail history Version 1 · open · Opened for acceptance; plan detail history activate; POS history and Operations pages still 200; Maintenance tests 6/6, 3/3, 2/2, 1/1, 1/1, 2/2, 2/2; Assets tests 4/4, 10/10, 17/17, 2/2, 13/13; typecheck passes",
         "counts": {
           "owners": 4,
           "verified": 38,
@@ -8032,7 +8032,7 @@
           "native Maintenance create",
           "maintenance owner completion"
         ],
-        "evidence": "browser create form 200 {id:maintenance-eaaf2f20\u2026,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 \u00b7 create \u00b7 Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
+        "evidence": "browser create form 200 {id:maintenance-eaaf2f20…,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 · create · Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
         "counts": {
           "owners": 5,
           "verified": 42,
@@ -8047,7 +8047,7 @@
         "bundles": [
           "payroll summary browser investigation"
         ],
-        "evidence": "native payroll summary target mounted via existing operations company binding; /people/people/payroll/dashboard stays Loading your workspace\u2026; alternate canonical paths 404/403; experiment reverted without changing counts",
+        "evidence": "native payroll summary target mounted via existing operations company binding; /people/people/payroll/dashboard stays Loading your workspace…; alternate canonical paths 404/403; experiment reverted without changing counts",
         "counts": {
           "owners": 5,
           "verified": 42,
@@ -8200,7 +8200,7 @@
         "bundles": [
           "native platform migration run"
         ],
-        "evidence": "browser erpx-management run succeeded 412\u2192412 pending0; platform_migration_runs succeeded h001 receipt; replay same run id/one row; platform tests 26/26, organization 2/2, typecheck/health pass",
+        "evidence": "browser erpx-management run succeeded 412→412 pending0; platform_migration_runs succeeded h001 receipt; replay same run id/one row; platform tests 26/26, organization 2/2, typecheck/health pass",
         "counts": {
           "owners": 5,
           "verified": 47,
@@ -8883,7 +8883,7 @@
           "Common Records create / Billing cost / Work Projection quick-access / Runtime outbox / Shared fences (23 commits)",
           "Distribute Field Count/Parts/Finance source witnesses (unmounted)"
         ],
-        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial\u2194Finance lock order is unresolved.",
+        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial↔Finance lock order is unresolved.",
         "counts": {
           "owners": 0,
           "verified": 65,
@@ -9245,7 +9245,7 @@
           }
         ],
         "nextActions": [
-          "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial\u2194Finance lock order is resolved with the Field parts consumer.",
+          "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial↔Finance lock order is resolved with the Field parts consumer.",
           "Audit each owner against the strict native, frontend, legacy-retirement, local-gate, review and pushed-source requirements before certifying completion; the former eight and three owner claims are historical and were not sufficient under this gate.",
           "Resolve the recorded server-assets/composition API drift, validate affected consumers and normal-authenticated registration; container preparation is deferred until after this goal.",
           "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1019,
+    "revision": 1023,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -10744,7 +10744,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory finance source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -11283,7 +11283,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory inventory source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -12294,7 +12294,7 @@
         "workstream": "S11",
         "kind": "inventory",
         "title": "Inventory crm source and consumers",
-        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing\u2192CRM\u2192Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
+        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing→CRM→Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -12393,7 +12393,7 @@
         "workstream": "S11",
         "kind": "inventory",
         "title": "Inventory marketing source and consumers",
-        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing\u2192CRM\u2192Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
+        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing→CRM→Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -14525,7 +14525,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory commerce source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -22433,7 +22433,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Agent TypeScript SQL writers",
-        "scope": "Classify the 33 remaining Agent owner writes against packages/server-agent/src/**/*.rs and retire them batch by batch: agent-governance assistant session/evidence 3, ai-providers 12, ai-gateway 8, workspace-assistant 7, operations-guided-intake-facts 3. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Classify the 22 remaining Agent owner writes against packages/server-agent/src/**/*.rs and retire them batch by batch: ai-gateway 8, workspace-assistant 7, operations-guided-intake-facts 3, agent-governance 3, ai-runtime 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -22458,7 +22458,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for the remaining Agent writer files, then retire the smallest complete native-backed file first and record the owner KPI pair.",
+        "nextAction": "Retire the remaining five Agent files batch by batch, starting with the smallest native-backed gateway/assistant path, then close the Agent owner KPI at 0.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -24747,22 +24747,106 @@
         "resources": [
           "owner:agent"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-s",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T16:09:39.546Z",
-          "heartbeatAt": "2026-11-12T16:09:39.546Z",
-          "expiresAt": "2026-11-12T16:39:39.546Z",
-          "generation": 44
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "1809761bc05d02df7c574aa34cc776b2b0fc054e",
+        "lastPushedSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- packages/server-agent/src/adapters/ai-providers.ts",
+            "result": "passed",
+            "sourceSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e",
+            "before": 12,
+            "after": 0,
+            "note": "The TS provider writer and application are deleted; the feature-admin route uses the mounted native provider router only."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e",
+            "before": 2617,
+            "after": 2604,
+            "note": "Global KPI moved by the deleted provider writer/application and the one retained ai-runtime usage write."
+          },
+          {
+            "command": "cargo test -p erpx-server-agent --test agent_providers",
+            "result": "passed",
+            "sourceSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e",
+            "note": "9/9 native provider overview/parity/guard tests."
+          },
+          {
+            "command": "cargo test -p erpx-server-agent --test ai_providers_http",
+            "result": "passed",
+            "sourceSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e",
+            "note": "2/2 native HTTP target/path/key/origin tests."
+          },
+          {
+            "command": "cargo test -p erpx-server-agent --test agent_governance_postgres ai_provider_settings -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e",
+            "note": "1/1 native PostgreSQL provider settings/overview/command parity test."
+          },
+          {
+            "command": "vitest integration tests/integration/agent/ai-providers.test.ts",
+            "result": "passed",
+            "sourceSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e",
+            "note": "19/19; provider setup moved to tests/integration/agent/ai-provider-seed.ts owner rows and the retired command-oracle cases removed."
+          },
+          {
+            "command": "bunx tsc -p packages/server-agent/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e"
+          },
+          {
+            "command": "bunx tsc -p packages/feature-platform_administration/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-agent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1809761bc05d02df7c574aa34cc776b2b0fc054e",
+            "before": 33,
+            "after": 22,
+            "residual": [
+              {
+                "path": "packages/server-agent/src/adapters/ai-gateway.ts",
+                "writes": 8,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Native AI gateway reservation and cost receipt own the writer."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/workspace-assistant.ts",
+                "writes": 7,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Native workspace assistant completion and evidence receipt own the writer."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/operations-guided-intake-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Move guided-intake usage/evidence facts to the native Agent evidence port."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/agent-governance.ts",
+                "writes": 3,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Move retained assistant private-session and invocation evidence writes behind the native evidence port."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/ai-runtime.ts",
+                "writes": 1,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Move the remaining cross-owner AI drains (Finance, Operations guided-intake, People evaluation/expense, Records request, Collaboration social, Runtime executive, Legal) to the native Agent usage port."
+              }
+            ],
+            "note": "Agent residual is exactly the five classified files above (22 writes), all bound to retire.agent.residual-writers. The provider file and its TS application are gone. Coordinator integration hunk: tests/integration/finance/finance-ai.test.ts seed swap; the finance journal-consumer claim covers a different flow."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect native provider application/ports and the agent_governance composition pattern; mount AiProviderHttpBackend, add the native client, switch the feature-admin route, delete TS writers/barrels, and move tests to native oracle.",
+        "nextAction": "Agent AI-provider writers retired: native composition mount/route/client authoritative, TS writer/application/exports deleted, native unit/HTTP/PG and route tests green, KPI ai-providers.ts 12->0 (agent 33->22, global 2617->2604). Pushed 1809761bc.",
         "handoff": {
           "runId": "run-20261112-r",
           "agentId": "worker-agent-providers",
@@ -24770,6 +24854,11 @@
           "previousStatus": "in_progress",
           "reason": "Recovery: Recover expired run-20261112-r after the agent AI-provider worker completed its slice and lease expired; WIP reviewed, previous run stopped.",
           "nextAction": "Inspect native provider application/ports and the agent_governance composition pattern; mount AiProviderHttpBackend, add the native client, switch the feature-admin route, delete TS writers/barrels, and move tests to native oracle."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
         }
       },
       {
@@ -24844,20 +24933,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 120,
-      "migratedPackets": 53,
+      "migratedPackets": 54,
       "statusCounts": {
         "pending": 32,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 53,
+        "migrated": 54,
         "blocked": 20,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T16:12:35.696Z",
+    "updatedAt": "2026-11-12T16:15:40.657Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
