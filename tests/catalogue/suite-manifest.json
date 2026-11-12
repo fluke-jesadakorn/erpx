@@ -95872,6 +95872,125 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "customer_authority.rust-portal-enrollment.unit",
+      "lane": "unit",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/unit/customer_authority/rust-portal-enrollment.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer Portal enrollment retains live token claims, the one-hour attempt window, exact reservation release, session re-proof and identity binding."
+      },
+      "apps": [
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_enrollment"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_authority.rust-portal-enrollment-http.unit",
+      "lane": "unit",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/unit/customer_authority/rust-portal-enrollment-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native public Customer Portal enrollment router retains the exact Account host, session cookie transport and strict body/error mapping."
+      },
+      "apps": [
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_enrollment_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_authority.rust-portal-enrollment-postgres.integration",
+      "lane": "integration",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/integration/customer_authority/rust-portal-enrollment-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer Portal enrollment retains live token claims, the one-hour attempt window, exact reservation release, session re-proof and identity binding."
+      },
+      "apps": [
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_enrollment_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

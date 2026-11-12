@@ -3,4 +3,3 @@ export { customerAccessRequestSchema, customerAccessBinding, customerAccessWorks
 export { customerDuplicateWorkspace, customerDuplicateDetail, requestCustomerDuplicate, changeCustomerDuplicate, customerDuplicateWork } from "@erpx/server-customer_authority/public/customer-duplicates";
 export { customerIdentityWorkspace, customerIdentityDetail, requestCustomerIdentityChange, changeCustomerIdentity, customerIdentityWork } from "@erpx/server-customer_authority/public/customer-identity-changes";
 export { portalAttachmentWithdrawProof, requirePortalAttachmentWithdrawCurrent, type PortalAttachmentWithdrawProof } from "@erpx/server-customer_authority/public/attachment-withdraw-proof";
-export { customerPortalInvitationEnrollment, releaseCustomerPortalEnrollmentAttempt, acceptCustomerPortalInvitation } from "@erpx/server-customer_authority/public/portal-invitation-enrollment";

@@ -1391,11 +1391,6 @@
     },
     {
       "runner": "vitest",
-      "file": "tests/unit/customer_authority/portal-invitations.test.ts",
-      "title": "Customer Portal invitation verification rejects modified signatures, claims, and malformed tokens"
-    },
-    {
-      "runner": "vitest",
       "file": "tests/integration/customer_authority/customer-access.test.ts",
       "title": "issues a tenant-token invitation and binds only the invited verified Portal identity"
     },

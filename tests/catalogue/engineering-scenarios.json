@@ -2040,11 +2040,13 @@
       "workflow": [
         "Create a source-priced basket",
         "Submit duplicate line commands concurrently",
-        "Reload the basket and retained command receipt"
+        "Reload the basket and retained command receipt",
+        "Reject a stale catalogue version or price before changing the bill"
       ],
       "expectedResults": [
         "One basket line is persisted",
-        "Concurrent identical retries return the committed result"
+        "Concurrent identical retries return the committed result",
+        "A stale catalogue version or price never mutates the basket"
       ],
       "review": "reviewed",
       "cases": [
@@ -2057,8 +2059,8 @@
         {
           "runner": "vitest",
           "file": "tests/integration/pos/pos.test.ts",
-          "title": "preserves line and bill discounts exactly when a quantity is split",
-          "proof": "expect(portions.reduce((sum,l)=>sum+Number(l.discount_minor),0)).toBe(101);\nexpect(portions.reduce((sum,l)=>sum+Number(l.bill_discount_minor),0)).toBe(101);\nexpect(await one(db,'SELECT discount_minor FROM pos_sales WHERE id=?',split.id)).toEqual({discount_minor:0});"
+          "title": "checks the draft catalog version and price before changing the bill",
+          "proof": "await expect(change('sale.add',sale,{productId:'tea',quantityMilli:1000,expectedCatalogVersion:2,expectedPriceMinor:10000})).rejects.toMatchObject({code:'POS_CATALOG_CHANGED'});\nawait expect(change('sale.add',sale,{productId:'tea',quantityMilli:1000,expectedCatalogVersion:1,expectedPriceMinor:9999})).rejects.toMatchObject({code:'POS_CATALOG_CHANGED'});\nexpect(await one(db,'SELECT COUNT(*) n FROM pos_lines WHERE sale_id=?',sale)).toEqual({n:0});"
         }
       ],
       "moduleId": "pos",

@@ -9,3 +9,5 @@ pub mod portal_invitation_delivery;
 pub mod portal_invitation_email;
 pub mod portal_invitation_token;
 pub mod portal_invitations;
+pub mod portal_enrollment;
+pub mod portal_enrollment_http;

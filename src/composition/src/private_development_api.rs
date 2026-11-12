@@ -5530,6 +5530,59 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        {
+            // Public Customer Portal enrollment is served on the exact Account
+            // origin; the signed token selects the Holding. Missing signing
+            // secret or Account origin keeps the native surface unmounted so the
+            // Next route fails closed.
+            let account_host = config
+                .products
+                .iter()
+                .find(|product| product.audience == "account")
+                .map(|product| product.host.clone());
+            let secret = std::env::var("BETTER_AUTH_SECRET").ok().filter(|value| !value.is_empty());
+            if let (Some(host), Some(secret)) = (account_host, secret) {
+                let holdings: BTreeMap<String, DatabasePool> = config
+                    .holdings
+                    .iter()
+                    .enumerate()
+                    .map(|(index, holding)| (holding.registration.slug.clone(), pools[index + 1].clone()))
+                    .collect();
+                let mode = match std::env::var("ERPX_COMMERCE_PACKAGE_ENFORCEMENT")
+                    .unwrap_or_else(|_| "disabled".to_owned())
+                    .as_str()
+                {
+                    "shadow" => erpx_server_commercial::public::purchases::PackageEnforcementMode::Shadow,
+                    "enforced"
+                        if std::env::var("ERPX_ENVIRONMENT").ok().as_deref() == Some("local") =>
+                    {
+                        erpx_server_commercial::public::purchases::PackageEnforcementMode::Enforced
+                    }
+                    _ => erpx_server_commercial::public::purchases::PackageEnforcementMode::Disabled,
+                };
+                let service = Arc::new(crate::portal_enrollment::PortalEnrollmentService::new(
+                    Arc::new(crate::portal_enrollment::PortalEnrollmentConfiguration::new(
+                        pools[0].clone(),
+                        holdings,
+                        config.environment.clone(),
+                        secret,
+                        mode,
+                        std::env::var("NODE_ENV").ok().as_deref() == Some("production"),
+                    )),
+                    clock.clone(),
+                ));
+                router = router.merge(
+                    erpx_server_customer_authority::public::portal_enrollment::portal_enrollment_http_router(
+                        vec![erpx_server_customer_authority::public::portal_enrollment::PortalEnrollmentHttpTarget {
+                            host,
+                            backend: Arc::new(crate::portal_enrollment::PortalEnrollmentBackend::new(service)),
+                        }],
+                    )
+                    .map_err(|_| "PRIVATE_API_PORTAL_ENROLLMENT_CONFIGURATION_INVALID")?,
+                );
+            }
+        }
+        #[cfg(feature = "existing-business")]
         if !customer_identity_targets.is_empty() {
             router = router.merge(
                 erpx_server_customer_authority::public::identity_http::customer_identity_http_router(

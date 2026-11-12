@@ -10,7 +10,7 @@ pub use crate::adapters::portal_invitation_email::{
 };
 pub use crate::adapters::portal_invitation_token::{
     invitation_token, invitation_token_hash, invitation_token_hash_matches,
-    require_invitation_token,
+    require_invitation_token, verify_invitation_token,
 };
 pub use crate::application::portal_invitation_delivery::{
     PortalDeliveryFuture, PortalInvitationUnit, TokenSigner, deliver_one,

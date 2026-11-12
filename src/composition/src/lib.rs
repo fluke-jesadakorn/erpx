@@ -153,6 +153,8 @@ pub mod sales_cancellation;
 #[cfg(feature = "existing-business")]
 pub mod customer_portal_invitation_worker;
 #[cfg(feature = "existing-business")]
+pub mod portal_enrollment;
+#[cfg(feature = "existing-business")]
 pub mod sales_notification_worker;
 #[cfg(feature = "existing-business")]
 pub mod talent_lifecycle;

@@ -51,6 +51,22 @@ pub fn invitation_token_hash_matches(token: &str, expected_hex: &str) -> bool {
     difference == 0
 }
 
+/// Verify the HMAC signature and return the immutable claims. A malformed,
+/// oversized or tampered token yields `None`; callers fail closed.
+pub fn verify_invitation_token(secret: &str, token: &str) -> Option<InvitationClaims> {
+    if token.is_empty() || token.len() > 2048 {
+        return None;
+    }
+    let (encoded, provided) = token.split_once('.')?;
+    if encoded.is_empty() || provided.is_empty() {
+        return None;
+    }
+    let signature = URL_SAFE_NO_PAD.decode(provided.as_bytes()).ok()?;
+    hmac::verify(&signing_key(secret), encoded.as_bytes(), &signature).ok()?;
+    let bytes = URL_SAFE_NO_PAD.decode(encoded.as_bytes()).ok()?;
+    serde_json::from_slice::<InvitationClaims>(&bytes).ok()
+}
+
 /// Reproduce the token and prove it still matches the stored digest.
 pub fn require_invitation_token(
     secret: Option<&str>,
