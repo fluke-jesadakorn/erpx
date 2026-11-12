@@ -35,6 +35,10 @@ fn operation(change: &Change) -> &'static str {
         Change::PublishDraft { .. } => "social.draft.publish",
         Change::EditPost { .. } => "social.post.edit",
         Change::RetractPost { .. } => "social.post.retract",
+        Change::CommentUploadCreate { .. } => "social.comment.upload.create",
+        Change::CommentUploadCancel { .. } => "social.comment.upload.cancel",
+        Change::PostEditUploadCreate { .. } => "social.post.edit-upload.create",
+        Change::PostEditUploadCancel { .. } => "social.post.edit-upload.cancel",
     }
 }
 
@@ -49,6 +53,9 @@ fn record_id(key: &str, change: &Change) -> String {
         Change::SavePostDraft { id, .. } => id.clone().unwrap_or_else(|| format!("post-draft-{key}")),
         Change::PublishDraft { id, .. } => format!("post-{id}"),
         Change::EditPost { id, .. } | Change::RetractPost { id, .. } => id.clone(),
+        Change::CommentUploadCreate { .. } => format!("comment-upload-{key}"),
+        Change::CommentUploadCancel { id } | Change::PostEditUploadCancel { id } => id.clone(),
+        Change::PostEditUploadCreate { .. } => format!("post-edit-upload-{key}"),
     }
 }
 
@@ -208,7 +215,7 @@ impl SocialUnit for Harness<'_> {
     }
     async fn draft(&mut self, id: &str) -> Result<Option<DraftSnapshot>, Error> {
         let row = sqlx::query(
-            "SELECT id,author_id,company_id,version,published_post_id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,mentions_json,content_json,rich_content_json FROM social_post_drafts WHERE id=$1",
+            "SELECT id,author_id,company_id,version,published_post_id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,mentions_json,content_json,rich_content_json,cancelled_at,comment_parent_post_id,published_comment_id,edit_post_id,edit_post_version,edit_saved_version FROM social_post_drafts WHERE id=$1",
         )
         .bind(id)
         .fetch_optional(&mut *self.c)
@@ -231,6 +238,12 @@ impl SocialUnit for Harness<'_> {
                 mentions_json: row.try_get(13)?,
                 content_json: row.try_get(14)?,
                 rich_content_json: row.try_get(15)?,
+                cancelled_at: row.try_get(16)?,
+                comment_parent_post_id: row.try_get(17)?,
+                published_comment_id: row.try_get(18)?,
+                edit_post_id: row.try_get(19)?,
+                edit_post_version: row.try_get(20)?,
+                edit_saved_version: row.try_get(21)?,
             })
         })
         .transpose()
@@ -305,6 +318,7 @@ fn decode_receipt(raw: &str) -> Result<Receipt, Error> {
         Some("reported") => "reported",
         Some("draft") => "draft",
         Some("archived") => "archived",
+        Some("cancelled") => "cancelled",
         _ => return Err(changed()),
     };
     let id = value["id"]
@@ -1194,6 +1208,101 @@ async fn edits_and_retracts_the_authors_post_with_immutable_revisions() {
         .await
         .unwrap();
         assert_eq!(retract_revision, ("retract".into(), 2, "Edited".into()));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn upload_drafts_create_and_cancel_comment_and_edit_targets() {
+    fixture::with_database(8, |pool| async move {
+        setup(&pool).await;
+        let post = run(
+            &pool,
+            "author",
+            "company",
+            "social-post-0701",
+            Change::PublishPost {
+                body: "Upload target".into(),
+                audience: Audience::Holding,
+                tags: vec![],
+                mentions: vec![],
+                linked_record: None,
+            },
+        )
+        .await
+        .unwrap();
+        let comment = run(
+            &pool,
+            "author",
+            "company",
+            "social-comment-upload-0701",
+            Change::CommentUploadCreate {
+                post_id: post.id.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        let row: (Option<String>, Option<String>, i64) = sqlx::query_as(
+            "SELECT comment_parent_post_id,published_comment_id,version FROM social_post_drafts WHERE id=$1",
+        )
+        .bind(&comment.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row, (Some(post.id.clone()), None, 1));
+        let cancelled = run(
+            &pool,
+            "author",
+            "company",
+            "social-comment-upload-0702",
+            Change::CommentUploadCancel {
+                id: comment.id.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(cancelled.status, "cancelled");
+        let cancelled_row: (Option<i64>, i64) = sqlx::query_as(
+            "SELECT cancelled_at,version FROM social_post_drafts WHERE id=$1",
+        )
+        .bind(&comment.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert!(cancelled_row.0.is_some());
+        assert_eq!(cancelled_row.1, 2);
+        let edit = run(
+            &pool,
+            "author",
+            "company",
+            "social-edit-upload-0703",
+            Change::PostEditUploadCreate {
+                post_id: post.id.clone(),
+                expected_version: 1,
+            },
+        )
+        .await
+        .unwrap();
+        let edit_row: (Option<String>, Option<i64>, i64) = sqlx::query_as(
+            "SELECT edit_post_id,edit_post_version,version FROM social_post_drafts WHERE id=$1",
+        )
+        .bind(&edit.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(edit_row, (Some(post.id.clone()), Some(1), 1));
+        let edit_cancelled = run(
+            &pool,
+            "author",
+            "company",
+            "social-edit-upload-0704",
+            Change::PostEditUploadCancel {
+                id: edit.id.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(edit_cancelled.status, "cancelled");
     })
     .await;
 }

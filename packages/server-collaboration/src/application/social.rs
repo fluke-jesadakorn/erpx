@@ -357,6 +357,81 @@ pub async fn execute<P: SocialUnit>(
                     expected_version,
                 });
             }
+            Change::CommentUploadCreate { post_id } => {
+                let post = p.post(&post_id).await?;
+                require_published_post(&actor, &post)?;
+                plan = Some(OwnerPlan::UploadDraftCreate {
+                    id: format!("comment-upload-{}", key.as_str()),
+                    author_id: actor.user_id.clone(),
+                    company_id: actor.company_id.clone(),
+                    branch_id: actor.branch_id.clone(),
+                    comment_parent_post_id: Some(post_id),
+                    edit_post_id: None,
+                    edit_post_version: None,
+                });
+            }
+            Change::CommentUploadCancel { id } => {
+                let draft = p.draft(&id).await?.ok_or_else(draft_not_found)?;
+                if draft.author_id != actor.user_id
+                    || draft.company_id != actor.company_id
+                    || draft.cancelled_at.is_some()
+                    || draft.published_post_id.is_some()
+                    || draft.published_comment_id.is_some()
+                    || draft.edit_post_id.is_some()
+                    || draft.comment_parent_post_id.is_none()
+                {
+                    return Err(draft_not_found().into());
+                }
+                plan = Some(OwnerPlan::UploadDraftCancel {
+                    id,
+                    version: draft.version + 1,
+                });
+            }
+            Change::PostEditUploadCreate {
+                post_id,
+                expected_version,
+            } => {
+                let post = p.post(&post_id).await?;
+                require_published_post(&actor, &post)?;
+                if post.author_id != actor.user_id || post.linked_record.is_some() {
+                    return Err(BusinessError::new(
+                        FailureKind::Forbidden,
+                        "POST_AUTHOR_REQUIRED",
+                        "Only the author can edit this team post.",
+                    )
+                    .into());
+                }
+                if post.version != expected_version {
+                    return Err(conflict().into());
+                }
+                plan = Some(OwnerPlan::UploadDraftCreate {
+                    id: format!("post-edit-upload-{}", key.as_str()),
+                    author_id: actor.user_id.clone(),
+                    company_id: actor.company_id.clone(),
+                    branch_id: actor.branch_id.clone(),
+                    comment_parent_post_id: None,
+                    edit_post_id: Some(post_id),
+                    edit_post_version: Some(expected_version),
+                });
+            }
+            Change::PostEditUploadCancel { id } => {
+                let draft = p.draft(&id).await?.ok_or_else(draft_not_found)?;
+                if draft.author_id != actor.user_id
+                    || draft.company_id != actor.company_id
+                    || draft.edit_post_id.is_none()
+                    || draft.edit_saved_version.is_some()
+                    || draft.cancelled_at.is_some()
+                    || draft.published_post_id.is_some()
+                    || draft.published_comment_id.is_some()
+                    || draft.comment_parent_post_id.is_some()
+                {
+                    return Err(draft_not_found().into());
+                }
+                plan = Some(OwnerPlan::UploadDraftCancel {
+                    id,
+                    version: draft.version + 1,
+                });
+            }
             Change::PublishDraft { id, version } => {
                 validate_expected_version(version)?;
                 let draft = p.draft(&id).await?.ok_or_else(draft_not_found)?;

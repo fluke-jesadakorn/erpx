@@ -214,6 +214,22 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
             "/api/v1/holdings/{holding_slug}/feed/drafts/{draft_id}/publish",
             post(publish_draft),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/comment-uploads",
+            post(create_comment_upload),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/comment-uploads/{draft_id}/cancel",
+            post(cancel_comment_upload),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/edit-uploads",
+            post(create_edit_upload),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/edit-uploads/{draft_id}/cancel",
+            post(cancel_edit_upload),
+        )
         .with_state(Arc::new(state)))
 }
 
@@ -555,6 +571,78 @@ pub async fn save_draft(
 ) -> Response {
     let headers = request.headers().clone();
     let prepared = prepare_command(state, slug, request, "social.draft.save", None, None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn create_comment_upload(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.comment.upload.create",
+        Some(post_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn cancel_comment_upload(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, draft_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.comment.upload.cancel",
+        Some(draft_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn create_edit_upload(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.post.edit-upload.create",
+        Some(post_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn cancel_edit_upload(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, draft_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.post.edit-upload.cancel",
+        Some(draft_id),
+        None,
+    )
+    .await;
     command_response(prepared, headers).await
 }
 

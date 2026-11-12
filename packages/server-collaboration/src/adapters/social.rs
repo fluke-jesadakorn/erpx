@@ -830,6 +830,59 @@ pub async fn apply_plan(
             }
             Ok(expected.clone())
         }
+        OwnerPlan::UploadDraftCreate {
+            id,
+            author_id,
+            company_id,
+            branch_id,
+            comment_parent_post_id,
+            edit_post_id,
+            edit_post_version,
+        } => {
+            sqlx::query(
+                "INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,comment_parent_post_id,edit_post_id,edit_post_version) VALUES($1,$2,$3,$4,'',$5,$5,$6,$7,$8)",
+            )
+            .bind(id)
+            .bind(author_id)
+            .bind(company_id)
+            .bind(branch_id)
+            .bind(now)
+            .bind(comment_parent_post_id)
+            .bind(edit_post_id)
+            .bind(edit_post_version)
+            .execute(&mut *c)
+            .await?;
+            Ok(expected.clone())
+        }
+        OwnerPlan::UploadDraftCancel { id, version } => {
+            let updated = sqlx::query(
+                "UPDATE social_post_drafts SET cancelled_at=$1,version=version+1,updated_at=$2 WHERE id=$3 AND version=$4",
+            )
+            .bind(now)
+            .bind(now)
+            .bind(id)
+            .bind(version - 1)
+            .execute(&mut *c)
+            .await?;
+            if updated.rows_affected() != 1 {
+                return Err(changed());
+            }
+            sqlx::query(
+                "UPDATE attachments SET revoked_at=$1 WHERE owner_type='social_draft' AND owner_id=$2 AND revoked_at IS NULL",
+            )
+            .bind(now)
+            .bind(id)
+            .execute(&mut *c)
+            .await?;
+            sqlx::query(
+                "UPDATE upload_intents SET status='expired',updated_at=$1 WHERE owner_type='social_draft' AND owner_id=$2 AND status='ready'",
+            )
+            .bind(now)
+            .bind(id)
+            .execute(&mut *c)
+            .await?;
+            Ok(expected.clone())
+        }
         OwnerPlan::PublishDraftPost {
             draft_id,
             draft_version,
@@ -1073,6 +1126,13 @@ pub async fn retain_effects(
             }
             capture(c, &mut images, format!("post:{id}")).await?;
         }
+        OwnerPlan::UploadDraftCreate { id, .. } | OwnerPlan::UploadDraftCancel { id, .. } => {
+            if receipt.id != *id {
+                return Err(changed());
+            }
+            capture(c, &mut images, format!("draft:{id}")).await?;
+        }
+
         OwnerPlan::PublishDraftPost {
             post_id,
             draft_id,

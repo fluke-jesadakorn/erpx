@@ -264,6 +264,10 @@ impl<'c> PgSocialUnit<'c> {
             Change::PublishDraft { .. } => "social.draft.publish",
             Change::EditPost { .. } => "social.post.edit",
             Change::RetractPost { .. } => "social.post.retract",
+            Change::CommentUploadCreate { .. } => "social.comment.upload.create",
+            Change::CommentUploadCancel { .. } => "social.comment.upload.cancel",
+            Change::PostEditUploadCreate { .. } => "social.post.edit-upload.create",
+            Change::PostEditUploadCancel { .. } => "social.post.edit-upload.cancel",
         }
     }
 
@@ -289,6 +293,9 @@ impl<'c> PgSocialUnit<'c> {
                 .unwrap_or_else(|| format!("post-draft-{}", key.as_str())),
             Change::PublishDraft { id, .. } => format!("post-{id}"),
             Change::EditPost { id, .. } | Change::RetractPost { id, .. } => id.clone(),
+            Change::CommentUploadCreate { .. } => format!("comment-upload-{}", key.as_str()),
+            Change::CommentUploadCancel { id } | Change::PostEditUploadCancel { id } => id.clone(),
+            Change::PostEditUploadCreate { .. } => format!("post-edit-upload-{}", key.as_str()),
         })
     }
 
@@ -426,7 +433,7 @@ impl SocialUnit for PgSocialUnit<'_> {
 
     async fn draft(&mut self, id: &str) -> Result<Option<DraftSnapshot>, Error> {
         let row = sqlx::query(
-            "SELECT id,author_id,company_id,version,published_post_id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,mentions_json,content_json,rich_content_json FROM social_post_drafts WHERE id=$1",
+            "SELECT id,author_id,company_id,version,published_post_id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,mentions_json,content_json,rich_content_json,cancelled_at,comment_parent_post_id,published_comment_id,edit_post_id,edit_post_version,edit_saved_version FROM social_post_drafts WHERE id=$1",
         )
         .bind(id)
         .fetch_optional(&mut *self.connection)
@@ -449,6 +456,12 @@ impl SocialUnit for PgSocialUnit<'_> {
                 mentions_json: row.try_get(13)?,
                 content_json: row.try_get(14)?,
                 rich_content_json: row.try_get(15)?,
+                cancelled_at: row.try_get(16)?,
+                comment_parent_post_id: row.try_get(17)?,
+                published_comment_id: row.try_get(18)?,
+                edit_post_id: row.try_get(19)?,
+                edit_post_version: row.try_get(20)?,
+                edit_saved_version: row.try_get(21)?,
             })
         })
         .transpose()
@@ -587,6 +600,16 @@ impl SocialUnit for PgSocialUnit<'_> {
                 "social_post",
                 "Retract workplace update",
                 "social.post.retracted",
+            ),
+            OwnerPlan::UploadDraftCreate { .. } => (
+                "social_post",
+                "Save workplace draft",
+                "social.draft.saved",
+            ),
+            OwnerPlan::UploadDraftCancel { .. } => (
+                "social_post",
+                "Cancel workplace draft upload",
+                "social.draft.cancelled",
             ),
         };
         let value = serde_json::to_value(&receipt).map_err(|_| {

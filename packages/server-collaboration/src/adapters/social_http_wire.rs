@@ -169,6 +169,19 @@ pub fn decode_social_command(
             id: post(post_id)?,
             expected_version: positive(raw, "expectedVersion")?,
         },
+        "social.comment.upload.create" => Change::CommentUploadCreate {
+            post_id: post(post_id)?,
+        },
+        "social.comment.upload.cancel" => Change::CommentUploadCancel {
+            id: post(post_id)?,
+        },
+        "social.post.edit-upload.create" => Change::PostEditUploadCreate {
+            post_id: post(post_id)?,
+            expected_version: positive(raw, "expectedVersion")?,
+        },
+        "social.post.edit-upload.cancel" => Change::PostEditUploadCancel {
+            id: post(post_id)?,
+        },
         "social.draft.publish" => Change::PublishDraft {
             id: post(post_id)?,
             version: positive(raw, "version")?,

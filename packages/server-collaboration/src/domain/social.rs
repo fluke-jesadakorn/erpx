@@ -255,6 +255,19 @@ pub enum Change {
         id: String,
         expected_version: i64,
     },
+    CommentUploadCreate {
+        post_id: String,
+    },
+    CommentUploadCancel {
+        id: String,
+    },
+    PostEditUploadCreate {
+        post_id: String,
+        expected_version: i64,
+    },
+    PostEditUploadCancel {
+        id: String,
+    },
     SavePostDraft {
         id: Option<String>,
         body: String,
@@ -337,6 +350,19 @@ pub enum OwnerPlan {
         id: String,
         expected_version: i64,
     },
+    UploadDraftCreate {
+        id: String,
+        author_id: String,
+        company_id: String,
+        branch_id: Option<String>,
+        comment_parent_post_id: Option<String>,
+        edit_post_id: Option<String>,
+        edit_post_version: Option<i64>,
+    },
+    UploadDraftCancel {
+        id: String,
+        version: i64,
+    },
     PublishDraftPost {
         draft_id: String,
         draft_version: i64,
@@ -393,6 +419,12 @@ pub struct DraftSnapshot {
     pub mentions_json: String,
     pub content_json: Option<String>,
     pub rich_content_json: Option<String>,
+    pub cancelled_at: Option<i64>,
+    pub comment_parent_post_id: Option<String>,
+    pub published_comment_id: Option<String>,
+    pub edit_post_id: Option<String>,
+    pub edit_post_version: Option<i64>,
+    pub edit_saved_version: Option<i64>,
 }
 
 fn invalid() -> BusinessError {
@@ -708,6 +740,16 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             id: id.clone(),
             version: next_version(*expected_version)?,
             status: "archived",
+        },
+        OwnerPlan::UploadDraftCreate { id, .. } => Receipt {
+            id: id.clone(),
+            version: 1,
+            status: "draft",
+        },
+        OwnerPlan::UploadDraftCancel { id, version } => Receipt {
+            id: id.clone(),
+            version: *version,
+            status: "cancelled",
         },
     })
 }

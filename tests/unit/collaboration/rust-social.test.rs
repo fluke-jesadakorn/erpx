@@ -159,6 +159,12 @@ fn draft_snapshot(id: &str) -> DraftSnapshot {
         mentions_json: "[]".into(),
         content_json: None,
         rich_content_json: None,
+        cancelled_at: None,
+        comment_parent_post_id: None,
+        published_comment_id: None,
+        edit_post_id: None,
+        edit_post_version: None,
+        edit_saved_version: None,
     }
 }
 
@@ -657,6 +663,84 @@ async fn edits_and_retracts_only_the_authors_current_post_with_a_revision_plan()
     .await
     .unwrap();
     assert_eq!((retracted.version, retracted.status), (3, "archived"));
+}
+
+#[tokio::test]
+async fn creates_and_cancels_comment_and_post_edit_upload_drafts() {
+    let mut unit = Unit::new();
+    let comment = execute(
+        &mut unit,
+        &key(),
+        Change::CommentUploadCreate {
+            post_id: "post-1".into(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        (comment.id.as_str(), comment.version, comment.status),
+        ("comment-upload-social-command-0001", 1, "draft")
+    );
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::UploadDraftCreate {
+            comment_parent_post_id,
+            edit_post_id,
+            ..
+        } => {
+            assert_eq!(comment_parent_post_id.as_deref(), Some("post-1"));
+            assert!(edit_post_id.is_none());
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let mut snapshot = draft_snapshot("comment-upload-social-command-0001");
+    snapshot.comment_parent_post_id = Some("post-1".into());
+    unit.drafts.insert(snapshot.id.clone(), snapshot);
+    let cancelled = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0002").unwrap(),
+        Change::CommentUploadCancel {
+            id: "comment-upload-social-command-0001".into(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!((cancelled.version, cancelled.status), (2, "cancelled"));
+    let edit = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0003").unwrap(),
+        Change::PostEditUploadCreate {
+            post_id: "post-1".into(),
+            expected_version: 2,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(edit.id, "post-edit-upload-social-command-0003");
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::UploadDraftCreate {
+            edit_post_id,
+            edit_post_version,
+            ..
+        } => {
+            assert_eq!(edit_post_id.as_deref(), Some("post-1"));
+            assert_eq!(*edit_post_version, Some(2));
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let mut edit_snapshot = draft_snapshot("post-edit-upload-social-command-0003");
+    edit_snapshot.edit_post_id = Some("post-1".into());
+    edit_snapshot.edit_post_version = Some(2);
+    unit.drafts.insert(edit_snapshot.id.clone(), edit_snapshot);
+    let edit_cancelled = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0004").unwrap(),
+        Change::PostEditUploadCancel {
+            id: "post-edit-upload-social-command-0003".into(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!((edit_cancelled.version, edit_cancelled.status), (2, "cancelled"));
 }
 
 #[tokio::test]
