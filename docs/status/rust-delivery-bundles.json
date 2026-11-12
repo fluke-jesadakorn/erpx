@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 570,
+    "revision": 578,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -9748,11 +9748,18 @@
         "resources": [
           "owner:brand"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g24",
+          "agentId": "worker-brand",
+          "claimedAt": "2026-11-12T01:21:35.633Z",
+          "heartbeatAt": "2026-11-12T01:21:35.633Z",
+          "expiresAt": "2026-11-12T01:51:35.633Z",
+          "generation": 26
+        },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
+        "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
         "checks": [
           {
             "command": "cargo check -p erpx-server-brand --locked",
@@ -9774,11 +9781,23 @@
             "sourceSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
             "sourceKind": "committed",
             "note": "7/7 retained branding media/signature integration cases pass against the mounted native branding HTTP router."
+          },
+          {
+            "command": "cargo check -p erpx-server-brand",
+            "result": "passed",
+            "sourceSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+            "note": "Brand owner crate compiles with the native presentation reads."
+          },
+          {
+            "command": "cargo test -p erpx-server-brand --test branding_postgres",
+            "result": "passed",
+            "sourceSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+            "note": "9/9 branding profile/storefront/media and presentation read cases pass on leased Postgres."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead review: native brand presentation reads are mounted and evidence recorded; next brand slice is identity-read-port then storefront-front-projection.",
+        "blocker": null,
+        "nextAction": "Presentation reads pushed 19580e083 (workspace/document brand, storefront overlay, profiles, executive evidence). Mount request: composition BrandPresentationContext read service; switch work_projection/pms/operations presentation-queries, people_payroll explorer detail, runtime executive brand-evidence. Remaining brand slice: identity-read-port.",
         "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-brand",
@@ -10674,15 +10693,41 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g24",
+          "agentId": "worker-finance",
+          "claimedAt": "2026-11-12T01:27:05.605Z",
+          "heartbeatAt": "2026-11-12T01:27:05.605Z",
+          "expiresAt": "2026-11-12T01:57:05.605Z",
+          "generation": 26
+        },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
+        "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-finance --all-targets",
+            "result": "passed",
+            "sourceSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+            "note": "Finance owner crate and all targets compile with the goods journal port."
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --test commerce_goods_journal_postgres",
+            "result": "passed",
+            "sourceSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+            "note": "4/4 receipt, delivery, FX rejection and caller-transaction cases pass on leased Postgres."
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --test journal_wire",
+            "result": "passed",
+            "sourceSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+            "note": "5/5 journal wire cases pass."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Worker-finance ports commerce goods journal + FX valuation per migrate.finance.goods-journal-port; owner paths only",
+        "nextAction": "goods-journal-port pushed 19580e083 (receipt/delivery journal + Company functional-FX valuation on caller transaction). Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets.",
         "handoff": {
           "runId": "run-20261112-a",
           "agentId": "worker-finance",
@@ -12210,8 +12255,15 @@
         "resources": [
           "owner:marketing"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261110-g24",
+          "agentId": "worker-marketing",
+          "claimedAt": "2026-11-12T01:25:43.160Z",
+          "heartbeatAt": "2026-11-12T01:25:43.160Z",
+          "expiresAt": "2026-11-12T01:55:43.160Z",
+          "generation": 26
+        },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12253,7 +12305,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Lead review: native marketing engagement command and lead reads are mounted and switched; next slice is campaign-asset-commands (campaign/asset/candidate create+review).",
         "handoff": {
           "runId": "run-20261110-g24",
@@ -12347,29 +12399,37 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+        "implementedCommit": "1ab8ef03975e12fa6be63d943f29637d5711e497",
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-manufacturing --locked",
+            "result": "passed",
+            "sourceSha": "1ab8ef03975e12fa6be63d943f29637d5711e497",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles with the specification port and thin HTTP router."
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --tests --locked",
+            "result": "passed",
+            "sourceSha": "1ab8ef03975e12fa6be63d943f29637d5711e497",
+            "sourceKind": "committed",
+            "note": "34/34 owner cases pass: BOM 10+2+4 plus new specification 11+3+4; PostgreSQL cases use ERPX_TEST_ADMIN_URL from .env.local. Content identical to the compiled pre-commit tree."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Lead: mount specification_router + backend in composition, switch the production route spec slices, register the three manufacturing suites, then run the registered spec suites.",
+        "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-manufacturing",
-          "claimedAt": "2026-11-12T01:09:08.870Z",
-          "heartbeatAt": "2026-11-12T01:13:34.854Z",
-          "expiresAt": "2026-11-12T01:43:34.854Z",
-          "generation": 26
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the first inventoried manufacturing packet (migrate.manufacturing.specification-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": {
-          "runId": "run-20261112-a",
-          "agentId": "worker-manufacturing",
-          "at": "2026-11-12T01:04:54.041Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
-          "nextAction": "Implement the first inventoried manufacturing packet (migrate.manufacturing.specification-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+          "at": "2026-11-12T01:31:50.227Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: mount specification_router + backend in composition, switch the production route spec slices, register the three manufacturing suites, then run the registered spec suites."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-manufacturing",
@@ -16119,10 +16179,10 @@
       "totalPackets": 53,
       "migratedPackets": 20,
       "statusCounts": {
-        "pending": 13,
-        "in_progress": 3,
-        "ready_for_integration": 12,
-        "integrating": 0,
+        "pending": 12,
+        "in_progress": 4,
+        "ready_for_integration": 11,
+        "integrating": 1,
         "migrated": 20,
         "blocked": 5,
         "deferred": 0,
@@ -16130,7 +16190,7 @@
       }
     },
     "lastCoordinatorGeneration": 26,
-    "updatedAt": "2026-11-12T01:16:51.135Z",
+    "updatedAt": "2026-11-12T01:31:50.228Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
