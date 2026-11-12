@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 907,
+    "revision": 909,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -22438,6 +22438,54 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.finance.revenue-recognition-ts",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Native revenue-obligation recognition and TS writer retirement",
+        "scope": "recognizeRevenue is used only by the workplace finance route and its own adapter/application. Implement a native finance revenue-recognition command (replay via command receipts, obligation/account guards, journal create+post with source_type revenue_recognition in the same serializable unit, obligation recognized increment/status, receipt/audit/outbox), mount it, add the Next client, switch the route branch native-only (503 when unconfigured), delete the TS writer + exports/barrels, and record the owner KPI 382 -> 381 with a classified residual. No test currently covers recognizeRevenue, so add native unit/PostgreSQL coverage.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/feature-finance/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "in_progress",
+        "nextAction": "Implement the native revenue-recognition command + mount + client + route switch; delete the TS writer; measure retirement:ts-writes.",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "claim": {
+          "runId": "run-20261112-r",
+          "agentId": "worker-finance",
+          "claimedAt": "2026-11-12T13:09:34.797Z",
+          "heartbeatAt": "2026-11-12T13:09:34.797Z",
+          "expiresAt": "2026-11-12T13:39:34.797Z",
+          "generation": 43
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -22446,11 +22494,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 102,
+      "totalPackets": 103,
       "migratedPackets": 43,
       "statusCounts": {
         "pending": 28,
-        "in_progress": 4,
+        "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 43,
@@ -22460,7 +22508,7 @@
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:08:17.648Z",
+    "updatedAt": "2026-11-12T13:09:34.797Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
