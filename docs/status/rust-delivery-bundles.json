@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 650,
+    "revision": 655,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-e",
+      "runId": "run-20261112-f",
       "agentId": "lead",
-      "startedAt": "2026-11-12T04:14:11.965Z",
-      "heartbeatAt": "2026-11-12T04:14:11.965Z",
-      "expiresAt": "2026-11-12T04:44:11.966Z",
-      "generation": 30,
-      "tokenHash": "d21af2e6a9e81c31627b4b4c6c30165fb7d69879c535e1f89e73cf96a86b3b2b"
+      "startedAt": "2026-11-12T04:45:26.479Z",
+      "heartbeatAt": "2026-11-12T04:45:26.479Z",
+      "expiresAt": "2026-11-12T05:15:26.480Z",
+      "generation": 31,
+      "tokenHash": "9cd867bd8eb5f3131191266e57bf6672c1425be744f279056cda5de059c70948"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10843,9 +10843,9 @@
         ],
         "status": "ready_for_integration",
         "claim": null,
-        "baseSha": "1399b44cf061b48c26e3761dd49b554ade9cb99d",
-        "implementedCommit": "9dbdce5b1e18134eb8b00e8311c085355c760e2e",
-        "lastPushedSha": "9dbdce5b1e18134eb8b00e8311c085355c760e2e",
+        "baseSha": "38a6d4b3430f329e1a4f1a47f26a5802ea528bce",
+        "implementedCommit": "09bf3b66e8186de33d6025c4d20f3c9d1acded58",
+        "lastPushedSha": "09bf3b66e8186de33d6025c4d20f3c9d1acded58",
         "checks": [
           {
             "command": "cargo check -p erpx-server-pos --locked",
@@ -10874,18 +10874,53 @@
             "sourceSha": "9dbdce5b1e18134eb8b00e8311c085355c760e2e",
             "sourceKind": "committed",
             "note": "Repository layout passed; catalogue valid at 1170 suites with the three POS workspace suites registered."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "09bf3b66e8186de33d6025c4d20f3c9d1acded58",
+            "sourceKind": "committed",
+            "note": "Composition mounts PosWorkspaceHttpBackend with the 12-capability purchase projection."
+          },
+          {
+            "command": "bun run test:unit -- --suite=pos.rust-pos-workspace.unit --suite=pos.rust-pos-workspace-http.unit",
+            "result": "passed",
+            "sourceSha": "09bf3b66e8186de33d6025c4d20f3c9d1acded58",
+            "sourceKind": "committed",
+            "note": "12 workspace + 5 router cases pass through the registered runner."
+          },
+          {
+            "command": "bun run test:integration -- --suite=pos.rust-pos-workspace-postgres.integration",
+            "result": "passed",
+            "sourceSha": "09bf3b66e8186de33d6025c4d20f3c9d1acded58",
+            "sourceKind": "committed",
+            "note": "6/6 PostgreSQL cases pass."
+          },
+          {
+            "command": "bun run --filter '@erpx/feature-pos' typecheck",
+            "result": "passed",
+            "sourceSha": "09bf3b66e8186de33d6025c4d20f3c9d1acded58",
+            "sourceKind": "committed",
+            "note": "Native workspace transport and the switched GET /pos route typecheck."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "09bf3b66e8186de33d6025c4d20f3c9d1acded58",
+            "sourceKind": "committed",
+            "note": "Repository layout passed; catalogue valid at 1170 suites."
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Lead: mount PosWorkspaceHttpBackend + router and switch the feature-pos read route; then retire the TS workspace read.",
+        "nextAction": "Lead: enable the native POS config in the target env, smoke GET /pos, retire the TS workspace read.",
         "handoff": {
-          "runId": "run-20261112-e",
-          "agentId": "worker-pos",
-          "at": "2026-11-12T04:38:27.595Z",
+          "runId": "run-20261112-f",
+          "agentId": "lead",
+          "at": "2026-11-12T04:47:54.741Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Lead: mount PosWorkspaceHttpBackend + router and switch the feature-pos read route; then retire the TS workspace read."
+          "nextAction": "Lead: enable the native POS config in the target env, smoke GET /pos, retire the TS workspace read."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pos",
@@ -13844,12 +13879,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261112-e",
+          "runId": "run-20261112-f",
           "agentId": "worker-pms",
-          "claimedAt": "2026-11-12T04:14:11.999Z",
-          "heartbeatAt": "2026-11-12T04:14:11.999Z",
-          "expiresAt": "2026-11-12T04:44:11.999Z",
-          "generation": 30
+          "claimedAt": "2026-11-12T04:45:26.512Z",
+          "heartbeatAt": "2026-11-12T04:45:26.512Z",
+          "expiresAt": "2026-11-12T05:15:26.512Z",
+          "generation": 31
         },
         "baseSha": "b005aaf3dde3d4f8707e89177c7ea5dd8404ddaf",
         "implementedCommit": null,
@@ -14085,12 +14120,12 @@
         "blocker": null,
         "nextAction": "Staff reservation create/change/cancel pushed d4a29556f (unit 15/15, PG 5/5) and mounted at POST /pms/reservation; Finance party/funding paths fail closed with explicit port codes. Remaining pms: guest cashier/minibar-linen stock, night-audit guard+posting mount, public booking/payment/email/provider, reports/settings residuals. NOTE: shared worktree currently fails erpx-service compile on another worker-in-flight src/composition/pos.rs (not in this commit); pushed tree does not contain that WIP.",
         "handoff": {
-          "runId": "run-20261112-d",
+          "runId": "run-20261112-e",
           "agentId": "worker-pms",
-          "at": "2026-11-12T04:14:11.964Z",
+          "at": "2026-11-12T04:45:26.479Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
-          "nextAction": "Night-audit state machine + worker turn pushed 0608a8733 (unit 16/16, PG 8/8); NOT mounted. Next: composition user route for night.start/resume + PmsNightAuditGuardPort (19 day-control counts + Finance setup facts) + ports.trade room-night posting consumer; night.step correctly fails closed PMS_NIGHT_POSTING_PORT_REQUIRED. Remaining pms packets: reservations/booking, guest cashier/stock, reports/settings."
+          "reason": "Recovery: Previous coordinator lease expired; WIP reviewed on disk, POS mount pushed at 38a6d4b34, worker claims restored",
+          "nextAction": "Staff reservation create/change/cancel pushed d4a29556f (unit 15/15, PG 5/5) and mounted at POST /pms/reservation; Finance party/funding paths fail closed with explicit port codes. Remaining pms: guest cashier/minibar-linen stock, night-audit guard+posting mount, public booking/payment/email/provider, reports/settings residuals. NOTE: shared worktree currently fails erpx-service compile on another worker-in-flight src/composition/pos.rs (not in this commit); pushed tree does not contain that WIP."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pms",
@@ -16816,8 +16851,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 30,
-    "updatedAt": "2026-11-12T04:42:23.344Z",
+    "lastCoordinatorGeneration": 31,
+    "updatedAt": "2026-11-12T04:47:54.742Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16860,10 +16895,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-d",
-      "runId": "run-20261112-e",
-      "at": "2026-11-12T04:14:11.966Z",
-      "reason": "run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
+      "previousRunId": "run-20261112-e",
+      "runId": "run-20261112-f",
+      "at": "2026-11-12T04:45:26.481Z",
+      "reason": "Previous coordinator lease expired; WIP reviewed on disk, POS mount pushed at 38a6d4b34, worker claims restored",
       "wipReviewed": true,
       "previousRunStopped": true
     }
