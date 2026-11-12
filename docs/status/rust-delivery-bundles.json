@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 820,
+    "revision": 825,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-n",
+      "runId": "run-20261112-o",
       "agentId": "lead",
-      "startedAt": "2026-11-12T10:12:45.127Z",
-      "heartbeatAt": "2026-11-12T10:12:45.127Z",
-      "expiresAt": "2026-11-12T10:42:45.129Z",
-      "generation": 39,
-      "tokenHash": "9bb08c7c2a914cfd779b77f0801d71b6f0b529188751903e6ee7c52be8dad54b"
+      "startedAt": "2026-11-12T10:50:40.110Z",
+      "heartbeatAt": "2026-11-12T10:50:40.110Z",
+      "expiresAt": "2026-11-12T11:20:40.111Z",
+      "generation": 40,
+      "tokenHash": "c8d1fcba66cb67bc7282ca5344a4a58a035284e42000913ff49927f3f245429c"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -17898,12 +17898,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261112-n",
+          "runId": "run-20261112-o",
           "agentId": "lead",
-          "claimedAt": "2026-11-12T10:39:56.228Z",
-          "heartbeatAt": "2026-11-12T10:39:56.228Z",
-          "expiresAt": "2026-11-12T11:09:56.228Z",
-          "generation": 39
+          "claimedAt": "2026-11-12T10:50:50.143Z",
+          "heartbeatAt": "2026-11-12T10:50:50.143Z",
+          "expiresAt": "2026-11-12T11:20:50.143Z",
+          "generation": 40
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -18088,14 +18088,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "KPI 34->32->15->8->4. Native project.create/project.update owner command, HTTP routes, composition purchase/staff admission and client are live; TS saveProject, writer-only repository/barrels and writer oracles are deleted. Residual 4 = command_assertions guard cleanup inside Operations purchase helpers (purchases 2, task-purchases 1, scheduled-tasks 1), still used by retained TS routines/staff-task commands; remove after migrate.operations native commands.",
+        "nextAction": "KPI 34->32->15->8->4. Native project create/edit live; TS saveProject deleted; residual 4 = Operations purchase-helper command_assertions guards, removable after migrate.operations native commands. Blocked by retire.operations.staff-transitions claim overlap on tests/integration/projects/**, not by missing native work.",
         "handoff": {
-          "runId": "run-20261112-l",
+          "runId": "run-20261112-n",
           "agentId": "lead",
-          "at": "2026-11-12T08:59:27.955Z",
+          "at": "2026-11-12T10:50:40.110Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-k lease expired; no mutating coordinator call since; worker WIP for payroll readers committed in 74a94a3be; no live cargo/rust writer process owned by the old coordinator",
-          "nextAction": "KPI 34->32 ->15 ->8 (structure command + collaboration structure sources retired; native-only POST, 35e816d0). Residual 8 blocked on other owner ports: staff-projects 4 need a native project create/edit command route (owner:projects); purchases 2 / task-purchases 1 / scheduled-tasks 1 are command_assertions guard cleanup inside Operations purchase helpers still used by TS routines/staff-task commands, removable only after migrate.operations native commands. Keep in_progress until residual 0 or reassigned."
+          "reason": "Recovery: Lease expired after project save retirement; WIP reviewed",
+          "nextAction": "KPI 34->32->15->8->4. Native project.create/project.update owner command, HTTP routes, composition purchase/staff admission and client are live; TS saveProject, writer-only repository/barrels and writer oracles are deleted. Residual 4 = command_assertions guard cleanup inside Operations purchase helpers (purchases 2, task-purchases 1, scheduled-tasks 1), still used by retained TS routines/staff-task commands; remove after migrate.operations native commands."
         },
         "scopeRefinementRequired": false
       },
@@ -18531,14 +18531,7 @@
           "owner:finance"
         ],
         "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-n",
-          "agentId": "worker-finance",
-          "claimedAt": "2026-11-12T10:14:43.693Z",
-          "heartbeatAt": "2026-11-12T10:14:43.693Z",
-          "expiresAt": "2026-11-12T10:44:43.693Z",
-          "generation": 39
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -18546,7 +18539,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Execute the recorded removal condition, then run the owner KPI and affected suites before reporting.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-n",
+          "agentId": "worker-finance",
+          "at": "2026-11-12T10:50:40.110Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired after project save retirement; WIP reviewed",
+          "nextAction": "Execute the recorded removal condition, then run the owner KPI and affected suites before reporting."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -18884,15 +18884,22 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "blocked",
+        "claim": {
+          "runId": "run-20261112-o",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T10:50:50.078Z",
+          "heartbeatAt": "2026-11-12T10:50:50.078Z",
+          "expiresAt": "2026-11-12T11:20:50.078Z",
+          "generation": 40
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Execute the recorded removal condition, then run the owner KPI and affected suites before reporting.",
+        "nextAction": "Already satisfied in code (generator deleted at 008aa4498; no import/path remains; collaboration crate + native corpus pass). Cannot pass the migration retirement gate: the deleted script contained zero counted TS SQL statements, so no before/after KPI drop exists. Lead decision required: reclassify this stale task as inventory/done or remove it from the execution plan; do not reopen the deleted generator.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -20972,14 +20979,7 @@
           "owner:operations"
         ],
         "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-n",
-          "agentId": "worker-operations",
-          "claimedAt": "2026-11-12T10:22:52.298Z",
-          "heartbeatAt": "2026-11-12T10:22:52.298Z",
-          "expiresAt": "2026-11-12T10:52:52.298Z",
-          "generation": 39
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -20987,7 +20987,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Delete transitionTask/delegateTask adapters/application/exports; replace test calls with owner-row staff_tasks/event updates preserving state/version/delegation fields; KPI 29->25; typecheck/catalogue/affected suites; push.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-n",
+          "agentId": "worker-operations",
+          "at": "2026-11-12T10:50:40.110Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired after project save retirement; WIP reviewed",
+          "nextAction": "Delete transitionTask/delegateTask adapters/application/exports; replace test calls with owner-row staff_tasks/event updates preserving state/version/delegation fields; KPI 29->25; typecheck/catalogue/affected suites; push."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
         "plannedPackage": "erpx-server-operations",
@@ -21010,18 +21017,18 @@
       "totalPackets": 96,
       "migratedPackets": 37,
       "statusCounts": {
-        "pending": 31,
+        "pending": 30,
         "in_progress": 4,
         "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 37,
-        "blocked": 13,
+        "blocked": 14,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 39,
-    "updatedAt": "2026-11-12T10:39:56.256Z",
+    "lastCoordinatorGeneration": 40,
+    "updatedAt": "2026-11-12T10:52:12.184Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -21064,10 +21071,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-m",
-      "runId": "run-20261112-n",
-      "at": "2026-11-12T10:12:45.129Z",
-      "reason": "run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
+      "previousRunId": "run-20261112-n",
+      "runId": "run-20261112-o",
+      "at": "2026-11-12T10:50:40.111Z",
+      "reason": "Lease expired after project save retirement; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
