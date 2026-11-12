@@ -5,7 +5,9 @@ import {saveEmployeeRequest,actOnEmployeeRequest,employeeRequestSchema,requestAc
 import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
 import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
 import {createLeave,submitLeave,approveLeave,newLeaveSchema,leaveDraftSchema} from '@erpx/server-people_payroll/public/leave';
-import {saveTask,transitionTask,taskSchema,taskActionSchema} from '@erpx/server-operations/public/staff-tasks';
+import {saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {executeCommand} from '@erpx/server-workflow/public/commands';
+import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';
 import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
 import {postExpense} from '@erpx/server-people_payroll/public/expenses';
 import {saveExpenseAccounting} from '@erpx/server-people_payroll/public/expense-workflow';
@@ -45,8 +47,21 @@ export async function serviceHospitalityAttachmentOwner(tuple:AttachmentOwnerTup
   return {...standard(String(invoice.id),"finance_invoices",f.payer,2),componentRef:"legacy-upload-adapter",bindingType:"invoice_payment_settlement",bindAction:(set,command)=>settleInvoice(f.payer,String(invoice.id),settlementSchema.parse({expectedVersion:2,date:"2026-09-05",amount:"100",reference:"SYNTHETIC-SUPPLIER-001",attachmentSetIds:[set]}),command)};
  }
  if(tuple.targetType==="staff_task"){
-  const task=await saveTask(db,f.claimant,null,taskSchema.parse({title:"Synthetic task intake",assigneeUserId:f.claimant.userId}),key());await transitionTask(db,f.claimant,String(task.id),taskActionSchema.parse({action:"start",expectedVersion:1}),key());
-  return {...standard(String(task.id),"staff_tasks",f.claimant,2),componentRef:"task:in_progress",bindingType:"task_action",bindAction:(set,command)=>transitionTask(db,f.claimant,String(task.id),taskActionSchema.parse({action:"complete",expectedVersion:2,note:reason,attachmentSetIds:[set]}),command)};
+  const task=await saveTask(db,f.claimant,null,taskSchema.parse({title:"Synthetic task intake",assigneeUserId:f.claimant.userId}),key()),id=String(task.id),now=Date.now();
+  // Native Staff Work owns the transition/completion command. Seed the settled
+  // in-progress row, then execute only the retained Files binding effects.
+  await db.prepare("UPDATE staff_tasks SET state='in_progress',version=version+1,updated_at=? WHERE id=? AND version=1").bind(now,id).run();
+  let bound:unknown;
+  return {...standard(id,"staff_tasks",f.claimant,2),componentRef:"task:in_progress",bindingType:"task_action",bindAction:async(set,command)=>{
+   if(bound)return bound;
+   const prepared=await prepareAttachmentBinding(db,f.claimant,{attachmentSetIds:[set],bindingContract:{targetType:"staff_task",bindingType:"task_action",contexts:[{purposeKey:"task_evidence",componentKind:"action",componentRef:"task:in_progress"}]},targetId:id,expectedTargetVersion:2,commandId:command,bindingId:`${id}:complete:3`});
+   bound=await executeCommand(db,f.claimant,command,"task.complete",{action:"complete",expectedVersion:2,attachmentSetIds:[set]},id,3,{id,state:"completed",version:3,manifest:prepared.manifest},[
+    ...prepared.guards,
+    db.prepare("UPDATE staff_tasks SET state='completed',completion_note=?,blocked_reason=NULL,version=version+1,updated_at=? WHERE id=? AND version=2").bind(reason,Date.now(),id),
+    ...prepared.steps,
+   ]);
+   return bound;
+  }};
  }
  if(tuple.targetType==="leave_request"){
   const input=newLeaveSchema.parse({startDate:"2026-09-14",days:2,handoverNote:reason});

@@ -171,7 +171,7 @@ async function task(
  * command itself; these read-projection and purchase tests only need the state,
  * version and completion note a settled command leaves behind.
  */
-const settledState = { submit: "ready", start: "in_progress", complete: "completed", approve: "completed", reject: "draft", cancel: "cancelled" } as const;
+const settledState = { submit: "ready", start: "in_progress", complete: "completed", cancel: "cancelled" } as const;
 async function action(
   who: WorkContext,
   id: string,
@@ -181,9 +181,9 @@ async function action(
   const row = await getTask(db, who, id), now = Date.now(), version = row.version + 1;
   await db.prepare("UPDATE staff_tasks SET state=?,completion_note=CASE WHEN ? IN ('complete','save-progress') THEN ? ELSE completion_note END,blocked_reason=NULL,version=version+1,updated_at=? WHERE id=? AND version=?")
     .bind(settledState[act], act, note, now, id, row.version).run();
-  if (act === "complete" || act === "approve" || act === "cancel")
+  if (act === "complete" || act === "cancel")
     await db.prepare("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES(?,?,?,?,?,?,?,?)")
-      .bind(`fixture-${key()}`, act === "cancel" ? "task.cancel" : act === "complete" ? "task.complete" : "task.approve", who.userId, "f".repeat(64), id, JSON.stringify({ id, state: settledState[act], version }), now, JSON.stringify({ companyId: who.companyId })).run();
+      .bind(`fixture-${key()}`, act === "cancel" ? "task.cancel" : "task.complete", who.userId, "f".repeat(64), id, JSON.stringify({ id, state: settledState[act], version }), now, JSON.stringify({ companyId: who.companyId })).run();
   return { id, state: settledState[act], version };
 }
 
