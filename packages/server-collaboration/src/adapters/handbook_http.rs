@@ -6,26 +6,23 @@
 //! the serializable owner unit belong to the composition backend, which must
 //! implement [`HandbookHttpBackend`]. The router never mints an actor, Company
 //! or permission.
-use crate::domain::handbook::{Change, ListCursor, Receipt};
 use crate::adapters::handbook::{
     HandbookArticleRead, HandbookArticleSummary, HandbookEditorOptions, HandbookEditorRow,
     HandbookHistoryRow, HandbookListPage, HandbookListRow, HandbookRevisionRow,
 };
 use crate::adapters::handbook_wire::decode_handbook_command;
+use crate::domain::handbook::{Change, ListCursor, Receipt};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
-    State, StatusCode, body::to_bytes, header,
+    State, StatusCode,
+    body::to_bytes,
+    header,
     routing::{get, post},
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{
-    collections::BTreeMap,
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 const BODY_LIMIT: usize = 192_000;
 const DEFAULT_PAGE: usize = 50;
@@ -185,10 +182,7 @@ fn request_invalid() -> BusinessError {
     )
 }
 
-fn unique_header(
-    headers: &HeaderMap,
-    name: HeaderName,
-) -> Result<Option<&str>, BusinessError> {
+fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
     let first = values.next();
     if values.next().is_some() {
@@ -256,7 +250,9 @@ pub fn handbook_router(targets: Vec<HandbookHttpTarget>) -> Result<Router, Busin
             "/api/v1/holdings/{holding_slug}/handbook/{record_id}/actions",
             post(article_action),
         )
-        .with_state(Arc::new(HandbookHttpState { targets: configured })))
+        .with_state(Arc::new(HandbookHttpState {
+            targets: configured,
+        })))
 }
 
 fn status(kind: FailureKind) -> StatusCode {
@@ -484,26 +480,25 @@ async fn prepare_command(
 ) -> Result<PreparedCommand, BusinessError> {
     let target = target(&state, request.headers(), &slug)?.clone();
     check_origin(&target, request.headers())?;
-    let key = unique_header(request.headers(), HeaderName::from_static("idempotency-key"))?
-        .filter(|value| key_valid(value))
-        .ok_or_else(|| {
-            BusinessError::invalid(
-                "COMMAND_KEY_REQUIRED",
-                "A valid Idempotency-Key is required.",
-            )
-        })?;
+    let key = unique_header(
+        request.headers(),
+        HeaderName::from_static("idempotency-key"),
+    )?
+    .filter(|value| key_valid(value))
+    .ok_or_else(|| {
+        BusinessError::invalid(
+            "COMMAND_KEY_REQUIRED",
+            "A valid Idempotency-Key is required.",
+        )
+    })?;
     let key = CommandKey::new(key)?;
     let body = to_bytes(request.into_body(), BODY_LIMIT)
         .await
         .map_err(|_| {
-            BusinessError::invalid(
-                "INPUT_TOO_LARGE",
-                "Shorten the content before saving.",
-            )
+            BusinessError::invalid("INPUT_TOO_LARGE", "Shorten the content before saving.")
         })?;
-    let raw: Value = serde_json::from_slice(&body).map_err(|_| {
-        BusinessError::invalid("INVALID_JSON", "Provide a valid handbook command.")
-    })?;
+    let raw: Value = serde_json::from_slice(&body)
+        .map_err(|_| BusinessError::invalid("INVALID_JSON", "Provide a valid handbook command."))?;
     let decoded = decode_handbook_command(&operation, id.as_deref(), &raw)?;
     Ok(PreparedCommand {
         target,
@@ -513,10 +508,7 @@ async fn prepare_command(
     })
 }
 
-async fn execute_command(
-    prepared: PreparedCommand,
-    headers: HeaderMap,
-) -> Response {
+async fn execute_command(prepared: PreparedCommand, headers: HeaderMap) -> Response {
     let PreparedCommand {
         target,
         change,
@@ -672,7 +664,6 @@ async fn set_editor(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -725,39 +716,35 @@ mod tests {
                             has_more: true,
                         })))
                     }
-                    HandbookReadKind::Article { id, .. } => {
-                        Ok(HandbookHttpReadReply::Article(Box::new(
-                            HandbookDetailData {
-                                access: json!({"editor": true}),
-                                article: HandbookArticleSummary {
-                                    id,
-                                    version: 2,
-                                    draft_revision: Some(2),
-                                    published_revision: Some(1),
-                                    archived: 0,
-                                },
-                                revision: HandbookRevisionRow {
-                                    revision: 2,
-                                    title: "Policy".into(),
-                                    category: "policy".into(),
-                                    body: "Body".into(),
-                                    created_by: "editor".into(),
-                                    created_at: 1,
-                                    published_by: None,
-                                    published_at: None,
-                                },
-                                history: vec![],
+                    HandbookReadKind::Article { id, .. } => Ok(HandbookHttpReadReply::Article(
+                        Box::new(HandbookDetailData {
+                            access: json!({"editor": true}),
+                            article: HandbookArticleSummary {
+                                id,
+                                version: 2,
+                                draft_revision: Some(2),
+                                published_revision: Some(1),
+                                archived: 0,
                             },
-                        )))
-                    }
-                    HandbookReadKind::Editors => {
-                        Ok(HandbookHttpReadReply::Editors(Box::new(
-                            HandbookEditorsData {
-                                version: 0,
-                                editors: vec![],
+                            revision: HandbookRevisionRow {
+                                revision: 2,
+                                title: "Policy".into(),
+                                category: "policy".into(),
+                                body: "Body".into(),
+                                created_by: "editor".into(),
+                                created_at: 1,
+                                published_by: None,
+                                published_at: None,
                             },
-                        )))
-                    }
+                            history: vec![],
+                        }),
+                    )),
+                    HandbookReadKind::Editors => Ok(HandbookHttpReadReply::Editors(Box::new(
+                        HandbookEditorsData {
+                            version: 0,
+                            editors: vec![],
+                        },
+                    ))),
                 }
             })
         }
@@ -796,10 +783,7 @@ mod tests {
 
     fn state(target: HandbookHttpTarget) -> Arc<HandbookHttpState> {
         Arc::new(HandbookHttpState {
-            targets: BTreeMap::from([(
-                (target.host.clone(), target.holding_slug.clone()),
-                target,
-            )]),
+            targets: BTreeMap::from([((target.host.clone(), target.holding_slug.clone()), target)]),
         })
     }
 
@@ -850,9 +834,7 @@ mod tests {
         let mut target = make_target(backend.clone());
         target.origin = "https://other.example.test".into();
         assert!(handbook_router(vec![target]).is_err());
-        assert!(
-            handbook_router(vec![make_target(backend.clone()), make_target(backend)]).is_err()
-        );
+        assert!(handbook_router(vec![make_target(backend.clone()), make_target(backend)]).is_err());
         assert!(handbook_router(vec![make_target(Arc::new(FakeBackend::default()))]).is_ok());
     }
 
@@ -885,7 +867,9 @@ mod tests {
         .await;
         assert_eq!(body(response).await.0, StatusCode::NOT_FOUND);
         let mut wrong = get();
-        wrong.headers_mut().insert("host", HeaderValue::from_static("other.test"));
+        wrong
+            .headers_mut()
+            .insert("host", HeaderValue::from_static("other.test"));
         let response = read_editors(State(state), Path("acme".into()), wrong).await;
         assert_eq!(body(response).await.0, StatusCode::NOT_FOUND);
     }
@@ -923,7 +907,11 @@ mod tests {
         let payload = r#"{"title":" Policy ","body":"Body"}"#;
         for request in [
             post(payload, None, Some("handbook-key-0001")),
-            post(payload, Some("https://evil.test"), Some("handbook-key-0001")),
+            post(
+                payload,
+                Some("https://evil.test"),
+                Some("handbook-key-0001"),
+            ),
             post(payload, Some("https://acme.example.test"), None),
             post(payload, Some("https://acme.example.test"), Some("short")),
         ] {
@@ -937,7 +925,11 @@ mod tests {
         let response = create_article(
             State(state),
             Path("acme".into()),
-            post(payload, Some("https://acme.example.test"), Some("handbook-key-0001")),
+            post(
+                payload,
+                Some("https://acme.example.test"),
+                Some("handbook-key-0001"),
+            ),
         )
         .await;
         let (status, value) = body(response).await;

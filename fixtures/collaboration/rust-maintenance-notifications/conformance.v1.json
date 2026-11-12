@@ -2,15 +2,20 @@
   "version": 1,
   "revision": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "node": "v26.11.1",
-  "description": "Actual B0 notification SQL only; no owner permission, PostgreSQL trigger, or release acceptance.",
+  "description": "Retained B0 staff_notifications row images for native Maintenance notification derivation. The TypeScript writer is retired: sql/parameters below are historical B0 statement text produced by that deleted module and are no longer executable from a retained source.",
   "sources": [
-    {
-      "path": "packages/server-collaboration/src/adapters/maintenance-notifications.ts",
-      "sha256": "ed8ee0a2b1907489fa68e7f4e50595e3fa67869ad594e1380617d692ef654978"
-    },
     {
       "path": "packages/server-maintenance/src/adapters/collaboration-notification-snapshot-sources.ts",
       "sha256": "a55503467a1a39e2679e7270a0ffbe96f6b1a351cfe5e130c1867bb2333d0ea1"
+    }
+  ],
+  "retiredSources": [
+    {
+      "path": "packages/server-collaboration/src/adapters/maintenance-notifications.ts",
+      "sha256": "ed8ee0a2b1907489fa68e7f4e50595e3fa67869ad594e1380617d692ef654978",
+      "replacedBy": "packages/server-collaboration/src/adapters/maintenance_notifications.rs",
+      "removalTaskId": "retire-ts-maintenance-notification-writer",
+      "removalCondition": "native prepare_maintenance_notification/RetainedMaintenanceNotification images own the staff_notifications insert and Inbox images (met)"
     }
   ],
   "cases": [

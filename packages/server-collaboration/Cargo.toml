@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/collaboration/rust-maintenance-notifications", "../../scripts/testing/fixtures/generate-collaboration-notifications-oracle.ts", "src/adapters/maintenance-notifications.ts", "../server-maintenance/src/adapters/collaboration-notification-snapshot-sources.ts"]
+verification-roots = ["../../fixtures/collaboration/rust-maintenance-notifications", "../../scripts/testing/fixtures/generate-collaboration-notifications-oracle.ts", "../server-maintenance/src/adapters/collaboration-notification-snapshot-sources.ts"]
 
 [features]
 push-provider = ["dep:ring", "dep:base64", "dep:url", "dep:reqwest", "dep:rustls", "dep:webpki-roots"]
