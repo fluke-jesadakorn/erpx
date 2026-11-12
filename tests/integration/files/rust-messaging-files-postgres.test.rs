@@ -6,13 +6,22 @@ mod fixture;
 use erpx_server_collaboration::public::messaging_http::{
     MessagingFilesBindRequest, MessagingFilesContentRequest, MessagingFilesPort,
 };
+use erpx_server_collaboration::public::messaging_file_discard::{
+    DiscardReceipt, MessagingFileDiscardFuture, MessagingFileDiscardPort,
+    MessagingFileWithdrawRequest, discard_file,
+};
+use erpx_server_collaboration::public::messaging_native::MessagingActor;
+use erpx_server_files::public::attachment_command::{
+    AttachmentWithdrawAuthority, WithdrawAttachmentRequest, WithdrawTarget, withdraw_attachment,
+};
 use erpx_server_files::public::canonical_original::OriginalByteStore;
 use erpx_server_files::public::messaging_files::{
     MessagingFilesActor, MessagingFilesAudience, MessagingFilesFuture, PgMessagingFiles,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{
-    DatabasePool, MigrationTrack, load_migrations, migrate_database,
+    DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
+    load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, TimestampMillis};
 use sqlx::PgConnection;
@@ -339,6 +348,283 @@ async fn content_requires_current_membership_and_a_clean_bound_link() {
             .await
             .unwrap_err();
         assert_eq!(error.code, "MESSAGING_FILE_NOT_FOUND");
+    })
+    .await;
+}
+
+struct TestWithdrawAuthority {
+    company: CompanyId,
+}
+
+impl AttachmentWithdrawAuthority for TestWithdrawAuthority {
+    fn authorize_withdraw<'c>(
+        &'c self,
+        _connection: &'c mut PgConnection,
+        target: &'c WithdrawTarget<'c>,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            if target.company_id != self.company.as_str()
+                || target.target_type != "messaging_room"
+            {
+                return Err(PgTransactionError::Business(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "ATTACHMENT_FORBIDDEN",
+                    "Synthetic authority denied the withdraw.",
+                )));
+            }
+            Ok(())
+        })
+    }
+}
+
+struct TestDiscardPort {
+    authority: TestWithdrawAuthority,
+}
+
+impl MessagingFileDiscardPort for TestDiscardPort {
+    fn withdraw<'a>(
+        &'a self,
+        connection: &'a mut PgConnection,
+        request: MessagingFileWithdrawRequest<'a>,
+    ) -> MessagingFileDiscardFuture<'a, ()> {
+        Box::pin(async move {
+            withdraw_attachment(
+                connection,
+                &self.authority,
+                WithdrawAttachmentRequest {
+                    actor_id: request.actor_id,
+                    company_id: request.company_id,
+                    link_id: request.link_id,
+                    reason: request.reason,
+                    command_key: request.command_key,
+                    now: request.now,
+                },
+            )
+            .await
+            .map(|_| ())
+            .map_err(|error| match error {
+                PgTransactionError::Business(error) => error,
+                PgTransactionError::Persistence(_) => BusinessError::new(
+                    FailureKind::Unavailable,
+                    "FILES_UNAVAILABLE",
+                    "The Files owner transaction is unavailable.",
+                ),
+            })
+        })
+    }
+}
+
+fn discard_actor(user: &str) -> MessagingActor {
+    MessagingActor {
+        user_id: user.into(),
+        display_name: user.into(),
+        company_id: "company".into(),
+    }
+}
+
+fn discard_code(error: PgTransactionError<BusinessError>) -> String {
+    match error {
+        PgTransactionError::Business(error) => error.code.to_owned(),
+        PgTransactionError::Persistence(_) => "PERSISTENCE".into(),
+    }
+}
+
+async fn discard(
+    pool: &DatabasePool,
+    actor: &MessagingActor,
+    file_id: &str,
+    reason: &str,
+    key: &str,
+) -> Result<DiscardReceipt, PgTransactionError<BusinessError>> {
+    let unit = PgUnitOfWork::new(pool.clone());
+    let port = TestDiscardPort {
+        authority: TestWithdrawAuthority {
+            company: company(),
+        },
+    };
+    let actor = actor.clone();
+    let file_id = file_id.to_owned();
+    let reason = reason.to_owned();
+    let key = key.to_owned();
+    unit.run_once(TransactionOptions::default(), move |connection| {
+        Box::pin(async move {
+            discard_file(
+                connection,
+                &actor,
+                "assignment-1",
+                &key,
+                &file_id,
+                &reason,
+                NOW,
+                &port,
+            )
+            .await
+        })
+    })
+    .await
+}
+
+#[tokio::test]
+async fn discards_an_unsent_message_file_with_the_owner_receipt_and_files_audit() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let actor = discard_actor("owner");
+        let receipt = discard(
+            &pool,
+            &actor,
+            "file-1",
+            "Unsent duplicate evidence",
+            "messaging-discard-0001",
+        )
+        .await
+        .unwrap();
+        assert_eq!(receipt.id, "file-1");
+        assert_eq!(receipt.state, "withdrawn");
+
+        let link: (String, Option<String>, Option<String>) = sqlx::query_as(
+            "SELECT state,withdrawn_by,withdrawal_reason FROM attachment_links WHERE id='link-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            link,
+            (
+                "withdrawn".into(),
+                Some("owner".into()),
+                Some("Unsent duplicate evidence".into())
+            )
+        );
+        let events: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM attachment_events WHERE link_id='link-1' \
+             AND action='link.withdrawn' AND actor_id='owner'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(events, 1);
+        let (operation, record_id, result): (String, String, String) = sqlx::query_as(
+            "SELECT operation,record_id,result_json FROM command_receipts \
+             WHERE command_id='messaging-discard-0001'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(operation, "messaging.file-discard");
+        assert_eq!(record_id, "room-1");
+        assert_eq!(result, r#"{"id":"file-1","state":"withdrawn"}"#);
+        let audit: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='messaging-discard-0001' \
+             AND action='messaging.file-discard' AND assignment_id='assignment-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(audit, 1);
+        let outbox: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM outbox_events WHERE command_id='messaging-discard-0001' \
+             AND event_type='messaging.file-discard'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(outbox, 1);
+        let retained: String =
+            sqlx::query_scalar("SELECT attachment_link_id FROM messaging_files WHERE id='file-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(retained, "link-1");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn replays_the_identical_receipt_and_rejects_a_changed_payload() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let actor = discard_actor("owner");
+        let reason = "Unsent duplicate evidence";
+        let first = discard(&pool, &actor, "file-1", reason, "messaging-discard-0002")
+            .await
+            .unwrap();
+        let replay = discard(&pool, &actor, "file-1", reason, "messaging-discard-0002")
+            .await
+            .unwrap();
+        assert_eq!(first, replay);
+        let events: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM attachment_events WHERE link_id='link-1' \
+             AND action='link.withdrawn'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(events, 1);
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id='messaging-discard-0002'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 1);
+
+        let error = discard(
+            &pool,
+            &actor,
+            "file-1",
+            "A different discard reason",
+            "messaging-discard-0002",
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(discard_code(error), "IDEMPOTENCY_CONFLICT");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn requires_current_room_membership_and_an_unbound_own_file() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let stranger = discard_actor("stranger");
+        let error = discard(
+            &pool,
+            &stranger,
+            "file-1",
+            "Unsent duplicate evidence",
+            "messaging-discard-0003",
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(discard_code(error), "MESSAGING_ROOM_FORBIDDEN");
+        let state: String =
+            sqlx::query_scalar("SELECT state FROM attachment_links WHERE id='link-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(state, "draft");
+
+        sqlx::query("UPDATE messaging_files SET message_id='message-1' WHERE id='file-1'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let owner = discard_actor("owner");
+        let error = discard(
+            &pool,
+            &owner,
+            "file-1",
+            "Unsent duplicate evidence",
+            "messaging-discard-0004",
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(discard_code(error), "MESSAGE_FILE_ALREADY_BOUND");
+        let state: String =
+            sqlx::query_scalar("SELECT state FROM attachment_links WHERE id='link-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(state, "draft");
     })
     .await;
 }

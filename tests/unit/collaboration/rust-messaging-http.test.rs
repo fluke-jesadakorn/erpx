@@ -2,14 +2,14 @@
 //! and the fail-closed Files port.
 use erpx_server_collaboration::public::messaging_http::{
     FileQuery, HistoryQuery, MessagingAttachmentKind, MessagingAttachmentReply,
-    MessagingChannelsData, MessagingFileBinding, MessagingFileContent, MessagingFilesBindRequest,
-    MessagingFilesContentRequest, MessagingFilesPort, MessagingHistoryData,
-    MessagingHttpAttachmentRequest, MessagingHttpBackend, MessagingHttpCommand,
-    MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
+    MessagingChannelsData, MessagingFileBinding, MessagingFileContent, MessagingFileDiscardReceipt,
+    MessagingFileDiscardRequest, MessagingFilesBindRequest, MessagingFilesContentRequest,
+    MessagingFilesPort, MessagingHistoryData, MessagingHttpAttachmentRequest, MessagingHttpBackend,
+    MessagingHttpCommand, MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
     MessagingHttpReadRequest, MessagingHttpReceipt, MessagingHttpState, MessagingHttpTarget,
     MessagingMembersData, MessagingOverviewData, MessagingReadKind, bind_attachment,
-    create_channel, create_room, create_team, read_file, read_history, read_overview,
-    read_team_members, send_message,
+    create_channel, create_room, create_team, discard_file, read_file, read_history,
+    read_overview, read_team_members, send_message,
 };
 use erpx_server_collaboration::public::messaging_native::{
     MessageRow, Receipt as RoomReceipt, RoomView,
@@ -182,6 +182,23 @@ impl MessagingHttpBackend for Probe {
             }
         }
     }
+
+    fn discard<'a>(
+        &'a self,
+        request: MessagingFileDiscardRequest<'a>,
+    ) -> MessagingHttpFuture<'a, MessagingFileDiscardReceipt> {
+        let file_id = request.file_id.to_owned();
+        self.attachments
+            .lock()
+            .unwrap()
+            .push(format!("discard|{file_id}|{}", request.reason));
+        Box::pin(async move {
+            Ok(MessagingFileDiscardReceipt {
+                id: file_id,
+                state: "withdrawn",
+            })
+        })
+    }
 }
 
 struct Files;
@@ -346,6 +363,53 @@ async fn room_team_and_channel_commands_keep_origin_and_key_rules() {
             "team|acme.example.test|acme",
             "team|acme.example.test|acme"
         ]
+    );
+}
+
+#[tokio::test]
+async fn file_discard_keeps_origin_key_and_reason_rules() {
+    let probe = Arc::new(Probe::default());
+    let state = state(probe.clone(), false);
+
+    let mut no_origin = request(
+        "POST",
+        r#"{"reason":"Unsent duplicate"}"#,
+        true,
+    );
+    no_origin.headers_mut().remove("origin");
+    let response = discard_file(
+        State(state.clone()),
+        Path(("acme".into(), "file-1".into())),
+        no_origin,
+    )
+    .await;
+    let (status, value) = reply(response).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(value["error"]["code"], "ORIGIN_FORBIDDEN");
+
+    let response = discard_file(
+        State(state.clone()),
+        Path(("acme".into(), "file-1".into())),
+        request("POST", r#"{"reason":""}"#, true),
+    )
+    .await;
+    let (status, value) = reply(response).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(value["error"]["code"], "MESSAGE_FILE_DISCARD_REASON_REQUIRED");
+
+    let response = discard_file(
+        State(state),
+        Path(("acme".into(), "file-1".into())),
+        request("POST", r#"{"reason":"Unsent duplicate"}"#, true),
+    )
+    .await;
+    let (status, value) = reply(response).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(value["data"]["id"], "file-1");
+    assert_eq!(value["data"]["state"], "withdrawn");
+    assert_eq!(
+        probe.attachments.lock().unwrap().as_slice(),
+        ["discard|file-1|Unsent duplicate"]
     );
 }
 
