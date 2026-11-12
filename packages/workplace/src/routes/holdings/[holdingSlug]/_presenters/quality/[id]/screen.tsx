@@ -12,9 +12,10 @@ import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
-import { qualityDetail } from "@erpx/server-quality/public/quality";
 import { QualityCancellationHistory } from "@erpx/feature-quality/components/quality-cancellation-history";
-import { nativeQualityAvailable, nativeQualityCancellationHistory, nativeQualityDetailCore } from "@erpx/feature-quality/public/native-quality";
+import { nativeQualityCancellationHistory, nativeQualityDetailCore, type NativeQualityDetailCore } from "@erpx/feature-quality/public/native-quality";
+import { holdingResources } from "@erpx/server-runtime/public/runtime";
+import { qualityEvidenceDescriptors } from "@erpx/server-files/public/quality-evidence-descriptors";
 import { accessPage } from "@erpx/server-work_projection/public/page-error";
 import styles from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/quality/[id]/quality-detail.module.css";
 
@@ -40,46 +41,37 @@ export default async function Page({
   const { holdingSlug, id } = await params;
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
-  let data: Awaited<ReturnType<typeof qualityDetail>>;
+  let data: NativeQualityDetailCore;
   let alerts: Awaited<ReturnType<typeof qualityAlerts>>;
+  let attachments: Awaited<ReturnType<typeof qualityEvidenceDescriptors>>["results"];
   let cancellationHistory:
     | Awaited<ReturnType<typeof nativeQualityCancellationHistory>>
     | undefined;
 
   try {
-    data = await qualityDetail(actor, id);
+    const native = await nativeQualityDetailCore(holdingSlug, id);
+    if (!native)
+      throw new ApiError(
+        503,
+        "NATIVE_QUALITY_UNAVAILABLE",
+        "The native Quality service is unavailable.",
+      );
+    cancellationHistory = await nativeQualityCancellationHistory(holdingSlug, id);
+    if (!cancellationHistory)
+      throw new ApiError(
+        503,
+        "NATIVE_QUALITY_UNAVAILABLE",
+        "The native Quality service is unavailable.",
+      );
+    data = native;
+    attachments = (
+      await qualityEvidenceDescriptors(
+        (await holdingResources(actor.holdingId)).write,
+        actor,
+        id,
+      )
+    ).results;
     alerts = (await qualityAlerts(actor)).filter((alert) => alert.hold_id === id);
-    if (nativeQualityAvailable()) {
-      const native = await nativeQualityDetailCore(holdingSlug, id);
-      if (!native)
-        throw new ApiError(
-          503,
-          "NATIVE_QUALITY_UNAVAILABLE",
-          "The native Quality service is unavailable.",
-        );
-      cancellationHistory = await nativeQualityCancellationHistory(holdingSlug, id);
-      if (!cancellationHistory)
-        throw new ApiError(
-          503,
-          "NATIVE_QUALITY_UNAVAILABLE",
-          "The native Quality service is unavailable.",
-        );
-      data = {
-        ...data,
-        cancellations: [],
-        canInspect: native.hold.decision.canInspect,
-        canRelease: native.hold.decision.canRelease,
-        canCancel: native.hold.decision.canCancel,
-        canReviewCancellation: native.hold.decision.canReviewCancellation,
-        canDisposition: native.hold.decision.canDisposition,
-        hold: {
-          ...data.hold,
-          version: native.hold.version,
-          status: native.hold.status,
-          last_result: native.hold.lastResult,
-        },
-      };
-    }
   } catch (error) {
     if (error instanceof ApiError && error.status === 403) {
       return accessPage("permission", actor.holdingSlug);
@@ -105,18 +97,18 @@ export default async function Page({
   const status = String(hold.status);
   const complete = ["released", "cancelled", "disposed"].includes(status);
   const blockedReason =
-    !complete && status !== "disposition_pending" && !Number(hold.eligible_count)
+    !complete && status !== "disposition_pending" && !Number(hold.eligibleCount)
       ? "No eligible independent recipient. The Company administrator must assign quality authority."
       : null;
-  const nextAction = data.canDisposition
+  const nextAction = hold.decision.canDisposition
     ? "Request controlled scrap disposal"
-    : data.canRelease
+    : hold.decision.canRelease
       ? "Approve release of the passing inspection"
-      : data.canReviewCancellation
+      : hold.decision.canReviewCancellation
         ? "Review cancellation of the incorrect hold"
-        : data.canInspect
+        : hold.decision.canInspect
           ? "Record an independent inspection"
-          : data.canCancel
+          : hold.decision.canCancel
             ? "Request cancellation of the incorrect hold"
             : complete
               ? "Review the recorded outcome"
@@ -127,20 +119,20 @@ export default async function Page({
     ? "Completed"
     : status === "disposition_pending"
       ? "Company Finance"
-      : status === "held" && hold.last_result === "fail"
+      : status === "held" && hold.lastResult === "fail"
         ? "Independent Quality manager"
         : status === "held"
           ? "Quality inspector"
           : "Independent Quality manager";
-  const quantity = (Number(hold.held_quantity_milli ?? 0) / 1000).toLocaleString(
+  const quantity = (Number(hold.heldQuantityMilli ?? 0) / 1000).toLocaleString(
     "en-GB",
     { maximumFractionDigits: 3 },
   );
-  const unit = String(hold.product_unit ?? "");
-  const scope = hold.serial_number
-    ? `Serial ${String(hold.serial_number)}`
-    : hold.lot_code
-      ? `Lot ${String(hold.lot_code)}`
+  const unit = String(hold.productUnit ?? "");
+  const scope = hold.serialNumber
+    ? `Serial ${String(hold.serialNumber)}`
+    : hold.lotCode
+      ? `Lot ${String(hold.lotCode)}`
       : "Entire product";
 
   const purchase=await qualityPurchaseControls(actor,id);
@@ -153,10 +145,10 @@ export default async function Page({
       <header className={styles.pageHeader}>
         <div>
           <p className={styles.eyebrow}>Quality hold</p>
-          <h1>{String(hold.product_name)}</h1>
+          <h1>{String(hold.productName)}</h1>
           <p className={styles.headerMeta}>
-            {String(hold.warehouse_name)} <span aria-hidden="true">·</span> Due{" "}
-            {formatDate(String(hold.due_date))}
+            {String(hold.warehouseName)} <span aria-hidden="true">·</span> Due{" "}
+            {formatDate(String(hold.dueDate))}
           </p>
         </div>
         <StatusBadge appearance="standard" status={status} />
@@ -173,7 +165,7 @@ export default async function Page({
             <dl className={styles.facts}>
               <div>
                 <dt>Warehouse</dt>
-                <dd>{String(hold.warehouse_name)}</dd>
+                <dd>{String(hold.warehouseName)}</dd>
               </div>
               <div>
                 <dt>Held quantity</dt>
@@ -185,12 +177,12 @@ export default async function Page({
               </div>
               <div>
                 <dt>Review due</dt>
-                <dd>{formatDate(String(hold.due_date))}</dd>
+                <dd>{formatDate(String(hold.dueDate))}</dd>
               </div>
-              {hold.expiry_date && (
+              {hold.expiryDate && (
                 <div>
                   <dt>Stock expiry</dt>
-                  <dd>{formatDate(String(hold.expiry_date))}</dd>
+                  <dd>{formatDate(String(hold.expiryDate))}</dd>
                 </div>
               )}
             </dl>
@@ -201,28 +193,28 @@ export default async function Page({
             </div>
 
             <div className={styles.recordMeta}>
-              <span>Created by {String(hold.created_by)}</span>
-              {hold.spec_id && (
+              <span>Created by {String(hold.createdBy)}</span>
+              {hold.specId && (
                 <span>
-                  Specification {String(hold.spec_id)} · version {String(hold.spec_version)}
+                  Specification {String(hold.specId)} · version {String(hold.specVersion)}
                 </span>
               )}
             </div>
 
             {status === "cancelled" && (
               <p className={styles.outcome}>
-                Cancelled by {String(hold.cancelled_by)} after independent review. This is
+                Cancelled by {String(hold.cancelledBy)} after independent review. This is
                 not a passing inspection.
               </p>
             )}
             {status === "released" && (
               <p className={styles.outcome}>
-                Released by {String(hold.released_by)}: {String(hold.release_reason)}
+                Released by {String(hold.releasedBy)}: {String(hold.releaseReason)}
               </p>
             )}
             {status === "disposed" && (
               <p className={styles.outcome}>
-                Disposed by {String(hold.disposed_by)} through the linked inventory and
+                Disposed by {String(hold.disposedBy)} through the linked inventory and
                 accounting adjustment.
               </p>
             )}
@@ -242,11 +234,11 @@ export default async function Page({
             {data.inspections.length ? (
               <div className={styles.inspections}>
                 {data.inspections.map((inspection) => {
-                  const createdAt = Number(inspection.created_at);
+                  const createdAt = Number(inspection.createdAt);
                   const measurements = data.measurements.filter(
-                    (measurement) => measurement.inspection_id === inspection.id,
+                    (measurement) => measurement.inspectionId === inspection.id,
                   );
-                  const attachments = data.attachments.filter(
+                  const inspectionAttachments = attachments.filter(
                     (attachment) => attachment.inspection_id === inspection.id,
                   );
 
@@ -255,7 +247,7 @@ export default async function Page({
                       <header className={styles.inspectionHeader}>
                         <div>
                           <StatusBadge appearance="standard" status={String(inspection.result)} />
-                          <span>Recorded by {String(inspection.inspected_by)}</span>
+                          <span>Recorded by {String(inspection.inspectedBy)}</span>
                         </div>
                         {Number.isFinite(createdAt) ? <TimeText appearance="standard" value={createdAt} /> : "Time unavailable"}
                       </header>
@@ -269,12 +261,12 @@ export default async function Page({
                               <dt>{String(measurement.label)}</dt>
                               <dd>
                                 <strong>
-                                  {String(measurement.measured_value)} {String(measurement.unit)}
+                                  {String(measurement.measuredValue)} {String(measurement.unit)}
                                 </strong>
                                 <span>
-                                  Accepted {measurement.minimum_value ?? "–"} to{" "}
-                                  {measurement.maximum_value ?? "–"} ·{" "}
-                                  {Number(measurement.passed) ? "Pass" : "Fail"}
+                                  Accepted {measurement.minimum ?? "–"} to{" "}
+                                  {measurement.maximum ?? "–"} ·{" "}
+                                  {measurement.passed ? "Pass" : "Fail"}
                                 </span>
                               </dd>
                             </div>
@@ -282,9 +274,9 @@ export default async function Page({
                         </dl>
                       )}
 
-                      {attachments.length > 0 && (
+                      {inspectionAttachments.length > 0 && (
                         <ul className={styles.attachments}>
-                          {attachments.map((attachment) => (
+                          {inspectionAttachments.map((attachment) => (
                             <li key={String(attachment.id)}>
                               <Link href={`/api/v1${base}/attachments/${attachment.id}/content`}>
                                 Evidence file · {String(attachment.original_name)}
@@ -299,7 +291,7 @@ export default async function Page({
                       )}
 
                       <p className={styles.reviewedVersion}>
-                        Reviewed hold version {String(inspection.reviewed_version)}
+                        Reviewed hold version {String(inspection.reviewedVersion)}
                       </p>
                     </article>
                   );
@@ -348,7 +340,7 @@ export default async function Page({
               actionKind: "work",
             }}
           >
-            <p className="muted">Review due {formatDate(String(hold.due_date))}</p>
+            <p className="muted">Review due {formatDate(String(hold.dueDate))}</p>
           </OperationSummary>
           <QualityConsole base={base} detail={data} alerts={alerts} />
         </aside>

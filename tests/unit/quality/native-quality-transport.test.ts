@@ -22,12 +22,28 @@ const incoming=(overrides:Record<string,string>={})=>new Headers({
 });
 const decision={canInspect:false,canRelease:true,canCancel:false,canReviewCancellation:false,canDisposition:false};
 const hold={
-  id:'hold-a',version:2,status:'awaiting_release',lastResult:'pass',lastInspector:'inspector',
-  createdBy:'maker',dueDate:'2026-11-10',reason:'Damaged packaging requires independent review',
-  warehouseId:'warehouse',productId:'product',lotId:null,heldQuantityMilli:null,inspectionCount:1,
-  decision,nextAction:'Approve release of the passing inspection',
+  id:'hold-a',companyId:'company',branchId:'branch',warehouseId:'warehouse',productId:'product',lotId:'lot-1',
+  reason:'Damaged packaging requires independent review',dueDate:'2026-11-10',status:'awaiting_release',
+  createdBy:'maker',lastInspector:'inspector',lastResult:'pass',releasedBy:null,releaseReason:null,releasedAt:null,
+  version:2,createdAt:1,updatedAt:2,specId:'spec-1',specVersion:2,quantityScope:'partial',heldQuantityMilli:1000,
+  sourceType:'goods_receipt',sourceId:'receipt-1',cancelRequestedBy:null,cancelReason:null,cancelledBy:null,
+  cancelledAt:null,dispositionKind:null,dispositionReason:null,dispositionRequestedBy:null,dispositionCountId:null,
+  dispositionQuantityMilli:null,disposedBy:null,disposedAt:null,inspectionCount:1,productName:'Packaged goods',
+  productUnit:'carton',trackingMode:'lot',warehouseName:'Main warehouse',lotCode:'LOT-1',serialNumber:null,
+  expiryDate:'2027-01-01',eligibleCount:2,decision,nextAction:'Approve release of the passing inspection',
 };
-const workspace={holds:[hold],canHold:true,canManageSpecs:true};
+const stock={warehouseId:'warehouse',productId:'product',quantityMilli:2000,version:4,
+  productName:'Packaged goods',trackingMode:'lot',warehouseName:'Main warehouse'};
+const lot={id:'lot-1',warehouseId:'warehouse',productId:'product',quantityMilli:1000,balanceVersion:3,
+  productName:'Packaged goods',warehouseName:'Main warehouse',trackingMode:'lot',lotCode:'LOT-1',
+  serialNumber:null,expiryDate:'2027-01-01',qualityHeld:false};
+const product={id:'product',sku:'SKU-1',name:'Packaged goods'};
+const specification={id:'spec-1',productId:'product',name:'Receiving limits',status:'active',version:2,
+  sku:'SKU-1',productName:'Packaged goods'};
+const metric={id:'metric-weight',specId:'spec-1',code:'weight',label:'Weight',unit:'kg',minimum:'9.9',
+  maximum:'10.1',ordinal:0};
+const workspace={holds:[hold],stock:[stock],lots:[lot],products:[product],specifications:[specification],
+  specMetrics:[metric],canHold:true,canManageSpecs:true};
 const detail={
   hold,inspections:[{id:'inspection-1',holdId:'hold-a',reviewedVersion:1,result:'pass',
     evidence:'Independent inspection evidence',inspectedBy:'inspector',createdAt:1,specId:null,specVersion:null}],
@@ -36,7 +52,7 @@ const detail={
     passed:true,ordinal:0}],
   cancellations:[{id:'cancel-1',holdId:'hold-a',version:1,action:'request',
     reason:'Mistaken scope',actorId:'maker',createdAt:0}],
-  dispositions:[],specMetrics:[],alerts:[],
+  dispositions:[],specMetrics:[metric],alerts:[],
 };
 const receipt={id:'hold-a',holdId:'hold-a',cancellationId:'quality-cancel-http',status:'cancel_pending',version:2};
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
@@ -98,7 +114,18 @@ describe('native Quality transport',()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:workspace}));
   const client=createNativeQualityReader(config(),transport);
   const result=await client.workspace(incoming(),'acme');
-  expect(result.holds[0]).toMatchObject({id:'hold-a',status:'awaiting_release',decision:{canRelease:true}});
+  expect(result.holds[0]).toMatchObject({id:'hold-a',status:'awaiting_release',decision:{canRelease:true},
+    productName:'Packaged goods',warehouseName:'Main warehouse',trackingMode:'lot',lotCode:'LOT-1',
+    expiryDate:'2027-01-01',eligibleCount:2,specId:'spec-1',specVersion:2,
+    quantityScope:'partial',heldQuantityMilli:1000,sourceType:'goods_receipt'});
+  expect(result.stock[0]).toMatchObject({warehouseId:'warehouse',productId:'product',quantityMilli:2000,
+    version:4,warehouseName:'Main warehouse',trackingMode:'lot'});
+  expect(result.lots[0]).toMatchObject({id:'lot-1',balanceVersion:3,qualityHeld:false,lotCode:'LOT-1'});
+  expect(result.products[0]).toEqual({id:'product',sku:'SKU-1',name:'Packaged goods'});
+  expect(result.specifications[0]).toMatchObject({id:'spec-1',productId:'product',status:'active',
+    version:2,sku:'SKU-1',productName:'Packaged goods'});
+  expect(result.specMetrics[0]).toMatchObject({id:'metric-weight',specId:'spec-1',minimum:'9.9',maximum:'10.1'});
+  expect(result.canHold).toBe(true);expect(result.canManageSpecs).toBe(true);
   const [method,url,headers,body]=transport.mock.calls[0];
   expect(method).toBe('GET');
   expect(url.toString()).toBe('http://127.0.0.1:44991/api/v1/holdings/acme/quality');

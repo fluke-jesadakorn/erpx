@@ -56,7 +56,7 @@ export async function qualitySourceRecordBackdrop(actor:WorkContext,target:Quali
  // These are original authenticated owner readers; no candidate assignment
  // is converted to a new acting context and only the summary crosses UI.
  if(target.kind==="hold"){
-  const {qualityDetail}=await import("@erpx/server-quality/public/quality"),{hold}=await qualityDetail(actor,target.id);
+  const {getQualityHold}=await import("@erpx/server-quality/public/quality"),hold=await getQualityHold(actor,target.id);
   if(strictScope){await strictSourceScope(database,actor,target,strictScope);if(!await qualityProductSourceEntry(database,strictScope,target))throw new ApiError(404,"QUALITY_SOURCE_NOT_FOUND","The original purchased Quality source is unavailable.");}
   return {kind:"hold",title:`Quality hold · ${String(hold.product_name)}`,description:String(hold.warehouse_name),status:String(hold.status)};
  }

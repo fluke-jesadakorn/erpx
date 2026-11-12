@@ -12,20 +12,94 @@ export type NativeQualityDecision = Readonly<{
 
 export type NativeQualityHold = Readonly<{
   id: string;
-  version: number;
-  status: string;
-  lastResult: 'pass' | 'fail' | null;
-  lastInspector: string | null;
-  createdBy: string;
-  dueDate: string;
-  reason: string;
+  companyId: string;
+  branchId: string;
   warehouseId: string;
   productId: string;
   lotId: string | null;
+  reason: string;
+  dueDate: string;
+  status: string;
+  createdBy: string;
+  lastInspector: string | null;
+  lastResult: 'pass' | 'fail' | null;
+  releasedBy: string | null;
+  releaseReason: string | null;
+  releasedAt: number | null;
+  version: number;
+  createdAt: number;
+  updatedAt: number;
+  specId: string | null;
+  specVersion: number | null;
+  quantityScope: string;
   heldQuantityMilli: number | null;
+  sourceType: string | null;
+  sourceId: string | null;
+  cancelRequestedBy: string | null;
+  cancelReason: string | null;
+  cancelledBy: string | null;
+  cancelledAt: number | null;
+  dispositionKind: string | null;
+  dispositionReason: string | null;
+  dispositionRequestedBy: string | null;
+  dispositionCountId: string | null;
+  dispositionQuantityMilli: number | null;
+  disposedBy: string | null;
+  disposedAt: number | null;
   inspectionCount: number;
+  productName: string;
+  productUnit: string;
+  trackingMode: string;
+  warehouseName: string;
+  lotCode: string | null;
+  serialNumber: string | null;
+  expiryDate: string | null;
+  eligibleCount: number;
   decision: NativeQualityDecision;
   nextAction: string;
+}>;
+
+/// One warehouse/product stock location offered by the workspace hold form.
+export type NativeQualityStock = Readonly<{
+  warehouseId: string;
+  productId: string;
+  quantityMilli: number;
+  version: number;
+  productName: string;
+  trackingMode: string;
+  warehouseName: string;
+}>;
+
+/// One tracked lot or serial balance offered by the workspace hold form.
+export type NativeQualityLot = Readonly<{
+  id: string;
+  warehouseId: string;
+  productId: string;
+  quantityMilli: number;
+  balanceVersion: number;
+  productName: string;
+  warehouseName: string;
+  trackingMode: string;
+  lotCode: string | null;
+  serialNumber: string | null;
+  expiryDate: string | null;
+  qualityHeld: boolean;
+}>;
+
+export type NativeQualityProduct = Readonly<{
+  id: string;
+  sku: string;
+  name: string;
+}>;
+
+export type NativeQualitySpecification = Readonly<{
+  id: string;
+  productId: string;
+  name: string;
+  status: string;
+  version: number;
+  sku: string;
+  productName: string;
 }>;
 
 export type NativeQualityInspection = Readonly<{
@@ -103,6 +177,7 @@ export type NativeQualityAlert = Readonly<{
 
 export type NativeQualityMetric = Readonly<{
   id: string;
+  specId: string | null;
   code: string;
   label: string;
   unit: string;
@@ -113,6 +188,11 @@ export type NativeQualityMetric = Readonly<{
 
 export type NativeQualityWorkspace = Readonly<{
   holds: readonly NativeQualityHold[];
+  stock: readonly NativeQualityStock[];
+  lots: readonly NativeQualityLot[];
+  products: readonly NativeQualityProduct[];
+  specifications: readonly NativeQualitySpecification[];
+  specMetrics: readonly NativeQualityMetric[];
   canHold: boolean;
   canManageSpecs: boolean;
 }>;
@@ -370,38 +450,193 @@ function hold(value: unknown): NativeQualityHold {
   if (
     !record(value) ||
     !identifier(value.id) ||
-    !safeInteger(value.version) ||
-    value.version < 1 ||
-    !text(value.status) ||
-    !optionalResult(value.lastResult) ||
-    !optionalText(value.lastInspector) ||
-    !text(value.createdBy) ||
-    !text(value.dueDate) ||
-    !text(value.reason) ||
+    !text(value.companyId) ||
+    !text(value.branchId) ||
     !text(value.warehouseId) ||
     !text(value.productId) ||
     !optionalText(value.lotId) ||
+    !text(value.reason) ||
+    !text(value.dueDate) ||
+    !text(value.status) ||
+    !text(value.createdBy) ||
+    !optionalText(value.lastInspector) ||
+    !optionalResult(value.lastResult) ||
+    !optionalText(value.releasedBy) ||
+    !optionalText(value.releaseReason) ||
+    !optionalInteger(value.releasedAt) ||
+    !safeInteger(value.version) ||
+    value.version < 1 ||
+    !safeInteger(value.createdAt) ||
+    !safeInteger(value.updatedAt) ||
+    !optionalText(value.specId) ||
+    !optionalInteger(value.specVersion) ||
+    !text(value.quantityScope) ||
     !optionalInteger(value.heldQuantityMilli) ||
+    !optionalText(value.sourceType) ||
+    !optionalText(value.sourceId) ||
+    !optionalText(value.cancelRequestedBy) ||
+    !optionalText(value.cancelReason) ||
+    !optionalText(value.cancelledBy) ||
+    !optionalInteger(value.cancelledAt) ||
+    !optionalText(value.dispositionKind) ||
+    !optionalText(value.dispositionReason) ||
+    !optionalText(value.dispositionRequestedBy) ||
+    !optionalText(value.dispositionCountId) ||
+    !optionalInteger(value.dispositionQuantityMilli) ||
+    !optionalText(value.disposedBy) ||
+    !optionalInteger(value.disposedAt) ||
     !safeInteger(value.inspectionCount) ||
+    !text(value.productName) ||
+    !text(value.productUnit) ||
+    !text(value.trackingMode) ||
+    !text(value.warehouseName) ||
+    !optionalText(value.lotCode) ||
+    !optionalText(value.serialNumber) ||
+    !optionalText(value.expiryDate) ||
+    !safeInteger(value.eligibleCount) ||
     !text(value.nextAction)
   )
     return fail('NATIVE_QUALITY_RESPONSE_INVALID');
   return {
     id: value.id,
-    version: value.version,
-    status: value.status,
-    lastResult: value.lastResult,
-    lastInspector: value.lastInspector,
-    createdBy: value.createdBy,
-    dueDate: value.dueDate,
-    reason: value.reason,
+    companyId: value.companyId,
+    branchId: value.branchId,
     warehouseId: value.warehouseId,
     productId: value.productId,
     lotId: value.lotId,
+    reason: value.reason,
+    dueDate: value.dueDate,
+    status: value.status,
+    createdBy: value.createdBy,
+    lastInspector: value.lastInspector,
+    lastResult: value.lastResult,
+    releasedBy: value.releasedBy,
+    releaseReason: value.releaseReason,
+    releasedAt: value.releasedAt,
+    version: value.version,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    specId: value.specId,
+    specVersion: value.specVersion,
+    quantityScope: value.quantityScope,
     heldQuantityMilli: value.heldQuantityMilli,
+    sourceType: value.sourceType,
+    sourceId: value.sourceId,
+    cancelRequestedBy: value.cancelRequestedBy,
+    cancelReason: value.cancelReason,
+    cancelledBy: value.cancelledBy,
+    cancelledAt: value.cancelledAt,
+    dispositionKind: value.dispositionKind,
+    dispositionReason: value.dispositionReason,
+    dispositionRequestedBy: value.dispositionRequestedBy,
+    dispositionCountId: value.dispositionCountId,
+    dispositionQuantityMilli: value.dispositionQuantityMilli,
+    disposedBy: value.disposedBy,
+    disposedAt: value.disposedAt,
     inspectionCount: value.inspectionCount,
+    productName: value.productName,
+    productUnit: value.productUnit,
+    trackingMode: value.trackingMode,
+    warehouseName: value.warehouseName,
+    lotCode: value.lotCode,
+    serialNumber: value.serialNumber,
+    expiryDate: value.expiryDate,
+    eligibleCount: value.eligibleCount,
     decision: decision(value.decision),
     nextAction: value.nextAction,
+  };
+}
+
+function stock(value: unknown): NativeQualityStock {
+  if (
+    !record(value) ||
+    !text(value.warehouseId) ||
+    !text(value.productId) ||
+    !safeInteger(value.quantityMilli) ||
+    !safeInteger(value.version) ||
+    value.version < 1 ||
+    !text(value.productName) ||
+    !text(value.trackingMode) ||
+    !text(value.warehouseName)
+  )
+    return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+  return {
+    warehouseId: value.warehouseId,
+    productId: value.productId,
+    quantityMilli: value.quantityMilli,
+    version: value.version,
+    productName: value.productName,
+    trackingMode: value.trackingMode,
+    warehouseName: value.warehouseName,
+  };
+}
+
+function lot(value: unknown): NativeQualityLot {
+  if (
+    !record(value) ||
+    !identifier(value.id) ||
+    !text(value.warehouseId) ||
+    !text(value.productId) ||
+    !safeInteger(value.quantityMilli) ||
+    !safeInteger(value.balanceVersion) ||
+    value.balanceVersion < 1 ||
+    !text(value.productName) ||
+    !text(value.warehouseName) ||
+    !text(value.trackingMode) ||
+    !optionalText(value.lotCode) ||
+    !optionalText(value.serialNumber) ||
+    !optionalText(value.expiryDate) ||
+    !boolean(value.qualityHeld)
+  )
+    return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+  return {
+    id: value.id,
+    warehouseId: value.warehouseId,
+    productId: value.productId,
+    quantityMilli: value.quantityMilli,
+    balanceVersion: value.balanceVersion,
+    productName: value.productName,
+    warehouseName: value.warehouseName,
+    trackingMode: value.trackingMode,
+    lotCode: value.lotCode,
+    serialNumber: value.serialNumber,
+    expiryDate: value.expiryDate,
+    qualityHeld: value.qualityHeld,
+  };
+}
+
+function product(value: unknown): NativeQualityProduct {
+  if (
+    !record(value) ||
+    !identifier(value.id) ||
+    !text(value.sku) ||
+    !text(value.name)
+  )
+    return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+  return { id: value.id, sku: value.sku, name: value.name };
+}
+
+function specification(value: unknown): NativeQualitySpecification {
+  if (
+    !record(value) ||
+    !identifier(value.id) ||
+    !text(value.productId) ||
+    !text(value.name) ||
+    !text(value.status) ||
+    !safeInteger(value.version) ||
+    value.version < 1 ||
+    !text(value.sku) ||
+    !text(value.productName)
+  )
+    return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+  return {
+    id: value.id,
+    productId: value.productId,
+    name: value.name,
+    status: value.status,
+    version: value.version,
+    sku: value.sku,
+    productName: value.productName,
   };
 }
 
@@ -544,6 +779,7 @@ function metric(value: unknown): NativeQualityMetric {
   if (
     !record(value) ||
     !identifier(value.id) ||
+    !optionalText(value.specId) ||
     !text(value.code) ||
     !text(value.label) ||
     !text(value.unit) ||
@@ -554,6 +790,7 @@ function metric(value: unknown): NativeQualityMetric {
     return fail('NATIVE_QUALITY_RESPONSE_INVALID');
   return {
     id: value.id,
+    specId: value.specId,
     code: value.code,
     label: value.label,
     unit: value.unit,
@@ -679,12 +916,22 @@ export function createNativeQualityReader(raw: string, transport: QualityTranspo
       const value = await send('GET', incoming, slug, '');
       if (
         !Array.isArray(value.holds) ||
+        !Array.isArray(value.stock) ||
+        !Array.isArray(value.lots) ||
+        !Array.isArray(value.products) ||
+        !Array.isArray(value.specifications) ||
+        !Array.isArray(value.specMetrics) ||
         !boolean(value.canHold) ||
         !boolean(value.canManageSpecs)
       )
         return fail('NATIVE_QUALITY_RESPONSE_INVALID');
       return {
-        holds: value.holds.map(hold),
+        holds: rows(value.holds, hold),
+        stock: rows(value.stock, stock),
+        lots: rows(value.lots, lot),
+        products: rows(value.products, product),
+        specifications: rows(value.specifications, specification),
+        specMetrics: rows(value.specMetrics, metric),
         canHold: value.canHold,
         canManageSpecs: value.canManageSpecs,
       };
