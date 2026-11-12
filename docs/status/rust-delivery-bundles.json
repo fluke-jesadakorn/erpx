@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 723,
+    "revision": 728,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-i",
+      "runId": "run-20261112-j",
       "agentId": "lead",
-      "startedAt": "2026-11-12T06:48:44.142Z",
-      "heartbeatAt": "2026-11-12T06:51:25.850Z",
-      "expiresAt": "2026-11-12T07:21:25.850Z",
-      "generation": 34,
-      "tokenHash": "1f767192b472db999c0deaaa25546889ecc1c9511ca17d48e1345cd4e69a2dc2"
+      "startedAt": "2026-11-12T07:22:45.171Z",
+      "heartbeatAt": "2026-11-12T07:22:45.171Z",
+      "expiresAt": "2026-11-12T07:52:45.171Z",
+      "generation": 35,
+      "tokenHash": "85d7c0b6435f33c5911cd102203ecaba1f15673c1238e6e02d3ccec36b0dd7ed"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -14808,14 +14808,7 @@
           "owner:workflow"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261112-i",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T06:48:52.566Z",
-          "heartbeatAt": "2026-11-12T06:51:25.850Z",
-          "expiresAt": "2026-11-12T07:21:25.850Z",
-          "generation": 34
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "feb246394b941371df1cc5eb85d6ee52d0359125",
         "lastPushedSha": "feb246394b941371df1cc5eb85d6ee52d0359125",
@@ -14892,15 +14885,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
         "nextAction": "PMS social projection native and TS retired (feb246394); remaining projector side-effects and flow-routing.",
         "handoff": {
-          "runId": "run-20261112-h",
+          "runId": "run-20261112-i",
           "agentId": "lead",
-          "at": "2026-11-12T06:48:44.141Z",
+          "at": "2026-11-12T07:22:45.170Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after project by-link routes; WIP reviewed",
-          "nextAction": "Native PMS social projection is owned end-to-end (feb246394): Workflow original + projector, PMS source/payout, Identity recipients, Collaboration publish/notify, composition handler before project_event; owned predicate includes only PMS_SOCIAL_EVENTS. TS projector branch and all PMS/Collaboration/Identity social helpers/barrels deleted; TS social oracle tests removed in favor of native PG tests. KPI 2894->2889. Remaining: other projector side-effects (sales notifications, AI drains) and flow-routing read."
+          "reason": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
+          "nextAction": "PMS social projection native and TS retired (feb246394); remaining projector side-effects and flow-routing."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-workflow",
@@ -15134,28 +15127,21 @@
           "owner:runtime"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261112-i",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T06:48:52.620Z",
-          "heartbeatAt": "2026-11-12T06:51:25.850Z",
-          "expiresAt": "2026-11-12T07:21:25.850Z",
-          "generation": 34
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
         "nextAction": "Supervisor + family-scoped handler (PMS social included).",
         "handoff": {
-          "runId": "run-20261112-h",
+          "runId": "run-20261112-i",
           "agentId": "lead",
-          "at": "2026-11-12T06:48:44.141Z",
+          "at": "2026-11-12T07:22:45.170Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after project by-link routes; WIP reviewed",
-          "nextAction": "Supervisor + family-scoped handler; PMS social family added to owned predicate. Remaining projector families unchanged."
+          "reason": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
+          "nextAction": "Supervisor + family-scoped handler (PMS social included)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-runtime",
@@ -17962,7 +17948,7 @@
         "resources": [
           "owner:quality"
         ],
-        "status": "in_progress",
+        "status": "blocked",
         "nextAction": "Move the cross-owner oracles to native seeding, delete the remaining Quality TS writers, and measure retirement:ts-writes.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
@@ -17975,21 +17961,21 @@
           "Deleted TS readers and exports",
           "Moved oracles and KPI delta"
         ],
-        "claim": {
-          "runId": "run-20261112-i",
-          "agentId": "worker-quality",
-          "claimedAt": "2026-11-12T06:50:55.525Z",
-          "heartbeatAt": "2026-11-12T06:51:25.850Z",
-          "expiresAt": "2026-11-12T07:21:25.850Z",
-          "generation": 34
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null
+        "blocker": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
+        "handoff": {
+          "runId": "run-20261112-i",
+          "agentId": "worker-quality",
+          "at": "2026-11-12T07:22:45.170Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
+          "nextAction": "Move the cross-owner oracles to native seeding, delete the remaining Quality TS writers, and measure retirement:ts-writes."
+        }
       },
       {
         "id": "retire.operations.exceptions",
@@ -18023,23 +18009,111 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-i",
-          "agentId": "worker-operations",
-          "claimedAt": "2026-11-12T07:09:24.114Z",
-          "heartbeatAt": "2026-11-12T07:09:24.114Z",
-          "expiresAt": "2026-11-12T07:39:24.114Z",
-          "generation": 34
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "b12a54e289b8d68606a071f67b663b274d2da134",
+        "lastPushedSha": "b12a54e289b8d68606a071f67b663b274d2da134",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b12a54e289b8d68606a071f67b663b274d2da134",
+            "before": 36,
+            "after": 29,
+            "residual": [
+              {
+                "path": "packages/server-operations/src/adapters/routines.ts",
+                "writes": 12,
+                "removalTaskId": "migrate.operations.routines-handover",
+                "removalCondition": "Native routine command owns templates/schedules/deadlines and the workplace routine routes call it; then delete the TS routine writers."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/staff-tasks.ts",
+                "writes": 5,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Open a native social/beta task-create route for POST /posts/{id}/task and move cross-owner fixtures off saveTask/transitionTask/delegateTask."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/work-routine-purchases.ts",
+                "writes": 5,
+                "removalTaskId": "migrate.operations.routines-handover",
+                "removalCondition": "Removed with the TS routine run/generate command fence and lineage."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/task-attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the TS attachment purchase fences."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/work-task-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the fenced TS task commands."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/workflow-approval-effects.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Native approval reroute owns the task revision bump; delete with the task command retirement."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/work-task-alert-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the fenced task alert command."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/task-attachment-read.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the TS task file read path."
+              }
+            ]
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "b12a54e289b8d68606a071f67b663b274d2da134"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "b12a54e289b8d68606a071f67b663b274d2da134"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "b12a54e289b8d68606a071f67b663b274d2da134"
+          },
+          {
+            "command": "cargo test -p erpx-server-operations --test field_exceptions --test operations_commands --test operations_queue_read",
+            "result": "passed",
+            "sourceSha": "b12a54e289b8d68606a071f67b663b274d2da134"
+          },
+          {
+            "command": "cargo test -p erpx-server-operations --test operations_commands_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "b12a54e289b8d68606a071f67b663b274d2da134"
+          },
+          {
+            "command": "bun run test:unit -- --suite=operations.services.unit --suite=operations.native-operations-transport.unit",
+            "result": "passed",
+            "sourceSha": "b12a54e289b8d68606a071f67b663b274d2da134"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete the four dead exception/policy TS writers + application/repository write paths + exports; delete the TS oracle suite (native rust-operations-commands-postgres owns it); run cargo/native + typecheck/catalogue; report KPI 36->29 before/after.",
-        "handoff": null,
+        "nextAction": "Retired 7 dead exception/queue-policy TS writes; native Rust operations commands own the route; TS oracle deleted; KPI 36->29; pushed b12a54e28.",
+        "handoff": {
+          "runId": "run-20261112-i",
+          "agentId": "worker-operations",
+          "at": "2026-11-12T07:22:45.170Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
+          "nextAction": "Delete the four dead exception/policy TS writers + application/repository write paths + exports; delete the TS oracle suite (native rust-operations-commands-postgres owns it); run cargo/native + typecheck/catalogue; report KPI 36->29 before/after."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
         "plannedPackage": "erpx-server-operations",
@@ -18060,20 +18134,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 63,
-      "migratedPackets": 29,
+      "migratedPackets": 30,
       "statusCounts": {
         "pending": 9,
-        "in_progress": 3,
+        "in_progress": 1,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 29,
-        "blocked": 12,
+        "migrated": 30,
+        "blocked": 13,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 34,
-    "updatedAt": "2026-11-12T07:09:24.114Z",
+    "lastCoordinatorGeneration": 35,
+    "updatedAt": "2026-11-12T07:22:52.790Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -18116,10 +18190,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-h",
-      "runId": "run-20261112-i",
-      "at": "2026-11-12T06:48:44.143Z",
-      "reason": "Lease expired after project by-link routes; WIP reviewed",
+      "previousRunId": "run-20261112-i",
+      "runId": "run-20261112-j",
+      "at": "2026-11-12T07:22:45.172Z",
+      "reason": "run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
