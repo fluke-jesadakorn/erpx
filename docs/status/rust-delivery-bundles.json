@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 565,
+    "revision": 570,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g24",
       "agentId": "lead",
       "startedAt": "2026-11-12T01:04:54.041Z",
-      "heartbeatAt": "2026-11-12T01:13:16.323Z",
-      "expiresAt": "2026-11-12T01:43:16.323Z",
+      "heartbeatAt": "2026-11-12T01:13:34.854Z",
+      "expiresAt": "2026-11-12T01:43:34.854Z",
       "generation": 26,
       "tokenHash": "83530d6d4d9a9787080b1c62f9cfeeb5b92ebc0f4b57ca88c7fa90d51920fab0"
     },
@@ -12352,8 +12352,8 @@
           "runId": "run-20261110-g24",
           "agentId": "worker-manufacturing",
           "claimedAt": "2026-11-12T01:09:08.870Z",
-          "heartbeatAt": "2026-11-12T01:13:16.323Z",
-          "expiresAt": "2026-11-12T01:43:16.323Z",
+          "heartbeatAt": "2026-11-12T01:13:34.854Z",
+          "expiresAt": "2026-11-12T01:43:34.854Z",
           "generation": 26
         },
         "baseSha": null,
@@ -12704,8 +12704,8 @@
           "runId": "run-20261110-g24",
           "agentId": "worker-ecommerce",
           "claimedAt": "2026-11-12T01:09:08.839Z",
-          "heartbeatAt": "2026-11-12T01:13:16.323Z",
-          "expiresAt": "2026-11-12T01:43:16.323Z",
+          "heartbeatAt": "2026-11-12T01:13:34.854Z",
+          "expiresAt": "2026-11-12T01:43:34.854Z",
           "generation": 26
         },
         "baseSha": null,
@@ -13211,23 +13211,38 @@
         "resources": [
           "owner:field_service"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g24",
-          "agentId": "worker-field",
-          "claimedAt": "2026-11-12T01:12:12.159Z",
-          "heartbeatAt": "2026-11-12T01:13:16.323Z",
-          "expiresAt": "2026-11-12T01:43:16.323Z",
-          "generation": 26
-        },
-        "baseSha": null,
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "17e74d6fe622e46ec30b590f7f155b2d969c665a",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-field-service --offline",
+            "result": "passed",
+            "sourceSha": "17e74d6fe622e46ec30b590f7f155b2d969c665a",
+            "sourceKind": "committed",
+            "note": "Field service owner crate compiles; the crate and its dependencies are unchanged from HEAD (unrelated manufacturing/ecommerce worktree files are not dependencies)."
+          },
+          {
+            "command": "bun run test:unit -- --suite=field_service.rust-executive-policy.unit",
+            "result": "passed",
+            "sourceSha": "17e74d6fe622e46ec30b590f7f155b2d969c665a",
+            "sourceKind": "committed",
+            "note": "3/3 native executive policy cases pass (completion terminal state, source windows/breakdown/cursor pairing, evidence cursor/wire identity)."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the first inventoried field_service packet (migrate.field_service.executive-report-read), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead review: native Field executive report binding evidence recorded; next field_service slice is shared-projection-sources.",
+        "handoff": {
+          "runId": "run-20261110-g24",
+          "agentId": "worker-field",
+          "at": "2026-11-12T01:16:51.134Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead review: native Field executive report binding evidence recorded; next field_service slice is shared-projection-sources."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-field-service",
         "plannedPackage": "erpx-server-field-service",
@@ -13592,8 +13607,8 @@
           "runId": "run-20261110-g24",
           "agentId": "worker-pms",
           "claimedAt": "2026-11-12T01:07:36.014Z",
-          "heartbeatAt": "2026-11-12T01:13:16.323Z",
-          "expiresAt": "2026-11-12T01:43:16.323Z",
+          "heartbeatAt": "2026-11-12T01:13:34.854Z",
+          "expiresAt": "2026-11-12T01:43:34.854Z",
           "generation": 26
         },
         "baseSha": null,
@@ -14107,8 +14122,8 @@
           "runId": "run-20261110-g24",
           "agentId": "lead",
           "claimedAt": "2026-11-12T01:04:54.069Z",
-          "heartbeatAt": "2026-11-12T01:13:16.323Z",
-          "expiresAt": "2026-11-12T01:43:16.323Z",
+          "heartbeatAt": "2026-11-12T01:13:34.854Z",
+          "expiresAt": "2026-11-12T01:43:34.854Z",
           "generation": 26
         },
         "baseSha": null,
@@ -14362,8 +14377,8 @@
           "runId": "run-20261110-g24",
           "agentId": "lead",
           "claimedAt": "2026-11-12T01:04:54.096Z",
-          "heartbeatAt": "2026-11-12T01:13:16.323Z",
-          "expiresAt": "2026-11-12T01:43:16.323Z",
+          "heartbeatAt": "2026-11-12T01:13:34.854Z",
+          "expiresAt": "2026-11-12T01:43:34.854Z",
           "generation": 26
         },
         "baseSha": null,
@@ -16105,8 +16120,8 @@
       "migratedPackets": 20,
       "statusCounts": {
         "pending": 13,
-        "in_progress": 4,
-        "ready_for_integration": 11,
+        "in_progress": 3,
+        "ready_for_integration": 12,
         "integrating": 0,
         "migrated": 20,
         "blocked": 5,
@@ -16115,7 +16130,7 @@
       }
     },
     "lastCoordinatorGeneration": 26,
-    "updatedAt": "2026-11-12T01:13:16.323Z",
+    "updatedAt": "2026-11-12T01:16:51.135Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
