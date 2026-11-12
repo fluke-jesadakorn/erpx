@@ -56,6 +56,17 @@ impl CustomerAccessHttpBackend for Probe {
                     "change|{binding_id}|{idempotency_key}|{}",
                     body["action"].as_str().unwrap_or("")
                 ),
+                CustomerAccessHttpCommand::Invitation {
+                    binding_id,
+                    body,
+                    idempotency_key,
+                } => format!(
+                    "invitation|{binding_id}|{idempotency_key}|{}",
+                    body["action"].as_str().unwrap_or("")
+                ),
+                CustomerAccessHttpCommand::InvitationHistory { binding_id } => {
+                    format!("invitation-history|{binding_id}")
+                }
             };
             self.seen.lock().unwrap().push(seen);
             if self.fail {
@@ -75,8 +86,13 @@ impl CustomerAccessHttpBackend for Probe {
                         "events": [],
                         "reads": []
                     }),
+                    CustomerAccessHttpCommand::InvitationHistory { .. } => serde_json::json!({
+                        "invitations": [],
+                        "invitationEvents": []
+                    }),
                     CustomerAccessHttpCommand::Request { .. }
-                    | CustomerAccessHttpCommand::Change { .. } => serde_json::json!({
+                    | CustomerAccessHttpCommand::Change { .. }
+                    | CustomerAccessHttpCommand::Invitation { .. } => serde_json::json!({
                         "id": "customer-access-review-1",
                         "status": "pending",
                         "version": 1

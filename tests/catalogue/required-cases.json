@@ -1392,27 +1392,12 @@
     {
       "runner": "vitest",
       "file": "tests/unit/customer_authority/portal-invitations.test.ts",
-      "title": "issuing requires an approved binding that is still current"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/customer_authority/portal-invitations.test.ts",
-      "title": "resend advances the signed generation and persists only the token hash"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/customer_authority/portal-invitations.test.ts",
       "title": "Customer Portal invitation verification rejects modified signatures, claims, and malformed tokens"
     },
     {
       "runner": "vitest",
       "file": "tests/integration/customer_authority/customer-access.test.ts",
       "title": "issues a tenant-token invitation and binds only the invited verified Portal identity"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "resend supersedes the previous invitation and accepts only the replacement token"
     },
     {
       "runner": "vitest",

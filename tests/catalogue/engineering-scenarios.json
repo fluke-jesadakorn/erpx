@@ -2130,12 +2130,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/sales/sales-pricing.test.ts",
-          "title": "captures an independently activated price list and requires manager approval above the discount limit",
-          "proof": "expect(await updatePriceList(f.owner,priceListId,edit,editKey)).toMatchObject({version:2});\nawait expect(updatePriceList(f.owner,priceListId,{...edit,name:'Stale overwrite'},key())).rejects.toMatchObject({status:409});\nawait expect(decidePriceList(f.owner,priceListId,{expectedVersion:2,action:'activate',reason:'Self approval must be rejected'},key())).rejects.toMatchObject({code:'INDEPENDENT_PRICING_APPROVER_REQUIRED'});\nawait expect(saveOrder(f.owner,null,orderSchema.parse(source),key())).rejects.toMatchObject({code:'DISCOUNT_REASON_REQUIRED'});\nexpect(detail.order).toMatchObject({price_list_id:priceListId,price_list_version:3,discount_approval_required:1,discount_approved_by:null});\nexpect(detail.lines[0]).toMatchObject({list_price_minor:10500,price_minor:8000,discount_bps:2380});\nawait expect(transitionOrder(f.manager,id,{action:'approve',expectedVersion:2},key())).rejects.toMatchObject({code:'DISCOUNT_APPROVAL_REASON_REQUIRED'});\nexpect(detail.order).toMatchObject({state:'confirmed',discount_approved_by:f.manager.userId});\nawait expect(db.prepare('UPDATE sales_price_list_items SET price_minor=1 WHERE price_list_id=?').bind(priceListId).run()).rejects.toThrow('SALES_PRICE_LIST_IMMUTABLE');\nawait expect(db.prepare('DELETE FROM sales_price_lists WHERE id=?').bind(priceListId).run()).rejects.toThrow('SALES_PRICE_LIST_IMMUTABLE');"
-        }
       ],
       "moduleId": "sales",
       "capabilityId": "quotes"

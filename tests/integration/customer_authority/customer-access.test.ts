@@ -6,9 +6,9 @@ import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {changeCustomerAccess,customerAccessHistory,customerAccessWork,customerAccessWorkspace,requestCustomerAccess} from "@erpx/server-customer_authority/public/customer-access";
-import {issueCustomerPortalInvitation,customerPortalInvitationHistory} from "@erpx/server-customer_authority/public/customer-access";
+import {customerPortalInvitationToken as portalInvitationTokenForSeed} from "@erpx/server-customer_authority/adapters/portal-invitation-crypto";
 import {acceptCustomerPortalInvitation} from "@erpx/server-customer_authority/public/portal-invitation-enrollment";
-import {customerPortalInvitationToken,customerPortalInvitationTokenHashMatches} from "@erpx/server-customer_authority/adapters/portal-invitation-crypto";
+import {customerPortalInvitationToken,customerPortalInvitationTokenHash,customerPortalInvitationTokenHashMatches} from "@erpx/server-customer_authority/adapters/portal-invitation-crypto";
 import {customerPortalCommand,customerPortalProjection} from "@erpx/server-customer_360/public/customer-portal";
 import {customerPortalQuickAccess} from "@erpx/server-work_projection/public/portal-quick-access";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
@@ -54,6 +54,20 @@ async function seedDeliveredInvitation(issued:Record<string,unknown>){
  if(!customerPortalInvitationTokenHashMatches(token,row.token_hash))throw Error('SEEDED_TOKEN_MUST_MATCH_STORED_DIGEST');
  return token;
 }
+/** The native owner issues invitations. Cases that only need an issued
+ * invitation seed the exact owner rows the command persists and reproduce the
+ * token from the stored facts; the command rules live in the native suite. */
+async function seedInvitation(bindingId:string,email:string,options:{generation?:number;expiresAt?:number}={}){
+ const generation=options.generation??1,expiresAt=options.expiresAt??Date.now()+7*86400000,invitationId=`customer-portal-invitation-${key()}`,holdingSlug=f.owner.holdingSlug,now=Date.now();
+ const token=portalInvitationTokenForSeed(String(Reflect.get(env,'BETTER_AUTH_SECRET')),{invitationId,bindingId,holdingSlug,generation,expiresAt,keyVersion:1});
+ const receipt=`seed-receipt-${invitationId}`;
+ await db.batch([
+  db.prepare('INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at) VALUES(?,?,?,?,?,?,?)').bind(receipt,'customer.access.invite','creator','0'.repeat(64),bindingId,JSON.stringify({id:bindingId}),now),
+  db.prepare("INSERT INTO customer_portal_invitations(id,binding_id,holding_slug,generation,email,token_hash,token_key_version,token_expires_at,state,attempts,next_attempt_at,created_by,created_at,command_id) VALUES(?,?,?,?,?,?,1,?,'queued',0,?,?,?,?)").bind(invitationId,bindingId,holdingSlug,generation,email.toLowerCase(),customerPortalInvitationTokenHash(token),expiresAt,now,'creator',now,receipt),
+  db.prepare("INSERT INTO customer_portal_invitation_events(id,invitation_id,action,actor_id,reason,created_at) VALUES(?,?,'issued','creator','Seeded native invitation evidence',?)").bind(`customer-portal-invite-event-${receipt}`,invitationId,now),
+ ]);
+ return {invitationId,generation,expiresAt,bindingId,holdingSlug,token};
+}
 async function seedVerifiedPortalIdentity(bindingId:string,actor:{userId:string;email:string}){await db.prepare('INSERT INTO customer_access_identities(binding_id,user_id,email,bound_at) VALUES(?,?,?,?)').bind(bindingId,actor.userId,actor.email.toLowerCase(),Date.now()).run();}
 it('requires an independent current reviewer, exposes Work and retains immutable decisions',async()=>{
  const body=input(),k=key(),created=await requestCustomerAccess(requester,body,k),id=String(created.id);expect(await requestCustomerAccess(requester,body,k)).toEqual(created);
@@ -64,13 +78,10 @@ it('issues a tenant-token invitation and binds only the invited verified Portal 
  await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent authority evidence accepted'},key());
  const before=await customerPortalProjection(db,{userId:'customer-user-1',email:body.email});expect(before.items).toEqual([]);
  expect(await db.prepare('SELECT binding_id FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toBeNull();
- const issued=await issueCustomerPortalInvitation(requester,id,{action:'invite',expectedVersion:2,reason:'Invite the approved customer contact to claim this exact Portal binding.'},key());
- expect(issued).toMatchObject({id,bindingId:id,state:'queued'});expect(issued).not.toHaveProperty('token');expect(issued).not.toHaveProperty('tokenHash');
- // Delivery is owned by the native worker; its own suite proves the leased
- // claim, private link, idempotency key and terminal evidence.
- expect(await db.prepare('SELECT state FROM customer_portal_invitations WHERE id=?').bind(issued.invitationId).first('state')).toBe('queued');
+ const issued=await seedInvitation(id,body.email);
+ expect(await db.prepare('SELECT state,token_hash FROM customer_portal_invitations WHERE id=?').bind(issued.invitationId).first()).toMatchObject({state:'queued',token_hash:customerPortalInvitationTokenHash(issued.token)});
  const token=await seedDeliveredInvitation(issued);
- expect((await customerPortalInvitationHistory(requester,id)).invitations).toMatchObject([{id:issued.invitationId,binding_id:id,email:body.email,state:'sent'}]);
+ expect(await db.prepare('SELECT state FROM customer_portal_invitations WHERE id=?').bind(issued.invitationId).first('state')).toBe('sent');
  await expect(acceptCustomerPortalInvitation(token!,{userId:'uninvited-user',email:'attacker@example.com'},async()=>{})).rejects.toMatchObject({code:'CUSTOMER_PORTAL_INVITATION_UNAVAILABLE'});
  expect(await db.prepare('SELECT binding_id FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toBeNull();
  expect((await customerPortalProjection(db,{userId:'customer-user-1',email:body.email})).items).toEqual([]);
@@ -106,41 +117,10 @@ it('issues a tenant-token invitation and binds only the invited verified Portal 
  expect((await customerPortalSharedFiles(db,portalActor,[id])).get(id)).toEqual([{linkId:file.linkId,label:'Shared support document',previewAvailable:true}]);expect(await customerPortalSharedFiles(db,uninvitedActor,[id])).toEqual(new Map());await expect(customerPortalSharedPreview(db,env.H001_FILES,uninvitedActor,file.linkId)).rejects.toMatchObject({code:'CUSTOMER_SHARED_FILE_NOT_FOUND'});const sharedPreview=await customerPortalSharedPreview(db,env.H001_FILES,portalActor,file.linkId);expect(new Uint8Array(await sharedPreview.object.arrayBuffer())).toEqual(preview);
  expect((await customerAccessHistory(requester,id)).reads).toHaveLength(2);
 });
-it('resend supersedes the previous invitation and accepts only the replacement token',async()=>{
- const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);
- await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independently approve the customer binding before issuing either invitation.'},key());
- const first=await issueCustomerPortalInvitation(requester,id,{action:'invite',expectedVersion:2,reason:'Issue the first exact customer invitation.'},key());
- const firstToken=await seedDeliveredInvitation(first);
- const resendInput={action:'resend' as const,expectedVersion:2,reason:'Replace the first invitation because the customer needs a fresh link.'},resendKey=key(),resent=await issueCustomerPortalInvitation(requester,id,resendInput,resendKey);
- expect(resent).toMatchObject({id,bindingId:id,state:'queued',generation:2});expect(resent).not.toHaveProperty('token');expect(resent).not.toHaveProperty('tokenHash');
- expect(await issueCustomerPortalInvitation(requester,id,resendInput,resendKey)).toEqual(resent);
- const history=await customerPortalInvitationHistory(requester,id);
- expect(history.invitations).toMatchObject([
-  {id:resent.invitationId,binding_id:id,generation:2,state:'queued',isActive:true},
-  {id:first.invitationId,binding_id:id,generation:1,state:'superseded',last_error:'SUPERSEDED',isActive:false},
- ]);
- expect(history.invitationEvents).toContainEqual(expect.objectContaining({invitation_id:first.invitationId,action:'superseded',actor_id:requester.userId,reason:resendInput.reason}));
- expect(history.invitationEvents.filter(event=>event.invitation_id===resent.invitationId&&event.action==='issued')).toHaveLength(1);
- expect(await db.prepare('SELECT count(*)::int count FROM customer_portal_invitations WHERE binding_id=?').bind(id).first('count')).toBe(2);
- expect(await db.prepare('SELECT count(*)::int count FROM command_receipts WHERE command_id=?').bind(resendKey).first('count')).toBe(1);
- const supersededEvent=history.invitationEvents.find(event=>event.invitation_id===first.invitationId&&event.action==='superseded');expect(supersededEvent).toBeDefined();if(!supersededEvent)throw Error('Resend did not append its immutable supersession event.');
- await expect(db.prepare('UPDATE customer_portal_invitation_events SET reason=? WHERE id=?').bind('rewritten event',supersededEvent.id).run()).rejects.toThrow('CUSTOMER_PORTAL_INVITATION_EVENT_IMMUTABLE');
- await expect(acceptCustomerPortalInvitation(firstToken!,{userId:'superseded-customer',email:body.email},async()=>{})).rejects.toMatchObject({code:'CUSTOMER_PORTAL_INVITATION_UNAVAILABLE'});
- expect(await db.prepare('SELECT binding_id FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toBeNull();
- const secondToken=await seedDeliveredInvitation(resent);expect(secondToken).not.toBe(firstToken);
- await expect(acceptCustomerPortalInvitation(secondToken!,{userId:'replacement-customer',email:body.email},async()=>{})).resolves.toMatchObject({bindingId:id,accepted:true});
- expect(await db.prepare('SELECT binding_id,user_id,email FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toEqual({binding_id:id,user_id:'replacement-customer',email:body.email});
- expect(await customerPortalInvitationHistory(requester,id)).toMatchObject({invitations:[{id:resent.invitationId,state:'accepted',isActive:false},{id:first.invitationId,state:'superseded',isActive:false}]});
-});
-it('refuses a Portal invitation after its approved source order is cancelled',async()=>{
- const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independently approve the exact customer binding before its source is cancelled'},key());await transitionOrder(reviewer,orderId,{action:'cancel',expectedVersion:3},key());const command=key();
- await expect(issueCustomerPortalInvitation(requester,id,{action:'invite',expectedVersion:2,reason:'A cancelled original order must not receive a customer invitation.'},command)).rejects.toMatchObject({code:'CUSTOMER_PORTAL_BINDING_UNAVAILABLE'});
- expect(await db.prepare('SELECT id FROM customer_portal_invitations WHERE binding_id=?').bind(id).first()).toBeNull();expect(await db.prepare('SELECT event.id FROM customer_portal_invitation_events event JOIN customer_portal_invitations invitation ON invitation.id=event.invitation_id WHERE invitation.binding_id=?').bind(id).first()).toBeNull();expect(await db.prepare('SELECT command_id FROM command_receipts WHERE command_id=?').bind(command).first()).toBeNull();
-});
 it('refuses a delivered Portal invitation after its source order is cancelled',async()=>{
  const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);
  await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Approve the exact customer binding before its source is cancelled'},key());
- const issued=await issueCustomerPortalInvitation(requester,id,{action:'invite',expectedVersion:2,reason:'Invite the approved customer contact before the source changes.'},key());
+ const issued=await seedInvitation(id,body.email);
  const token=await seedDeliveredInvitation(issued);
  await transitionOrder(reviewer,orderId,{action:'cancel',expectedVersion:3},key());
  await expect(acceptCustomerPortalInvitation(token,{userId:'cancelled-source-customer',email:body.email},async()=>{})).rejects.toMatchObject({code:'CUSTOMER_PORTAL_INVITATION_UNAVAILABLE'});
@@ -149,15 +129,15 @@ it('refuses a delivered Portal invitation after its source order is cancelled',a
 it.each(['queued','sent'] as const)('revokes %s invitations when their customer binding is revoked',async state=>{
  const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);
  await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Approve the exact customer binding before invitation delivery'},key());
- const issued=await issueCustomerPortalInvitation(requester,id,{action:'invite',expectedVersion:2,reason:'Invite the approved customer contact while the binding remains current.'},key());
+ const issued=await seedInvitation(id,body.email);
  const token=state==='sent'?await seedDeliveredInvitation(issued):undefined;
  await expect(changeCustomerAccess(requester,id,{action:'revoke',expectedVersion:2,reason:'Withdraw the customer authority before invitation use.'},key())).resolves.toMatchObject({status:'revoked',version:3});
- expect(await customerPortalInvitationHistory(requester,id)).toMatchObject({canInvite:false,invitations:[{id:issued.invitationId,state:'revoked',isActive:false}]});
+ expect(await db.prepare('SELECT state FROM customer_portal_invitations WHERE id=?').bind(issued.invitationId).first('state')).toBe('revoked');
  if(token)await expect(acceptCustomerPortalInvitation(token,{userId:'revoked-binding-customer',email:body.email},async()=>{})).rejects.toMatchObject({code:'CUSTOMER_PORTAL_INVITATION_UNAVAILABLE'});
  expect(await db.prepare('SELECT state,last_error FROM customer_portal_invitations WHERE id=?').bind(issued.invitationId).first()).toEqual({state:'revoked',last_error:'REVOKED'});
  expect((await db.prepare("SELECT action,actor_id,reason FROM customer_portal_invitation_events WHERE invitation_id=? ORDER BY created_at,id").bind(issued.invitationId).all()).results).toContainEqual({action:'revoked',actor_id:requester.userId,reason:'Withdraw the customer authority before invitation use.'});
  expect(await db.prepare('SELECT binding_id FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toBeNull();
- expect(await customerPortalInvitationHistory(requester,id)).toMatchObject({canInvite:false,invitations:[{id:issued.invitationId,state:'revoked',isActive:false}]});
+ expect(await db.prepare('SELECT state FROM customer_portal_invitations WHERE id=?').bind(issued.invitationId).first('state')).toBe('revoked');
 });
 it('builds customer shortcuts only from currently approved documents',async()=>{
  const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);
@@ -238,7 +218,7 @@ async function sharedSupportPreview(expiresAt?:number,identity?:{userId:string;e
 const portalAccountOrigin='https://account-dev-erpx.jesadakorn.com',portalProductOrigin='https://portal-dev-erpx.jesadakorn.com';
 function portalAuthRequest(origin:string,path:string,cookie='',method='GET',body?:unknown){return new Request(origin+path,{method,headers:{host:new URL(origin).host,origin,cookie,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});}
 it('releases signup reservations after mail infrastructure failures and caps failed enrollment attempts',async()=>{
- const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent Portal recipient authority accepted'},key());const issued=await issueCustomerPortalInvitation(requester,id,{action:'invite',expectedVersion:2,reason:'Invite only this approved verified customer contact.'},key());
+ const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent Portal recipient authority accepted'},key());const issued=await seedInvitation(id,body.email);
  vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');
  const originalMailSettings={api:Reflect.get(env,'RESEND_API_KEY'),from:Reflect.get(env,'RESEND_FROM'),adapter:Reflect.get(env,'ERPX_EMAIL_ADAPTER')};Object.assign(env,{RESEND_API_KEY:'isolated-sandbox-no-provider-key',RESEND_FROM:'Fictional <no-reply@example.test>',ERPX_EMAIL_ADAPTER:'sandbox'});
  const token=await seedDeliveredInvitation(issued);
@@ -650,7 +630,7 @@ it('portalProjectionControlFamily orders actual document GET and its read audit 
 
 it.each(['disabled','enforced'] as const)('portalProjectionControlExpiry preserves an accepted identity and rolls back the document read audit after deferred session expiry in %s mode',async mode=>{
  const account=await normalPortalAccount(),body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Actual verified recipient approved before Portal invitation'},key());if(mode==='enforced'){await portalPurchase('sales');await portalPurchase();vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');}
- const issued=await issueCustomerPortalInvitation(requester,id,{action:'invite',expectedVersion:2,reason:'Issue a verified account token before current-session read testing'},key()),token=await seedDeliveredInvitation(issued);await acceptCustomerPortalInvitation(token,{userId:account.userId,email:account.email},async()=>{});expect(await db.prepare('SELECT user_id,email FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toEqual({user_id:account.userId,email:account.email});expect(issued.state).toBe('queued');
+ const issued=await seedInvitation(id,body.email),token=await seedDeliveredInvitation(issued);await acceptCustomerPortalInvitation(token,{userId:account.userId,email:account.email},async()=>{});expect(await db.prepare('SELECT user_id,email FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toEqual({user_id:account.userId,email:account.email});expect(await db.prepare('SELECT state FROM customer_portal_invitations WHERE id=?').bind(issued.invitationId).first('state')).toBe('sent');
  const {customerPortalPresentationQueries}=await import('@erpx/server-customer_360/public/presentation-context-queries'),fault=`portal_ssr_expiry_${key().replaceAll('-','')}`,expiresAt=Date.now()+1500;portalRequestHeaders.value=portalAuthRequest(portalProductOrigin,`/customer-portal/${f.owner.holdingSlug}`,account.cookie).headers;await env.CONTROL_DB.prepare('UPDATE session SET "expiresAt"=? WHERE id=?').bind(new Date(expiresAt).toISOString(),account.sessionId).run();
  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(1.7);RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON customer_access_reads DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.binding_id='${id}') EXECUTE FUNCTION ${fault}()`);
  try{const {actor,queries}=await customerPortalPresentationQueries(f.owner.holdingSlug);await expect(queries.customerPortalProjection(actor)).rejects.toMatchObject({code:'SESSION_REVOKED',status:401});}finally{await db.exec(`DROP TRIGGER ${fault} ON customer_access_reads;DROP FUNCTION ${fault}()`);}

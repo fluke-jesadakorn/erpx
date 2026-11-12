@@ -13,6 +13,8 @@ import {
   type NativeCustomerAccessReadInput,
   type NativeCustomerAccessReceipt,
   type NativeCustomerAccessWorkspace,
+  type NativePortalInvitationHistory,
+  type NativePortalInvitationReceipt,
 } from './native-customer-access';
 import { createNextNativeCustomerAccessReader } from '../adapters/server/next-native-customer-access';
 
@@ -23,6 +25,8 @@ export type {
   NativeCustomerAccessPageContext,
   NativeCustomerAccessReceipt,
   NativeCustomerAccessWorkspace,
+  NativePortalInvitationHistory,
+  NativePortalInvitationReceipt,
 } from './native-customer-access';
 
 /** Retained WorkContext render input; the native owner still re-checks scope. */
@@ -75,6 +79,14 @@ function client() {
     if (failure) throw new ApiError(failure.status, failure.code, failure.message);
     throw error;
   }
+}
+
+function configurationRequired() {
+  return new ApiError(
+    503,
+    'NATIVE_CUSTOMER_ACCESS_CONFIGURATION_REQUIRED',
+    'Customer Portal invitations require the native Customer Authority service.',
+  );
 }
 
 async function purchasePreflight(actor: WorkContext, id?: string) {
@@ -138,32 +150,63 @@ export async function nativeCustomerAccessDetail(
 }
 
 /**
- * Native request/approve/reject/revoke command. Returns undefined when the
- * configuration is unset or the input belongs to another retained Customer
- * Authority action (invitation, portal support). A configured eligible command
- * never falls back to the retained command when the native owner fails.
+ * Native Portal invitation history for one binding. The retired TypeScript
+ * reader has no fallback: an unset native configuration fails closed.
+ */
+export async function nativeCustomerAccessInvitationHistory(
+  actor: WorkContext,
+  id: string,
+): Promise<NativePortalInvitationHistory> {
+  const native = client();
+  if (!native) throw configurationRequired();
+  const context = nativeCustomerAccessPageContext(actor);
+  const input = readInput(context);
+  await purchasePreflight(actor, id);
+  try {
+    return await createNextNativeCustomerAccessReader()((incoming, signal) =>
+      native.invitationHistory(incoming, context, id, input, signal),
+    );
+  } catch (error) {
+    const failure = nativeCustomerAccessFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
+
+/**
+ * Native request/approve/reject/revoke/invite/resend command. Returns undefined
+ * when the configuration is unset for a retained action or the input belongs to
+ * another Customer Authority action (portal support). Portal invitation commands
+ * and a configured eligible command never fall back when the native owner fails.
  */
 export async function nativeCustomerAccessCommand(
   actor: WorkContext,
   input: Record<string, unknown>,
   key: string,
-): Promise<NativeCustomerAccessReceipt | undefined> {
+): Promise<NativeCustomerAccessReceipt | NativePortalInvitationReceipt | undefined> {
   const id = typeof input.id === 'string' ? input.id : undefined;
   const action =
     typeof input.action === 'string' &&
-    ['approve', 'reject', 'revoke'].includes(input.action)
-      ? (input.action as 'approve' | 'reject' | 'revoke')
+    ['approve', 'reject', 'revoke', 'invite', 'resend'].includes(input.action)
+      ? (input.action as 'approve' | 'reject' | 'revoke' | 'invite' | 'resend')
       : undefined;
   const request = id === undefined && input.action === undefined;
   const change = id !== undefined && action !== undefined;
   if (!request && !change) return undefined;
+  const invitation = action === 'invite' || action === 'resend';
   const native = client();
-  if (!native) return undefined;
+  if (!native) {
+    if (invitation) throw configurationRequired();
+    return undefined;
+  }
   const context = nativeCustomerAccessPageContext(actor);
   const readContext = readInput(context);
   const purchase = await purchasePreflight(actor, change ? id : undefined);
   if (purchase) {
-    const allowed = request || action === 'approve' ? purchase.newWork : purchase.settleExisting;
+    const allowed =
+      request || action === 'approve' || action === 'invite'
+        ? purchase.newWork
+        : purchase.settleExisting;
     if (!allowed)
       throw new ApiError(
         403,
@@ -178,6 +221,11 @@ export async function nativeCustomerAccessCommand(
         expectedVersion: input.expectedVersion,
         reason: input.reason,
       });
+      if (invitation) {
+        return await createNextNativeCustomerAccessReader()((incoming, signal) =>
+          native.invitation(incoming, context, id, body, key, readContext, signal),
+        );
+      }
       return await createNextNativeCustomerAccessReader()((incoming, signal) =>
         native.change(incoming, context, id, body, key, readContext, signal),
       );

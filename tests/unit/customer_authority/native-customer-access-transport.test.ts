@@ -152,13 +152,59 @@ describe('native Customer Authority customer-access transport',()=>{
   if(previous!==undefined)process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG=previous;
  });
 
- it('retains invitation and portal-support actions and fails closed without configuration',async()=>{
+ it('retains access fallback without configuration but fails Portal invitations closed',async()=>{
   const previous=process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG;
   delete process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG;
   expect(await nativeCustomerAccessCommand(actor as never,{id:'binding',action:'approve',expectedVersion:1,reason:'Review'},'customer-access-command-9')).toBeUndefined();
-  process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG=config();
-  expect(await nativeCustomerAccessCommand(actor as never,{id:'binding',action:'invite',expectedVersion:2,reason:'Invite'},'customer-access-command-9')).toBeUndefined();
+  await expect(nativeCustomerAccessCommand(actor as never,{id:'binding',action:'invite',expectedVersion:2,reason:'Invite'},'customer-access-command-9')).rejects.toMatchObject({
+    status:503,code:'NATIVE_CUSTOMER_ACCESS_CONFIGURATION_REQUIRED',
+  });
   if(previous===undefined)delete process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG;else process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG=previous;
+ });
+
+ it('posts one Portal invitation command with its exact body and idempotency key',async()=>{
+  const previous=process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG;
+  process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG=config();
+  const invitation={id:'binding-1',bindingId:'binding-1',invitationId:'customer-portal-invitation-1',generation:2,version:4,state:'queued',expiresAt:1_800_000_000_000};
+  const transport=vi.fn().mockResolvedValue(ok({data:invitation,context}));
+  const access=createNativeCustomerAccessClient(nativeCustomerAccessConfiguration(config()),transport);
+  const result=await access.invitation(incoming(),actor,'binding-1',JSON.stringify({action:'resend',expectedVersion:4,reason:'Replace the first invitation'}),'customer-access-command-10',input);
+  expect(result).toEqual(invitation);
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/customer-access/binding-1/invitations');
+  expect(headers.get('host')).toBe('acme.example.com');
+  expect(headers.get('idempotency-key')).toBe('customer-access-command-10');
+  expect(headers.get('content-type')).toBe('application/json');
+  expect(JSON.parse(body)).toEqual({action:'resend',expectedVersion:4,reason:'Replace the first invitation'});
+  if(previous===undefined)delete process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG;else process.env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG=previous;
+ });
+
+ it('rejects an invalid invitation receipt and a history row from another binding',async()=>{
+  const invitation={id:'binding-1',bindingId:'binding-1',invitationId:'customer-portal-invitation-1',generation:1,version:4,state:'queued',expiresAt:1_800_000_000_000};
+  const bad=vi.fn().mockResolvedValue(ok({data:{...invitation,bindingId:'other'},context}));
+  const access=createNativeCustomerAccessClient(nativeCustomerAccessConfiguration(config()),bad);
+  await expect(access.invitation(incoming(),actor,'binding-1','{}','customer-access-command-11',input))
+    .rejects.toMatchObject({code:'NATIVE_CUSTOMER_ACCESS_RESPONSE_INVALID'});
+  const historyRow={id:'customer-portal-invitation-1',binding_id:'other',generation:1,holding_slug:'acme',email:'customer@example.test',state:'queued',token_expires_at:1_800_000_000_000,attempts:0,next_attempt_at:1_799_999_999_000,last_error:null,created_by:'requester',created_at:1_799_999_999_000,sent_at:null,accepted_at:null,accepted_user_id:null};
+  const wrongBinding=vi.fn().mockResolvedValue(ok({data:{invitations:[historyRow],invitationEvents:[]},context}));
+  const second=createNativeCustomerAccessClient(nativeCustomerAccessConfiguration(config()),wrongBinding);
+  await expect(second.invitationHistory(incoming(),actor,'binding-1',input))
+    .rejects.toMatchObject({code:'NATIVE_CUSTOMER_ACCESS_RESPONSE_INVALID'});
+ });
+
+ it('reads the immutable invitation history for the exact binding',async()=>{
+  const historyRow={id:'customer-portal-invitation-1',binding_id:'binding-1',generation:2,holding_slug:'acme',email:'customer@example.test',state:'queued',token_expires_at:1_800_000_000_000,attempts:0,next_attempt_at:1_799_999_999_000,last_error:null,created_by:'requester',created_at:1_799_999_999_000,sent_at:null,accepted_at:null,accepted_user_id:null};
+  const superseded={...historyRow,id:'customer-portal-invitation-0',generation:1,state:'superseded',last_error:'SUPERSEDED'};
+  const historyEvent={id:'customer-portal-invite-event-1',invitation_id:'customer-portal-invitation-1',action:'issued',actor_id:'requester',reason:'Invite',created_at:1_799_999_999_000};
+  const transport=vi.fn().mockResolvedValue(ok({data:{invitations:[historyRow,superseded],invitationEvents:[historyEvent]},context}));
+  const access=createNativeCustomerAccessClient(nativeCustomerAccessConfiguration(config()),transport);
+  const result=await access.invitationHistory(incoming(),actor,'binding-1',input);
+  expect(result.invitations.map(item=>item.generation)).toEqual([2,1]);
+  expect(result.invitationEvents).toEqual([historyEvent]);
+  const [method,url]=transport.mock.calls[0];
+  expect(method).toBe('GET');
+  expect(url.toString()).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/customer-access/binding-1/invitations');
  });
 
  it('maps a malformed configured native selector to a bounded 503 without fallback',async()=>{

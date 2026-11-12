@@ -36,6 +36,16 @@ pub enum CustomerAccessHttpCommand {
         body: Value,
         idempotency_key: String,
     },
+    /// Customer Portal invitation issue/resend for one approved binding.
+    Invitation {
+        binding_id: String,
+        body: Value,
+        idempotency_key: String,
+    },
+    /// Immutable Portal invitation history for one binding.
+    InvitationHistory {
+        binding_id: String,
+    },
 }
 
 pub struct CustomerAccessHttpRequest<'a> {
@@ -246,6 +256,10 @@ pub fn customer_access_http_router(
             "/api/v1/holdings/{holding_slug}/customer-access/{binding_id}",
             get(read_detail).post(change_access),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/customer-access/{binding_id}/invitations",
+            get(read_invitation_history).post(invite),
+        )
         .with_state(Arc::new(CustomerAccessHttpState {
             targets: configured,
         })))
@@ -360,6 +374,71 @@ async fn change_access(
                 holding_slug: &target.holding_slug,
                 headers: &headers,
                 command: CustomerAccessHttpCommand::Change {
+                    binding_id,
+                    body,
+                    idempotency_key: key,
+                },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_invitation_history(
+    State(state): State<Arc<CustomerAccessHttpState>>,
+    Path((slug, binding_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        ensure_no_query(&request)?;
+        if !valid_id(&binding_id) {
+            return Err(source_not_found());
+        }
+        let headers = request.headers().clone();
+        ensure_empty_body(request).await?;
+        target
+            .backend
+            .execute(CustomerAccessHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command: CustomerAccessHttpCommand::InvitationHistory { binding_id },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn invite(
+    State(state): State<Arc<CustomerAccessHttpState>>,
+    Path((slug, binding_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        ensure_no_query(&request)?;
+        if !valid_id(&binding_id) {
+            return Err(source_not_found());
+        }
+        let key = strict_key(request.headers())?;
+        let headers = request.headers().clone();
+        let body = strict_body(request).await?;
+        target
+            .backend
+            .execute(CustomerAccessHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command: CustomerAccessHttpCommand::Invitation {
                     binding_id,
                     body,
                     idempotency_key: key,

@@ -95787,6 +95787,91 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "customer_authority.rust-portal-invitations.unit",
+      "lane": "unit",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/unit/customer_authority/rust-portal-invitations.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer Portal invitation issue/resend retains binding/identity/permission gates, bounded token expiry, generation and supersession evidence."
+      },
+      "apps": [
+        "sales",
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_invitations"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_authority.rust-portal-invitations-postgres.integration",
+      "lane": "integration",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/integration/customer_authority/rust-portal-invitations-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer Portal invitation issue/resend retains binding/identity/permission gates, bounded token expiry, generation and supersession evidence."
+      },
+      "apps": [
+        "sales",
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_invitations_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

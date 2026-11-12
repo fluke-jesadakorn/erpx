@@ -108,6 +108,48 @@ export type NativeCustomerAccessReceipt = Readonly<{
   version: number;
 }>;
 
+export type NativePortalInvitationReceipt = Readonly<{
+  id: string;
+  bindingId: string;
+  invitationId: string;
+  generation: number;
+  version: number;
+  state: 'queued';
+  expiresAt: number;
+}>;
+
+export type NativePortalInvitationRow = Readonly<{
+  id: string;
+  binding_id: string;
+  generation: number;
+  holding_slug: string;
+  email: string;
+  state: string;
+  token_expires_at: number;
+  attempts: number;
+  next_attempt_at: number;
+  last_error: string | null;
+  created_by: string;
+  created_at: number;
+  sent_at: number | null;
+  accepted_at: number | null;
+  accepted_user_id: string | null;
+}>;
+
+export type NativePortalInvitationEvent = Readonly<{
+  id: string;
+  invitation_id: string;
+  action: string;
+  actor_id: string;
+  reason: string;
+  created_at: number;
+}>;
+
+export type NativePortalInvitationHistory = Readonly<{
+  invitations: NativePortalInvitationRow[];
+  invitationEvents: NativePortalInvitationEvent[];
+}>;
+
 export type NativeCustomerAccessCommandInput = Readonly<
   | {
       orderId: string;
@@ -321,6 +363,101 @@ function receipt(value: unknown): NativeCustomerAccessReceipt {
   )
     return failure('NATIVE_CUSTOMER_ACCESS_RESPONSE_INVALID');
   return value as unknown as NativeCustomerAccessReceipt;
+}
+
+const invitationStates = new Set([
+  'queued',
+  'running',
+  'sent',
+  'accepted',
+  'revoked',
+  'superseded',
+  'expired',
+  'failed',
+]);
+
+function invitationReceipt(value: unknown): NativePortalInvitationReceipt {
+  if (
+    !exact(value, ['id', 'bindingId', 'invitationId', 'generation', 'version', 'state', 'expiresAt']) ||
+    !identifier(value.id) ||
+    !identifier(value.bindingId) ||
+    value.bindingId !== value.id ||
+    !identifier(value.invitationId) ||
+    !integer(value.generation, 1) ||
+    !integer(value.version, 1) ||
+    value.state !== 'queued' ||
+    !integer(value.expiresAt, 1)
+  )
+    return failure('NATIVE_CUSTOMER_ACCESS_RESPONSE_INVALID');
+  return value as unknown as NativePortalInvitationReceipt;
+}
+
+const invitationRow = (value: unknown, id: string): value is NativePortalInvitationRow =>
+  exact(value, [
+    'id',
+    'binding_id',
+    'generation',
+    'holding_slug',
+    'email',
+    'state',
+    'token_expires_at',
+    'attempts',
+    'next_attempt_at',
+    'last_error',
+    'created_by',
+    'created_at',
+    'sent_at',
+    'accepted_at',
+    'accepted_user_id',
+  ]) &&
+  identifier(value.id) &&
+  value.binding_id === id &&
+  integer(value.generation, 1) &&
+  trimmed(value.holding_slug, 1, 100) &&
+  email(value.email) &&
+  typeof value.state === 'string' &&
+  invitationStates.has(value.state) &&
+  integer(value.token_expires_at, 1) &&
+  integer(value.attempts) &&
+  integer(value.next_attempt_at) &&
+  (value.last_error === null || trimmed(value.last_error, 1, 200)) &&
+  identifier(value.created_by) &&
+  integer(value.created_at) &&
+  (value.sent_at === null || integer(value.sent_at)) &&
+  (value.accepted_at === null || integer(value.accepted_at)) &&
+  optionalIdentifier(value.accepted_user_id);
+
+const invitationEvent = (value: unknown, id: string): value is NativePortalInvitationEvent =>
+  exact(value, ['id', 'invitation_id', 'action', 'actor_id', 'reason', 'created_at']) &&
+  identifier(value.id) &&
+  identifier(value.invitation_id) &&
+  trimmed(value.action, 1, 200) &&
+  identifier(value.actor_id) &&
+  text(value.reason, 2_000) &&
+  integer(value.created_at);
+
+function invitationHistory(
+  value: unknown,
+  id: string,
+): NativePortalInvitationHistory {
+  if (!exact(value, ['invitations', 'invitationEvents'])) return failure('NATIVE_CUSTOMER_ACCESS_RESPONSE_INVALID');
+  if (
+    !Array.isArray(value.invitations) ||
+    value.invitations.length > 200 ||
+    !value.invitations.every((item) => invitationRow(item, id)) ||
+    !Array.isArray(value.invitationEvents) ||
+    value.invitationEvents.length > 500 ||
+    !value.invitationEvents.every((item) => invitationEvent(item, id))
+  )
+    return failure('NATIVE_CUSTOMER_ACCESS_RESPONSE_INVALID');
+  const ids = new Set<string>();
+  for (const item of value.invitations) if (!ids.add(item.id)) return failure('NATIVE_CUSTOMER_ACCESS_RESPONSE_INVALID');
+  let previous = Number.MAX_SAFE_INTEGER;
+  for (const item of value.invitations) {
+    if (item.generation >= previous) return failure('NATIVE_CUSTOMER_ACCESS_RESPONSE_INVALID');
+    previous = item.generation;
+  }
+  return value as unknown as NativePortalInvitationHistory;
 }
 
 function context(
@@ -717,6 +854,50 @@ export function createNativeCustomerAccessClient(
         signal,
         receipt,
       ) as Promise<NativeCustomerAccessReceipt>;
+    },
+    invitation: (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeCustomerAccessPageContext,
+      id: string,
+      body: string,
+      key: string,
+      input: NativeCustomerAccessReadInput,
+      signal?: AbortSignal,
+    ) => {
+      if (!identifier(id) || id.includes('/') || id.includes('\\'))
+        return Promise.reject(new NativeCustomerAccessError('NATIVE_CUSTOMER_ACCESS_REQUEST_INVALID'));
+      return run(
+        incoming,
+        actor,
+        input,
+        'POST',
+        `/${encodeURIComponent(id)}/invitations`,
+        body,
+        key,
+        signal,
+        invitationReceipt,
+      ) as Promise<NativePortalInvitationReceipt>;
+    },
+    invitationHistory: (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeCustomerAccessPageContext,
+      id: string,
+      input: NativeCustomerAccessReadInput,
+      signal?: AbortSignal,
+    ) => {
+      if (!identifier(id) || id.includes('/') || id.includes('\\'))
+        return Promise.reject(new NativeCustomerAccessError('NATIVE_CUSTOMER_ACCESS_REQUEST_INVALID'));
+      return run(
+        incoming,
+        actor,
+        input,
+        'GET',
+        `/${encodeURIComponent(id)}/invitations`,
+        undefined,
+        undefined,
+        signal,
+        (value) => invitationHistory(value, id),
+      ) as Promise<NativePortalInvitationHistory>;
     },
   };
 }

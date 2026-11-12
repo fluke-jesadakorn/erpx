@@ -65,5 +65,13 @@ path = "../../tests/unit/customer_authority/rust-portal-invitation-delivery.test
 name = "portal_invitation_delivery_postgres"
 path = "../../tests/integration/customer_authority/rust-portal-invitation-delivery-postgres.test.rs"
 
+[[test]]
+name = "portal_invitations"
+path = "../../tests/unit/customer_authority/rust-portal-invitations.test.rs"
+
+[[test]]
+name = "portal_invitations_postgres"
+path = "../../tests/integration/customer_authority/rust-portal-invitations-postgres.test.rs"
+
 [lints]
 workspace = true

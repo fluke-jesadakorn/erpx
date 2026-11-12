@@ -2,6 +2,10 @@
 //! authority remains with the selected coordinator; owner ports supply the
 //! customer access workspace, detail, request and change facts.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commercial::public::capability_decision::PgCapabilityDecisionReader;
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, current_package_catalogue,
+};
 use erpx_server_customer_authority::public::access::PgCustomerAccess;
 use erpx_server_customer_authority::public::access::{
     AccessActor, AccessChange, AccessRequest, access_detail, access_workspace, change_access,
@@ -20,12 +24,15 @@ use erpx_server_customer_authority::public::duplicates_http::{
     CustomerDuplicateHttpRequest, CustomerDuplicateHttpResponse, CustomerDuplicateHttpTarget,
 };
 use erpx_server_customer_authority::public::identity::{
-    IdentityChange, IdentityRequest, PgCustomerIdentity, change_customer_identity,
-    identity_detail, identity_workspace, request_customer_identity_change,
+    IdentityChange, IdentityRequest, PgCustomerIdentity, change_customer_identity, identity_detail,
+    identity_workspace, request_customer_identity_change,
 };
 use erpx_server_customer_authority::public::identity_http::{
     CustomerIdentityHttpBackend, CustomerIdentityHttpCommand, CustomerIdentityHttpFuture,
     CustomerIdentityHttpRequest, CustomerIdentityHttpResponse, CustomerIdentityHttpTarget,
+};
+use erpx_server_customer_authority::public::portal_invitations::{
+    InvitationAction, InvitationCommand, PgPortalInvitation, invitation_history, issue_invitation,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -39,7 +46,7 @@ use erpx_server_identity_access::public::{
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, TimestampMillis,
 };
 use serde_json::Value;
 use sqlx::PgConnection;
@@ -434,8 +441,7 @@ impl<C: Clock + Send + Sync + 'static> CustomerAuthorityService<C> {
                         let actor = access_actor(current)?;
                         let now = clock.now().get();
                         let mut repository = PgCustomerDuplicateReview::new(connection);
-                        let data =
-                            duplicate_review_workspace(&mut repository, &actor, now).await?;
+                        let data = duplicate_review_workspace(&mut repository, &actor, now).await?;
                         Ok(CustomerDuplicateHttpResponse {
                             data,
                             context: context(current),
@@ -690,7 +696,8 @@ impl<C: Clock + Send + Sync + 'static> CustomerAuthorityService<C> {
                         let actor = access_actor(current)?;
                         let now = clock.now().get();
                         let mut repository = PgCustomerIdentity::new(connection);
-                        let data = identity_detail(&mut repository, &actor, &change_id, now).await?;
+                        let data =
+                            identity_detail(&mut repository, &actor, &change_id, now).await?;
                         Ok(CustomerIdentityHttpResponse {
                             data,
                             context: context(current),
@@ -860,7 +867,6 @@ impl<C: Clock + Send + Sync + 'static> CustomerAuthorityBackend<C> {
     }
 }
 
-
 fn duplicate_invalid() -> BusinessError {
     BusinessError::invalid(
         "VALIDATION_FAILED",
@@ -929,7 +935,6 @@ impl<C: Clock + Send + Sync + 'static> CustomerDuplicateHttpBackend
     }
 }
 
-
 fn identity_invalid() -> BusinessError {
     BusinessError::invalid(
         "VALIDATION_FAILED",
@@ -937,9 +942,7 @@ fn identity_invalid() -> BusinessError {
     )
 }
 
-impl<C: Clock + Send + Sync + 'static> CustomerIdentityHttpBackend
-    for CustomerAuthorityBackend<C>
-{
+impl<C: Clock + Send + Sync + 'static> CustomerIdentityHttpBackend for CustomerAuthorityBackend<C> {
     fn execute<'a>(
         &'a self,
         request: CustomerIdentityHttpRequest<'a>,
@@ -998,6 +1001,200 @@ impl<C: Clock + Send + Sync + 'static> CustomerIdentityHttpBackend
     }
 }
 
+fn package_enforcement_mode() -> Result<PackageEnforcementMode, BusinessError> {
+    match std::env::var("ERPX_COMMERCE_PACKAGE_ENFORCEMENT")
+        .unwrap_or_else(|_| "disabled".to_owned())
+        .as_str()
+    {
+        "disabled" => Ok(PackageEnforcementMode::Disabled),
+        "shadow" => Ok(PackageEnforcementMode::Shadow),
+        "enforced" => {
+            if std::env::var("ERPX_ENVIRONMENT").ok().as_deref() != Some("local") {
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "PACKAGE_ENFORCEMENT_ENVIRONMENT",
+                    "Package enforcement is unavailable in this environment.",
+                ));
+            }
+            Ok(PackageEnforcementMode::Enforced)
+        }
+        _ => Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "PACKAGE_ENFORCEMENT_CONFIGURATION",
+            "Package enforcement is unavailable.",
+        )),
+    }
+}
+
+/// Retained `sales.portal` purchase purpose plus the Customer Authority release
+/// gate. Invite prepares new work; resend settles an existing invitation.
+async fn require_invitation_entitlement(
+    connection: &mut PgConnection,
+    actor: &AccessActor,
+    action: InvitationAction,
+    now: i64,
+) -> Result<(), BusinessError> {
+    let mode = package_enforcement_mode()?;
+    if mode == PackageEnforcementMode::Disabled {
+        return Ok(());
+    }
+    if std::env::var("NODE_ENV").ok().as_deref() == Some("production")
+        && !sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM engineering_verification_contexts e \
+             WHERE e.company_id=$1 AND e.enabled \
+             AND e.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)",
+        )
+        .bind(actor.company_id.as_str())
+        .fetch_one(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?
+    {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "FEATURE_COMING_SOON",
+            "Customer access is not released for this Company.",
+        ));
+    }
+    let purpose = match action {
+        InvitationAction::Invite => CapabilityPurpose::NewWork,
+        InvitationAction::Resend => CapabilityPurpose::SettleExisting,
+    };
+    let catalogue = current_package_catalogue()?;
+    PgCapabilityDecisionReader::new(actor.company_id.clone(), connection, &catalogue)
+        .require("sales.portal", purpose, mode, TimestampMillis::new(now))
+        .await
+        .map(|_| ())
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => unavailable(),
+        })
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerAuthorityService<C> {
+    /// Portal invitation issue/resend for one approved binding.
+    pub async fn invitation<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        binding_id: String,
+        holding_slug: String,
+        command_input: InvitationCommand,
+        idempotency_key: String,
+    ) -> Result<CustomerAccessHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let binding_id = binding_id.clone();
+                    let holding_slug = holding_slug.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        current.require_permission("commerce.sales")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let secret = std::env::var("BETTER_AUTH_SECRET")
+                            .map_err(|_| {
+                                erpx_server_shared::public::BusinessError::new(
+                                    erpx_server_shared::public::FailureKind::Unavailable,
+                                    "INVITATION_SIGNING_SECRET_UNAVAILABLE",
+                                    "The invitation signing secret is unavailable.",
+                                )
+                            })
+                            .map_err(PgTransactionError::Business)?;
+                        require_invitation_entitlement(
+                            connection,
+                            &actor,
+                            command_input.action,
+                            now,
+                        )
+                        .await?;
+                        let mut repository = PgPortalInvitation::new(connection);
+                        let data = issue_invitation(
+                            &mut repository,
+                            &actor,
+                            &binding_id,
+                            &idempotency_key,
+                            command_input,
+                            &secret,
+                            &holding_slug,
+                            now,
+                        )
+                        .await?;
+                        Ok(CustomerAccessHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Immutable Portal invitation history for one binding.
+    pub async fn invitation_history<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        binding_id: String,
+    ) -> Result<CustomerAccessHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let binding_id = binding_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let mut repository = PgPortalInvitation::new(connection);
+                        let history = invitation_history(&mut repository, &binding_id).await?;
+                        Ok(CustomerAccessHttpResponse {
+                            data: history.to_wire(),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
 impl<C: Clock + Send + Sync + 'static> CustomerAccessHttpBackend for CustomerAuthorityBackend<C> {
     fn execute<'a>(
         &'a self,
@@ -1052,6 +1249,36 @@ impl<C: Clock + Send + Sync + 'static> CustomerAccessHttpBackend for CustomerAut
                         .await
                         .map_err(business)
                 }
+                CustomerAccessHttpCommand::Invitation {
+                    binding_id,
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: InvitationCommand = InvitationCommand::parse(&body)
+                        .map_err(PgTransactionError::Business)
+                        .map_err(|error: PgTransactionError<BusinessError>| match error {
+                            PgTransactionError::Business(error) => error,
+                            PgTransactionError::Persistence(_) => unavailable(),
+                        })?;
+                    let holding_slug = request.holding_slug.to_owned();
+                    self.service
+                        .invitation(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            binding_id,
+                            holding_slug,
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+                CustomerAccessHttpCommand::InvitationHistory { binding_id } => self
+                    .service
+                    .invitation_history(request.host, proof, move || Ok(selection), binding_id)
+                    .await
+                    .map_err(business),
             }
         })
     }
