@@ -6,12 +6,8 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { ApiError, errorResponse, boundedCommandBody } from "@erpx/server-runtime/public/http";
 import {
   nativeFieldCollaborationCommand,
-  changeActionCard,
   collaborationExport,
   collaborationWorkspace,
-  createActionCard,
-  createRecordRelation,
-  removeRecordRelation,
 } from "@erpx/server-collaboration/public/collaboration-work";
 import { nativeCollaborationAvailable, nativeCollaborationCommand, nativeCollaborationWorkspace } from "@erpx/server-collaboration/public/native-collaboration-page";
 function failure(e:unknown){return errorResponse(e instanceof NativePartsSetupError?new ApiError(e.status,e.code,e.message):e);}
@@ -86,24 +82,7 @@ export async function POST(r: Request, c: C) {
       const data=await nativeCollaborationCommand(r,(await c.params).holdingSlug,body,key);
       return Response.json(canonicalDestinationLinks({data}),{headers});
     }
-    const legacyInput=input as Record<string,unknown>;
-    const removeId=typeof legacyInput.id==='string'?legacyInput.id:undefined;
-    if(legacyInput.entity==='relation'&&legacyInput.action==='remove'&&removeId===undefined)throw new ApiError(422,'VALIDATION_FAILED','Choose a relation to remove.');
-    const data =
-      legacyInput.entity === "relation"
-        ? legacyInput.action === "remove"
-          ? await removeRecordRelation(
-              a,
-              removeId!,
-              Number(legacyInput.expectedVersion),
-              String(legacyInput.reason),
-              key,
-            )
-          : await createRecordRelation(a, legacyInput, key)
-        : typeof legacyInput.id === "string"
-          ? await changeActionCard(a, legacyInput.id, legacyInput, key)
-          : await createActionCard(a, legacyInput, key);
-    return Response.json(canonicalDestinationLinks({ data }), { headers });
+    throw new ApiError(503,'NATIVE_COLLABORATION_UNAVAILABLE','The native Collaboration service is unavailable.');
   } catch (e) {
     return failure(e);
   }
