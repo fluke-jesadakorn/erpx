@@ -16,6 +16,7 @@ import {
   type NativeCommerceOrderSaveReceipt,
   type NativeCommerceFulfillmentReceipt,
   type NativeCommerceGoodsReceiptInput,
+  type NativeCommerceSalesDeliveryInput,
   type NativeCommerceServiceCompletionInput,
   type NativeCommerceOrderTransitionInput,
   type NativeCommerceOrdersPageContext,
@@ -32,6 +33,8 @@ export type {
   NativeCommerceOrderSaveInput,
   NativeCommerceOrderSaveReceipt,
   NativeCommerceFulfillmentReceipt,
+  NativeCommerceSalesAllocationInput,
+  NativeCommerceSalesDeliveryInput,
   NativeCommerceServiceCompletionInput,
   NativeCommerceOrderTransitionInput,
 } from '@erpx/feature-commerce/public/native-commerce-orders';
@@ -186,6 +189,48 @@ export async function nativeCommerceOrderFulfill(
     return undefined;
   try {
     return await native.fulfill(await headers(), context, id, input, key, readInput(context));
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/**
+ * Native sales goods/mixed delivery reachable from the retained fulfill route.
+ * Unlike the bounded read/save gates this path is native-only: an unset,
+ * unavailable or non-sales order fails closed with 503 and is never silently
+ * replaced by the TypeScript writer.
+ */
+export async function nativeCommerceSalesDelivery(
+  actor: WorkContext,
+  id: string,
+  input: NativeCommerceSalesDeliveryInput,
+  key: string,
+): Promise<NativeCommerceFulfillmentReceipt> {
+  const unavailable = () =>
+    new ApiError(
+      503,
+      'NATIVE_COMMERCE_ORDER_UNAVAILABLE',
+      'The native Commerce sales delivery is unavailable.',
+    );
+  const native = client();
+  if (!native) throw unavailable();
+  let context: NativeCommerceOrdersPageContext;
+  let facts: { kind: string; state: string } | null;
+  try {
+    context = nativeCommerceOrdersPageContext(actor);
+    const write = (await holdingResources(actor.holdingId)).write;
+    facts = await commerceEntrypointFacts(write).orderFacts(id, actor.companyId);
+  } catch {
+    throw unavailable();
+  }
+  if (
+    !facts ||
+    facts.kind !== 'sales' ||
+    !['confirmed', 'partially_fulfilled'].includes(facts.state)
+  )
+    throw unavailable();
+  try {
+    return await native.deliverSales(await headers(), context, id, input, key, readInput(context));
   } catch (error) {
     return fail(error);
   }

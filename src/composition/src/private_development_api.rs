@@ -2910,6 +2910,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut commerce_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut commerce_delivery_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut commerce_receipt_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut customer_360_targets = Vec::new();
@@ -5424,6 +5426,14 @@ async fn assemble_checked(
                         backend: commerce_backend.clone(),
                     },
                 );
+                commerce_delivery_targets.push(
+                    erpx_server_commerce::public::order_http::CommerceSalesDeliveryHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: commerce_backend.clone(),
+                    },
+                );
                 commerce_receipt_targets.push(
                     erpx_server_commerce::public::receipt_http::CommerceReceiptHttpTarget {
                         host: holding.host.clone(),
@@ -5444,9 +5454,10 @@ async fn assemble_checked(
                 erpx_server_commerce::public::order_http::CommerceOriginPolicy::Production
             };
             router = router.merge(
-                erpx_server_commerce::public::order_http::commerce_order_http_router_with_origin_policy(
+                erpx_server_commerce::public::order_http::commerce_order_http_router_with_origin_policy_and_sales_delivery(
                     commerce_targets,
                     origin_policy,
+                    commerce_delivery_targets,
                 )
                 .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
             );

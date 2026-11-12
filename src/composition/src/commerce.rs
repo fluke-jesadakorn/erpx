@@ -15,6 +15,11 @@ use erpx_server_commerce::public::order_http::ServiceCompletionInput;
 use erpx_server_commerce::public::receipt::{
     PgCommerceReceipt, ReceiptCommand, receive_purchase_order_with_goods_valuation,
 };
+use erpx_server_inventory::public::stock_issue::{
+    StockIssueAllocationInput, StockIssueAppliedReceipt, StockIssueInput, StockIssueLineInput,
+    StockIssuePlan, StockIssueSource, apply_stock_issue, lock_stock_issue_sources,
+    prepare_stock_issue, read_stock_issue_source, validate_stock_issue_plan,
+};
 use erpx_server_commerce::public::receipt_http::{
     CommerceReceiptHttpBackend, CommerceReceiptHttpFuture, CommerceReceiptHttpRequest,
     CommerceReceiptHttpResponse, CommerceReceiptHttpTarget,
@@ -22,6 +27,14 @@ use erpx_server_commerce::public::receipt_http::{
 use erpx_server_commerce::public::order_http::{
     CommerceOrderHttpBackend, CommerceOrderHttpCommand, CommerceOrderHttpFuture,
     CommerceOrderHttpRequest, CommerceOrderHttpResponse, CommerceOrderHttpTarget,
+    CommerceSalesDeliveryHttpBackend, CommerceSalesDeliveryHttpRequest,
+};
+use erpx_server_commerce::public::sales_delivery::{
+    CommerceSalesDeliveryGoods, CommerceSalesDeliveryStock, PgCommerceSalesDelivery,
+    PreparedSalesDelivery, SalesDeliveryCommand, SalesDeliveryJournalRequest,
+    SalesDeliveryPlanAllocation, SalesDeliveryPlanLine, SalesDeliveryStockApplied,
+    SalesDeliveryStockAppliedAllocation, SalesDeliveryStockAppliedLine, SalesDeliveryStockRequest,
+    deliver_sales_order, sales_delivery_wire,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -955,6 +968,76 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
             .await
     }
 
+    /// Native sales goods/mixed delivery. Inventory supplies the stock-issue
+    /// plan/apply seam and Finance the delivery goods journal on the same
+    /// caller-owned serializable unit as the Commerce order/fulfillment rows.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn deliver<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        order_id: String,
+        idempotency_key: String,
+        command: SalesDeliveryCommand,
+    ) -> Result<CommerceOrderHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let companies = self.configuration.companies.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input, true),
+                Self::access(),
+                CommerceSources { money: true },
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let companies = companies.clone();
+                    let order_id = order_id.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    let command = command.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || !companies.contains(&current.selection().workspace().company_id)
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        if command.order_id.as_str() != order_id
+                            || command.key.as_str() != idempotency_key
+                        {
+                            return Err(request_invalid().into());
+                        }
+                        let actor = commerce_actor(current)?;
+                        let now = clock.now();
+                        let mut repository = PgCommerceSalesDelivery::new();
+                        let mut stock = ComposedStockIssue;
+                        let mut goods = ComposedGoodsValuation::new(clock.clone());
+                        let receipt = deliver_sales_order(
+                            &actor,
+                            &command,
+                            &mut repository,
+                            &mut stock,
+                            &mut goods,
+                            connection,
+                            now,
+                        )
+                        .await?;
+                        Ok(CommerceOrderHttpResponse {
+                            data: sales_delivery_wire(&receipt),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn receive_goods<Input>(
         &self,
         host: &str,
@@ -1088,6 +1171,178 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                 },
             )
             .await
+    }
+}
+
+/// Inventory stock-issue seam for the native sales delivery. It binds the
+/// Commerce request onto the Inventory public stock-issue port and returns the
+/// exact per-line applied facts, all on the caller's serializable unit. It never
+/// commits, retries or opens a second connection.
+struct ComposedStockIssue;
+
+impl CommerceSalesDeliveryStock for ComposedStockIssue {
+    type Source = StockIssueSource;
+    type Plan = StockIssuePlan;
+    type Applied = StockIssueAppliedReceipt;
+
+    fn lock<'a>(&'a mut self, c: &'a mut PgConnection) -> PgWorkFuture<'a, (), BusinessError> {
+        Box::pin(async move { lock_stock_issue_sources(c).await })
+    }
+
+    fn read<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        company: &'a str,
+        branch: Option<&'a str>,
+        department: Option<&'a str>,
+        order_id: &'a str,
+    ) -> PgWorkFuture<'a, Self::Source, BusinessError> {
+        Box::pin(
+            async move { read_stock_issue_source(c, company, branch, department, order_id).await },
+        )
+    }
+
+    fn prepare<'a>(
+        &'a mut self,
+        _c: &'a mut PgConnection,
+        source: &'a Self::Source,
+        request: &'a SalesDeliveryStockRequest,
+    ) -> PgWorkFuture<'a, PreparedSalesDelivery<Self::Plan>, BusinessError> {
+        Box::pin(async move {
+            let input = StockIssueInput {
+                expected_order_version: request.expected_order_version,
+                date: request.date.clone(),
+                lines: request
+                    .lines
+                    .iter()
+                    .map(|line| StockIssueLineInput {
+                        line_id: line.line_id.clone(),
+                        quantity_milli: line.quantity_milli,
+                        allocations: line
+                            .allocations
+                            .iter()
+                            .map(|allocation| StockIssueAllocationInput {
+                                lot_id: allocation.lot_id.clone(),
+                                quantity_milli: allocation.quantity_milli,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            };
+            let plan = prepare_stock_issue(source, &input)?;
+            let lines = plan
+                .lines
+                .iter()
+                .map(|line| SalesDeliveryPlanLine {
+                    line_id: line.line_id.clone(),
+                    product_id: line.product_id.clone(),
+                    tracking_mode: line.tracking_mode.clone(),
+                    ordered_milli: line.ordered_milli,
+                    quantity_milli: line.quantity_milli,
+                    stock_value_minor: line.stock_value_minor,
+                    expected_fulfilled_milli: line.expected_fulfilled_milli,
+                    stock_version: line.expected_stock_version,
+                    allocations: line
+                        .allocations
+                        .iter()
+                        .map(|allocation| SalesDeliveryPlanAllocation {
+                            lot_id: allocation.lot_id.clone(),
+                            lot_code: allocation.lot_code.clone(),
+                            serial_number: allocation.serial_number.clone(),
+                            quantity_milli: allocation.quantity_milli,
+                            value_minor: allocation.value_minor,
+                        })
+                        .collect(),
+                })
+                .collect();
+            Ok(PreparedSalesDelivery {
+                order_version: plan.order_version,
+                warehouse_id: plan.warehouse_id.clone(),
+                branch_id: plan.branch_id.clone(),
+                total_value_minor: plan.total_value_minor,
+                plan,
+                lines,
+            })
+        })
+    }
+
+    fn apply<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        plan: &'a Self::Plan,
+        fulfillment_id: &'a str,
+        command_key: &'a str,
+        actor: &'a str,
+        now: i64,
+    ) -> PgWorkFuture<'a, Self::Applied, BusinessError> {
+        Box::pin(async move {
+            apply_stock_issue(c, plan, fulfillment_id, command_key, actor, now).await
+        })
+    }
+
+    fn applied_facts(&self, applied: &Self::Applied) -> SalesDeliveryStockApplied {
+        SalesDeliveryStockApplied {
+            fulfillment_id: applied.fulfillment_id.clone(),
+            replayed: applied.replayed,
+            lines: applied
+                .lines
+                .iter()
+                .map(|line| SalesDeliveryStockAppliedLine {
+                    line_id: line.line_id.clone(),
+                    stock_version: line.stock_version,
+                    quantity_milli: line.quantity_milli,
+                    value_minor: line.value_minor,
+                    allocations: line
+                        .allocations
+                        .iter()
+                        .map(|allocation| SalesDeliveryStockAppliedAllocation {
+                            lot_id: allocation.lot_id.clone(),
+                            quantity_milli: allocation.quantity_milli,
+                            value_minor: allocation.value_minor,
+                            balance_version: allocation.balance_version,
+                        })
+                        .collect(),
+                })
+                .collect(),
+        }
+    }
+
+    fn require_applied<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        plan: &'a Self::Plan,
+        applied: &'a Self::Applied,
+    ) -> PgWorkFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            validate_stock_issue_plan(plan)?;
+            if applied.fulfillment_id.is_empty() || applied.replayed {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "STOCK_DELIVERY_EVIDENCE_INVALID",
+                    "The Inventory delivery evidence is unavailable.",
+                )
+                .into());
+            }
+            for line in &applied.lines {
+                let row: Option<(i64, i64)> = sqlx::query_as(
+                    "SELECT quantity_milli,value_minor FROM commerce_stock_moves \
+                     WHERE id=$1 AND fulfillment_id=$2",
+                )
+                .bind(&line.stock_move_id)
+                .bind(&applied.fulfillment_id)
+                .fetch_optional(&mut *c)
+                .await?;
+                if row != Some((-line.quantity_milli, -line.value_minor)) {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "STOCK_DELIVERY_EVIDENCE_INVALID",
+                        "The Inventory delivery evidence changed.",
+                    )
+                    .into());
+                }
+            }
+            Ok(())
+        })
     }
 }
 
@@ -1240,6 +1495,97 @@ impl<C: Clock + Send + Sync + 'static>
     }
 }
 
+/// Finance goods-journal seam for the native sales goods/mixed delivery. It
+/// resolves and posts on the caller's serializable unit and never writes
+/// Commerce/Inventory rows.
+impl<C: Clock + Send + Sync + 'static> CommerceSalesDeliveryGoods for ComposedGoodsValuation<C> {
+    fn lock<'a>(&'a mut self, _c: &'a mut PgConnection) -> PgWorkFuture<'a, (), BusinessError> {
+        Box::pin(async move { Ok(()) })
+    }
+
+    fn resolve<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        request: &'a erpx_server_commerce::public::receipt::GoodsValuationRequest,
+    ) -> PgWorkFuture<'a, erpx_server_commerce::public::receipt::GoodsValuation, BusinessError>
+    {
+        Box::pin(async move {
+            let actor = finance_actor_from(
+                &request.user_id,
+                &request.holding_id,
+                &request.company_id,
+                &request.assignment_id,
+            )
+            .map_err(PgTransactionError::Business)?;
+            let resolved = erpx_server_finance::public::commerce_goods_journal::resolve_commerce_goods_valuation(
+                connection,
+                &erpx_server_finance::public::commerce_goods_journal::CommerceGoodsValuationRequest {
+                    actor,
+                    chart_id: request.chart_id.clone(),
+                    business_date: request.business_date.clone(),
+                    document_currency: request.document_currency.clone(),
+                },
+            )
+            .await?;
+            let valuation = erpx_server_commerce::public::receipt::GoodsValuation {
+                stock_currency: resolved.stock_currency().to_owned(),
+                fx_rate_micros: resolved.fx_rate_micros(),
+                source_rate_id: resolved.fx().source_rate_id.clone(),
+                target_rate_id: resolved.fx().target_rate_id.clone(),
+                used_latest_fallback: resolved.fx().used_latest_fallback,
+            };
+            self.resolved = Some(resolved);
+            Ok(valuation)
+        })
+    }
+
+    fn post<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        request: &'a SalesDeliveryJournalRequest,
+        valuation: &'a erpx_server_commerce::public::receipt::GoodsValuation,
+    ) -> PgWorkFuture<'a, String, BusinessError> {
+        Box::pin(async move {
+            if self.resolved.as_ref().is_none_or(|resolved| {
+                resolved.stock_currency() != valuation.stock_currency
+                    || resolved.fx_rate_micros() != valuation.fx_rate_micros
+            }) {
+                return Err(PgTransactionError::Business(goods_finance_unavailable()));
+            }
+            let posting = erpx_server_finance::public::commerce_goods_journal::CommerceGoodsJournalPosting {
+                journal_id: request.journal_id.clone(),
+                actor: finance_actor_from(
+                    &request.user_id,
+                    &request.holding_id,
+                    &request.company_id,
+                    &request.assignment_id,
+                )
+                .map_err(PgTransactionError::Business)?,
+                chart_id: request.chart_id.clone(),
+                business_date: request.business_date.clone(),
+                fulfillment_id: request.fulfillment_id.clone(),
+                memo: request.memo.clone(),
+                inventory_account_id: request.inventory_account_id.clone(),
+                kind: erpx_server_finance::public::commerce_goods_journal::CommerceGoodsKind::Delivery {
+                    cogs_account_id: request.cogs_account_id.clone(),
+                },
+                document_currency: request.currency.clone(),
+                document_subtotal_minor: request.amount_minor,
+                stock_value_minor: request.amount_minor,
+                fx_rate_micros: Some(request.fx_rate_micros),
+            };
+            let journal_id =
+                erpx_server_finance::public::commerce_goods_journal::post_commerce_goods_journal(
+                    connection,
+                    self.clock.as_ref(),
+                    &posting,
+                )
+                .await?;
+            Ok(journal_id)
+        })
+    }
+}
+
 pub struct CommerceBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
@@ -1345,6 +1691,28 @@ impl<C: Clock + Send + Sync + 'static> CommerceOrderHttpBackend for CommerceBack
                     .await
                     .map_err(business),
             }
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> CommerceSalesDeliveryHttpBackend for CommerceBackend<C> {
+    fn deliver<'a>(
+        &'a self,
+        request: CommerceSalesDeliveryHttpRequest<'a>,
+    ) -> CommerceOrderHttpFuture<'a, CommerceOrderHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .deliver(
+                    request.host,
+                    proof,
+                    move || selection?.resolve(),
+                    request.order_id,
+                    request.idempotency_key,
+                    request.command,
+                )
+                .await
+                .map_err(business)
         })
     }
 }

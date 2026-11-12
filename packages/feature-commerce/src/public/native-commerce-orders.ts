@@ -150,6 +150,27 @@ export type NativeCommerceGoodsReceiptInput = Readonly<{
   }>[];
 }>;
 
+export type NativeCommerceSalesAllocationInput = Readonly<{
+  lotId?: string;
+  lotCode?: string;
+  serialNumber?: string;
+  quantity: string;
+  disposition?: 'available' | 'quarantine';
+  quarantineReason?: string;
+  quarantineDueDate?: string;
+}>;
+export type NativeCommerceSalesDeliveryInput = Readonly<{
+  completionMode: 'goods' | 'mixed';
+  expectedVersion: number;
+  date: string;
+  reason?: string;
+  lines: readonly Readonly<{
+    lineId: string;
+    quantity: string;
+    allocations?: readonly NativeCommerceSalesAllocationInput[];
+  }>[];
+}>;
+
 export type NativeCommerceFulfillmentReceipt = Readonly<{
   id: string;
   fulfillmentId: string;
@@ -467,6 +488,77 @@ function saveInput(input: NativeCommerceOrderSaveInput): string {
       taxBps: line.taxBps,
     })),
     ...(input.expectedVersion !== undefined ? { expectedVersion: input.expectedVersion } : {}),
+  });
+}
+
+function salesDeliveryInput(input: NativeCommerceSalesDeliveryInput): string {
+  if (
+    (input.completionMode !== 'goods' && input.completionMode !== 'mixed') ||
+    !integer(input.expectedVersion, 1) ||
+    !date(input.date) ||
+    (input.reason !== undefined && !text(input.reason, 1000)) ||
+    !Array.isArray(input.lines) ||
+    input.lines.length < 1 ||
+    input.lines.length > 20
+  )
+    return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+  const ids = new Set<string>();
+  for (const line of input.lines) {
+    if (!identifier(line.lineId) || ids.has(line.lineId) || !quantityString(line.quantity))
+      return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+    ids.add(line.lineId);
+    if (line.allocations !== undefined) {
+      if (
+        !Array.isArray(line.allocations) ||
+        line.allocations.length < 1 ||
+        line.allocations.length > 200
+      )
+        return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+      for (const allocation of line.allocations) {
+        if (
+          !quantityString(allocation.quantity) ||
+          (allocation.lotId !== undefined && !identifier(allocation.lotId)) ||
+          (allocation.lotCode !== undefined && !identifier(allocation.lotCode)) ||
+          (allocation.serialNumber !== undefined && !identifier(allocation.serialNumber)) ||
+          (allocation.disposition !== undefined &&
+            !['available', 'quarantine'].includes(allocation.disposition)) ||
+          (allocation.quarantineReason !== undefined &&
+            !text(allocation.quarantineReason, 3000)) ||
+          (allocation.quarantineDueDate !== undefined && !date(allocation.quarantineDueDate))
+        )
+          return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+      }
+    }
+  }
+  const lines = input.lines.map((line) => ({
+    lineId: line.lineId,
+    quantity: line.quantity,
+    ...(line.allocations !== undefined
+      ? { allocations: line.allocations.map((allocation: NativeCommerceSalesAllocationInput) => ({
+          ...(allocation.lotId !== undefined ? { lotId: allocation.lotId } : {}),
+          ...(allocation.lotCode !== undefined ? { lotCode: allocation.lotCode } : {}),
+          ...(allocation.serialNumber !== undefined
+            ? { serialNumber: allocation.serialNumber }
+            : {}),
+          quantity: allocation.quantity,
+          ...(allocation.disposition !== undefined
+            ? { disposition: allocation.disposition }
+            : {}),
+          ...(allocation.quarantineReason !== undefined
+            ? { quarantineReason: allocation.quarantineReason }
+            : {}),
+          ...(allocation.quarantineDueDate !== undefined
+            ? { quarantineDueDate: allocation.quarantineDueDate }
+            : {}),
+        })) }
+      : {}),
+  }));
+  return JSON.stringify({
+    completionMode: input.completionMode,
+    expectedVersion: input.expectedVersion,
+    date: input.date,
+    ...(input.reason !== undefined ? { reason: input.reason } : {}),
+    lines,
   });
 }
 
@@ -965,6 +1057,32 @@ export function createNativeCommerceOrdersClient(
         `${encodeURIComponent(orderId)}/fulfill`,
         'POST',
         serviceCompletionInput(command),
+        key,
+        signal,
+      );
+      if (!exact(value, ['data', 'context'])) return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
+      const data = fulfillmentReceipt(value.data);
+      context(value.context, actor, input);
+      return data;
+    },
+    async deliverSales(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeCommerceOrdersPageContext,
+      orderId: string,
+      command: NativeCommerceSalesDeliveryInput,
+      key: string,
+      input: NativeCommerceOrdersReadInput,
+      signal?: AbortSignal,
+    ): Promise<NativeCommerceFulfillmentReceipt> {
+      if (!identifier(orderId)) return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+      const value = await run(
+        incoming,
+        actor,
+        input,
+        'orders',
+        `${encodeURIComponent(orderId)}/fulfill`,
+        'POST',
+        salesDeliveryInput(command),
         key,
         signal,
       );
