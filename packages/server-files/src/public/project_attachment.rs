@@ -13,7 +13,8 @@ pub use crate::adapters::project_attachment::{
     ProjectAttachmentLinkRead, ProjectAttachmentLinkStatusRead, ProjectAttachmentManifestItem,
     ProjectAttachmentScanRead, ProjectAttachmentSetFacts, ProjectAttachmentSetRead,
     bind_project_attachment_with_current_facts, project_attachment_bound_manifest,
-    project_attachment_content, project_attachment_link_ids, project_attachment_link_status,
-    project_attachment_links, project_attachment_set_facts, project_attachment_sets,
-    validate_project_attachment_binding,
+    project_attachment_content, project_attachment_content_by_link, project_attachment_link_ids,
+    project_attachment_link_status, project_attachment_link_status_by_link,
+    project_attachment_links, project_attachment_links_by_set, project_attachment_set_facts,
+    project_attachment_sets, validate_project_attachment_binding,
 };

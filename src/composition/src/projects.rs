@@ -7,8 +7,9 @@ use erpx_server_commercial::public::purchases::{
 };
 use erpx_server_files::public::project_attachment::{
     PROJECT_ATTACHMENT_PURPOSES, ProjectAttachmentContentVariant, bind_project_attachment_with_current_facts,
-    project_attachment_bound_manifest, project_attachment_content, project_attachment_link_ids,
-    project_attachment_link_status, project_attachment_links, project_attachment_set_facts,
+    project_attachment_bound_manifest, project_attachment_content, project_attachment_content_by_link,
+    project_attachment_link_ids, project_attachment_link_status, project_attachment_link_status_by_link,
+    project_attachment_links, project_attachment_links_by_set, project_attachment_set_facts,
     project_attachment_sets,
 };
 use erpx_server_files::public::project_attachment_intake::{
@@ -79,11 +80,12 @@ use erpx_server_projects::public::project_attachment_intake_http::{
     ProjectAttachmentUploadStatusHttpRequest,
 };
 use erpx_server_projects::public::project_attachment_read_http::{
-    ProjectAttachmentContentHttpResponse, ProjectAttachmentReadContentHttpRequest,
-    ProjectAttachmentReadHttpBackend, ProjectAttachmentReadHttpFuture,
-    ProjectAttachmentReadHttpResponse,
-    ProjectAttachmentReadHttpTarget, ProjectAttachmentReadLinksHttpRequest,
-    ProjectAttachmentReadSetsHttpRequest, ProjectAttachmentReadStatusHttpRequest,
+    ProjectAttachmentContentHttpResponse, ProjectAttachmentReadContentByLinkHttpRequest,
+    ProjectAttachmentReadContentHttpRequest, ProjectAttachmentReadHttpBackend,
+    ProjectAttachmentReadHttpFuture, ProjectAttachmentReadHttpResponse,
+    ProjectAttachmentReadHttpTarget, ProjectAttachmentReadLinksBySetHttpRequest,
+    ProjectAttachmentReadLinksHttpRequest, ProjectAttachmentReadSetsHttpRequest,
+    ProjectAttachmentReadStatusByLinkHttpRequest, ProjectAttachmentReadStatusHttpRequest,
     project_attachment_read_router,
 };
 use erpx_server_projects::public::project_attachment_http::{
@@ -227,8 +229,11 @@ pub struct ProjectsService<C> {
 pub enum ProjectAttachmentReadAccess {
     Sets { project_id: String },
     Links { project_id: String, set_id: String },
+    LinksBySet { set_id: String },
     Status { project_id: String, link_id: String },
+    StatusByLink { link_id: String },
     Content { project_id: String, link_id: String, variant: ProjectAttachmentContentVariant },
+    ContentByLink { link_id: String, variant: ProjectAttachmentContentVariant },
 }
 
 pub enum ProjectAttachmentReadOutcome {
@@ -682,6 +687,22 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                                     },
                                 )
                             }
+                            ProjectAttachmentReadAccess::LinksBySet { set_id } => {
+                                let links = project_attachment_links_by_set(
+                                    connection,
+                                    &actor,
+                                    &set_id,
+                                    now,
+                                )
+                                .await?;
+                                ProjectAttachmentReadOutcome::Data(
+                                    ProjectAttachmentReadHttpResponse {
+                                        data: serde_json::to_value(links)
+                                            .map_err(|_| attachment_invalid())?,
+                                        context: context(current),
+                                    },
+                                )
+                            }
                             ProjectAttachmentReadAccess::Status { project_id, link_id } => {
                                 let status = project_attachment_link_status(
                                     connection,
@@ -696,6 +717,44 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                                         data: serde_json::to_value(status)
                                             .map_err(|_| attachment_invalid())?,
                                         context: context(current),
+                                    },
+                                )
+                            }
+                            ProjectAttachmentReadAccess::StatusByLink { link_id } => {
+                                let status = project_attachment_link_status_by_link(
+                                    connection,
+                                    &actor,
+                                    &link_id,
+                                    now,
+                                )
+                                .await?;
+                                ProjectAttachmentReadOutcome::Data(
+                                    ProjectAttachmentReadHttpResponse {
+                                        data: serde_json::to_value(status)
+                                            .map_err(|_| attachment_invalid())?,
+                                        context: context(current),
+                                    },
+                                )
+                            }
+                            ProjectAttachmentReadAccess::ContentByLink { link_id, variant } => {
+                                let store = store.as_deref().ok_or_else(|| {
+                                    PgTransactionError::Business(unavailable())
+                                })?;
+                                let content = project_attachment_content_by_link(
+                                    connection,
+                                    store,
+                                    &actor,
+                                    &link_id,
+                                    variant,
+                                    now,
+                                )
+                                .await?;
+                                ProjectAttachmentReadOutcome::Content(
+                                    ProjectAttachmentContentHttpResponse {
+                                        media_type: content.media_type,
+                                        filename: content.filename,
+                                        inline: content.inline,
+                                        body: content.body,
                                     },
                                 )
                             }
@@ -1880,6 +1939,86 @@ impl<C: Clock + Send + Sync + 'static> ProjectAttachmentReadHttpBackend
                     move || Ok(selection),
                     ProjectAttachmentReadAccess::Content {
                         project_id: request.project_id.to_owned(),
+                        link_id: request.link_id.to_owned(),
+                        variant,
+                    },
+                    self.store.clone(),
+                )
+                .await
+                .map_err(business)?
+            {
+                ProjectAttachmentReadOutcome::Content(response) => Ok(response),
+                ProjectAttachmentReadOutcome::Data(_) => Err(attachment_invalid()),
+            }
+        })
+    }
+
+    fn links_by_set<'a>(
+        &'a self,
+        request: ProjectAttachmentReadLinksBySetHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match self
+                .service
+                .read_project_attachment(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    ProjectAttachmentReadAccess::LinksBySet {
+                        set_id: request.set_id.to_owned(),
+                    },
+                    self.store.clone(),
+                )
+                .await
+                .map_err(business)?
+            {
+                ProjectAttachmentReadOutcome::Data(response) => Ok(response),
+                ProjectAttachmentReadOutcome::Content(_) => Err(attachment_invalid()),
+            }
+        })
+    }
+
+    fn status_by_link<'a>(
+        &'a self,
+        request: ProjectAttachmentReadStatusByLinkHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match self
+                .service
+                .read_project_attachment(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    ProjectAttachmentReadAccess::StatusByLink {
+                        link_id: request.link_id.to_owned(),
+                    },
+                    self.store.clone(),
+                )
+                .await
+                .map_err(business)?
+            {
+                ProjectAttachmentReadOutcome::Data(response) => Ok(response),
+                ProjectAttachmentReadOutcome::Content(_) => Err(attachment_invalid()),
+            }
+        })
+    }
+
+    fn content_by_link<'a>(
+        &'a self,
+        request: ProjectAttachmentReadContentByLinkHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentContentHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            let variant = ProjectAttachmentContentVariant::parse(request.variant)?;
+            match self
+                .service
+                .read_project_attachment(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    ProjectAttachmentReadAccess::ContentByLink {
                         link_id: request.link_id.to_owned(),
                         variant,
                     },

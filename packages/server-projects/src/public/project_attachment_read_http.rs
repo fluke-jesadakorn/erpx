@@ -1,8 +1,10 @@
 //! Native Projects attachment read HTTP ingress.
 pub use crate::adapters::project_attachment_read_http::{
-    ProjectAttachmentContentHttpResponse, ProjectAttachmentReadContentHttpRequest,
-    ProjectAttachmentReadHttpBackend, ProjectAttachmentReadHttpFuture,
-    ProjectAttachmentReadHttpResponse, ProjectAttachmentReadHttpTarget,
+    ProjectAttachmentContentHttpResponse, ProjectAttachmentReadContentByLinkHttpRequest,
+    ProjectAttachmentReadContentHttpRequest, ProjectAttachmentReadHttpBackend,
+    ProjectAttachmentReadHttpFuture, ProjectAttachmentReadHttpResponse,
+    ProjectAttachmentReadHttpTarget, ProjectAttachmentReadLinksBySetHttpRequest,
     ProjectAttachmentReadLinksHttpRequest, ProjectAttachmentReadSetsHttpRequest,
-    ProjectAttachmentReadStatusHttpRequest, project_attachment_read_router,
+    ProjectAttachmentReadStatusByLinkHttpRequest, ProjectAttachmentReadStatusHttpRequest,
+    project_attachment_read_router,
 };

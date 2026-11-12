@@ -249,6 +249,39 @@ export function createNativeProjectAttachmentReadClient(
     verifyContext(value.context, actor);
     return value.data;
   };
+  const content = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeProjectsPageContext,
+    path: string,
+  ): Promise<Response> => {
+    const response = await call(
+      transport,
+      config.base,
+      config.holdings,
+      incoming,
+      actor,
+      path,
+      config.timeout,
+    );
+    if (response.status !== 200) {
+      await jsonReply(response);
+      return failure('NATIVE_PROJECTS_UNAVAILABLE', response.status);
+    }
+    const body = await boundedBytes(response, 10 * 1024 * 1024);
+    const headers = new Headers();
+    for (const name of [
+      'content-type',
+      'content-disposition',
+      'cache-control',
+      'x-content-type-options',
+      'content-security-policy',
+      'accept-ranges',
+    ]) {
+      const value = response.headers.get(name);
+      if (value) headers.set(name, value);
+    }
+    return new Response(body as unknown as BodyInit, { headers });
+  };
   return {
     sets: (incoming: Pick<Headers, 'get'>, actor: NativeProjectsPageContext, projectId: string) =>
       read(incoming, actor, `/projects/${encodeURIComponent(projectId)}/attachment-sets`),
@@ -274,41 +307,45 @@ export function createNativeProjectAttachmentReadClient(
         actor,
         `/projects/${encodeURIComponent(projectId)}/attachment-links/${encodeURIComponent(linkId)}/status`,
       ),
-    content: async (
+    content: (
       incoming: Pick<Headers, 'get'>,
       actor: NativeProjectsPageContext,
       projectId: string,
       linkId: string,
       variant: 'original' | 'preview',
-    ): Promise<Response> => {
-      const response = await call(
-        transport,
-        config.base,
-        config.holdings,
+    ) =>
+      content(
         incoming,
         actor,
         `/projects/${encodeURIComponent(projectId)}/attachment-links/${encodeURIComponent(linkId)}/content?variant=${variant}`,
-        config.timeout,
-      );
-      if (response.status !== 200) {
-        await jsonReply(response);
-        return failure('NATIVE_PROJECTS_UNAVAILABLE', response.status);
-      }
-      const body = await boundedBytes(response, 10 * 1024 * 1024);
-      const headers = new Headers();
-      for (const name of [
-        'content-type',
-        'content-disposition',
-        'cache-control',
-        'x-content-type-options',
-        'content-security-policy',
-        'accept-ranges',
-      ]) {
-        const value = response.headers.get(name);
-        if (value) headers.set(name, value);
-      }
-      return new Response(body as unknown as BodyInit, { headers });
-    },
+      ),
+    linksBySet: (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeProjectsPageContext,
+      setId: string,
+    ) =>
+      read(incoming, actor, `/project-attachments/sets/${encodeURIComponent(setId)}/links`),
+    statusByLink: (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeProjectsPageContext,
+      linkId: string,
+    ) =>
+      read(
+        incoming,
+        actor,
+        `/project-attachments/links/${encodeURIComponent(linkId)}/status`,
+      ),
+    contentByLink: (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeProjectsPageContext,
+      linkId: string,
+      variant: 'original' | 'preview',
+    ) =>
+      content(
+        incoming,
+        actor,
+        `/project-attachments/links/${encodeURIComponent(linkId)}/content?variant=${variant}`,
+      ),
   };
 }
 
@@ -355,6 +392,50 @@ export async function nativeProjectAttachmentContent(
     incoming,
     actor,
     projectId,
+    linkId,
+    variant,
+  );
+}
+
+export async function nativeProjectAttachmentLinksBySet(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  setId: string,
+): Promise<unknown> {
+  const raw = process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+  if (raw === undefined) return failure('NATIVE_PROJECTS_CONFIGURATION_INVALID', 503);
+  return createNativeProjectAttachmentReadClient(nativeProjectsConfiguration(raw)).linksBySet(
+    incoming,
+    actor,
+    setId,
+  );
+}
+
+export async function nativeProjectAttachmentStatusByLink(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  linkId: string,
+): Promise<unknown> {
+  const raw = process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+  if (raw === undefined) return failure('NATIVE_PROJECTS_CONFIGURATION_INVALID', 503);
+  return createNativeProjectAttachmentReadClient(nativeProjectsConfiguration(raw)).statusByLink(
+    incoming,
+    actor,
+    linkId,
+  );
+}
+
+export async function nativeProjectAttachmentContentByLink(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  linkId: string,
+  variant: 'original' | 'preview',
+): Promise<Response> {
+  const raw = process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+  if (raw === undefined) return failure('NATIVE_PROJECTS_CONFIGURATION_INVALID', 503);
+  return createNativeProjectAttachmentReadClient(nativeProjectsConfiguration(raw)).contentByLink(
+    incoming,
+    actor,
     linkId,
     variant,
   );

@@ -1,10 +1,12 @@
 //! Owner-local HTTP router tests for native Projects attachment reads.
 use erpx_server_projects::public::project_attachment_read_http::{
-    ProjectAttachmentContentHttpResponse, ProjectAttachmentReadContentHttpRequest,
-    ProjectAttachmentReadHttpBackend, ProjectAttachmentReadHttpFuture,
-    ProjectAttachmentReadHttpResponse, ProjectAttachmentReadHttpTarget,
+    ProjectAttachmentContentHttpResponse, ProjectAttachmentReadContentByLinkHttpRequest,
+    ProjectAttachmentReadContentHttpRequest, ProjectAttachmentReadHttpBackend,
+    ProjectAttachmentReadHttpFuture, ProjectAttachmentReadHttpResponse,
+    ProjectAttachmentReadHttpTarget, ProjectAttachmentReadLinksBySetHttpRequest,
     ProjectAttachmentReadLinksHttpRequest, ProjectAttachmentReadSetsHttpRequest,
-    ProjectAttachmentReadStatusHttpRequest, project_attachment_read_router,
+    ProjectAttachmentReadStatusByLinkHttpRequest, ProjectAttachmentReadStatusHttpRequest,
+    project_attachment_read_router,
 };
 use erpx_server_runtime::public::http_support::{serde_json, serve};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -100,6 +102,56 @@ impl ProjectAttachmentReadHttpBackend for Probe {
             })
         })
     }
+
+    fn links_by_set<'a>(
+        &'a self,
+        request: ProjectAttachmentReadLinksBySetHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse> {
+        Box::pin(async move {
+            self.record(format!(
+                "linksBySet|{}|{}|{}",
+                request.host, request.holding_slug, request.set_id
+            ))?;
+            Ok(ProjectAttachmentReadHttpResponse {
+                data: serde_json::json!([]),
+                context: serde_json::json!({"userId": "actor"}),
+            })
+        })
+    }
+
+    fn status_by_link<'a>(
+        &'a self,
+        request: ProjectAttachmentReadStatusByLinkHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse> {
+        Box::pin(async move {
+            self.record(format!(
+                "statusByLink|{}|{}|{}",
+                request.host, request.holding_slug, request.link_id
+            ))?;
+            Ok(ProjectAttachmentReadHttpResponse {
+                data: serde_json::json!({"linkId": request.link_id}),
+                context: serde_json::json!({"userId": "actor"}),
+            })
+        })
+    }
+
+    fn content_by_link<'a>(
+        &'a self,
+        request: ProjectAttachmentReadContentByLinkHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentContentHttpResponse> {
+        Box::pin(async move {
+            self.record(format!(
+                "contentByLink|{}|{}|{}|{}",
+                request.host, request.holding_slug, request.link_id, request.variant
+            ))?;
+            Ok(ProjectAttachmentContentHttpResponse {
+                media_type: "application/pdf".into(),
+                filename: "plan .pdf".into(),
+                inline: request.variant == "preview",
+                body: b"hello".to_vec(),
+            })
+        })
+    }
 }
 
 struct Noop;
@@ -144,6 +196,42 @@ impl ProjectAttachmentReadHttpBackend for Noop {
     fn content<'a>(
         &'a self,
         _: ProjectAttachmentReadContentHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentContentHttpResponse> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::NotFound,
+                "NOT_FOUND",
+                "Not found.",
+            ))
+        })
+    }
+    fn links_by_set<'a>(
+        &'a self,
+        _: ProjectAttachmentReadLinksBySetHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::NotFound,
+                "NOT_FOUND",
+                "Not found.",
+            ))
+        })
+    }
+    fn status_by_link<'a>(
+        &'a self,
+        _: ProjectAttachmentReadStatusByLinkHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::NotFound,
+                "NOT_FOUND",
+                "Not found.",
+            ))
+        })
+    }
+    fn content_by_link<'a>(
+        &'a self,
+        _: ProjectAttachmentReadContentByLinkHttpRequest<'a>,
     ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentContentHttpResponse> {
         Box::pin(async {
             Err(BusinessError::new(
@@ -302,6 +390,152 @@ async fn actual_router_forwards_exact_project_reads_with_private_headers() {
         ]
     );
     server.abort();
+}
+
+#[tokio::test]
+async fn actual_router_forwards_exact_by_link_and_by_set_reads() {
+    let probe = Arc::new(Probe::default());
+    let router = project_attachment_read_router(vec![ProjectAttachmentReadHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: probe.clone(),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, head, body) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/project-attachments/sets/set-1/links",
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["context"]["userId"],
+        "actor"
+    );
+    assert!(
+        head.to_ascii_lowercase()
+            .contains("cache-control: private, no-store")
+    );
+
+    let (status, _, body) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/project-attachments/links/link-1/status",
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["data"]["linkId"],
+        "link-1"
+    );
+
+    let (status, head, body) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/project-attachments/links/link-1/content?variant=preview",
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body, b"hello");
+    let lower = head.to_ascii_lowercase();
+    assert!(lower.contains("content-type: application/pdf"));
+    assert!(lower.contains("content-disposition: inline; filename*=utf-8''plan%20.pdf"));
+    assert!(lower.contains("cache-control: private, no-store"));
+    assert!(lower.contains("x-content-type-options: nosniff"));
+    assert!(lower.contains("accept-ranges: none"));
+    assert!(lower.contains("content-security-policy: sandbox; default-src 'none'"));
+
+    assert_eq!(
+        probe.seen.lock().unwrap().as_slice(),
+        [
+            "linksBySet|acme.example.test|acme|set-1",
+            "statusByLink|acme.example.test|acme|link-1",
+            "contentByLink|acme.example.test|acme|link-1|preview",
+        ]
+    );
+    server.abort();
+}
+
+#[tokio::test]
+async fn by_link_and_by_set_reads_reject_queries_and_unknown_targets() {
+    let probe = Arc::new(Probe::default());
+    let router = project_attachment_read_router(vec![ProjectAttachmentReadHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: probe.clone(),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    for path in [
+        "/api/v1/holdings/acme/project-attachments/sets/set-1/links?x=1",
+        "/api/v1/holdings/acme/project-attachments/links/link-1/status?x=1",
+        "/api/v1/holdings/acme/project-attachments/links/link-1/content?variant=original&variant=preview",
+        "/api/v1/holdings/acme/project-attachments/links/link-1/content?variant=other",
+    ] {
+        let (status, _, _) = http(addr, get(path, "acme.example.test")).await;
+        assert_eq!(status, 422, "{path}");
+    }
+
+    let (status, _, _) = http(
+        addr,
+        get(
+            "/api/v1/holdings/other/project-attachments/sets/set-1/links",
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+
+    let fail = Arc::new(Probe {
+        seen: Mutex::new(Vec::new()),
+        fail: Some(FailureKind::NotFound),
+    });
+    let router = project_attachment_read_router(vec![ProjectAttachmentReadHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: fail,
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server2 = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let (status, _, body) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/project-attachments/links/link-1/status",
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["error"]["code"],
+        "SYNTHETIC_READ_FAILURE"
+    );
+    server.abort();
+    server2.abort();
 }
 
 #[tokio::test]

@@ -6,8 +6,10 @@ mod fixture;
 
 use erpx_server_files::public::canonical_original::OriginalByteStore;
 use erpx_server_files::public::project_attachment::{
-    ProjectAttachmentContentVariant, project_attachment_content, project_attachment_link_status,
-    project_attachment_links, project_attachment_sets,
+    ProjectAttachmentContentVariant, project_attachment_content,
+    project_attachment_content_by_link, project_attachment_link_status,
+    project_attachment_link_status_by_link, project_attachment_links,
+    project_attachment_links_by_set, project_attachment_sets,
 };
 use erpx_server_projects::public::project_attachment::ProjectAttachmentActor;
 use erpx_server_runtime::public::postgres::{
@@ -366,6 +368,103 @@ async fn content_fails_closed_for_scan_revocation_foreign_scope_and_oversize() {
                 .unwrap_err()
             ),
             "ATTACHMENT_NOT_AVAILABLE"
+        );
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn resolves_project_target_by_set_and_by_link_and_hides_other_targets() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut tx = pool.raw().begin().await.unwrap();
+        let owner = actor(company(), "owner");
+        let store = Store;
+
+        let by_set = project_attachment_links_by_set(&mut tx, &owner, "set-1", now())
+            .await
+            .unwrap();
+        let by_project = project_attachment_links(&mut tx, &owner, "project-1", "set-1", now())
+            .await
+            .unwrap();
+        assert_eq!(by_set, by_project);
+
+        let status = project_attachment_link_status_by_link(&mut tx, &owner, "link-1", now())
+            .await
+            .unwrap();
+        assert_eq!(status.link_id, "link-1");
+        assert_eq!(status.set_id, "set-1");
+        assert_eq!(status.scan.attempts, 1);
+        assert!(status.preview_available);
+
+        let original = project_attachment_content_by_link(
+            &mut tx,
+            &store,
+            &owner,
+            "link-1",
+            ProjectAttachmentContentVariant::Original,
+            now(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(original.media_type, "application/pdf");
+        assert_eq!(original.filename, "plan.pdf");
+        assert_eq!(original.body, BODY);
+        assert!(!original.inline);
+
+        sqlx::raw_sql(
+            "INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at) \
+             VALUES('set-other','company',NULL,NULL,'commitment','commitment-1','record',NULL,'project_document',3,1,'internal','[]',0,50,'draft','owner',60,60);\
+             INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at,bound_at,binding_type,binding_id) \
+             VALUES('link-other','set-other',NULL,'draft','owner',60,4102444800000,NULL,NULL,NULL);",
+        )
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        assert_eq!(
+            code(project_attachment_links_by_set(&mut tx, &owner, "set-other", now())
+                .await
+                .unwrap_err()),
+            "ATTACHMENT_SET_NOT_FOUND"
+        );
+        assert_eq!(
+            code(project_attachment_links_by_set(&mut tx, &owner, "set-missing", now())
+                .await
+                .unwrap_err()),
+            "ATTACHMENT_SET_NOT_FOUND"
+        );
+        assert_eq!(
+            code(
+                project_attachment_link_status_by_link(&mut tx, &owner, "link-other", now())
+                    .await
+                    .unwrap_err()
+            ),
+            "ATTACHMENT_LINK_NOT_FOUND"
+        );
+        assert_eq!(
+            code(
+                project_attachment_link_status_by_link(&mut tx, &owner, "link-missing", now())
+                    .await
+                    .unwrap_err()
+            ),
+            "ATTACHMENT_LINK_NOT_FOUND"
+        );
+        assert_eq!(
+            code(
+                project_attachment_content_by_link(
+                    &mut tx,
+                    &store,
+                    &owner,
+                    "link-other",
+                    ProjectAttachmentContentVariant::Original,
+                    now(),
+                )
+                .await
+                .unwrap_err()
+            ),
+            "ATTACHMENT_LINK_NOT_FOUND"
         );
         tx.rollback().await.unwrap();
     })

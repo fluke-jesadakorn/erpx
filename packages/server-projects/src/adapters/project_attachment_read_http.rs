@@ -54,6 +54,28 @@ pub struct ProjectAttachmentReadContentHttpRequest<'a> {
     pub variant: &'a str,
 }
 
+pub struct ProjectAttachmentReadLinksBySetHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub set_id: &'a str,
+}
+
+pub struct ProjectAttachmentReadStatusByLinkHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub link_id: &'a str,
+}
+
+pub struct ProjectAttachmentReadContentByLinkHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub link_id: &'a str,
+    pub variant: &'a str,
+}
+
 #[derive(Clone, Debug)]
 pub struct ProjectAttachmentReadHttpResponse {
     pub data: Value,
@@ -92,6 +114,18 @@ pub trait ProjectAttachmentReadHttpBackend: Send + Sync {
     fn content<'a>(
         &'a self,
         request: ProjectAttachmentReadContentHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentContentHttpResponse>;
+    fn links_by_set<'a>(
+        &'a self,
+        request: ProjectAttachmentReadLinksBySetHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse>;
+    fn status_by_link<'a>(
+        &'a self,
+        request: ProjectAttachmentReadStatusByLinkHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse>;
+    fn content_by_link<'a>(
+        &'a self,
+        request: ProjectAttachmentReadContentByLinkHttpRequest<'a>,
     ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentContentHttpResponse>;
 }
 
@@ -214,6 +248,18 @@ pub fn project_attachment_read_router(
         .route(
             "/api/v1/holdings/{holding_slug}/projects/{project_id}/attachment-links/{link_id}/content",
             get(content),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/project-attachments/sets/{set_id}/links",
+            get(links_by_set),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/project-attachments/links/{link_id}/status",
+            get(status_by_link),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/project-attachments/links/{link_id}/content",
+            get(content_by_link),
         )
         .with_state(Arc::new(ProjectAttachmentReadHttpState {
             targets: configured,
@@ -464,6 +510,91 @@ async fn content(
                 holding_slug: &target.holding_slug,
                 headers: &headers,
                 project_id: &project_id,
+                link_id: &link_id,
+                variant,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => file_response(reply),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn links_by_set(
+    State(state): State<Arc<ProjectAttachmentReadHttpState>>,
+    Path((slug, set_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async move {
+        reject_query(&request)?;
+        let target = target(&state, &headers, &slug)?;
+        record_id(&set_id, set_missing)?;
+        ensure_empty_body(request).await?;
+        target
+            .backend
+            .links_by_set(ProjectAttachmentReadLinksBySetHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                set_id: &set_id,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn status_by_link(
+    State(state): State<Arc<ProjectAttachmentReadHttpState>>,
+    Path((slug, link_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async move {
+        reject_query(&request)?;
+        let target = target(&state, &headers, &slug)?;
+        record_id(&link_id, link_missing)?;
+        ensure_empty_body(request).await?;
+        target
+            .backend
+            .status_by_link(ProjectAttachmentReadStatusByLinkHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                link_id: &link_id,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn content_by_link(
+    State(state): State<Arc<ProjectAttachmentReadHttpState>>,
+    Path((slug, link_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async move {
+        let variant = content_variant(request.uri().query())?;
+        let target = target(&state, &headers, &slug)?;
+        record_id(&link_id, link_missing)?;
+        ensure_empty_body(request).await?;
+        target
+            .backend
+            .content_by_link(ProjectAttachmentReadContentByLinkHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
                 link_id: &link_id,
                 variant,
             })

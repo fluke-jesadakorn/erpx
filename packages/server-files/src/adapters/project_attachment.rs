@@ -625,6 +625,102 @@ async fn authorize_project_read(
         .await
 }
 
+/// Resolve the owning Project id for a Files set without changing target
+/// visibility. Missing and non-project targets both return `None`, so callers
+/// keep the retained hidden not-found response.
+async fn project_attachment_set_target_id(
+    connection: &mut PgConnection,
+    company_id: &str,
+    set_id: &str,
+) -> Result<Option<String>, BusinessError> {
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT target_id FROM attachment_sets \
+         WHERE id=$1 AND company_id=$2 AND target_type='project'",
+    )
+    .bind(set_id)
+    .bind(company_id)
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|_| unavailable())?;
+    Ok(row.map(|(target_id,)| target_id))
+}
+
+/// Resolve the owning Project id for a Files link. Missing, foreign and
+/// non-project links all return `None`, so callers keep the retained hidden
+/// not-found response.
+async fn project_attachment_link_target_id(
+    connection: &mut PgConnection,
+    company_id: &str,
+    link_id: &str,
+) -> Result<Option<String>, BusinessError> {
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT s.target_id FROM attachment_links l \
+         JOIN attachment_sets s ON s.id=l.set_id AND s.company_id=$2 \
+         WHERE l.id=$1 AND s.target_type='project'",
+    )
+    .bind(link_id)
+    .bind(company_id)
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|_| unavailable())?;
+    Ok(row.map(|(target_id,)| target_id))
+}
+
+/// List one visible Project set's links when the caller knows only the set id.
+/// The Project target is resolved from the set row and then the retained read
+/// applies Project authorization, visibility, bounds and the exact link shape.
+/// Missing and non-project sets stay hidden as `ATTACHMENT_SET_NOT_FOUND`.
+pub async fn project_attachment_links_by_set(
+    connection: &mut PgConnection,
+    actor: &ProjectAttachmentActor,
+    set_id: &str,
+    now: TimestampMillis,
+) -> Result<Vec<ProjectAttachmentLinkRead>, BusinessError> {
+    let project_id =
+        project_attachment_set_target_id(&mut *connection, actor.company_id.as_str(), set_id)
+            .await?
+            .ok_or_else(set_not_found)?;
+    project_attachment_links(connection, actor, &project_id, set_id, now).await
+}
+
+/// Exact retained Project link status when the caller knows only the link id.
+/// The Project target is resolved from the link's set and then the retained
+/// status read applies Project authorization, draft privacy, scan and access
+/// evidence. Missing and non-project links stay hidden as
+/// `ATTACHMENT_LINK_NOT_FOUND`.
+pub async fn project_attachment_link_status_by_link(
+    connection: &mut PgConnection,
+    actor: &ProjectAttachmentActor,
+    link_id: &str,
+    now: TimestampMillis,
+) -> Result<ProjectAttachmentLinkStatusRead, BusinessError> {
+    let project_id =
+        project_attachment_link_target_id(&mut *connection, actor.company_id.as_str(), link_id)
+            .await?
+            .ok_or_else(link_not_found)?;
+    project_attachment_link_status(connection, actor, &project_id, link_id, now).await
+}
+
+/// Read one Project link's verified private bytes when the caller knows only
+/// the link id. The Project target is resolved from the link's set and then the
+/// retained content read applies Project authorization, scan/revocation,
+/// checksum, media-type and size gates. Missing and non-project links stay
+/// hidden as `ATTACHMENT_LINK_NOT_FOUND`.
+pub async fn project_attachment_content_by_link<S: OriginalByteStore>(
+    connection: &mut PgConnection,
+    store: &S,
+    actor: &ProjectAttachmentActor,
+    link_id: &str,
+    variant: ProjectAttachmentContentVariant,
+    now: TimestampMillis,
+) -> Result<ProjectAttachmentContentRead, BusinessError> {
+    let project_id =
+        project_attachment_link_target_id(&mut *connection, actor.company_id.as_str(), link_id)
+            .await?
+            .ok_or_else(link_not_found)?;
+    project_attachment_content(connection, store, actor, &project_id, link_id, variant, now).await
+}
+
 /// List the current Project attachment sets visible to the actor. Bound sets are
 /// visible to current project readers; draft sets remain private to their
 /// creator, exactly as the retained Files list read. The complete image is
