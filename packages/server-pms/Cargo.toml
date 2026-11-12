@@ -56,3 +56,7 @@ path = "../../tests/integration/pms/rust-pms-front-desk-postgres.test.rs"
 [[test]]
 name = "pms_stay_room"
 path = "../../tests/unit/pms/rust-pms-stay-room.test.rs"
+
+[[test]]
+name = "pms_stay_room_postgres"
+path = "../../tests/integration/pms/rust-pms-stay-room-postgres.test.rs"

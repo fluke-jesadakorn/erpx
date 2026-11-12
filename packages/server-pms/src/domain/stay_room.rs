@@ -612,7 +612,7 @@ pub fn plan_stay_room(
         }
         let cycle = old.cleaning_cycle + 1;
         let existing = facts.tasks.iter().any(|task| {
-            task.data.get("roomId").and_then(serde_json::Value::as_str) == Some(&command.room_id)
+            task.data.get("roomId").and_then(serde_json::Value::as_str) == Some(room.id.as_str())
                 && task.data.get("type").and_then(serde_json::Value::as_str) == Some("departure")
                 && task.data.get("date").and_then(serde_json::Value::as_str)
                     == Some(business_date)
@@ -633,7 +633,7 @@ pub fn plan_stay_room(
                 updated_at: now,
                 data: serde_json::json!({
                     "roomCycle": cycle,
-                    "roomId": command.room_id,
+                    "roomId": room.id.clone(),
                     "type": "departure",
                     "stayId": facts.stay.id,
                     "date": business_date,

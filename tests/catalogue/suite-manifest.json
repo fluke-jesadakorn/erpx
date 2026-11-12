@@ -62519,6 +62519,122 @@
       }
     },
     {
+      "id": "pms.rust-stay-room-postgres.integration",
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS stay.assign/stay.move command receipts over migrated PostgreSQL must retain current pms.frontdesk authority, branch/Company isolation, version CAS, replay identity and same-transaction owner evidence."
+      },
+      "files": [
+        "tests/integration/pms/rust-pms-stay-room-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_stay_room_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-pms/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/src/domain/stay_room.rs",
+        "packages/server-pms/src/application/stay_room.rs",
+        "packages/server-pms/src/adapters/stay_room_postgres.rs",
+        "packages/server-pms/src/adapters/stay_room_http.rs",
+        "packages/server-pms/src/public/stay_room.rs",
+        "tests/support/rust-postgres.rs",
+        "migrations/postgres/holding-write/0031_pms.sql"
+      ],
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "pms.rust-scheduled-legal-postgres.integration",
       "lane": "integration",
       "owner": "pms",
@@ -92260,6 +92376,53 @@
         "package": "erpx-server-files",
         "targets": [
           "project_attachment_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
+    },
+    {
+      "id": "files.rust-project-attachment-read-postgres.integration",
+      "lane": "integration",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/files/rust-project-attachment-read-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files Project attachment reads retain set/link/status shapes, scan, revocation, checksum and ten-megabyte content bounds."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "project_attachment_read_postgres"
         ]
       },
       "verificationInputs": [

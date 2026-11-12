@@ -9,7 +9,7 @@ use erpx_server_identity_access::public::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_pms::public::front_desk::{
     PgPmsFrontDeskRead, PmsFrontDeskSelection, lock_front_desk_sources, pms_front_desk,
@@ -21,9 +21,17 @@ use erpx_server_pms::public::room_board::{
     PgPmsBoardRead, PmsBoardActor, PmsBoardEntitlement, PmsBoardEntitlementPort, PmsBoardSelection,
     PmsStaff, PmsStaffDirectory, pms_room_board,
 };
+use erpx_server_pms::public::stay_room::{
+    PgPmsStayRoomRepository, PmsStayRoomActor, PmsStayRoomCommand, PmsStayRoomEntitlement,
+    PmsStayRoomEntitlementPort, PmsStayRoomHttpBackend, PmsStayRoomHttpCommandRequest,
+    PmsStayRoomHttpContext, PmsStayRoomHttpFuture, PmsStayRoomHttpResponse, lock_stay_room_sources,
+    pms_stay_room,
+};
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -63,6 +71,37 @@ struct PmsSources;
 impl HoldingWorkSourcePreparation for PmsSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move { lock_front_desk_sources(c).await })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PmsStayRoomSources;
+
+impl HoldingWorkSourcePreparation for PmsStayRoomSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move { lock_stay_room_sources(c).await })
+    }
+}
+
+/// Commercial `pms.front-desk` settlement entitlement. The current runtime has
+/// no enforced package document for PMS, so this preserves the retained
+/// disabled contract instead of inventing a grant. A configured enforcement
+/// mode must replace it through the Commercial capability-decision port.
+struct PmsStayRoomEntitlementImpl;
+
+impl PmsStayRoomEntitlementPort for PmsStayRoomEntitlementImpl {
+    type Error = BusinessError;
+    fn entitlement<'a>(
+        &'a mut self,
+        _company_id: &'a str,
+    ) -> erpx_server_pms::public::room_board::PmsBoardFuture<'a, PmsStayRoomEntitlement, Self::Error>
+    {
+        Box::pin(async {
+            Ok(PmsStayRoomEntitlement {
+                enforced: false,
+                settle_existing_allowed: true,
+            })
+        })
     }
 }
 
@@ -319,6 +358,95 @@ impl<C: Clock + Send + Sync + 'static> PmsService<C> {
             )
             .await
     }
+    /// Apply one native `stay.assign`/`stay.move` command. Context selectors
+    /// supplied by transport are compared with the retained Account selection;
+    /// they never become authority. The commercial entitlement is the retained
+    /// disabled contract until a package enforcement document exists.
+    pub async fn stay_room(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        selected_context: PmsStayRoomHttpContext,
+        key: CommandKey,
+        command: PmsStayRoomCommand,
+    ) -> Result<PmsStayRoomHttpResponse, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                WorkAuthorizationRequest {
+                    permission: "pms.frontdesk".into(),
+                    module: Some("pms".into()),
+                    destination: "pms".into(),
+                    api: true,
+                },
+                PmsStayRoomSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let selected_context = selected_context.clone();
+                    let key = key.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(Error::from(scope()));
+                        }
+                        current.require_permission("pms.frontdesk")?;
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let assignment = selected.assignment();
+                        if selected_context.company_id != workspace.company_id.as_str()
+                            || selected_context.branch_slug.as_deref()
+                                != workspace.branch_slug.as_deref()
+                            || selected_context.department_slug.as_deref()
+                                != workspace.department_slug.as_deref()
+                            || selected_context.assignment_id != assignment.id.as_str()
+                            || selected_context.revision != selected.revision()
+                            || selected_context.assignment_version != assignment.version
+                        {
+                            return Err(Error::from(BusinessError::new(
+                                FailureKind::Conflict,
+                                "WORK_CONTEXT_CHANGED",
+                                "Your selected work context changed. Review the current workspace and role.",
+                            )));
+                        }
+                        let actor = PmsStayRoomActor {
+                            board: pms_actor(current)?,
+                            assignment_id: assignment.id.as_str().to_owned(),
+                            role: assignment.role.clone(),
+                            revision: selected.revision(),
+                            assignment_version: assignment.version,
+                        };
+                        let mut repository = PgPmsStayRoomRepository::new(connection);
+                        let mut entitlement = PmsStayRoomEntitlementImpl;
+                        let now = clock.now().get();
+                        let result = pms_stay_room(
+                            &actor,
+                            &key,
+                            &command,
+                            &mut repository,
+                            &mut entitlement,
+                            now,
+                        )
+                        .await?;
+                        Ok(PmsStayRoomHttpResponse {
+                            data: serde_json::to_value(result)
+                                .map_err(|_| Error::from(unavailable()))?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct PmsBackend<C> {
@@ -359,6 +487,41 @@ impl<C: Clock + Send + Sync + 'static> PmsBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PmsStayRoomHttpBackend for PmsBackend<C> {
+    fn command<'a>(
+        &'a self,
+        request: PmsStayRoomHttpCommandRequest<'a>,
+    ) -> PmsStayRoomHttpFuture<'a, PmsStayRoomHttpResponse> {
+        Box::pin(async move {
+            let (proof, mut selection) = self.context(request.headers)?;
+            selection.mutation = true;
+            selection.expected = Some(ExpectedWorkSelection {
+                revision: request.context.revision,
+                assignment_id: AssignmentId::new(request.context.assignment_id.clone())
+                    .map_err(|_| {
+                        BusinessError::new(
+                            FailureKind::Conflict,
+                            "WORK_CONTEXT_CHANGED",
+                            "Your selected work context changed. Review the current workspace and role.",
+                        )
+                    })?,
+                assignment_version: request.context.assignment_version,
+            });
+            self.service
+                .stay_room(
+                    request.host,
+                    proof,
+                    selection,
+                    request.context,
+                    request.key,
+                    request.command,
+                )
+                .await
+                .map_err(business)
+        })
     }
 }
 

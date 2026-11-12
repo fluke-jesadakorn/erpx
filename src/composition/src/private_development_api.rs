@@ -2878,6 +2878,7 @@ async fn assemble_checked(
             erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget,
         > = Vec::new();
         let mut pms_targets = Vec::new();
+        let mut pms_stay_room_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut maintenance_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3246,23 +3247,32 @@ async fn assemble_checked(
                     origin: format!("https://{}", holding.host),
                     backend: manufacturing_backend.clone(),
                 });
+                let pms_backend = Arc::new(crate::pms::PmsBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::pms::PmsService::new(
+                        authorizer.clone(),
+                        crate::pms::PmsConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
                 pms_targets.push(erpx_server_pms::public::pms_http::PmsHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
                     origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::pms::PmsBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::pms::PmsService::new(
-                            authorizer.clone(),
-                            crate::pms::PmsConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    )),
+                    backend: pms_backend.clone(),
                 });
+                pms_stay_room_targets.push(
+                    erpx_server_pms::public::stay_room::PmsStayRoomHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: pms_backend,
+                    },
+                );
                 {
                     let legal_backend = Arc::new(crate::legal::LegalBackend::new(
                         config.policy.clone(),
@@ -5244,6 +5254,12 @@ async fn assemble_checked(
         if !pms_targets.is_empty() {
             router = router.merge(
                 erpx_server_pms::public::pms_http::pms_http_router(pms_targets)
+                    .map_err(|_| "PRIVATE_API_PMS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !pms_stay_room_targets.is_empty() {
+            router = router.merge(
+                erpx_server_pms::public::stay_room::pms_stay_room_router(pms_stay_room_targets)
                     .map_err(|_| "PRIVATE_API_PMS_CONFIGURATION_INVALID")?,
             );
         }
