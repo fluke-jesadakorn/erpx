@@ -787,9 +787,6 @@ export function repository(db: SqlDatabase) {
         readAttachments107: (facts: {
             attachment_id: unknown;
         }) => { return db.prepare("SELECT * FROM attachments WHERE id=?").bind(facts.attachment_id).first<Record<string, unknown>>(); },
-        writeAttachments108: (facts: {
-            id: unknown;
-        }) => { return db.prepare("UPDATE attachments SET source_state='scanning' WHERE id=? AND source_state IN ('quarantined','scan_error')").bind(facts.id).run(); },
         stepAttachmentScanAttempts109: (facts: {
             engine: string;
             signature: string | null;

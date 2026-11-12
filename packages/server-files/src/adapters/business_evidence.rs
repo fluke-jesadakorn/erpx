@@ -330,8 +330,7 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
             if !input.selection.contexts.iter().any(|context| {
                 context.purpose_key == purpose
                     && context.component_kind == component_kind
-                    && (context.component_ref.is_none()
-                        || context.component_ref == component_ref)
+                    && (context.component_ref.is_none() || context.component_ref == component_ref)
             }) {
                 return Err(invalid(
                     "ATTACHMENT_BINDING_CONTEXT",

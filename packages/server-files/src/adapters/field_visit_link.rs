@@ -20,9 +20,13 @@ pub async fn lock_field_visit_link_sources(c: &mut PgConnection) -> Result<(), E
 /// Require the already acquired Files fence without obtaining or upgrading it.
 /// It proves neither snapshot timing nor authority to read a target.
 pub async fn require_field_visit_link_sources_held(c: &mut PgConnection) -> Result<(), Error> {
-    if !c.is_in_transaction() {return Err(PersistenceError::new("FILES_TRANSACTION_REQUIRED").into());}
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("FILES_TRANSACTION_REQUIRED").into());
+    }
     let held:bool=sqlx::query_scalar("SELECT (SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation IN ('attachment_links'::regclass,'attachment_sets'::regclass) AND granted AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')) AND (SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation IN ('attachments'::regclass,'attachment_scan_attempts'::regclass) AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))").fetch_one(c).await?;
-    if !held { return Err(PersistenceError::new("FILES_FIELD_LINK_LOCKS_REQUIRED").into()); }
+    if !held {
+        return Err(PersistenceError::new("FILES_FIELD_LINK_LOCKS_REQUIRED").into());
+    }
     Ok(())
 }
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -127,22 +131,34 @@ pub struct CurrentFieldVisitLink {
 }
 /// Retained exact withdrawal image; it grants no authorization.
 pub struct RetainedFieldVisitWithdrawal {
-    owner: crate::public::field_visit_intake::IntakeOwner, company: CompanyId,
-    unit: (String,i32,String,String), expected: FieldVisitLink, stable_digest: String,
-    event: Option<(String,String,String,i64)>, event_image: Option<(String,String)>,
+    owner: crate::public::field_visit_intake::IntakeOwner,
+    company: CompanyId,
+    unit: (String, i32, String, String),
+    expected: FieldVisitLink,
+    stable_digest: String,
+    event: Option<(String, String, String, i64)>,
+    event_image: Option<(String, String)>,
 }
 impl RetainedFieldVisitWithdrawal {
-    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
-        if unit(c).await? != self.unit { return Err(changed()); }
-        let (actual,_,stable)=image(c,&self.company,&self.expected.id,self.owner).await?;
-        if actual != self.expected || stable != self.stable_digest {return Err(changed());}
-        if let Some((id,expected))=&self.event_image {
-            let actual:Option<String>=sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(e)::text,'UTF8')),'hex') FROM attachment_events e WHERE id=$1").bind(id).fetch_optional(&mut *c).await?;
-            if actual.as_ref()!=Some(expected){return Err(changed());}
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit {
+            return Err(changed());
         }
-        if let Some((event,actor,details,now))=&self.event {
+        let (actual, _, stable) = image(c, &self.company, &self.expected.id, self.owner).await?;
+        if actual != self.expected || stable != self.stable_digest {
+            return Err(changed());
+        }
+        if let Some((id, expected)) = &self.event_image {
+            let actual:Option<String>=sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(e)::text,'UTF8')),'hex') FROM attachment_events e WHERE id=$1").bind(id).fetch_optional(&mut *c).await?;
+            if actual.as_ref() != Some(expected) {
+                return Err(changed());
+            }
+        }
+        if let Some((event, actor, details, now)) = &self.event {
             let intact:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM attachment_events WHERE id=$1 AND company_id=$2 AND attachment_id IS NOT DISTINCT FROM $3 AND link_id=$4 AND set_id=$5 AND actor_id=$6 AND action='link.withdrawn' AND details_json=$7 AND created_at=$8)").bind(event).bind(self.company.as_str()).bind(&self.expected.attachment_id).bind(&self.expected.id).bind(&self.expected.set_id).bind(actor).bind(details).bind(now).fetch_one(c).await?;
-            if !intact{return Err(changed());}
+            if !intact {
+                return Err(changed());
+            }
         }
         Ok(())
     }
@@ -172,10 +188,17 @@ impl CurrentFieldVisitLink {
         key: &str,
         now: i64,
     ) -> Result<(), Error> {
-        self.withdraw_retained(c,actor,reason,key,now).await.map(|_| ())
+        self.withdraw_retained(c, actor, reason, key, now)
+            .await
+            .map(|_| ())
     }
     pub async fn withdraw_retained(
-        &self, c:&mut PgConnection, actor:&str, reason:&str, key:&str, now:i64,
+        &self,
+        c: &mut PgConnection,
+        actor: &str,
+        reason: &str,
+        key: &str,
+        now: i64,
     ) -> Result<RetainedFieldVisitWithdrawal, Error> {
         self.require_current(c).await?;
         let decision = crate::application::field_visit_link::prepare_withdrawal(
@@ -189,7 +212,15 @@ impl CurrentFieldVisitLink {
             },
         )?;
         if decision == crate::domain::field_visit_link::WithdrawalDecision::Replay {
-            return Ok(RetainedFieldVisitWithdrawal {owner:self.owner,company:self.company.clone(),unit:self.unit.clone(),expected:self.source.clone(),stable_digest:self.stable_digest.clone(),event:None,event_image:None});
+            return Ok(RetainedFieldVisitWithdrawal {
+                owner: self.owner,
+                company: self.company.clone(),
+                unit: self.unit.clone(),
+                expected: self.source.clone(),
+                stable_digest: self.stable_digest.clone(),
+                event: None,
+                event_image: None,
+            });
         }
         let result=sqlx::query("UPDATE attachment_links SET state='withdrawn',withdrawn_at=$1,withdrawn_by=$2,withdrawal_reason=$3 WHERE id=$4 AND set_id=$5 AND state='draft'").bind(now).bind(actor).bind(reason).bind(&self.source.id).bind(&self.source.set_id).execute(&mut *c).await?;
         if result.rows_affected() != 1 {
@@ -217,8 +248,20 @@ impl CurrentFieldVisitLink {
             return Err(changed());
         }
         let event_digest:Option<String>=sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(e)::text,'UTF8')),'hex') FROM attachment_events e WHERE id=$1").bind(&event).fetch_optional(&mut *c).await?;
-        let event_digest=event_digest.ok_or_else(changed)?;
-        Ok(RetainedFieldVisitWithdrawal {owner:self.owner,company:self.company.clone(),unit:self.unit.clone(),expected,stable_digest:self.stable_digest.clone(),event:if inserted.rows_affected()==1 {Some((event.clone(),actor.to_owned(),details,now))} else {None},event_image:Some((event,event_digest))})
+        let event_digest = event_digest.ok_or_else(changed)?;
+        Ok(RetainedFieldVisitWithdrawal {
+            owner: self.owner,
+            company: self.company.clone(),
+            unit: self.unit.clone(),
+            expected,
+            stable_digest: self.stable_digest.clone(),
+            event: if inserted.rows_affected() == 1 {
+                Some((event.clone(), actor.to_owned(), details, now))
+            } else {
+                None
+            },
+            event_image: Some((event, event_digest)),
+        })
     }
 }
 pub async fn read_field_visit_link(
@@ -287,9 +330,12 @@ pub async fn withdraw_owner_intake_link<
     )
     .await?;
     guard.require_current(c, clock.now().get()).await?;
-    let withdrawal = link.withdraw_retained(c, actor.user_id().as_str(), reason, key, clock.now().get())
+    let withdrawal = link
+        .withdraw_retained(c, actor.user_id().as_str(), reason, key, clock.now().get())
         .await?;
-    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *c).await?;
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *c)
+        .await?;
     withdrawal.require_current(c).await?;
     guard.require_current(c, clock.now().get()).await?;
     Ok(())
@@ -306,34 +352,60 @@ pub async fn read_field_visit_scan(
 }
 /// Same-unit retained status audit; absence is explicit when the link has no attachment.
 pub struct RetainedFieldStatusAccess {
-    unit:(String,i32,String,String),
-    event:Option<(String,CompanyId,String,String,String,i64)>,
+    unit: (String, i32, String, String),
+    event: Option<(String, CompanyId, String, String, String, i64)>,
 }
 impl RetainedFieldStatusAccess {
-    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
-        if unit(c).await? != self.unit {return Err(changed());}
-        if let Some((event,company,attachment,link,actor,now))=&self.event {
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit {
+            return Err(changed());
+        }
+        if let Some((event, company, attachment, link, actor, now)) = &self.event {
             let intact:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM attachment_access_events WHERE id=$1 AND company_id=$2 AND attachment_id=$3 AND link_id=$4 AND actor_id=$5 AND variant='status' AND outcome='allowed' AND reason IS NULL AND created_at=$6)").bind(event).bind(company.as_str()).bind(attachment).bind(link).bind(actor).bind(now).fetch_one(c).await?;
-            if !intact{return Err(changed());}
+            if !intact {
+                return Err(changed());
+            }
         }
         Ok(())
     }
 }
 pub async fn write_status_access_retained(
-    c:&mut PgConnection,company:&CompanyId,link:&FieldVisitLink,actor:&str,now:i64,
-)->Result<RetainedFieldStatusAccess,Error>{
-    let transaction=unit(&mut *c).await?;
-    let event=if let Some(id)=&link.attachment_id {
-        let event=format!("attachment-access-{}",uuid::Uuid::new_v4());
+    c: &mut PgConnection,
+    company: &CompanyId,
+    link: &FieldVisitLink,
+    actor: &str,
+    now: i64,
+) -> Result<RetainedFieldStatusAccess, Error> {
+    let transaction = unit(&mut *c).await?;
+    let event = if let Some(id) = &link.attachment_id {
+        let event = format!("attachment-access-{}", uuid::Uuid::new_v4());
         sqlx::query("INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,variant,outcome,created_at) VALUES($1,$2,$3,$4,$5,'status','allowed',$6)").bind(&event).bind(company.as_str()).bind(id).bind(&link.id).bind(actor).bind(now).execute(&mut *c).await?;
-        Some((event,company.clone(),id.clone(),link.id.clone(),actor.to_owned(),now))
-    }else{None};
-    let retained=RetainedFieldStatusAccess{unit:transaction,event};
+        Some((
+            event,
+            company.clone(),
+            id.clone(),
+            link.id.clone(),
+            actor.to_owned(),
+            now,
+        ))
+    } else {
+        None
+    };
+    let retained = RetainedFieldStatusAccess {
+        unit: transaction,
+        event,
+    };
     retained.require_current(c).await?;
     Ok(retained)
 }
 pub async fn write_status_access(
-    c:&mut PgConnection,company:&CompanyId,link:&FieldVisitLink,actor:&str,now:i64,
-)->Result<(),Error>{
-    write_status_access_retained(c,company,link,actor,now).await.map(|_|())
+    c: &mut PgConnection,
+    company: &CompanyId,
+    link: &FieldVisitLink,
+    actor: &str,
+    now: i64,
+) -> Result<(), Error> {
+    write_status_access_retained(c, company, link, actor, now)
+        .await
+        .map(|_| ())
 }

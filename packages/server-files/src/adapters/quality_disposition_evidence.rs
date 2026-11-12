@@ -70,7 +70,11 @@ impl CurrentQualityDispositionEvidenceSets {
                 &self.branch,
                 &self.owner,
                 self.expected_version,
-                &self.sets.iter().map(|set| set.id.clone()).collect::<Vec<_>>(),
+                &self
+                    .sets
+                    .iter()
+                    .map(|set| set.id.clone())
+                    .collect::<Vec<_>>(),
             )
             .await?
             .as_ref()
@@ -171,13 +175,18 @@ impl CurrentQualityDispositionEvidenceSets {
             .ok_or_else(changed)?;
             if row.try_get::<String, _>("state")? != "bound"
                 || row.try_get::<Option<i64>, _>("bound_at")? != Some(now)
-                || row.try_get::<Option<String>, _>("bound_command_id")?.as_deref() != Some(command_key)
+                || row
+                    .try_get::<Option<String>, _>("bound_command_id")?
+                    .as_deref()
+                    != Some(command_key)
                 || row.try_get::<i64, _>("updated_at")? != now
                 || row.try_get::<String, _>("target_type")? != "quality_hold"
                 || row.try_get::<String, _>("target_id")? != self.owner
                 || row.try_get::<String, _>("purpose_key")? != "disposition_evidence"
                 || row.try_get::<String, _>("component_kind")? != "action"
-                || row.try_get::<Option<String>, _>("component_ref")?.as_deref()
+                || row
+                    .try_get::<Option<String>, _>("component_ref")?
+                    .as_deref()
                     != Some("disposition")
                 || row.try_get::<i64, _>("expected_target_version")? != self.expected_version
                 || row
@@ -200,8 +209,7 @@ impl CurrentQualityDispositionEvidenceSets {
                     || row.try_get::<Option<i64>, _>("bound_at")? != Some(now)
                     || row.try_get::<Option<String>, _>("binding_type")?.as_deref()
                         != Some("quality_disposition")
-                    || row.try_get::<Option<String>, _>("binding_id")?.as_deref()
-                        != Some(count_id)
+                    || row.try_get::<Option<String>, _>("binding_id")?.as_deref() != Some(count_id)
                 {
                     return Err(changed());
                 }
@@ -218,8 +226,8 @@ impl CurrentQualityDispositionEvidenceSets {
             .await?;
             let event = event.ok_or_else(changed)?;
             let actual: Value = serde_json::from_str(&event).map_err(|_| changed())?;
-            let expected: Value = serde_json::from_str(&details(count_id, &set.manifest)?)
-            .map_err(|_| changed())?;
+            let expected: Value =
+                serde_json::from_str(&details(count_id, &set.manifest)?).map_err(|_| changed())?;
             if actual != expected {
                 return Err(changed());
             }
@@ -256,9 +264,7 @@ fn limit() -> Error {
 
 /// Utility-only locks; acquire before the first serializable snapshot with the
 /// other owner sources.
-pub async fn lock_quality_disposition_evidence_sources(
-    c: &mut PgConnection,
-) -> Result<(), Error> {
+pub async fn lock_quality_disposition_evidence_sources(c: &mut PgConnection) -> Result<(), Error> {
     if !c.is_in_transaction() {
         return Err(PersistenceError::new("FILES_TRANSACTION_REQUIRED").into());
     }
@@ -273,7 +279,9 @@ pub async fn lock_quality_disposition_evidence_sources(
 fn event_id(command_key: &str, set_id: &str) -> String {
     format!(
         "attachment-bind-{}",
-        &hex::encode(Sha256::digest(format!("{command_key}\0{set_id}").as_bytes()))[..32]
+        &hex::encode(Sha256::digest(
+            format!("{command_key}\0{set_id}").as_bytes()
+        ))[..32]
     )
 }
 
@@ -328,7 +336,9 @@ async fn snapshot(
         || expected_version < 1
         || owner.is_empty()
         || owner.len() > 1024
-        || set_ids.iter().any(|id| id.is_empty() || id.len() > MAX_ID_BYTES)
+        || set_ids
+            .iter()
+            .any(|id| id.is_empty() || id.len() > MAX_ID_BYTES)
         || set_ids.iter().collect::<HashSet<_>>().len() != set_ids.len()
     {
         return Err(invalid());

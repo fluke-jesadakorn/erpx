@@ -249,7 +249,6 @@ function unit(db: SqlDatabase, inheritedPurchases: readonly SupportAttachmentPur
         readAttachmentPublications105: facts => repository(db).readAttachmentPublications105(facts),
         readAttachmentScanAttempts106: facts => repository(db).readAttachmentScanAttempts106(facts),
         readAttachments107: facts => repository(db).readAttachments107(facts),
-        writeAttachments108: facts => repository(db).writeAttachments108(facts),
         stepAttachmentScanAttempts109: facts => repository(db).stepAttachmentScanAttempts109(facts),
         stepAttachments110: facts => repository(db).stepAttachments110(facts),
         stepAttachmentEvents111: facts => repository(db).stepAttachmentEvents111(facts),
