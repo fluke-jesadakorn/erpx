@@ -15,8 +15,9 @@ pub use crate::application::room_command::{
 };
 pub use crate::domain::room_command::{
     MAX_BLOCKS, MAX_CHECKED, MAX_ID, MAX_NIGHTS, MAX_ROOM_TYPES, MAX_ROOMS, MAX_STAYS, MAX_TASKS,
-    MAX_TEXT, PmsRoomCommand, PmsRoomCommandActor, PmsRoomCommandFacts, PmsRoomCommandInput,
-    PmsRoomCommandOperation, PmsRoomCommandPlan, PmsRoomCommandResult, PmsRoomSaveInput,
+    MAX_TEXT, PmsBlockCreateInput, PmsMaintenanceOpenInput, PmsRoomCommand, PmsRoomCommandActor,
+    PmsRoomCommandFacts, PmsRoomCommandInput, PmsRoomCommandOperation, PmsRoomCommandPlan,
+    PmsRoomCommandResult, PmsRoomSaveInput, PmsRoomTypeSaveInput, PmsTaskCreateInput, PmsTaskKind,
     PmsTaskPriority, invalid as room_command_invalid, plan_room_command,
     read_limit as room_command_read_limit, record_invalid as room_command_record_invalid,
 };

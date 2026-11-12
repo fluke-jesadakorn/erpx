@@ -10,8 +10,9 @@
 //! [`crate::domain::room_command::PmsRoomCommandActor`].
 use crate::domain::room_board::cp_len;
 use crate::domain::room_command::{
-    PmsRoomCommand, PmsRoomCommandInput, PmsRoomCommandOperation, PmsRoomSaveInput,
-    PmsTaskPriority, invalid as command_invalid,
+    PmsBlockCreateInput, PmsMaintenanceOpenInput, PmsRoomCommand, PmsRoomCommandInput,
+    PmsRoomCommandOperation, PmsRoomSaveInput, PmsRoomTypeSaveInput, PmsTaskCreateInput,
+    PmsTaskKind, PmsTaskPriority, invalid as command_invalid,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -343,6 +344,23 @@ fn default_true() -> bool {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RoomTypeSaveBody {
+    /// Peeked before decoding this shape; kept so unknown-field
+    /// rejection still sees the retained `operation` member.
+    #[allow(dead_code)]
+    operation: String,
+    property_id: String,
+    expected_version: i64,
+    #[serde(default)]
+    type_id: Option<String>,
+    name: String,
+    capacity: i64,
+    #[serde(default)]
+    amenities: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SaveBody {
     /// Peeked before decoding this shape; kept so unknown-field
     /// rejection still sees the retained `operation` member.
@@ -389,6 +407,21 @@ struct ObserveBody {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TaskCreateBody {
+    /// Peeked before decoding this shape; kept so unknown-field
+    /// rejection still sees the retained `operation` member.
+    #[allow(dead_code)]
+    operation: String,
+    property_id: String,
+    expected_version: i64,
+    room_id: String,
+    #[serde(rename = "type")]
+    kind: String,
+    date: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct TaskAssignBody {
     /// Peeked before decoding this shape; kept so unknown-field
     /// rejection still sees the retained `operation` member.
@@ -429,6 +462,50 @@ struct TaskInspectBody {
     task_id: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MaintenanceOpenBody {
+    /// Peeked before decoding this shape; kept so unknown-field
+    /// rejection still sees the retained `operation` member.
+    #[allow(dead_code)]
+    operation: String,
+    property_id: String,
+    expected_version: i64,
+    room_id: String,
+    from: String,
+    to: String,
+    reason: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BlockRefBody {
+    /// Peeked before decoding this shape; kept so unknown-field
+    /// rejection still sees the retained `operation` member.
+    #[allow(dead_code)]
+    operation: String,
+    property_id: String,
+    expected_version: i64,
+    block_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BlockCreateBody {
+    /// Peeked before decoding this shape; kept so unknown-field
+    /// rejection still sees the retained `operation` member.
+    #[allow(dead_code)]
+    operation: String,
+    property_id: String,
+    expected_version: i64,
+    name: String,
+    type_id: String,
+    from: String,
+    to: String,
+    release_date: String,
+    quantity: i64,
+}
+
 fn decode_command(value: serde_json::Value) -> Result<PmsRoomCommand, BusinessError> {
     let operation = value
         .get("operation")
@@ -436,6 +513,21 @@ fn decode_command(value: serde_json::Value) -> Result<PmsRoomCommand, BusinessEr
         .and_then(PmsRoomCommandOperation::parse)
         .ok_or_else(command_invalid)?;
     let mut command = match operation {
+        PmsRoomCommandOperation::RoomTypeSave => {
+            let body: RoomTypeSaveBody =
+                serde_json::from_value(value).map_err(|_| command_invalid())?;
+            PmsRoomCommand {
+                operation,
+                property_id: body.property_id,
+                expected_version: body.expected_version,
+                input: PmsRoomCommandInput::RoomTypeSave(PmsRoomTypeSaveInput {
+                    type_id: body.type_id,
+                    name: body.name,
+                    capacity: body.capacity,
+                    amenities: body.amenities,
+                }),
+            }
+        }
         PmsRoomCommandOperation::Save => {
             let body: SaveBody = serde_json::from_value(value).map_err(|_| command_invalid())?;
             PmsRoomCommand {
@@ -474,6 +566,20 @@ fn decode_command(value: serde_json::Value) -> Result<PmsRoomCommand, BusinessEr
                     room_id: body.room_id,
                     occupied: body.occupied,
                 },
+            }
+        }
+        PmsRoomCommandOperation::TaskCreate => {
+            let body: TaskCreateBody =
+                serde_json::from_value(value).map_err(|_| command_invalid())?;
+            PmsRoomCommand {
+                operation,
+                property_id: body.property_id,
+                expected_version: body.expected_version,
+                input: PmsRoomCommandInput::TaskCreate(PmsTaskCreateInput {
+                    room_id: body.room_id,
+                    kind: PmsTaskKind::parse(&body.kind).ok_or_else(command_invalid)?,
+                    date: body.date,
+                }),
             }
         }
         PmsRoomCommandOperation::TaskAssign => {
@@ -522,6 +628,62 @@ fn decode_command(value: serde_json::Value) -> Result<PmsRoomCommand, BusinessEr
                 expected_version: body.expected_version,
                 input: PmsRoomCommandInput::TaskInspect {
                     task_id: body.task_id,
+                },
+            }
+        }
+        PmsRoomCommandOperation::MaintenanceOpen => {
+            let body: MaintenanceOpenBody =
+                serde_json::from_value(value).map_err(|_| command_invalid())?;
+            PmsRoomCommand {
+                operation,
+                property_id: body.property_id,
+                expected_version: body.expected_version,
+                input: PmsRoomCommandInput::MaintenanceOpen(PmsMaintenanceOpenInput {
+                    room_id: body.room_id,
+                    from: body.from,
+                    to: body.to,
+                    reason: body.reason,
+                }),
+            }
+        }
+        PmsRoomCommandOperation::MaintenanceClose => {
+            let body: BlockRefBody =
+                serde_json::from_value(value).map_err(|_| command_invalid())?;
+            PmsRoomCommand {
+                operation,
+                property_id: body.property_id,
+                expected_version: body.expected_version,
+                input: PmsRoomCommandInput::MaintenanceClose {
+                    block_id: body.block_id,
+                },
+            }
+        }
+        PmsRoomCommandOperation::BlockCreate => {
+            let body: BlockCreateBody =
+                serde_json::from_value(value).map_err(|_| command_invalid())?;
+            PmsRoomCommand {
+                operation,
+                property_id: body.property_id,
+                expected_version: body.expected_version,
+                input: PmsRoomCommandInput::BlockCreate(PmsBlockCreateInput {
+                    name: body.name,
+                    type_id: body.type_id,
+                    from: body.from,
+                    to: body.to,
+                    release_date: body.release_date,
+                    quantity: body.quantity,
+                }),
+            }
+        }
+        PmsRoomCommandOperation::BlockRelease => {
+            let body: BlockRefBody =
+                serde_json::from_value(value).map_err(|_| command_invalid())?;
+            PmsRoomCommand {
+                operation,
+                property_id: body.property_id,
+                expected_version: body.expected_version,
+                input: PmsRoomCommandInput::BlockRelease {
+                    block_id: body.block_id,
                 },
             }
         }

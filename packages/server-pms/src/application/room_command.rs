@@ -79,10 +79,11 @@ where
         if result.property_id != normalized.property_id
             || result.version < 1
             || result.version != normalized.expected_version + 1
-            || normalized
-                .input
-                .target_id()
-                .is_some_and(|target| target != result.id)
+            || (normalized.input.result_id_is_target()
+                && normalized
+                    .input
+                    .target_id()
+                    .is_some_and(|target| target != result.id))
         {
             return Err(BusinessError::new(
                 FailureKind::Conflict,
@@ -150,6 +151,13 @@ pub fn room_command_request_hash(
     #[derive(serde::Serialize)]
     #[serde(rename_all = "camelCase", tag = "kind")]
     enum Input<'a> {
+        #[serde(rename = "room_type.save")]
+        RoomTypeSave {
+            type_id: Option<&'a str>,
+            name: &'a str,
+            capacity: i64,
+            amenities: &'a str,
+        },
         #[serde(rename = "room.save")]
         Save {
             room_id: Option<&'a str>,
@@ -163,6 +171,12 @@ pub fn room_command_request_hash(
         Dnd { room_id: &'a str, dnd: bool },
         #[serde(rename = "room.observe")]
         Observe { room_id: &'a str, occupied: bool },
+        #[serde(rename = "task.create")]
+        TaskCreate {
+            room_id: &'a str,
+            task_kind: &'a str,
+            date: &'a str,
+        },
         #[serde(rename = "task.assign")]
         TaskAssign {
             task_id: &'a str,
@@ -183,8 +197,34 @@ pub fn room_command_request_hash(
         },
         #[serde(rename = "task.inspect")]
         TaskInspect { task_id: &'a str },
+        #[serde(rename = "maintenance.open")]
+        MaintenanceOpen {
+            room_id: &'a str,
+            from: &'a str,
+            to: &'a str,
+            reason: &'a str,
+        },
+        #[serde(rename = "maintenance.close")]
+        MaintenanceClose { block_id: &'a str },
+        #[serde(rename = "block.create")]
+        BlockCreate {
+            name: &'a str,
+            type_id: &'a str,
+            from: &'a str,
+            to: &'a str,
+            release_date: &'a str,
+            quantity: i64,
+        },
+        #[serde(rename = "block.release")]
+        BlockRelease { block_id: &'a str },
     }
     let input = match &command.input {
+        PmsRoomCommandInput::RoomTypeSave(input) => Input::RoomTypeSave {
+            type_id: input.type_id.as_deref(),
+            name: &input.name,
+            capacity: input.capacity,
+            amenities: &input.amenities,
+        },
         PmsRoomCommandInput::Save(input) => Input::Save {
             room_id: input.room_id.as_deref(),
             number: &input.number,
@@ -197,6 +237,11 @@ pub fn room_command_request_hash(
         PmsRoomCommandInput::Observe { room_id, occupied } => Input::Observe {
             room_id,
             occupied: *occupied,
+        },
+        PmsRoomCommandInput::TaskCreate(input) => Input::TaskCreate {
+            room_id: &input.room_id,
+            task_kind: input.kind.as_str(),
+            date: &input.date,
         },
         PmsRoomCommandInput::TaskAssign {
             task_id,
@@ -226,6 +271,22 @@ pub fn room_command_request_hash(
             notes,
         },
         PmsRoomCommandInput::TaskInspect { task_id } => Input::TaskInspect { task_id },
+        PmsRoomCommandInput::MaintenanceOpen(input) => Input::MaintenanceOpen {
+            room_id: &input.room_id,
+            from: &input.from,
+            to: &input.to,
+            reason: &input.reason,
+        },
+        PmsRoomCommandInput::MaintenanceClose { block_id } => Input::MaintenanceClose { block_id },
+        PmsRoomCommandInput::BlockCreate(input) => Input::BlockCreate {
+            name: &input.name,
+            type_id: &input.type_id,
+            from: &input.from,
+            to: &input.to,
+            release_date: &input.release_date,
+            quantity: input.quantity,
+        },
+        PmsRoomCommandInput::BlockRelease { block_id } => Input::BlockRelease { block_id },
     };
     let record_id = command.input.target_id().unwrap_or(&command.property_id);
     let value = Fingerprint {

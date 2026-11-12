@@ -31,8 +31,11 @@ struct LoadedCommand {
     operation: PmsRoomCommandOperation,
     property_id: String,
     expected_version: i64,
-    /// Room/task id the load actually read. Absent only for `room.save` create.
+    /// Room/type/task/block id the load actually read. Absent only for creation
+    /// commands (`room.save`, `room_type.save`, `block.create`).
     target_id: Option<String>,
+    /// Whether the retained result id is that target id.
+    result_is_target: bool,
 }
 
 fn conflict(code: &'static str, message: &'static str) -> BusinessError {
@@ -421,10 +424,135 @@ async fn insert_receipt(
 }
 
 fn aggregate(operation: PmsRoomCommandOperation) -> &'static str {
-    if operation.as_str().starts_with("task.") {
-        "task"
-    } else {
-        "room"
+    match operation {
+        PmsRoomCommandOperation::RoomTypeSave => "room_type",
+        PmsRoomCommandOperation::MaintenanceOpen
+        | PmsRoomCommandOperation::MaintenanceClose
+        | PmsRoomCommandOperation::BlockCreate
+        | PmsRoomCommandOperation::BlockRelease => "block",
+        operation if operation.as_str().starts_with("task.") => "task",
+        _ => "room",
+    }
+}
+
+/// Reject a plan whose written rows do not match the operation the load read.
+/// This is the adapter's own guard against a mismatched plan, not an
+/// authorization decision.
+fn shape_ok(loaded: &LoadedCommand, plan: &PmsRoomCommandPlan) -> bool {
+    let no_room = plan.room.is_none() && plan.new_room.is_none();
+    let no_room_type = plan.room_type.is_none() && plan.new_room_type.is_none();
+    let no_block = plan.block.is_none() && plan.new_block.is_none();
+    let no_task = plan.task.is_none() && plan.new_task.is_none();
+    let no_supersede = plan.superseded_tasks.is_empty();
+    let creates = |id: &str, record: Option<&PmsRecord>| {
+        record.is_some_and(|record| record.version == 1 && record.id == id)
+    };
+    let updates = |id: &str, record: Option<&PmsRecord>| {
+        record.is_some_and(|record| record.version >= 2 && record.id == id)
+    };
+    match loaded.operation {
+        PmsRoomCommandOperation::RoomTypeSave if loaded.target_id.is_none() => {
+            creates(&plan.result.id, plan.new_room_type.as_ref())
+                && plan.room_type.is_none()
+                && no_room
+                && no_block
+                && no_task
+                && no_supersede
+        }
+        PmsRoomCommandOperation::RoomTypeSave => {
+            updates(&plan.result.id, plan.room_type.as_ref())
+                && plan.new_room_type.is_none()
+                && no_room
+                && no_block
+                && no_task
+                && no_supersede
+        }
+        PmsRoomCommandOperation::Save if loaded.target_id.is_none() => {
+            creates(&plan.result.id, plan.new_room.as_ref())
+                && plan.room.is_none()
+                && no_room_type
+                && no_block
+                && no_task
+                && no_supersede
+        }
+        PmsRoomCommandOperation::Save => {
+            updates(&plan.result.id, plan.room.as_ref())
+                && plan.new_room.is_none()
+                && no_room_type
+                && no_block
+                && no_task
+                && no_supersede
+        }
+        PmsRoomCommandOperation::Dnd => {
+            updates(&plan.result.id, plan.room.as_ref())
+                && plan.new_room.is_none()
+                && no_room_type
+                && no_block
+                && no_task
+                && no_supersede
+        }
+        PmsRoomCommandOperation::Observe => {
+            updates(&plan.result.id, plan.room.as_ref())
+                && plan.new_room.is_none()
+                && no_room_type
+                && no_block
+                && plan.task.is_none()
+                && no_supersede
+        }
+        PmsRoomCommandOperation::TaskAssign
+        | PmsRoomCommandOperation::TaskStart
+        | PmsRoomCommandOperation::TaskComplete
+        | PmsRoomCommandOperation::TaskInspect => {
+            updates(&plan.result.id, plan.task.as_ref())
+                && plan.new_room.is_none()
+                && no_room_type
+                && no_block
+                && no_supersede
+                && plan.new_task.is_none()
+        }
+        PmsRoomCommandOperation::TaskCreate => {
+            no_room
+                && no_room_type
+                && no_block
+                && no_supersede
+                && plan.task.is_none()
+                && plan
+                    .new_task
+                    .as_ref()
+                    .is_none_or(|task| task.version == 1 && task.id == plan.result.id)
+        }
+        PmsRoomCommandOperation::MaintenanceOpen => {
+            creates(&plan.result.id, plan.new_block.as_ref())
+                && plan.block.is_none()
+                && no_room
+                && no_room_type
+                && plan.task.is_none()
+                && no_supersede
+        }
+        PmsRoomCommandOperation::MaintenanceClose => {
+            updates(&plan.result.id, plan.block.as_ref())
+                && plan.new_block.is_none()
+                && no_room_type
+                && plan.task.is_none()
+                && plan.room.as_ref().is_some_and(|room| room.version >= 2)
+                && plan.new_room.is_none()
+        }
+        PmsRoomCommandOperation::BlockCreate => {
+            creates(&plan.result.id, plan.new_block.as_ref())
+                && plan.block.is_none()
+                && no_room
+                && no_room_type
+                && no_task
+                && no_supersede
+        }
+        PmsRoomCommandOperation::BlockRelease => {
+            updates(&plan.result.id, plan.block.as_ref())
+                && plan.new_block.is_none()
+                && no_room
+                && no_room_type
+                && no_task
+                && no_supersede
+        }
     }
 }
 
@@ -470,11 +598,16 @@ async fn insert_outbox(
         .room
         .as_ref()
         .or(plan.new_room.as_ref())
-        .or(plan.task.as_ref());
+        .or(plan.block.as_ref())
+        .or(plan.new_block.as_ref())
+        .or(plan.task.as_ref())
+        .or(plan.new_task.as_ref());
     let room_id = match operation {
+        PmsRoomCommandOperation::RoomTypeSave => Value::Null,
         PmsRoomCommandOperation::Save
         | PmsRoomCommandOperation::Dnd
         | PmsRoomCommandOperation::Observe => Value::String(plan.result.id.clone()),
+        PmsRoomCommandOperation::BlockCreate => Value::String(String::new()),
         _ => record
             .and_then(|row| row.data.get("roomId").cloned())
             .unwrap_or(Value::Null),
@@ -579,19 +712,17 @@ impl PmsRoomCommandRepository for PgPmsRoomCommandRepository<'_> {
             let property = property(self.connection, actor, &command.property_id).await?;
             let operation = command.operation();
             let target_id = command.input.target_id().map(str::to_owned);
-            let mut facts = PmsRoomCommandFacts {
-                property: property.clone(),
-                room: None,
-                room_type: None,
-                rooms: Vec::new(),
-                room_types: Vec::new(),
-                stays: Vec::new(),
-                blocks: Vec::new(),
-                task: None,
-                room_tasks: Vec::new(),
-                in_house: false,
-            };
+            let mut facts = PmsRoomCommandFacts::empty(property.clone());
             match operation {
+                PmsRoomCommandOperation::RoomTypeSave => {
+                    if let Some(type_id) = &target_id {
+                        facts.room_type = Some(
+                            required_record(self.connection, &property.id, type_id, "room_type")
+                                .await?,
+                        );
+                        facts.stays = nonterminal_stays(self.connection, &property.id).await?;
+                    }
+                }
                 PmsRoomCommandOperation::Save => {
                     if let Some(room_id) = &target_id {
                         facts.room = Some(
@@ -619,6 +750,13 @@ impl PmsRoomCommandRepository for PgPmsRoomCommandRepository<'_> {
                     facts.in_house = in_house(self.connection, &property.id, room_id).await?;
                     facts.room = Some(room);
                 }
+                PmsRoomCommandOperation::TaskCreate => {
+                    let room_id = target_id.as_deref().ok_or_else(record_invalid)?;
+                    facts.room_tasks = room_tasks(self.connection, &property.id, room_id).await?;
+                    facts.room = Some(
+                        required_record(self.connection, &property.id, room_id, "room").await?,
+                    );
+                }
                 PmsRoomCommandOperation::TaskAssign
                 | PmsRoomCommandOperation::TaskStart
                 | PmsRoomCommandOperation::TaskComplete
@@ -635,12 +773,59 @@ impl PmsRoomCommandRepository for PgPmsRoomCommandRepository<'_> {
                     }
                     facts.task = Some(task);
                 }
+                PmsRoomCommandOperation::MaintenanceOpen => {
+                    let room_id = target_id.as_deref().ok_or_else(record_invalid)?;
+                    facts.room_tasks = room_tasks(self.connection, &property.id, room_id).await?;
+                    facts.room = Some(
+                        required_record(self.connection, &property.id, room_id, "room").await?,
+                    );
+                    facts.rooms = rooms(self.connection, &property.id).await?;
+                    facts.room_types = room_types(self.connection, &property.id).await?;
+                    facts.stays = nonterminal_stays(self.connection, &property.id).await?;
+                    facts.blocks = active_blocks(self.connection, &property.id).await?;
+                }
+                PmsRoomCommandOperation::MaintenanceClose => {
+                    let block_id = target_id.as_deref().ok_or_else(record_invalid)?;
+                    let block =
+                        required_record(self.connection, &property.id, block_id, "block").await?;
+                    let room_id = record_text(&block, "roomId").to_owned();
+                    if !room_id.is_empty() {
+                        facts.room_tasks =
+                            room_tasks(self.connection, &property.id, &room_id).await?;
+                        facts.room = Some(
+                            required_record(self.connection, &property.id, &room_id, "room")
+                                .await?,
+                        );
+                    }
+                    facts.block = Some(block);
+                }
+                PmsRoomCommandOperation::BlockCreate => {
+                    let type_id = match &command.input {
+                        PmsRoomCommandInput::BlockCreate(input) => input.type_id.clone(),
+                        _ => return Err(Error::from(record_invalid())),
+                    };
+                    facts.room_type = Some(
+                        required_record(self.connection, &property.id, &type_id, "room_type")
+                            .await?,
+                    );
+                    facts.rooms = rooms(self.connection, &property.id).await?;
+                    facts.room_types = room_types(self.connection, &property.id).await?;
+                    facts.stays = nonterminal_stays(self.connection, &property.id).await?;
+                    facts.blocks = active_blocks(self.connection, &property.id).await?;
+                }
+                PmsRoomCommandOperation::BlockRelease => {
+                    let block_id = target_id.as_deref().ok_or_else(record_invalid)?;
+                    facts.block = Some(
+                        required_record(self.connection, &property.id, block_id, "block").await?,
+                    );
+                }
             }
             self.loaded = Some(LoadedCommand {
                 operation,
                 property_id: property.id.clone(),
                 expected_version: property.version,
                 target_id,
+                result_is_target: command.input.result_id_is_target(),
             });
             Ok(facts)
         })
@@ -659,46 +844,15 @@ impl PmsRoomCommandRepository for PgPmsRoomCommandRepository<'_> {
             let loaded = self.loaded.take().ok_or_else(|| {
                 Error::from(PersistenceError::new("PMS_ROOM_COMMAND_LOAD_REQUIRED"))
             })?;
-            let room_operation = matches!(
-                loaded.operation,
-                PmsRoomCommandOperation::Save
-                    | PmsRoomCommandOperation::Dnd
-                    | PmsRoomCommandOperation::Observe
-            );
-            let shape_ok = if loaded.target_id.is_none() {
-                loaded.operation == PmsRoomCommandOperation::Save
-                    && plan
-                        .new_room
-                        .as_ref()
-                        .is_some_and(|room| room.version == 1 && room.id == plan.result.id)
-                    && plan.room.is_none()
-                    && plan.task.is_none()
-                    && plan.new_task.is_none()
-            } else if room_operation {
-                plan.new_room.is_none()
-                    && plan
-                        .room
-                        .as_ref()
-                        .is_some_and(|room| room.id == plan.result.id)
-                    && plan.task.is_none()
-                    && (plan.new_task.is_none()
-                        || loaded.operation == PmsRoomCommandOperation::Observe)
-            } else {
-                plan.new_room.is_none()
-                    && plan
-                        .task
-                        .as_ref()
-                        .is_some_and(|task| task.id == plan.result.id)
-                    && plan.new_task.is_none()
-            };
             if plan.result.property_id != loaded.property_id
                 || plan.result.version != loaded.expected_version + 1
                 || plan.property_version != loaded.expected_version + 1
-                || loaded
-                    .target_id
-                    .as_ref()
-                    .is_some_and(|target| target != &plan.result.id)
-                || !shape_ok
+                || (loaded.result_is_target
+                    && loaded
+                        .target_id
+                        .as_ref()
+                        .is_some_and(|target| target != &plan.result.id))
+                || !shape_ok(&loaded, &plan)
             {
                 return Err(Error::from(conflict(
                     "PMS_ROOM_COMMAND_RESULT_INVALID",
@@ -716,11 +870,26 @@ impl PmsRoomCommandRepository for PgPmsRoomCommandRepository<'_> {
             )
             .await?;
             let property_id = plan.result.property_id.clone();
+            if let Some(room_type) = &plan.room_type {
+                update_record(self.connection, &property_id, room_type).await?;
+            }
+            if let Some(room_type) = &plan.new_room_type {
+                insert_record(self.connection, &property_id, room_type, true).await?;
+            }
             if let Some(room) = &plan.room {
                 update_record(self.connection, &property_id, room).await?;
             }
             if let Some(room) = &plan.new_room {
                 insert_record(self.connection, &property_id, room, true).await?;
+            }
+            if let Some(block) = &plan.block {
+                update_record(self.connection, &property_id, block).await?;
+            }
+            if let Some(block) = &plan.new_block {
+                insert_record(self.connection, &property_id, block, true).await?;
+            }
+            for task in &plan.superseded_tasks {
+                update_record(self.connection, &property_id, task).await?;
             }
             if let Some(task) = &plan.task {
                 update_record(self.connection, &property_id, task).await?;

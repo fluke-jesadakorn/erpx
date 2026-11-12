@@ -6,12 +6,13 @@ mod fixture;
 
 use erpx_server_pms::public::room_board::PmsBoardActor;
 use erpx_server_pms::public::room_command::{
-    MAX_ROOMS, PgPmsRoomCommandRepository, PmsBoardFuture, PmsRoomAssigneeScopePort,
-    PmsRoomCommand, PmsRoomCommandActor, PmsRoomCommandHttpBackend,
-    PmsRoomCommandHttpCommandRequest, PmsRoomCommandHttpFuture, PmsRoomCommandHttpResponse,
-    PmsRoomCommandHttpTarget, PmsRoomCommandInput, PmsRoomCommandOperation, PmsRoomSaveInput,
-    PmsTaskPriority, lock_room_command_sources, pms_room_command, pms_room_command_router,
-    room_command_request_hash,
+    MAX_ROOMS, PgPmsRoomCommandRepository, PmsBlockCreateInput, PmsBoardFuture,
+    PmsMaintenanceOpenInput, PmsRoomAssigneeScopePort, PmsRoomCommand, PmsRoomCommandActor,
+    PmsRoomCommandHttpBackend, PmsRoomCommandHttpCommandRequest, PmsRoomCommandHttpFuture,
+    PmsRoomCommandHttpResponse, PmsRoomCommandHttpTarget, PmsRoomCommandInput,
+    PmsRoomCommandOperation, PmsRoomSaveInput, PmsRoomTypeSaveInput, PmsTaskCreateInput,
+    PmsTaskKind, PmsTaskPriority, lock_room_command_sources, pms_room_command,
+    pms_room_command_router, room_command_request_hash,
 };
 use erpx_server_runtime::public::http_support::serve;
 use erpx_server_runtime::public::postgres::{
@@ -206,6 +207,34 @@ async fn seed(pool: &DatabasePool) {
         }),
     )
     .await;
+    // Distinct retained block families: an ordinary group allotment that
+    // `block.release` may release, and a booking-change hold it must refuse.
+    record(
+        pool,
+        "property-1",
+        "block-group",
+        "block",
+        json!({
+            "name": "Agent allotment", "typeId": "property-1-type-1",
+            "from": "2026-11-20", "to": "2026-11-22", "releaseDate": "2026-11-10",
+            "quantity": 1, "roomId": "", "state": "active", "kind": "group",
+            "pickedStayIds": []
+        }),
+    )
+    .await;
+    record(
+        pool,
+        "property-1",
+        "block-change",
+        "block",
+        json!({
+            "name": "Booking change hold", "typeId": "property-1-type-1",
+            "from": "2026-12-01", "to": "2026-12-02", "releaseDate": "2026-11-10",
+            "quantity": 1, "roomId": "", "state": "active", "kind": "group",
+            "bookingChangeId": "change-1", "pickedStayIds": []
+        }),
+    )
+    .await;
     for (id, room, state, completed_by) in [
         ("task-open", "room-task", "pending", ""),
         ("task-clean", "room-b", "clean", "other-supervisor"),
@@ -318,6 +347,8 @@ fn actor() -> PmsRoomCommandActor {
             "pms.configure",
             "pms.housekeeping",
             "pms.inspect",
+            "pms.maintenance",
+            "pms.reservations",
         ],
     )
 }
@@ -393,15 +424,112 @@ fn task(
         PmsRoomCommandOperation::TaskInspect => PmsRoomCommandInput::TaskInspect {
             task_id: task_id.into(),
         },
-        PmsRoomCommandOperation::Save
+        PmsRoomCommandOperation::RoomTypeSave
+        | PmsRoomCommandOperation::Save
         | PmsRoomCommandOperation::Dnd
-        | PmsRoomCommandOperation::Observe => unreachable!(),
+        | PmsRoomCommandOperation::Observe
+        | PmsRoomCommandOperation::TaskCreate
+        | PmsRoomCommandOperation::MaintenanceOpen
+        | PmsRoomCommandOperation::MaintenanceClose
+        | PmsRoomCommandOperation::BlockCreate
+        | PmsRoomCommandOperation::BlockRelease => unreachable!(),
     };
     PmsRoomCommand {
         operation,
         property_id: "property-1".into(),
         expected_version: expected,
         input,
+    }
+}
+
+fn room_type_save(
+    type_id: Option<&str>,
+    name: &str,
+    capacity: i64,
+    amenities: &str,
+    expected: i64,
+) -> PmsRoomCommand {
+    PmsRoomCommand {
+        operation: PmsRoomCommandOperation::RoomTypeSave,
+        property_id: "property-1".into(),
+        expected_version: expected,
+        input: PmsRoomCommandInput::RoomTypeSave(PmsRoomTypeSaveInput {
+            type_id: type_id.map(str::to_owned),
+            name: name.into(),
+            capacity,
+            amenities: amenities.into(),
+        }),
+    }
+}
+
+fn task_create(room_id: &str, kind: PmsTaskKind, expected: i64) -> PmsRoomCommand {
+    PmsRoomCommand {
+        operation: PmsRoomCommandOperation::TaskCreate,
+        property_id: "property-1".into(),
+        expected_version: expected,
+        input: PmsRoomCommandInput::TaskCreate(PmsTaskCreateInput {
+            room_id: room_id.into(),
+            kind,
+            date: "2026-11-04".into(),
+        }),
+    }
+}
+
+fn maintenance_open(room_id: &str, from: &str, to: &str, expected: i64) -> PmsRoomCommand {
+    PmsRoomCommand {
+        operation: PmsRoomCommandOperation::MaintenanceOpen,
+        property_id: "property-1".into(),
+        expected_version: expected,
+        input: PmsRoomCommandInput::MaintenanceOpen(PmsMaintenanceOpenInput {
+            room_id: room_id.into(),
+            from: from.into(),
+            to: to.into(),
+            reason: "Leak".into(),
+        }),
+    }
+}
+
+fn block_command(
+    operation: PmsRoomCommandOperation,
+    block_id: &str,
+    expected: i64,
+) -> PmsRoomCommand {
+    let input = match operation {
+        PmsRoomCommandOperation::MaintenanceClose => PmsRoomCommandInput::MaintenanceClose {
+            block_id: block_id.into(),
+        },
+        PmsRoomCommandOperation::BlockRelease => PmsRoomCommandInput::BlockRelease {
+            block_id: block_id.into(),
+        },
+        _ => unreachable!(),
+    };
+    PmsRoomCommand {
+        operation,
+        property_id: "property-1".into(),
+        expected_version: expected,
+        input,
+    }
+}
+
+fn block_create(
+    from: &str,
+    to: &str,
+    release_date: &str,
+    quantity: i64,
+    expected: i64,
+) -> PmsRoomCommand {
+    PmsRoomCommand {
+        operation: PmsRoomCommandOperation::BlockCreate,
+        property_id: "property-1".into(),
+        expected_version: expected,
+        input: PmsRoomCommandInput::BlockCreate(PmsBlockCreateInput {
+            name: "Agent allotment".into(),
+            type_id: "property-1-type-1".into(),
+            from: from.into(),
+            to: to.into(),
+            release_date: release_date.into(),
+            quantity,
+        }),
     }
 }
 
@@ -1043,6 +1171,435 @@ async fn bounded_room_reads_reject_more_than_the_command_can_hold() {
     .await;
 }
 
+#[tokio::test]
+async fn room_type_save_persists_create_update_and_capacity_guard() {
+    fixture::with_database(4, |holding| async move {
+        seed(&holding).await;
+        let mut tx = serializable(&holding).await;
+        lock_room_command_sources(&mut tx).await.unwrap();
+
+        let key = CommandKey::new("room-type-save-create-0001").unwrap();
+        let create = room_type_save(None, "Garden", 2, "Fan", 1);
+        let result = execute(&mut tx, &key, &create, 5_000).await.unwrap();
+        assert_eq!(result.property_id, "property-1");
+        assert_eq!(result.version, 2);
+        assert!(result.id.starts_with("pms-room-type-"));
+        let row = json_value(&mut tx, &result.id).await;
+        assert_eq!(row["name"], "Garden");
+        assert_eq!(row["capacity"], 2);
+        assert_eq!(row["amenities"], "Fan");
+        assert!(row.get("id").is_none(), "the retained create stores no id");
+        assert_eq!(record_version(&mut tx, &result.id).await, 1);
+        assert_eq!(property_version(&mut tx, "property-1").await, 2);
+
+        let receipt = sqlx::query(
+            "SELECT operation,record_id,result_json FROM command_receipts WHERE command_id=$1",
+        )
+        .bind(key.as_str())
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(receipt.get::<String, _>("operation"), "pms.room_type.save");
+        assert_eq!(receipt.get::<String, _>("record_id"), "property-1");
+        let audit = sqlx::query(
+            "SELECT action,record_type,record_id FROM audit_events WHERE command_id=$1",
+        )
+        .bind(key.as_str())
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(audit.get::<String, _>("action"), "pms.room_type.save");
+        assert_eq!(audit.get::<String, _>("record_type"), "room_type");
+        assert_eq!(audit.get::<String, _>("record_id"), result.id);
+        let outbox = sqlx::query(
+            "SELECT aggregate_type,payload_json FROM outbox_events WHERE command_id=$1",
+        )
+        .bind(key.as_str())
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(outbox.get::<String, _>("aggregate_type"), "room_type");
+        let payload: Value =
+            serde_json::from_str(&outbox.get::<String, _>("payload_json")).unwrap();
+        assert!(payload["roomId"].is_null());
+
+        let guard = room_type_save(Some("property-1-type-1"), "Deluxe", 1, "", 2);
+        let error = execute(
+            &mut tx,
+            &CommandKey::new("room-type-save-guard-0001").unwrap(),
+            &guard,
+            5_000,
+        )
+        .await
+        .unwrap_err();
+        let error = business(error);
+        assert_eq!(error.code, "PMS_CAPACITY_IN_USE");
+        assert_eq!(
+            error.message,
+            "Capacity is lower than the number of booked guests"
+        );
+        assert_eq!(record_version(&mut tx, "property-1-type-1").await, 1);
+        assert_eq!(property_version(&mut tx, "property-1").await, 2);
+
+        let update = room_type_save(Some("property-1-type-1"), "Deluxe", 2, "Wifi", 2);
+        let updated = execute(
+            &mut tx,
+            &CommandKey::new("room-type-save-update-0001").unwrap(),
+            &update,
+            5_000,
+        )
+        .await
+        .unwrap();
+        assert_eq!(updated.id, "property-1-type-1");
+        assert_eq!(updated.version, 3);
+        let row = json_value(&mut tx, "property-1-type-1").await;
+        assert_eq!(row["id"], "property-1-type-1");
+        assert_eq!(row["name"], "Deluxe");
+        assert_eq!(row["capacity"], 2);
+        assert_eq!(row["amenities"], "Wifi");
+        assert_eq!(record_version(&mut tx, "property-1-type-1").await, 2);
+        assert_eq!(property_version(&mut tx, "property-1").await, 3);
+
+        let replayed = execute(&mut tx, &key, &create, 9_000).await.unwrap();
+        assert_eq!(replayed, result);
+        for sql in [
+            "SELECT count(*) FROM command_receipts WHERE command_id=$1",
+            "SELECT count(*) FROM audit_events WHERE command_id=$1",
+            "SELECT count(*) FROM outbox_events WHERE command_id=$1",
+        ] {
+            let count: i64 = sqlx::query_scalar(sql)
+                .bind(key.as_str())
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+            assert_eq!(count, 1, "{sql}");
+        }
+        let conflicting = room_type_save(None, "Courtyard", 2, "Fan", 1);
+        let error = execute(&mut tx, &key, &conflicting, 9_001)
+            .await
+            .unwrap_err();
+        assert_eq!(business(error).code, "IDEMPOTENCY_CONFLICT");
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn task_create_persists_and_reuses_the_retained_dedupe() {
+    fixture::with_database(4, |holding| async move {
+        seed(&holding).await;
+        let mut tx = serializable(&holding).await;
+        lock_room_command_sources(&mut tx).await.unwrap();
+
+        let key = CommandKey::new("task-create-0001").unwrap();
+        let create = task_create("room-idle", PmsTaskKind::Arrival, 1);
+        let result = execute(&mut tx, &key, &create, 5_000).await.unwrap();
+        assert_eq!(result.version, 2);
+        assert!(result.id.starts_with("pms-task-"));
+        let task = json_value(&mut tx, &result.id).await;
+        assert_eq!(task["type"], "arrival");
+        assert_eq!(task["roomId"], "room-idle");
+        assert_eq!(task["date"], "2026-11-04");
+        assert_eq!(task["roomCycle"], 0);
+        assert_eq!(task["priority"], "normal");
+        assert_eq!(task["state"], "pending");
+        assert_eq!(task["stayId"], "");
+        let receipt = sqlx::query("SELECT operation FROM command_receipts WHERE command_id=$1")
+            .bind(key.as_str())
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        assert_eq!(receipt.get::<String, _>("operation"), "pms.task.create");
+        let audit =
+            sqlx::query("SELECT record_type FROM audit_events WHERE command_id=$1")
+                .bind(key.as_str())
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+        assert_eq!(audit.get::<String, _>("record_type"), "task");
+        let outbox =
+            sqlx::query("SELECT aggregate_type,payload_json FROM outbox_events WHERE command_id=$1")
+                .bind(key.as_str())
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+        assert_eq!(outbox.get::<String, _>("aggregate_type"), "task");
+        let payload: Value =
+            serde_json::from_str(&outbox.get::<String, _>("payload_json")).unwrap();
+        assert_eq!(payload["roomId"], "room-idle");
+        assert_eq!(payload["state"], "pending");
+
+        let replayed = execute(&mut tx, &key, &create, 9_000).await.unwrap();
+        assert_eq!(replayed, result);
+
+        let deduped = execute(
+            &mut tx,
+            &CommandKey::new("task-create-0002").unwrap(),
+            &task_create("room-idle", PmsTaskKind::Arrival, 2),
+            5_000,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            deduped.id, result.id,
+            "the retained task() dedupe reuses the same room/type/date/cycle task"
+        );
+        assert_eq!(deduped.version, 3);
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM pms_records WHERE kind='task' AND data_json::jsonb->>'roomId'='room-idle'",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(property_version(&mut tx, "property-1").await, 3);
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn maintenance_open_and_close_persist_block_task_and_room_cycle() {
+    fixture::with_database(4, |holding| async move {
+        seed(&holding).await;
+        let mut tx = serializable(&holding).await;
+        lock_room_command_sources(&mut tx).await.unwrap();
+
+        let open_key = CommandKey::new("maintenance-open-0001").unwrap();
+        let open = maintenance_open("room-idle", "2026-11-10", "2026-11-12", 1);
+        let opened = execute(&mut tx, &open_key, &open, 5_000).await.unwrap();
+        assert_eq!(opened.version, 2);
+        assert!(opened.id.starts_with("pms-block-"));
+        let block = json_value(&mut tx, &opened.id).await;
+        assert_eq!(block["kind"], "maintenance");
+        assert_eq!(block["state"], "active");
+        assert_eq!(block["roomId"], "room-idle");
+        assert_eq!(block["typeId"], "property-1-type-1");
+        assert_eq!(block["name"], "Leak");
+        assert_eq!(block["quantity"], 1);
+        assert_eq!(block["releaseDate"], "2026-11-12");
+        let task: Value = serde_json::from_str(
+            &sqlx::query_scalar::<_, String>(
+                "SELECT data_json FROM pms_records WHERE kind='task' AND data_json::jsonb->>'stayId'=$1",
+            )
+            .bind(&opened.id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(task["type"], "maintenance");
+        assert_eq!(task["state"], "pending");
+        assert_eq!(task["roomId"], "room-idle");
+        assert_eq!(task["roomCycle"], 0);
+        assert_eq!(task["date"], "2026-11-04");
+        assert_eq!(task["checklist"], json!(["Repair complete", "Safety test"]));
+        let receipt =
+            sqlx::query("SELECT operation FROM command_receipts WHERE command_id=$1")
+                .bind(open_key.as_str())
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+        assert_eq!(
+            receipt.get::<String, _>("operation"),
+            "pms.maintenance.open"
+        );
+
+        let before = block_command(PmsRoomCommandOperation::MaintenanceClose, &opened.id, 2);
+        let error = execute(
+            &mut tx,
+            &CommandKey::new("maintenance-close-early-0001").unwrap(),
+            &before,
+            5_000,
+        )
+        .await
+        .unwrap_err();
+        let error = business(error);
+        assert_eq!(error.code, "PMS_INSPECTION_REQUIRED");
+        assert_eq!(
+            error.message,
+            "Repair and inspect before opening the room"
+        );
+        assert_eq!(record_version(&mut tx, &opened.id).await, 1);
+
+        sqlx::query(
+            "UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"done\"')::text \
+             WHERE kind='task' AND data_json::jsonb->>'stayId'=$1",
+        )
+        .bind(&opened.id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        let close_key = CommandKey::new("maintenance-close-0001").unwrap();
+        let close = block_command(PmsRoomCommandOperation::MaintenanceClose, &opened.id, 2);
+        let closed = execute(&mut tx, &close_key, &close, 5_000).await.unwrap();
+        assert_eq!(closed.id, opened.id);
+        assert_eq!(closed.version, 3);
+        let block = json_value(&mut tx, &opened.id).await;
+        assert_eq!(block["state"], "released");
+        assert_eq!(record_version(&mut tx, &opened.id).await, 2);
+        let room = json_value(&mut tx, "room-idle").await;
+        assert_eq!(room["cleanliness"], "dirty");
+        assert_eq!(room["cleaningCycle"], 1);
+        assert_eq!(room["dnd"], false);
+        assert_eq!(record_version(&mut tx, "room-idle").await, 2);
+        let arrival: Value = serde_json::from_str(
+            &sqlx::query_scalar::<_, String>(
+                "SELECT data_json FROM pms_records WHERE kind='task' AND data_json::jsonb->>'roomId'='room-idle' AND data_json::jsonb->>'type'='arrival'",
+            )
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(arrival["roomCycle"], 1);
+        assert_eq!(arrival["date"], "2026-11-04");
+        assert_eq!(arrival["priority"], "normal");
+        assert_eq!(arrival["state"], "pending");
+
+        let replayed = execute(&mut tx, &close_key, &close, 9_000).await.unwrap();
+        assert_eq!(replayed, closed);
+        for sql in [
+            "SELECT count(*) FROM command_receipts WHERE command_id=$1",
+            "SELECT count(*) FROM audit_events WHERE command_id=$1",
+            "SELECT count(*) FROM outbox_events WHERE command_id=$1",
+        ] {
+            let count: i64 = sqlx::query_scalar(sql)
+                .bind(close_key.as_str())
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+            assert_eq!(count, 1, "{sql}");
+        }
+        let conflicting = block_command(PmsRoomCommandOperation::MaintenanceClose, "block-group", 2);
+        let error = execute(&mut tx, &close_key, &conflicting, 9_001)
+            .await
+            .unwrap_err();
+        assert_eq!(business(error).code, "IDEMPOTENCY_CONFLICT");
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn block_create_and_release_follow_the_retained_guards() {
+    fixture::with_database(4, |holding| async move {
+        seed(&holding).await;
+        let mut tx = serializable(&holding).await;
+        lock_room_command_sources(&mut tx).await.unwrap();
+
+        let key = CommandKey::new("block-create-0001").unwrap();
+        let create = block_create("2026-11-10", "2026-11-12", "2026-11-05", 1, 1);
+        let created = execute(&mut tx, &key, &create, 5_000).await.unwrap();
+        assert_eq!(created.version, 2);
+        assert!(created.id.starts_with("pms-block-"));
+        let block = json_value(&mut tx, &created.id).await;
+        assert_eq!(block["kind"], "group");
+        assert_eq!(block["state"], "active");
+        assert_eq!(block["roomId"], "");
+        assert_eq!(block["typeId"], "property-1-type-1");
+        assert_eq!(block["quantity"], 1);
+        assert_eq!(block["releaseDate"], "2026-11-05");
+        assert_eq!(block["pickedStayIds"], json!([]));
+        let outbox = sqlx::query("SELECT payload_json FROM outbox_events WHERE command_id=$1")
+            .bind(key.as_str())
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        let payload: Value =
+            serde_json::from_str(&outbox.get::<String, _>("payload_json")).unwrap();
+        assert_eq!(payload["roomId"], "");
+        assert_eq!(payload["state"], "active");
+
+        let error = execute(
+            &mut tx,
+            &CommandKey::new("block-create-sold-0001").unwrap(),
+            &block_create("2026-11-10", "2026-11-12", "2026-11-05", 7, 2),
+            5_000,
+        )
+        .await
+        .unwrap_err();
+        let error = business(error);
+        assert_eq!(error.code, "PMS_SOLD_OUT");
+        assert_eq!(error.message, "Not enough rooms on this date");
+        assert_eq!(property_version(&mut tx, "property-1").await, 2);
+
+        let error = execute(
+            &mut tx,
+            &CommandKey::new("block-create-dates-0001").unwrap(),
+            &block_create("2026-11-10", "2026-11-12", "2026-11-11", 1, 2),
+            5_000,
+        )
+        .await
+        .unwrap_err();
+        let error = business(error);
+        assert_eq!(error.code, "PMS_INVALID_DATES");
+        assert_eq!(
+            error.message,
+            "Quota return date cannot be after arrival or before the business date"
+        );
+
+        let release_key = CommandKey::new("block-release-0001").unwrap();
+        let released = execute(
+            &mut tx,
+            &release_key,
+            &block_command(PmsRoomCommandOperation::BlockRelease, &created.id, 2),
+            5_000,
+        )
+        .await
+        .unwrap();
+        assert_eq!(released.id, created.id);
+        let block = json_value(&mut tx, &created.id).await;
+        assert_eq!(block["state"], "released");
+        assert_eq!(record_version(&mut tx, &created.id).await, 2);
+        let replayed = execute(
+            &mut tx,
+            &release_key,
+            &block_command(PmsRoomCommandOperation::BlockRelease, &created.id, 2),
+            9_000,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replayed, released);
+
+        let error = execute(
+            &mut tx,
+            &CommandKey::new("block-release-change-0001").unwrap(),
+            &block_command(PmsRoomCommandOperation::BlockRelease, "block-change", 3),
+            5_000,
+        )
+        .await
+        .unwrap_err();
+        let error = business(error);
+        assert_eq!(error.code, "PMS_BLOCK_TYPE");
+        assert_eq!(
+            error.message,
+            "Only ordinary group allotments can be released here"
+        );
+
+        let maintenance = execute(
+            &mut tx,
+            &CommandKey::new("maintenance-open-for-release-0001").unwrap(),
+            &maintenance_open("room-dnd", "2026-11-15", "2026-11-16", 3),
+            5_000,
+        )
+        .await
+        .unwrap();
+        let error = execute(
+            &mut tx,
+            &CommandKey::new("block-release-maintenance-0001").unwrap(),
+            &block_command(PmsRoomCommandOperation::BlockRelease, &maintenance.id, 4),
+            5_000,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(business(error).code, "PMS_BLOCK_TYPE");
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
 const HTTP_HEADERS: &str = "Origin: https://acme.example.test\r\nIdempotency-Key: room-command-0001\r\nContent-Type: application/json\r\nx-erpx-context-company: company\r\nx-erpx-context-revision: 1\r\nx-erpx-context-assignment: assignment-1\r\nx-erpx-context-assignment-version: 1\r\n";
 
 struct RoomHttpBackend {
@@ -1189,6 +1746,62 @@ async fn http_room_command_retains_bounded_context_and_fails_closed() {
     assert_eq!(status, 200, "{value}");
     assert_eq!(backend.calls.load(Ordering::SeqCst), 2);
 
+    let maintenance_body = json!({
+        "operation": "maintenance.open",
+        "propertyId": "property-1",
+        "expectedVersion": 1,
+        "roomId": "room-a",
+        "from": "2026-11-10",
+        "to": "2026-11-12",
+        "reason": "Leak"
+    })
+    .to_string();
+    let (status, value) = http_call(
+        address,
+        "POST /api/v1/holdings/acme/pms/room-command",
+        HTTP_HEADERS,
+        &maintenance_body,
+    )
+    .await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value["data"]["id"], "room-a");
+    assert_eq!(backend.calls.load(Ordering::SeqCst), 3);
+    assert_eq!(
+        backend.seen.lock().unwrap().last().unwrap(),
+        "acme.example.test:acme:room-command-0001:maintenance.open:company:assignment-1"
+    );
+
+    let invalid_capacity = json!({
+        "operation": "room_type.save", "propertyId": "property-1",
+        "expectedVersion": 1, "name": "Garden", "capacity": 0
+    })
+    .to_string();
+    let (status, value) = http_call(
+        address,
+        "POST /api/v1/holdings/acme/pms/room-command",
+        HTTP_HEADERS,
+        &invalid_capacity,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(value["error"]["code"], "PMS_ROOM_COMMAND_REQUEST_INVALID");
+
+    let incomplete_block = json!({
+        "operation": "block.create", "propertyId": "property-1",
+        "expectedVersion": 1, "name": "Group", "typeId": "property-1-type-1",
+        "from": "2026-11-10", "to": "2026-11-12", "releaseDate": "2026-11-05"
+    })
+    .to_string();
+    let (status, _) = http_call(
+        address,
+        "POST /api/v1/holdings/acme/pms/room-command",
+        HTTP_HEADERS,
+        &incomplete_block,
+    )
+    .await;
+    assert_eq!(status, 422, "quantity is required");
+    assert_eq!(backend.calls.load(Ordering::SeqCst), 3);
+
     let unknown_field = json!({
         "operation": "room.dnd", "propertyId": "property-1", "expectedVersion": 1,
         "roomId": "room-a", "dnd": true, "unexpected": true
@@ -1261,7 +1874,7 @@ async fn http_room_command_retains_bounded_context_and_fails_closed() {
     .await;
     assert_eq!(status, 404);
     assert_eq!(value["error"]["code"], "NOT_FOUND");
-    assert_eq!(backend.calls.load(Ordering::SeqCst), 2);
+    assert_eq!(backend.calls.load(Ordering::SeqCst), 3);
     task.abort();
 }
 
