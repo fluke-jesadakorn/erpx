@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 753,
+    "revision": 758,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-k",
+      "runId": "run-20261112-l",
       "agentId": "lead",
-      "startedAt": "2026-11-12T08:00:24.266Z",
-      "heartbeatAt": "2026-11-12T08:00:24.266Z",
-      "expiresAt": "2026-11-12T08:30:24.267Z",
-      "generation": 36,
-      "tokenHash": "d19614bc54d9920899418a4e5f4ab006f8e79a2f90f85554509589ce285de35f"
+      "startedAt": "2026-11-12T08:37:28.231Z",
+      "heartbeatAt": "2026-11-12T08:37:28.231Z",
+      "expiresAt": "2026-11-12T09:07:28.232Z",
+      "generation": 37,
+      "tokenHash": "7da95f76c3b2f87f2987548a62c41640563812bdbdceb10a1ab2abf023c6edcd"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -17897,15 +17897,8 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-k",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T08:09:27.789Z",
-          "heartbeatAt": "2026-11-12T08:09:27.789Z",
-          "expiresAt": "2026-11-12T08:39:27.789Z",
-          "generation": 36
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -17965,15 +17958,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-k lease expired; assets change-writer retirement pushed c94bd9422; WIP reviewed",
         "nextAction": "KPI 34->32 (attachment purchase/read) then 32->15 (actuals 9 + milestones 8 writers deleted; native command client, native-only POSTs, oracles seeded via SQL). Residual 15: project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1. Removal condition: switch structure/staff-project/purchase/scheduled-task writes to native routes and delete their TS statements/exports; keep in_progress until residual reaches 0.",
         "handoff": {
-          "runId": "run-20261112-j",
+          "runId": "run-20261112-k",
           "agentId": "lead",
-          "at": "2026-11-12T08:00:24.265Z",
+          "at": "2026-11-12T08:37:28.230Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-j lease expired; benefits retirement pushed a605d7203; WIP reviewed",
-          "nextAction": "Attachment purchase/read TS modules retired (fae453f08): projects owner KPI 34->32; no imports/exports remain. Residual 32 writes are the still-retained command writers: actuals 9, milestones 8, project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1. Removal condition: native command/read route authoritative + oracles moved, then delete statement/export; keep in_progress until residual 0 or formally reassigned."
+          "reason": "Recovery: run-20261112-k lease expired; assets change-writer retirement pushed c94bd9422; WIP reviewed",
+          "nextAction": "KPI 34->32 (attachment purchase/read) then 32->15 (actuals 9 + milestones 8 writers deleted; native command client, native-only POSTs, oracles seeded via SQL). Residual 15: project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1. Removal condition: switch structure/staff-project/purchase/scheduled-task writes to native routes and delete their TS statements/exports; keep in_progress until residual reaches 0."
         },
         "scopeRefinementRequired": false
       },
@@ -18568,23 +18561,23 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-k",
-          "agentId": "worker-people-mount",
-          "claimedAt": "2026-11-12T08:06:21.477Z",
-          "heartbeatAt": "2026-11-12T08:06:21.477Z",
-          "expiresAt": "2026-11-12T08:36:21.477Z",
-          "generation": 36
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-k lease expired; assets change-writer retirement pushed c94bd9422; WIP reviewed",
         "nextAction": "Register the three payroll-run cargo suites, migrate the foreign payroll-run seeds, remove the route fallbacks and TS writers/readers, then run owner KPI and affected suites.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-k",
+          "agentId": "worker-people-mount",
+          "at": "2026-11-12T08:37:28.230Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-k lease expired; assets change-writer retirement pushed c94bd9422; WIP reviewed",
+          "nextAction": "Register the three payroll-run cargo suites, migrate the foreign payroll-run seeds, remove the route fallbacks and TS writers/readers, then run owner KPI and affected suites."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -18682,23 +18675,86 @@
         "resources": [
           "owner:assets"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-k",
-          "agentId": "worker-assets",
-          "claimedAt": "2026-11-12T08:10:07.528Z",
-          "heartbeatAt": "2026-11-12T08:10:07.528Z",
-          "expiresAt": "2026-11-12T08:40:07.528Z",
-          "generation": 36
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c94bd9422af37393a7edf2f7896ffbc548c104da",
+        "lastPushedSha": "c94bd9422af37393a7edf2f7896ffbc548c104da",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c94bd9422af37393a7edf2f7896ffbc548c104da",
+            "before": 12,
+            "after": 8,
+            "residual": [
+              {
+                "path": "packages/server-assets/src/adapters/assets.ts",
+                "writes": 4,
+                "removalTaskId": "retire.assets.register-writers",
+                "removalCondition": "Move the two remaining createAsset fixtures (engineering-business-browser, finance expansion) to owner-row/native seeding, then delete createAsset and its application path."
+              },
+              {
+                "path": "packages/server-assets/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "migrate.assets.purchase-boundary",
+                "removalCondition": "Native purchased-command boundary replaces the TS assertion cleanup."
+              },
+              {
+                "path": "packages/server-assets/src/adapters/attachment-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.assets.attachments",
+                "removalCondition": "Native Files asset attachment boundary replaces the TS purchase guard."
+              }
+            ]
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "c94bd9422af37393a7edf2f7896ffbc548c104da"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "c94bd9422af37393a7edf2f7896ffbc548c104da"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "c94bd9422af37393a7edf2f7896ffbc548c104da"
+          },
+          {
+            "command": "bun run test:unit -- --suite=shared.business-contracts.asset-maintenance.unit --suite=assets.native-assets-transport.unit",
+            "result": "passed",
+            "sourceSha": "c94bd9422af37393a7edf2f7896ffbc548c104da"
+          },
+          {
+            "command": "bun run test:integration -- --suite=assets.asset-maintenance.integration",
+            "result": "passed",
+            "sourceSha": "c94bd9422af37393a7edf2f7896ffbc548c104da"
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.support.integration --suite=maintenance.maintenance-preventive.integration --suite=maintenance.maintenance-route-encoding.integration",
+            "result": "passed",
+            "sourceSha": "c94bd9422af37393a7edf2f7896ffbc548c104da"
+          },
+          {
+            "command": "bunx tsc --noEmit -p packages/server-assets/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "c94bd9422af37393a7edf2f7896ffbc548c104da"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete changeAsset writer/application/domain/exports; replace test changeAsset calls with owner-row updates+events; delete TS guard-oracle cases; prove KPI 12->8; typecheck/catalogue/affected suites; push.",
-        "handoff": null,
+        "nextAction": "Retired changeAsset TS writer/exports; tests use owner-row transitions; native Assets route authoritative; KPI 12->8 with createAsset fixture residual bound to retire.assets.register-writers; pushed c94bd9422.",
+        "handoff": {
+          "runId": "run-20261112-k",
+          "agentId": "worker-assets",
+          "at": "2026-11-12T08:37:28.230Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-k lease expired; assets change-writer retirement pushed c94bd9422; WIP reviewed",
+          "nextAction": "Delete changeAsset writer/application/domain/exports; replace test changeAsset calls with owner-row updates+events; delete TS guard-oracle cases; prove KPI 12->8; typecheck/catalogue/affected suites; push."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-assets",
         "plannedPackage": "erpx-server-assets",
@@ -18719,20 +18775,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 71,
-      "migratedPackets": 32,
+      "migratedPackets": 33,
       "statusCounts": {
         "pending": 12,
-        "in_progress": 4,
+        "in_progress": 1,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 32,
-        "blocked": 13,
+        "migrated": 33,
+        "blocked": 15,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 36,
-    "updatedAt": "2026-11-12T08:10:07.528Z",
+    "lastCoordinatorGeneration": 37,
+    "updatedAt": "2026-11-12T08:37:28.335Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -18775,10 +18831,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-j",
-      "runId": "run-20261112-k",
-      "at": "2026-11-12T08:00:24.267Z",
-      "reason": "run-20261112-j lease expired; benefits retirement pushed a605d7203; WIP reviewed",
+      "previousRunId": "run-20261112-k",
+      "runId": "run-20261112-l",
+      "at": "2026-11-12T08:37:28.232Z",
+      "reason": "run-20261112-k lease expired; assets change-writer retirement pushed c94bd9422; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
