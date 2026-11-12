@@ -42,7 +42,6 @@
     "./adapters/command-runtime": "./src/adapters/command-runtime.ts",
     "./adapters/support-sla-alerts": "./src/adapters/support-sla-alerts.ts",
     "./adapters/ticket-portal-customer": "./src/adapters/ticket-portal-customer.ts",
-    "./adapters/service-teams": "./src/adapters/service-teams.ts",
     "./adapters/attachments-service-facts": "./src/adapters/attachments-service-facts.ts",
     "./adapters/incident-attachment-read": "./src/adapters/incident-attachment-read.ts",
     "./adapters/support-ticket-read-sources": "./src/adapters/support-ticket-read-sources.ts",

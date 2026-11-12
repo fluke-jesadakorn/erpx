@@ -3,7 +3,8 @@ import {expenseDb as db,expenseFixture,key} from "./expense-fixture";
 import type {AttachmentOwnerTuple,AttachmentOwnerFixture} from "./engineering-finance-people-attachment-owners";
 import {saveEmployeeRequest,actOnEmployeeRequest,employeeRequestSchema,requestActionSchema} from '@erpx/server-records/public/employee-requests';
 import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
-import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {seedServiceTeam} from "./service-team-seed";
 import {createLeave,submitLeave,approveLeave,newLeaveSchema,leaveDraftSchema} from '@erpx/server-people_payroll/public/leave';
 import {saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
 import {executeCommand} from '@erpx/server-workflow/public/commands';
@@ -70,7 +71,7 @@ export async function serviceHospitalityAttachmentOwner(tuple:AttachmentOwnerTup
   return {...standard(String(leave.id),"leave_requests",f.claimant,2),componentRef:`leave-evidence:${tuple.purposeKey}`,bindingType:"leave_approval",bindAction:(_set,command)=>approveLeave("h001",String(leave.id),{expectedVersion:2,note:reason,override:false},command,f.head)};
  }
  if(tuple.targetType==="employee_request"){
-  await saveServiceTeam(db,f.owner,null,serviceTeamSchema.parse({name:"Synthetic IT evidence team",members:[{userId:f.it.userId,responsibility:"lead"}],coverage:[{category:"it",scopeKind:"holding",scopeNodeId:f.company}]}),key());
+  await seedServiceTeam(f.company,f.owner.userId,serviceTeamSchema.parse({name:"Synthetic IT evidence team",members:[{userId:f.it.userId,responsibility:"lead"}],coverage:[{category:"it",scopeKind:"holding",scopeNodeId:f.company}]}),`team-${key()}`);
   const request=await saveEmployeeRequest(db,f.claimant,null,employeeRequestSchema.parse({kind:"service",category:"it",title:"Synthetic service request",description:reason,location:"Synthetic office",branchId:f.branch,departmentId:f.department}),key());
   const requestId=String(request.id),action=async(actor:WorkContext,name:string,extra:Record<string,unknown>={})=>{const row=await getEmployeeRequest(db,actor,requestId);return actOnEmployeeRequest(db,actor,requestId,requestActionSchema.parse({action:name,expectedVersion:row.version,note:reason,...extra}),key());};
   if(tuple.purposeKey==="fulfillment"){

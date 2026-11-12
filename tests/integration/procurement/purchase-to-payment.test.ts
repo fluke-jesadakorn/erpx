@@ -14,7 +14,8 @@ import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expe
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {actOnEmployeeRequest,employeeRequestSchema,requestActionSchema,saveEmployeeRequest} from '@erpx/server-records/public/employee-requests';
 import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
-import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import { seedServiceTeam } from "../../support/helpers/service-team-seed";
+import {serviceTeamSchema} from '@erpx/server-support/public/service-teams';
 import { actRfq, createRfq, rfqDetail } from "@erpx/server-procurement/public/procurement-rfqs";
 import {fulfillOrder,invoiceFulfillment,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
@@ -59,11 +60,11 @@ beforeEach(async () => {
     db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,'liability','THB',1,1)").bind(`${f.company}-clearing`, f.chart, f.company, "CLEARING", "Goods received clearing"),
     db.prepare("UPDATE commerce_settings SET inventory_account_id=?,clearing_account_id=? WHERE company_id=?").bind(`${f.company}-inventory`, `${f.company}-clearing`, f.company),
   ]);
-  await saveServiceTeam(db, f.owner, null, serviceTeamSchema.parse({
+  await seedServiceTeam(f.company,f.owner.userId,serviceTeamSchema.parse({
     name: "Purchasing acceptance team",
     members: [{ userId: buyer.userId, responsibility: "lead" }],
     coverage: [{ category: "purchasing", scopeKind: "holding", scopeNodeId: f.company }],
-  }), key());
+  }),`team-${key()}`);
 });
 
 async function act(actor: WorkContext, requestId: string, action: string, extra: Record<string, unknown> = {}) {

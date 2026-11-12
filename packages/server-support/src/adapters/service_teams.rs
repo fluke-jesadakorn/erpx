@@ -14,6 +14,21 @@ use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
 
+/// Presentation catalogue returned with the owner options payload. Keep the ids
+/// in step with `CATEGORIES` in the Postgres adapter (unit-tested there).
+pub const SERVICE_TEAM_CATEGORY_OPTIONS: &[(&str, &str)] = &[
+    ("it", "IT support"),
+    ("engineering", "Engineering"),
+    ("maintenance", "Maintenance"),
+    ("facilities", "Facilities"),
+    ("housekeeping", "Housekeeping"),
+    ("people", "People & HR"),
+    ("finance", "Accounts & Finance"),
+    ("purchasing", "Purchasing"),
+    ("operations", "Warehouse & Operations"),
+    ("sales", "Sales & Customer Support"),
+];
+
 fn conflict(code: &'static str, message: &'static str) -> Error {
     BusinessError::new(FailureKind::Conflict, code, message).into()
 }
@@ -426,6 +441,8 @@ pub async fn service_team_options(
     let mut projected = vec![];
     for row in teams {
         let id: String = row.try_get("id")?;
+        let active: i64 = row.try_get("active")?;
+        let configuration_json: String = row.try_get("configuration_json")?;
         let history: String = sqlx::query_scalar(
             "SELECT coalesce(jsonb_agg(jsonb_build_object(\
                'version',version,'configuration_json',configuration_json,\
@@ -446,23 +463,45 @@ pub async fn service_team_options(
         .bind(actor.company_id.as_str())
         .fetch_one(&mut *c)
         .await?;
-        let coverage: String = sqlx::query_scalar(
-            "SELECT coalesce(jsonb_agg(jsonb_build_object(\
-               'category',category,'scope_kind',scope_kind,'scope_node_id',scope_node_id) \
-               ORDER BY category,scope_node_id),'[]'::jsonb)::text \
-             FROM service_team_coverage WHERE team_id=$1 AND company_id=$2",
-        )
-        .bind(&id)
-        .bind(actor.company_id.as_str())
-        .fetch_one(&mut *c)
-        .await?;
+        let coverage: String = if active == 0 && !configuration_json.trim().is_empty() {
+            // An inactive team keeps its last configuration; the owner console
+            // shows that saved coverage even though live coverage rows are gone.
+            let projected = serde_json::from_str::<Value>(&configuration_json)
+                .ok()
+                .and_then(|value| value.get("coverage").and_then(Value::as_array).cloned())
+                .map(|coverage| {
+                    coverage
+                        .into_iter()
+                        .filter_map(|entry| {
+                            Some(json!({
+                                "category": entry.get("category")?.as_str()?,
+                                "scope_kind": entry.get("scopeKind")?.as_str()?,
+                                "scope_node_id": entry.get("scopeNodeId")?.as_str()?,
+                            }))
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            serde_json::to_string(&projected).unwrap_or_else(|_| "[]".into())
+        } else {
+            sqlx::query_scalar(
+                "SELECT coalesce(jsonb_agg(jsonb_build_object(\
+                   'category',category,'scope_kind',scope_kind,'scope_node_id',scope_node_id) \
+                   ORDER BY category,scope_node_id),'[]'::jsonb)::text \
+                 FROM service_team_coverage WHERE team_id=$1 AND company_id=$2",
+            )
+            .bind(&id)
+            .bind(actor.company_id.as_str())
+            .fetch_one(&mut *c)
+            .await?
+        };
         projected.push(json!({
             "id": id,
             "company_id": row.try_get::<String, _>("company_id")?,
             "name": row.try_get::<String, _>("name")?,
-            "active": row.try_get::<i64, _>("active")? == 1,
+            "active": active,
             "version": row.try_get::<i64, _>("version")?,
-            "configuration_json": row.try_get::<String, _>("configuration_json")?,
+            "configuration_json": configuration_json,
             "history": serde_json::from_str::<Value>(&history).unwrap_or(Value::Array(vec![])),
             "members": serde_json::from_str::<Value>(&handlers).unwrap_or(Value::Array(vec![])),
             "coverage": serde_json::from_str::<Value>(&coverage).unwrap_or(Value::Array(vec![])),
@@ -470,6 +509,7 @@ pub async fn service_team_options(
     }
     Ok(json!({
         "owner": true,
+        "categories": SERVICE_TEAM_CATEGORY_OPTIONS,
         "nodes": serde_json::from_str::<Value>(&nodes).unwrap_or(Value::Array(vec![])),
         "members": members,
         "teams": projected,

@@ -328,8 +328,14 @@ if(mode==='prepare'||diagnostic){
     ['payment_settled',f.payer.userId,'Simulation payroll settlement owner'],
   ] as const)
     await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll',?,?,?,?,?)").bind(f.company,stepKey,userId,f.owner.userId,reason,now).run();
-  const {saveServiceTeam,serviceTeamSchema}=await import("@erpx/server-support/public/service-teams");
-  await saveServiceTeam(env.H001_DB,f.owner,null,serviceTeamSchema.parse({name:'Demo purchasing team',members:[{userId:f.it.userId,responsibility:'lead'},{userId:f.tie.userId,responsibility:'member'}],coverage:[{category:'purchasing',scopeKind:'holding',scopeNodeId:f.company}]}),crypto.randomUUID());
+  const serviceTeamId=crypto.randomUUID(),serviceTeamNow=Date.now(),serviceTeamConfig=JSON.stringify({name:'Demo purchasing team',active:true,expectedVersion:1,members:[{userId:f.it.userId,responsibility:'lead'},{userId:f.tie.userId,responsibility:'member'}],coverage:[{category:'purchasing',scopeKind:'holding',scopeNodeId:f.company}]});
+  await env.H001_DB.batch([
+    env.H001_DB.prepare("INSERT INTO service_teams(id,company_id,name,active,version,configuration_json,created_by,created_at,updated_at) VALUES(?,?,?,1,1,?,?,?,?)").bind(serviceTeamId,f.company,'Demo purchasing team',serviceTeamConfig,f.owner.userId,serviceTeamNow,serviceTeamNow),
+    env.H001_DB.prepare("INSERT INTO service_team_revisions(company_id,team_id,version,configuration_json,actor_id,created_at) VALUES(?,?,1,?,?,?)").bind(f.company,serviceTeamId,serviceTeamConfig,f.owner.userId,serviceTeamNow),
+    env.H001_DB.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,f.it.userId,'lead'),
+    env.H001_DB.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,f.tie.userId,'member'),
+    env.H001_DB.prepare("INSERT INTO service_team_coverage(company_id,team_id,category,scope_kind,scope_node_id) VALUES(?,?,?,?,?)").bind(f.company,serviceTeamId,'purchasing','holding',f.company),
+  ]);
   const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/public/supplier-bill-matching");
   await saveSupplierInvoicePolicy(f.owner,{matchingMode:'required',expectedVersion:0,reason:'Demo Company requires independent receipt and supplier invoice matching before AP'},crypto.randomUUID());
   const {saveEmployeeRequest,employeeRequestSchema}=await import("@erpx/server-records/public/employee-requests");

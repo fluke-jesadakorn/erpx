@@ -23,7 +23,6 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   const {pmsCommand,loadPms}=await import("../../../packages/server-pms/src/public/pms");
   const {posCommand}=await import("@erpx/server-pos/public/pos-core");
   const {saveMaster}=await import("@erpx/server-commerce/public/commerce");
-  const {saveServiceTeam,serviceTeamSchema}=await import("@erpx/server-support/public/service-teams");
   const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/public/supplier-bill-matching");
   const f=await seedExpenseCompany(input.db,input.files);
   await input.db.prepare("UPDATE organization_nodes SET display_name=? WHERE id=?").bind(fixture.legalEntity,f.company).run();
@@ -82,15 +81,23 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
     .bind(f.company,kind,scopeId).first<{version:number}>())?.version??0);
   await changeAppointment(db,admin,{kind:"head",departmentId:f.department,positionId:null,personId:managerPersonId,expectedVersion:await appointmentVersion("head",f.department),reason:"Synthetic department approval route for H002 browser acceptance."},crypto.randomUUID());
   await changeAppointment(db,admin,{kind:"hr",departmentId:null,positionId:null,personId:`person-${actors.hrAdmin.userId}`,expectedVersion:await appointmentVersion("hr",f.company),reason:"Synthetic independent HR route for H002 browser acceptance."},crypto.randomUUID());
-  await saveServiceTeam(db,admin,null,serviceTeamSchema.parse({
-    name:"Riverside purchasing team",
+  const serviceTeamId=crypto.randomUUID(),serviceTeamNow=Date.now(),serviceTeamConfig=JSON.stringify({
+    name:"Riverside purchasing team",active:true,expectedVersion:1,
     members:[
       {userId:actors.purchasingOperator.userId,responsibility:"lead"},
       {userId:actors.purchasingManager.userId,responsibility:"member"},
       {userId:actors.purchasingReviewer.userId,responsibility:"member"},
     ],
     coverage:[{category:"purchasing",scopeKind:"holding",scopeNodeId:f.company}],
-  }),crypto.randomUUID());
+  });
+  await db.batch([
+    db.prepare("INSERT INTO service_teams(id,company_id,name,active,version,configuration_json,created_by,created_at,updated_at) VALUES(?,?,?,1,1,?,?,?,?)").bind(serviceTeamId,f.company,"Riverside purchasing team",serviceTeamConfig,admin.userId,serviceTeamNow,serviceTeamNow),
+    db.prepare("INSERT INTO service_team_revisions(company_id,team_id,version,configuration_json,actor_id,created_at) VALUES(?,?,1,?,?,?)").bind(f.company,serviceTeamId,serviceTeamConfig,admin.userId,serviceTeamNow),
+    db.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,actors.purchasingOperator.userId,"lead"),
+    db.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,actors.purchasingManager.userId,"member"),
+    db.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,actors.purchasingReviewer.userId,"member"),
+    db.prepare("INSERT INTO service_team_coverage(company_id,team_id,category,scope_kind,scope_node_id) VALUES(?,?,?,?,?)").bind(f.company,serviceTeamId,"purchasing","holding",f.company),
+  ]);
   await saveSupplierInvoicePolicy(admin,{matchingMode:"required",expectedVersion:0,reason:"Fictional Riverside scenario requires independent matching of supplier invoices to receipts."},crypto.randomUUID());
   const supplierOne=await saveMaster(admin,"parties",null,{kind:"supplier",code:"RIVERSIDE-FOOD-01",name:"Fictional Riverside Food Supply",paymentTermsDays:30},crypto.randomUUID());
   const supplierTwo=await saveMaster(admin,"parties",null,{kind:"supplier",code:"RIVERSIDE-FOOD-02",name:"Fictional Lantern Produce Co",paymentTermsDays:30},crypto.randomUUID());

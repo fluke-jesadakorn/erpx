@@ -13,7 +13,8 @@ import {
   getWorkCapabilities,
   hasCoveredTeam,
 } from "@erpx/server-work_projection/public/work-capabilities";
-import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {seedServiceTeam} from '../../support/helpers/service-team-seed';
 import type { WorkCardId } from "@erpx/feature-work_projection/lib/work-cards";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
@@ -231,10 +232,9 @@ it("requires selecting the warehouse grant and rejects department inventory crea
   ]);
 });
 it("shows a team queue only for current coverage overlapping the workspace", async () => {
-  const team = await saveServiceTeam(
-    db,
-    f.owner,
-    null,
+  const team = await seedServiceTeam(
+    f.company,
+    f.owner.userId,
     serviceTeamSchema.parse({
       name: "Department support",
       members: [{ userId: f.it.userId, responsibility: "lead" }],
@@ -242,7 +242,7 @@ it("shows a team queue only for current coverage overlapping the workspace", asy
         { category: "it", scopeKind: "department", scopeNodeId: f.department },
       ],
     }),
-    key(),
+    `team-${key()}`,
   );
   expect(await hasCoveredTeam(db, f.it)).toBe(true);
   expect(

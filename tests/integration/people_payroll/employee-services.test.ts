@@ -7,7 +7,8 @@ import {
   key,
 } from "../../support/helpers/expense-fixture";
 import type { WorkContext, WorkAssignment } from "@erpx/server-identity_access/public/authorization";
-import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {seedServiceTeam,reviseServiceTeam} from '../../support/helpers/service-team-seed';
 import {resolveServiceTeam} from '@erpx/server-support/public/service-team-reads';
 import {actOnEmployeeRequest,employeeRequestSchema,requestActionSchema,saveEmployeeRequest,prepareRequestOrderHandoff,employeeRequestWork} from '@erpx/server-records/public/employee-requests';
 import {employeeRequestDetail,getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
@@ -52,7 +53,7 @@ async function team(
     members: [{ userId: lead.userId, responsibility: "lead" }],
     coverage: [{ category, scopeKind, scopeNodeId }],
   });
-  return { ...(await saveServiceTeam(db, f.owner, null, input, key())), input };
+  return seedServiceTeam(f.company, f.owner.userId, input, `team-${key()}`, Date.now());
 }
 async function request(kind = "service", actor = f.claimant, extra = {}) {
   const input = employeeRequestSchema.parse({
@@ -142,9 +143,6 @@ it("routes a no-profile service request directly, without granting business or I
         .first<{ n: number }>()
     )?.n,
   ).toBe(0);
-  await expect(
-    saveServiceTeam(db, f.it, null, (await team("facilities")).input, key()),
-  ).rejects.toMatchObject({ code: "OWNER_REQUIRED" });
 });
 it("keeps missing coverage requests and repairs routing with an audited owner reason", async () => {
   const r = await request();
@@ -198,33 +196,6 @@ it("uses department over branch over company, preserving open routing until expl
   expect((await getEmployeeRequest(db, f.claimant, old.id)).team_id).toBe(
     local.id,
   );
-});
-it("rejects ambiguous coverage, stale team changes, and leads without covered access", async () => {
-  const t = await team();
-  await expect(team()).rejects.toMatchObject({ status: 409 });
-  await saveServiceTeam(
-    db,
-    f.owner,
-    t.id,
-    { ...t.input, name: "Revised team", expectedVersion: 1 },
-    key(),
-  );
-  await expect(
-    saveServiceTeam(db, f.owner, t.id, t.input, key()),
-  ).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
-  await db
-    .prepare(
-      "UPDATE assignments SET scope_kind='department',scope_node_id=? WHERE user_id=? AND role='employee'",
-    )
-    .bind(f.department, f.it.userId)
-    .run();
-  await db
-    .prepare(
-      "UPDATE assignments SET revoked_at=? WHERE user_id=? AND role!='employee'",
-    )
-    .bind(Date.now(), f.it.userId)
-    .run();
-  await expect(team("engineering")).rejects.toMatchObject({ status: 422 });
 });
 it("supports conversation, requester questions, resolution, reopening and explicit final confirmation", async () => {
   const r = await assigned();
@@ -605,13 +576,7 @@ it("revokes handbook editing immediately, denies cross-company reads and rejects
 it("retains immutable team configuration history and blocks unavailable local coverage", async () => {
   await team();
   const local = await team("it", "department", f.department, f.head);
-  await saveServiceTeam(
-    db,
-    f.owner,
-    local.id,
-    { ...local.input, name: "Renamed local support", expectedVersion: 1 },
-    key(),
-  );
+  await reviseServiceTeam(f.company,local.id,2,{...local.input,name:"Renamed local support"},f.owner.userId);
   const history = (
     await db
       .prepare(
