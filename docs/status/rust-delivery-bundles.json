@@ -7867,7 +7867,7 @@
           "POS receipt deep-link gate fix",
           "browser refund request + independent approval"
         ],
-        "evidence": "receipt deep link 200 (was PRODUCT_ROLE_REQUIRED); browser refund.request 200 {id:b1470068}; reviewer refund.approve 200 {version:2}; pos_refunds completed approved_by usr_nisa; pos_lines returned 1000/refunded 2500; pos_payments refunded 2500; pos_refund_payments succeeded 2500; finance_payments refund settled POS-REF-\u2026; journal-refund and journal-refund-payment posted 2 lines each balanced 2500; typecheck and POS 13/13 + 17/17",
+        "evidence": "receipt deep link 200 (was PRODUCT_ROLE_REQUIRED); browser refund.request 200 {id:b1470068}; reviewer refund.approve 200 {version:2}; pos_refunds completed approved_by usr_nisa; pos_lines returned 1000/refunded 2500; pos_payments refunded 2500; pos_refund_payments succeeded 2500; finance_payments refund settled POS-REF-…; journal-refund and journal-refund-payment posted 2 lines each balanced 2500; typecheck and POS 13/13 + 17/17",
         "counts": {
           "owners": 3,
           "verified": 30,
@@ -7965,7 +7965,7 @@
           "Identity recipient validation",
           "full exception browser lifecycle"
         ],
-        "evidence": "browser exception open from POS sale adcdf454 v4 \u2192 200; acknowledge v2, start v3, assign v4, escalate v5, resolve v6, approve v7 (reviewed_by usr_nisa), close v8, reopen v9, prioritize high v10, resolve v11, reject v12, cancel v13; final operations_exceptions row cancelled/high/version 13; Operations tests 13/13, 7/7, 5/5, 6/6, 6/6, 3/3; native transport 11/11; typecheck passes",
+        "evidence": "browser exception open from POS sale adcdf454 v4 → 200; acknowledge v2, start v3, assign v4, escalate v5, resolve v6, approve v7 (reviewed_by usr_nisa), close v8, reopen v9, prioritize high v10, resolve v11, reject v12, cancel v13; final operations_exceptions row cancelled/high/version 13; Operations tests 13/13, 7/7, 5/5, 6/6, 6/6, 3/3; native transport 11/11; typecheck passes",
         "counts": {
           "owners": 3,
           "verified": 36,
@@ -7998,7 +7998,7 @@
           "native Maintenance work/plan history",
           "assets package fixtures"
         ],
-        "evidence": "browser maintenance list 200 with AST-ACCEPT \u00b7 Forklift inspection; work detail history Version 1 \u00b7 open \u00b7 Opened for acceptance; plan detail history activate; POS history and Operations pages still 200; Maintenance tests 6/6, 3/3, 2/2, 1/1, 1/1, 2/2, 2/2; Assets tests 4/4, 10/10, 17/17, 2/2, 13/13; typecheck passes",
+        "evidence": "browser maintenance list 200 with AST-ACCEPT · Forklift inspection; work detail history Version 1 · open · Opened for acceptance; plan detail history activate; POS history and Operations pages still 200; Maintenance tests 6/6, 3/3, 2/2, 1/1, 1/1, 2/2, 2/2; Assets tests 4/4, 10/10, 17/17, 2/2, 13/13; typecheck passes",
         "counts": {
           "owners": 4,
           "verified": 38,
@@ -8032,7 +8032,7 @@
           "native Maintenance create",
           "maintenance owner completion"
         ],
-        "evidence": "browser create form 200 {id:maintenance-eaaf2f20\u2026,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 \u00b7 create \u00b7 Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
+        "evidence": "browser create form 200 {id:maintenance-eaaf2f20…,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 · create · Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
         "counts": {
           "owners": 5,
           "verified": 42,
@@ -8047,7 +8047,7 @@
         "bundles": [
           "payroll summary browser investigation"
         ],
-        "evidence": "native payroll summary target mounted via existing operations company binding; /people/people/payroll/dashboard stays Loading your workspace\u2026; alternate canonical paths 404/403; experiment reverted without changing counts",
+        "evidence": "native payroll summary target mounted via existing operations company binding; /people/people/payroll/dashboard stays Loading your workspace…; alternate canonical paths 404/403; experiment reverted without changing counts",
         "counts": {
           "owners": 5,
           "verified": 42,
@@ -8200,7 +8200,7 @@
         "bundles": [
           "native platform migration run"
         ],
-        "evidence": "browser erpx-management run succeeded 412\u2192412 pending0; platform_migration_runs succeeded h001 receipt; replay same run id/one row; platform tests 26/26, organization 2/2, typecheck/health pass",
+        "evidence": "browser erpx-management run succeeded 412→412 pending0; platform_migration_runs succeeded h001 receipt; replay same run id/one row; platform tests 26/26, organization 2/2, typecheck/health pass",
         "counts": {
           "owners": 5,
           "verified": 47,
@@ -8883,7 +8883,7 @@
           "Common Records create / Billing cost / Work Projection quick-access / Runtime outbox / Shared fences (23 commits)",
           "Distribute Field Count/Parts/Finance source witnesses (unmounted)"
         ],
-        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial\u2194Finance lock order is unresolved.",
+        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial↔Finance lock order is unresolved.",
         "counts": {
           "owners": 0,
           "verified": 65,
@@ -9245,7 +9245,7 @@
           }
         ],
         "nextActions": [
-          "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial\u2194Finance lock order is resolved with the Field parts consumer.",
+          "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial↔Finance lock order is resolved with the Field parts consumer.",
           "Audit each owner against the strict native, frontend, legacy-retirement, local-gate, review and pushed-source requirements before certifying completion; the former eight and three owner claims are historical and were not sufficient under this gate.",
           "Resolve the recorded server-assets/composition API drift, validate affected consumers and normal-authenticated registration; container preparation is deferred until after this goal.",
           "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1113,
+    "revision": 1117,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-s",
+      "runId": "run-20261113-a",
       "agentId": "lead",
-      "startedAt": "2026-11-12T16:09:25.074Z",
-      "heartbeatAt": "2026-11-12T17:52:32.057Z",
-      "expiresAt": "2026-11-12T18:22:32.057Z",
-      "generation": 44,
-      "tokenHash": "0eabcfe48eaa2e019bd9ff44fd08efe3a2603848f1f8ad8c4b5c16915521bdc5"
+      "startedAt": "2026-11-12T18:22:56.884Z",
+      "heartbeatAt": "2026-11-12T18:22:56.884Z",
+      "expiresAt": "2026-11-12T18:52:56.885Z",
+      "generation": 45,
+      "tokenHash": "01987380ea47a5bf01d44d35646397fdf3229687e8b239e208cad2e332c2f456"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10744,7 +10744,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory finance source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -11283,7 +11283,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory inventory source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -12294,7 +12294,7 @@
         "workstream": "S11",
         "kind": "inventory",
         "title": "Inventory crm source and consumers",
-        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing\u2192CRM\u2192Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
+        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing→CRM→Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -12393,7 +12393,7 @@
         "workstream": "S11",
         "kind": "inventory",
         "title": "Inventory marketing source and consumers",
-        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing\u2192CRM\u2192Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
+        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing→CRM→Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -14571,7 +14571,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory commerce source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -14625,15 +14625,8 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-s",
-          "agentId": "worker-commerce-goods",
-          "claimedAt": "2026-11-12T18:02:16.723Z",
-          "heartbeatAt": "2026-11-12T18:02:16.723Z",
-          "expiresAt": "2026-11-12T18:32:16.723Z",
-          "generation": 44
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "e6d13a645cffe9e6e1f36b0cede9f076b1ed39ed",
         "implementedCommit": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
         "lastPushedSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
@@ -14689,14 +14682,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous coordinator lease expired at 18:22Z after the runtime slice was pushed; runtime/billing workers keep their WIP, claims are re-established by the new lead",
         "nextAction": "Lead: dispatch native sales-order goods/mixed fulfillment in server-commerce (fulfillment.rs + order_http), then switch workplace route line 88 to native-only and delete the TS fulfillOrder goods branch plus the public export; purchase receipts are already native.",
         "handoff": {
           "runId": "run-20261112-s",
           "agentId": "worker-commerce-goods",
-          "at": "2026-11-12T17:11:21.442Z",
-          "previousStatus": "blocked",
-          "reason": "handoff",
+          "at": "2026-11-12T18:22:56.884Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous coordinator lease expired at 18:22Z after the runtime slice was pushed; runtime/billing workers keep their WIP, claims are re-established by the new lead",
           "nextAction": "Lead: dispatch native sales-order goods/mixed fulfillment in server-commerce (fulfillment.rs + order_http), then switch workplace route line 88 to native-only and delete the TS fulfillOrder goods branch plus the public export; purchase receipts are already native."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -21367,12 +21360,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261112-s",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T16:31:39.034Z",
-          "heartbeatAt": "2026-11-12T17:52:32.057Z",
-          "expiresAt": "2026-11-12T18:22:32.057Z",
-          "generation": 44
+          "runId": "run-20261113-a",
+          "agentId": "worker-operations",
+          "claimedAt": "2026-11-12T18:23:13.159Z",
+          "heartbeatAt": "2026-11-12T18:23:13.159Z",
+          "expiresAt": "2026-11-12T18:53:13.159Z",
+          "generation": 45
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -21520,12 +21513,12 @@
         "blocker": null,
         "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0.",
         "handoff": {
-          "runId": "run-20261112-r",
+          "runId": "run-20261112-s",
           "agentId": "lead",
-          "at": "2026-11-12T16:09:25.073Z",
+          "at": "2026-11-12T18:22:56.884Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Recover expired run-20261112-r after the agent AI-provider worker completed its slice and lease expired; WIP reviewed, previous run stopped.",
-          "nextAction": "runTemplate retired natively (operations KPI 16->15 at 8aa99c07): POST /routine-templates/{id}/run reuses the native staff-task create/ledger path with routine.run operation/fingerprint, template publish/approver/blocker/notification parity, purchase admission and project visibility. Remaining operations TS writers: generateOccurrences scheduler, saveTask beta post->task source flow, task-alert escalation purchase witnesses. Parity gaps: queued authority/scheduled feature/approval source locks and worker-reference witnesses not recreated; shadow observe uses the native boundary."
+          "reason": "Recovery: Previous coordinator lease expired at 18:22Z after the runtime slice was pushed; runtime/billing workers keep their WIP, claims are re-established by the new lead",
+          "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -26980,12 +26973,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261112-s",
+          "runId": "run-20261113-a",
           "agentId": "worker-billing-invoice",
-          "claimedAt": "2026-11-12T18:07:29.369Z",
-          "heartbeatAt": "2026-11-12T18:07:29.369Z",
-          "expiresAt": "2026-11-12T18:37:29.369Z",
-          "generation": 44
+          "claimedAt": "2026-11-12T18:23:13.128Z",
+          "heartbeatAt": "2026-11-12T18:23:13.128Z",
+          "expiresAt": "2026-11-12T18:53:13.128Z",
+          "generation": 45
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -26994,7 +26987,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "BLOCKED on billing transport conformance (see retire.billing.billing). The cost cutover was reverted at f0aa0dfcd; owner KPI is back to 82. Do not start approve/void or target/retry until the conformance task lands.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-s",
+          "agentId": "worker-billing-invoice",
+          "at": "2026-11-12T18:22:56.884Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous coordinator lease expired at 18:22Z after the runtime slice was pushed; runtime/billing workers keep their WIP, claims are re-established by the new lead",
+          "nextAction": "BLOCKED on billing transport conformance (see retire.billing.billing). The cost cutover was reverted at f0aa0dfcd; owner KPI is back to 82. Do not start approve/void or target/retry until the conformance task lands."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -27118,6 +27118,53 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "migrate.commerce.sales-delivery",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "commerce",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Native sales-order goods/mixed fulfillment replaces the TS fulfillOrder branch",
+        "scope": "Implement the Commerce-owned sales delivery use case over the existing Inventory sales-delivery seam (erpx-server-inventory::public::stock_issue: read_stock_issue_source, prepare_stock_issue, apply_stock_issue) and the Finance delivery goods journal (erpx-server-finance::public::commerce_goods_journal: CommerceGoodsKind::Delivery with resolve_commerce_goods_valuation/post_commerce_goods_journal): fulfillment header/lines, stock/lot/serial issue and Sales reservation consumption, functional goods valuation, order advance, receipt/audit/outbox, replay and current-authority fences. Mount it on POST /commerce/orders/{id}/fulfill for goods/mixed modes, switch the workplace commerce route to native-only (no ?? fulfillOrder), delete the TS fulfillOrder goods branch and its public export, move oracles to native seeding, and record the Commerce KPI before/after.",
+        "dependsOn": [
+          "inventory.commerce",
+          "ports.trade"
+        ],
+        "requiredPorts": [
+          "inventory",
+          "finance"
+        ],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "packages/server-commerce/Cargo.toml",
+          "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**",
+          "src/composition/src/commerce.rs",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**",
+          "tests/integration/shared.commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Read the Inventory stock_issue seam and Finance CommerceGoodsKind::Delivery contracts, then implement the Commerce sales delivery use case + Pg repository + HTTP handler and switch the workplace route; no TS fallback.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-commerce",
+        "plannedPackage": "erpx-server-commerce",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -27126,21 +27173,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 126,
-      "migratedPackets": 62,
+      "totalPackets": 127,
+      "migratedPackets": 61,
       "statusCounts": {
-        "pending": 29,
-        "in_progress": 6,
+        "pending": 30,
+        "in_progress": 5,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 62,
-        "blocked": 20,
+        "migrated": 61,
+        "blocked": 22,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T18:20:36.061038Z",
+    "lastCoordinatorGeneration": 45,
+    "updatedAt": "2026-11-12T18:23:13.160Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -27183,10 +27230,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-r",
-      "runId": "run-20261112-s",
-      "at": "2026-11-12T16:09:25.075Z",
-      "reason": "Recover expired run-20261112-r after the agent AI-provider worker completed its slice and lease expired; WIP reviewed, previous run stopped.",
+      "previousRunId": "run-20261112-s",
+      "runId": "run-20261113-a",
+      "at": "2026-11-12T18:22:56.885Z",
+      "reason": "Previous coordinator lease expired at 18:22Z after the runtime slice was pushed; runtime/billing workers keep their WIP, claims are re-established by the new lead",
       "wipReviewed": true,
       "previousRunStopped": true
     }
