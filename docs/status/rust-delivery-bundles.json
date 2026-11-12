@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1213,
+    "revision": 1214,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -28552,7 +28552,7 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Batch 1b per handoff; released for the next worker.",
+        "nextAction": "BLOCKED BY ACTIVE CLAIM (2026-11-12 20:53Z): retire.sales.residual-writers (lead) holds packages/feature-sales/**, src/composition/**, tests/catalogue/** and tests/unit/sales/**, which overlap the Batch 1b enrollment paths (feature-sales customer-access, composition, catalogue). Batch 1b needs: native public portal enrollment endpoint (verify_portal_session + reserve/release/accept) in server-customer_authority, composition mount, feature-portal enroll route switch with ERPX_NATIVE_PORTAL_ENROLLMENT_CONFIG fail-closed, delete portal-enrollment.ts (6 writes) + barrels, migrate the enrollment oracle. After the sales-residual claim is handed off or its allowedPaths are narrowed, claim this task and record customer_authority KPI 35->29.",
         "handoff": {
           "runId": "run-20261113-b",
           "agentId": "worker-ca-portal-commands",
@@ -29048,7 +29048,7 @@
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T20:51:32.124Z",
+    "updatedAt": "2026-11-12T20:53:21.890Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
