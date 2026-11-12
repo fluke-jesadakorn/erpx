@@ -6,7 +6,7 @@ import {
   key,
 } from "../../support/helpers/expense-fixture";
 import {orderSchema,saveMaster,saveOrder} from '@erpx/server-commerce/public/commerce';
-import {createSupportTicket} from '@erpx/server-support/public/support';
+import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
 import {
   changeActionCard,
   collaborationExport,
@@ -70,18 +70,13 @@ beforeEach(async () => {
   order = String(source.id);
   ticket = String(
     (
-      await createSupportTicket(
-        f.owner,
-        {
-          orderId: order,
-          sourceVersion: 1,
-          title: "Cross-record customer issue",
-          issue: "Customer needs an accountable follow-up across teams.",
-          ownerId: f.head.userId,
-          dueDate: "2026-09-25",
-        },
-        key(),
-      )
+      await seedSupportTicket(db, f.owner, {
+        orderId: order,
+        title: "Cross-record customer issue",
+        issue: "Customer needs an accountable follow-up across teams.",
+        ownerId: f.head.userId,
+        dueDate: "2026-09-25",
+      })
     ).id,
   );
 });

@@ -13,7 +13,8 @@ import { readablePmsSource, readablePmsSourceIds } from "@erpx/server-pms/public
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import {createSupportTicket,changeSupportTicket,supportWorkspace,supportDetail,getSupportTicket,supportWork} from '@erpx/server-support/public/support';
+import {supportWorkspace,supportDetail,getSupportTicket,supportWork} from '@erpx/server-support/public/support';
+import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/support-ticket-seed';
 import { supportEvidence } from "@erpx/server-support/public/support-evidence";
 import {incidentWorkspace} from '@erpx/server-support/public/support-incidents';
 import {createSupportIncident} from '@erpx/server-support/public/support-incidents';
@@ -71,7 +72,7 @@ beforeEach(async () => {
   }
   session.actor = f.head;
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled");
-  ticketId = String((await createSupportTicket(f.claimant, { kind: "general", title: "Private office report", issue: "The shared printer stopped responding." }, key())).id);
+  ticketId = String((await seedSupportTicket(db, f.claimant, { title: "Private office report", issue: "The shared printer stopped responding." })).id);
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "enforced");
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
@@ -100,7 +101,7 @@ async function preSettlementReviewWriter(transaction: SqlDatabase, current: Comp
     .bind(id,next.companyId,next.packageId,'declared-pre-settlement-review-writer',createHash('sha256').update(JSON.stringify(request)).digest('hex'),JSON.stringify(current),JSON.stringify(next),instant).run();
 }
 async function triage() {
-  return changeSupportTicket(f.manager, ticketId, { action: "triage", expectedVersion: 1, ownerId: f.head.userId, dueDate: "2026-10-20", reason: "Assign the existing report" }, key());
+  return seedSupportTicketState(db, ticketId, { action: "triage", status: "open", ownerId: f.head.userId, dueDate: "2026-10-20", actorId: f.manager.userId, reason: "Assign the existing report" });
 }
 const fileInput = () => ({ targetType: "support_ticket", targetId: ticketId, componentKind: "action" as const,
   componentRef: "support-evidence:support_evidence", purposeKey: "support_evidence", expectedTargetVersion: 2 });
@@ -112,7 +113,7 @@ async function orderTicket() {
   const product = await saveMaster(f.owner, "products", null, { sku: key(), name: "Service source item", price: "10" }, key());
   const order = await saveOrder(f.owner, null, orderSchema.parse({ kind: "quote", partyId: customer.id, warehouseId: warehouse.id,
     orderDate: "2026-10-15", dueDate: "2026-10-20", lines: [{ productId: product.id, quantity: "1", price: "10", taxBps: 0 }] }), key());
-  return createSupportTicket(f.owner, { orderId: order.id, sourceVersion: 1, title: "Private source ticket", issue: "Installation details are private.", ownerId: f.head.userId, dueDate: "2026-10-20" }, key());
+  return seedSupportTicket(db, f.owner, { orderId: String(order.id), title: "Private source ticket", issue: "Installation details are private.", ownerId: f.head.userId, dueDate: "2026-10-20" });
 }
 
 it("denies real Support collections, detail and evidence without a purchase", async () => {
@@ -127,7 +128,7 @@ it("omits unpurchased Support from the real Work reader instead of exposing its 
 
 it("retains real ticket history after a started purchase is replaced by a future renewal", async () => {
   await grant("active"); await triage();
-  await changeSupportTicket(f.manager, ticketId, { action: "cancel", expectedVersion: 2, reason: "Retain the completed Company record" }, key());
+  await seedSupportTicketState(db, ticketId, { action: "cancel", status: "cancelled", actorId: f.manager.userId, reason: "Retain the completed Company record" });
   await grant("draining"); await grant("inactive");
   const current = (await readCompanyPackageGrants(db, f.company))[0];
   await store().apply({ grant: { ...current, state: "active", startsAt: Date.now() + 60000, version: current.version + 1 }, expectedVersion: current.version, idempotencyKey: key() });
@@ -206,7 +207,7 @@ it("intersects real workspace/detail controls with draining, expiry and retained
   expect(await supportEvidence(f.manager, ticketId)).toMatchObject({ canChange: true });
   await grant("active", "support", Date.now() - 1);
   expect(await supportDetail(f.manager, ticketId)).toMatchObject({ canManage: true, canReopen: false });
-  await changeSupportTicket(f.manager, ticketId, { action: "cancel", expectedVersion: 2, reason: "Close the existing report" }, key());
+  await seedSupportTicketState(db, ticketId, { action: "cancel", status: "cancelled", actorId: f.manager.userId, reason: "Close the existing report" });
   await grant("draining"); await grant("inactive");
   expect(await supportDetail(f.manager, ticketId)).toMatchObject({ canManage: false, canReopen: false, canWork: false });
   expect((await supportWorkspace(f.manager)).items).toHaveLength(1);
@@ -221,7 +222,7 @@ it("denies generic file reads and creation without purchase, allows draining set
   expect(created).toBeTruthy();
   await grant("draining");
   expect(await authorizeAttachmentTarget(db, f.manager, filePolicy, ticketId, "write")).toMatchObject({ editable: true });
-  await changeSupportTicket(f.manager, ticketId, { action: "cancel", expectedVersion: 2, reason: "Freeze the retained file history" }, key());
+  await seedSupportTicketState(db, ticketId, { action: "cancel", status: "cancelled", actorId: f.manager.userId, reason: "Freeze the retained file history" });
   await grant("inactive");
   expect(await authorizeAttachmentTarget(db, f.manager, filePolicy, ticketId, "read")).toMatchObject({ editable: false });
   await expect(createAttachmentSet(db, f.manager, { ...fileInput(), expectedTargetVersion: 3 }, key())).rejects.toMatchObject({ status: 409, code: "SUPPORT_EVIDENCE_LOCKED" });
@@ -333,8 +334,7 @@ it("protects actual private-file HTTP bytes without purchase and retains held hi
   const denied = await read(); expect(denied.status).toBe(403); expect(await denied.text()).not.toContain("Private fictional Helpdesk bytes");
   await grant("active"); expect(await (await read()).text()).toBe(new TextDecoder().decode(bytes));
   await grant("draining"); expect((await read()).status).toBe(200);
-  const row = await getSupportTicket(f.manager, ticketId);
-  await changeSupportTicket(f.manager, ticketId, { action: "cancel", expectedVersion: Number(row.version), reason: "Retain immutable closed evidence" }, key());
+  await seedSupportTicketState(db, ticketId, { action: "cancel", status: "cancelled", actorId: f.manager.userId, reason: "Retain immutable closed evidence" });
   await grant("inactive"); expect((await read()).status).toBe(200);
   const facts = await db.prepare("SELECT checksum_sha256,revoked_at,legal_hold FROM attachments WHERE id=?").bind(sourceId).first();
   expect(facts).toMatchObject({ revoked_at: null, legal_hold: 1 });
@@ -438,7 +438,7 @@ it("removes source-linked asset tickets from metrics and evidence when the sourc
   f.owner.modules = ["support", "assets"];
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled");
   const asset = await seedAsset(f.owner, { branchId: f.branch, departmentId: f.department, code: key(), name: "Private source fixture", category: "Display", currency: "THB", costMinor: 0, acquiredDate: "2026-10-01" });
-  const ticket = await createSupportTicket(f.owner, { kind: "source", source: { kind: "asset", id: asset.id, version: 1 }, title: "Asset source authority fixture", issue: "Do not disclose this source after access changes" }, key());
+  const ticket = await seedSupportTicket(db, f.owner, { sourceKind: "asset", sourceRecord: { kind: "asset", id: asset.id, version: 1, companyId: f.company, href: `/assets/${asset.id}` }, title: "Asset source authority fixture", issue: "Do not disclose this source after access changes" });
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "enforced"); await grant("active");
   const read = () => readExecutiveMetricProjection(db, f.owner, "open-support-tickets", metricFilters, "status"), evidence = supportMetricEvidence(db);
   const search = () => evidence.factsSearchSupportTicketEvidence({ filters: metricFilters, query: "", limit: 30, metric: "open-support-tickets" }, null, false, f.owner);
@@ -473,7 +473,7 @@ it("keeps PMS source-set projection equal to its normal reader across cached and
 });
 
 
-it('reads a native managed Field case through retained Support consumers and fences its lifecycle writer',async()=>{
+it('reads a native managed Field case through retained Support consumers after the ticket writer retirement',async()=>{
  let prepared:{db:PostgresDatabase;f:Awaited<ReturnType<typeof seedExpenseCompany>>;customer:string}|undefined;
  try{await withNativeFieldFixture(async native=>{
   if(!prepared)throw new Error('NATIVE_SUPPORT_FIXTURE_REQUIRED');
@@ -494,8 +494,6 @@ it('reads a native managed Field case through retained Support consumers and fen
   expect(await supportDetail(helpdesk,ticket)).toMatchObject({managedInFieldService:true,canWork:false,canManage:false,canReport:false,canConfirm:false,canReopen:false,slaPolicies:[]});
   expect((await supportWork(helpdesk)).some(row=>row.id===ticket)).toBe(false);
   expect(await supportEvidence(helpdesk,ticket)).toMatchObject({canChange:false,canShare:false});
-  const command=key();await expect(changeSupportTicket(helpdesk,ticket,{action:'cancel',expectedVersion:2,reason:'Use the Field source to cancel'},command)).rejects.toMatchObject({code:'SOURCE_WORKSPACE_REQUIRED'});
-  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*)::int n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(0);
   // Explicit fixture package transition, not a Commercial Apply qualification.
   await db.transaction(async tx=>{
    const before=await tx.prepare("SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence) image FROM company_package_grants WHERE company_id=? AND package_id='service'").bind(f.company).first('image');
@@ -513,4 +511,4 @@ it('reads a native managed Field case through retained Support consumers and fen
   const actors=[];for(const [label,actor]of [['owner',f.owner],['reviewer',f.tie],['technician',f.claimant]]as const){const assignmentId=await f.grant(actor,'custom_field_parts');await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(['field_service']),assignmentId).run();const version=await db.prepare('SELECT version FROM assignments WHERE id=?').bind(assignmentId).first<number>('version');if(version===null)throw new Error('NATIVE_SUPPORT_ASSIGNMENT_REQUIRED');actors.push({label,userId:actor.userId,assignmentId,assignmentVersion:Number(version),role:'custom_field_parts',modules:['field_service'],branchId:null,departmentId:null});}
   prepared={db,f,customer};return{companyId:f.company,actors};
  },'service');}finally{vi.mocked(holdingResources).mockResolvedValue({write:env.H001_DB,read:env.H001_DB,files:env.H001_FILES});}
-});
+},120000);

@@ -5,7 +5,7 @@ import {orderSchema,saveMaster,saveOrder,commercePage} from '@erpx/server-commer
 import { customerWorkspaceDirectory, customerWorkspaceProfile, salesToday, customerReviewCounts } from "@erpx/server-sales/public/sales-customers";
 import { customerTimeline } from "@erpx/server-customer_360/public/customer-timeline";
 import { createCustomerFollowup } from "@erpx/server-sales/public/customer-followups";
-import {createSupportTicket} from '@erpx/server-support/public/support';
+import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
 import * as crm from "@erpx/server-crm/public/crm";
 import { editedCustomerParty } from "@erpx/server-finance/public/document-posting-preview";
 vi.mock('next/headers',()=>({headers:async()=>{throw new Error('NO_REQUEST_SCOPE');}}));
@@ -34,7 +34,7 @@ it("reads customers without source documents without expanding the timeline API"
 });
 it("keeps summary evidence scoped and represents missing service access as restricted", async () => {
   await createCustomerFollowup(f.owner, { orderId: order, expectedVersion: 1, ownerId: f.owner.userId, dueDate: "2026-09-22", nextAction: "Call Harbor buyer" }, key());
-  await createSupportTicket(f.owner, { orderId: order, sourceVersion: 1, title: "Install Harbor item", issue: "Customer needs installation assistance", ownerId: f.owner.userId, dueDate: "2026-09-24" }, key());
+  await seedSupportTicket(db, f.owner, { orderId: order, title: "Install Harbor item", issue: "Customer needs installation assistance", ownerId: f.owner.userId, dueDate: "2026-09-24" });
   const visible = (await customerWorkspaceDirectory(f.owner, { q: "Harbor" })).items[0];
   expect(visible.summary).toMatchObject({ openOrders: 1, openSupport: 1, nextFollowup: { action: "Call Harbor buyer" } });
   const restricted = (await customerWorkspaceDirectory({ ...f.owner, role: "purchasing_operator" }, {})).items.find(row => row.id === customer)!;

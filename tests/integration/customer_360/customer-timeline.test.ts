@@ -48,9 +48,8 @@ it('paginates source events deterministically without duplicates and rejects mal
  await expect(customerTimeline(f.owner,customer,{cursor:'bad-cursor'})).rejects.toMatchObject({code:'TIMELINE_CURSOR_INVALID'});
 });
 it('includes Support lifecycle only when the viewer also has the Support owner permission',async()=>{
- const {createSupportTicket,changeSupportTicket}=await import("@erpx/server-support/public/support");
- const ticket=await createSupportTicket(f.owner,{orderId:order,sourceVersion:1,title:'Help installing the item',issue:'PRIVATE_SUPPORT_ISSUE',ownerId:f.owner.userId,dueDate:'2026-09-24'},key());
- await changeSupportTicket(f.owner,String(ticket.id),{action:'start',expectedVersion:1,reason:'PRIVATE_SUPPORT_REASON'},key());
+ const {seedSupportTicket}=await import("../../support/helpers/support-ticket-seed");
+ const ticket=await seedSupportTicket(db,f.owner,{orderId: order,title:'Help installing the item',issue:'PRIVATE_SUPPORT_ISSUE',ownerId:f.owner.userId,dueDate:'2026-09-24',status:'in_progress',version:2,events:[{action:'report',reason:'PRIVATE_SUPPORT_REASON',status:'triage',ownerId:null,dueDate:null},{action:'start',reason:'PRIVATE_SUPPORT_REASON'}]});
  const visible=await customerTimeline(f.owner,customer);
  expect(visible.items.filter(e=>e.source_type==='support')).toHaveLength(2);
  expect(JSON.stringify(visible)).not.toContain('PRIVATE_SUPPORT');

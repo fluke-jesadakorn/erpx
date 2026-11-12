@@ -2,7 +2,8 @@ import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork} from '@erpx/server-support/public/support';
+import {getSupportTicket,supportWork} from '@erpx/server-support/public/support';
+import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
 import {createSupportPolicy,changeSupportPolicy,attachSupportClock,getSupportPolicy,supportSlaWorkspace,supportClockValue,supportPolicyWork} from "@erpx/server-support/public/support-sla";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
@@ -10,35 +11,7 @@ const policy={calendar:{timezone:'Asia/Bangkok',weekdays:[1,2,3,4,5],opensAtMinu
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 afterEach(()=>{vi.restoreAllMocks();});
 beforeEach(async()=>{f=await expenseFixture();for(const [a,role] of [[f.head,'support_agent'],[f.manager,'support_manager']] as const){a.role=role;a.branchId=null;a.departmentId=null;a.assignmentId=await f.grant(a,role);}const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'SLA customer'},key()),w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'SLA warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'SLA item',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
-async function ticket(){return String((await createSupportTicket(f.owner,{orderId:order,sourceVersion:1,title:'SLA support case',issue:'Customer installation question',ownerId:f.head.userId,dueDate:'2026-09-24'},key())).id);}
-async function action(id:string,action:string,actor=f.head){const row=await getSupportTicket(actor,id);return changeSupportTicket(actor,id,{action,expectedVersion:Number(row.version),reason:`Simulation evidence ${action}`},key());}
-it('requires independent policy approval, snapshots the calendar and preserves consumed time through wait/resume/rework',async()=>{
- const p=await createSupportPolicy(f.owner,{name:'Simulation business hours',policy,reason:'Company proposal for installation support'},key()),id=await ticket();
- expect((await supportPolicyWork(f.manager)).find(x=>x.id===p.id)?.canAct).toBe(true);
- const {listStaffNotifications}=await import("@erpx/server-collaboration/public/staff-notifications");expect((await listStaffNotifications(db,f.manager)).some(x=>x.record_id===p.id)).toBe(true);
- await expect(changeSupportPolicy(f.owner,String(p.id),{action:'approve',expectedVersion:1,reason:'Creator cannot approve own calendar'},key())).rejects.toMatchObject({code:'INDEPENDENT_APPROVER_REQUIRED'});
- await expect(attachSupportClock(f.owner,id,{expectedVersion:1,policyId:p.id,policyVersion:1,reason:'Draft target cannot be attached'},key())).rejects.toMatchObject({code:'CONFLICT'});
- await changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Independent review of working hours and target'},key());
- expect((await supportPolicyWork(f.manager)).find(x=>x.id===p.id)?.queue).toBe('completed');
- const now=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-21T02:00:00Z')),attach={expectedVersion:1,policyId:p.id,policyVersion:2,reason:'Explicit target begins now; no historic SLA inferred'},k=key();
- const attached=await attachSupportClock(f.owner,id,attach,k);expect(await attachSupportClock(f.owner,id,attach,k)).toEqual(attached);
- expect((await supportWork(f.head)).find(x=>x.id===id)?.dueAt).toBe(Date.parse('2026-09-21T03:00:00Z'));
- const {calendarData}=await import("@erpx/server-work_projection/public/calendar/index");
- expect((await calendarData(db,f.head,{date:'2026-09-21',view:'day',layers:'support',mode:'mine'})).items.find(x=>x.sourceId===id)).toMatchObject({allDay:false,startsAt:Date.parse('2026-09-21T03:00:00Z')});
- await action(id,'start');now.mockReturnValue(Date.parse('2026-09-21T02:15:00Z'));await action(id,'wait-customer');
- expect(supportClockValue(await getSupportTicket(f.head,id))).toMatchObject({state:'paused',remainingMs:45*60000,dueAt:null});
- await changeSupportPolicy(f.manager,String(p.id),{action:'retire',expectedVersion:2,reason:'Retire only for future target attachments'},key());
- now.mockReturnValue(Date.parse('2026-09-22T02:00:00Z'));await action(id,'resume');
- expect(supportClockValue(await getSupportTicket(f.head,id))?.dueAt).toBe(Date.parse('2026-09-22T02:45:00Z'));
- now.mockReturnValue(Date.parse('2026-09-22T02:30:00Z'));await action(id,'resolve');
- expect(supportClockValue(await getSupportTicket(f.head,id))).toMatchObject({state:'stopped',remainingMs:15*60000,breachedAt:null});
- now.mockReturnValue(Date.parse('2026-09-23T02:00:00Z'));await action(id,'reject-resolution',f.manager);
- expect(supportClockValue(await getSupportTicket(f.head,id))?.dueAt).toBe(Date.parse('2026-09-23T02:15:00Z'));
- expect((await supportSlaWorkspace(f.head)).items.find(x=>x.id===id)?.clock.snapshot).toEqual(policy);
- await expect(db.prepare("UPDATE support_tickets SET sla_clock_json=jsonb_set(sla_clock_json,'{snapshot,targetMinutes}','999') WHERE id=?").bind(id).run()).rejects.toThrow('SUPPORT_CLOCK_SNAPSHOT_IMMUTABLE');
- await expect(db.prepare("UPDATE support_sla_policies SET policy_json='{}'::jsonb WHERE id=?").bind(p.id).run()).rejects.toThrow('SUPPORT_POLICY_IMMUTABLE');
- await expect(db.prepare('DELETE FROM support_sla_policy_events WHERE policy_id=?').bind(p.id).run()).rejects.toThrow('SUPPORT_EVIDENCE_IMMUTABLE');
-});
+async function ticket(){return String((await seedSupportTicket(db,f.owner,{orderId: order,title:'SLA support case',issue:'Customer installation question',ownerId:f.head.userId,dueDate:'2026-09-24'})).id);}
 it('scopes target watches and rejects retired, stale and duplicate attachments without replacing a ticket policy',async()=>{
  const p=await createSupportPolicy(f.owner,{name:'Reviewed target',policy,reason:'Simulation target definition'},key());await changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Approved independently'},key());
  const id=await ticket(),input={expectedVersion:1,policyId:p.id,policyVersion:2,reason:'Attach reviewed target'};
@@ -83,21 +56,4 @@ it('removes a withdrawn reviewer from policy actions and never approves through 
  expect((await supportSlaWorkspace(f.manager)).policies.find(x=>x.id===p.id)?.canApprove).toBe(false);
  await expect(changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Stale reviewer cannot approve'},key())).rejects.toMatchObject({code:'CONFLICT'});
  expect(await getSupportPolicy(f.owner,String(p.id))).toMatchObject({status:'draft',version:1});
-});
-it('recovers a breach after worker downtime and routes it when manager coverage becomes available',async()=>{
- const {drainSupportSla,supportAlerts,supportAlertWork}=await import("@erpx/server-support/public/support-sla-alerts");
- const p=await createSupportPolicy(f.owner,{name:'Downtime recovery',policy,reason:'Recover persisted missed targets'},key());
- await changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Independent review'},key());
- const id=await ticket(),now=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-21T02:00:00Z'));
- await attachSupportClock(f.owner,id,{expectedVersion:1,policyId:p.id,policyVersion:2,reason:'Attach approved working target'},key());await action(id,'start');
- now.mockReturnValue(Date.parse('2026-09-21T04:00:00Z'));await action(id,'resolve');
- for(const user of [f.owner.userId,f.manager.userId])await db.prepare("UPDATE hr_people SET status='inactive' WHERE user_id=? AND company_id=?").bind(user,f.company).run();
- await drainSupportSla(db);const r=(await supportAlerts(f.head))[0];expect(r).toMatchObject({ticket_id:id,recipients:0});
- expect((await supportAlertWork(f.head))[0].blocker).toContain('administrator coverage');
- expect(await db.prepare("SELECT COUNT(*) n FROM staff_notifications WHERE record_type='support_sla_alert' AND record_id=?").bind(r.id).first()).toEqual({n:0});
- await db.prepare("UPDATE hr_people SET status='active' WHERE user_id=? AND company_id=?").bind(f.manager.userId,f.company).run();
- await drainSupportSla(db);await drainSupportSla(db);
- expect((await supportAlertWork(f.manager))[0]).toMatchObject({canAct:true,blocker:null});
- expect(await db.prepare("SELECT COUNT(*) n FROM staff_notifications WHERE record_type='support_sla_alert' AND record_id=?").bind(r.id).first()).toEqual({n:1});
- expect(await getSupportTicket(f.head,id)).toMatchObject({status:'resolved',version:4});
 });

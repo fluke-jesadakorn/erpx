@@ -11,7 +11,7 @@ import {bindReleaseEvidence} from "@erpx/server-platform_administration/public/r
 import {organizationNodeChangeSchema,saveOrganizationNodeChange,decideOrganizationNodeChange} from '@erpx/server-organization/public/organization';
 import {savePostDraft,publishPost,postDraftSchema} from '@erpx/server-collaboration/public/social-home';
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import {createSupportTicket} from '@erpx/server-support/public/support';
+import {seedSupportTicket} from './support-ticket-seed';
 import {bindSupportEvidence} from "@erpx/server-support/public/support-evidence";
 import {createSupportIncident,changeSupportIncident} from '@erpx/server-support/public/support-incidents';
 import {createMessagingTeam,sendMessagingMessage,messageSchema} from '@erpx/server-collaboration/public/messaging';
@@ -81,7 +81,7 @@ export async function workplaceAttachmentOwner(tuple:WorkplaceAttachmentTuple):P
   const published=await publishPost(db,actor,draft.id,1,key());return {...base,targetId:published.id,table:'social_posts'};
  }
  if(tuple.targetType==='support_ticket'||tuple.targetType==='support_incident'){
-  const colleague=await f.member('assigned-support-colleague','support_agent'),source=await supportSource(f),ticket=await createSupportTicket(actor,{...source,sourceVersion:1,title:'Synthetic File Sources Support',issue:'Review synthetic evidence only',ownerId:colleague.userId,dueDate:'2026-09-24'},key());
+  const colleague=await f.member('assigned-support-colleague','support_agent'),source=await supportSource(f),ticket=await seedSupportTicket(db,actor,{...source,title:'Synthetic File Sources Support',issue:'Review synthetic evidence only',ownerId:colleague.userId,dueDate:'2026-09-24'});
   if(tuple.targetType==='support_ticket')return {...base,targetId:String(ticket.id),table:'support_tickets',componentRef:`support-evidence:${tuple.purposeKey}`,bindingType:'support_action',bindAction:(setId,command)=>bindSupportEvidence(actor,String(ticket.id),{expectedVersion:1,attachmentSetIds:[setId],reason:'Reviewed synthetic Support action evidence'},command)};
   const incident=await createSupportIncident(actor,{ticketId:ticket.id,ticketVersion:1,title:'Synthetic engineering incident',impact:'Isolated synthetic Company only',severity:'high',ownerId:colleague.userId,dueDate:'2026-09-24'},key());
   await controlAccount(colleague);

@@ -1163,20 +1163,20 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support.test.ts",
-          "title": "hands off to Support and separates proposed resolution from independently reviewed customer confirmation",
-          "proof": "Creates/replays source ticket once, checks Work/Inbox/Calendar projections, wait/resume/resolution, rejects stale customer note, closes with independent current note, reopens with seven immutable events and source order unchanged."
+          "title": "hands off to Support and keeps proposed resolution, independent confirmation and immutable history readable after a reload",
+          "proof": "Seeds the owner ticket states the native Rust command persists, then verifies Work and Calendar handoff, closed detail history, independent confirmation evidence and unchanged source order."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support.test.ts",
-          "title": "lets employees create, correct, supplement and withdraw only their own reports with replay-safe history",
-          "proof": "Employee creates own general ticket, sees only own list/detail, other employee denied, no internal notes/recipients or manage powers, edit/add-information/withdraw persist once, terminal edit refused and Work completed."
+          "title": "keeps general reports scoped to their own reporter and preserves an employee withdrawal in readable history",
+          "proof": "Seeds own and withdrawn general reports, then verifies the reporter-only workspace, denial for another employee, detail capabilities, immutable history order and completed Work state."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support.test.ts",
           "title": "pins a real asset source, follows its current authority and hides unreadable ticket bodies and links",
-          "proof": "Creates native asset, rejects stale source version, pins typed immutable reference while source advances, triages/resolves/closes independently, owner source mutation rejected; module access withdrawal hides whole ticket, Work and body."
+          "proof": "Seeds the native asset register row and a typed source reference, advances the source, then verifies the pinned version, calendar source visibility and module-withdrawal hiding for workspace, Work and detail."
         },
         {
           "runner": "playwright",
@@ -1212,14 +1212,14 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sla.test.ts",
-          "title": "requires independent policy approval, snapshots the calendar and preserves consumed time through wait/resume/rework",
-          "proof": "Asserts independent policy review, pinned working calendar, precise wait/resume/rework consumed time and snapshot retained across policy changes."
+          "title": "scopes target watches and rejects retired, stale and duplicate attachments without replacing a ticket policy",
+          "proof": "Attaches one reviewed target to a seeded owner ticket, verifies duplicate attachment settlement, scope isolation, retired-target rejection and immutable policy history."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sla.test.ts",
-          "title": "recovers a breach after worker downtime and routes it when manager coverage becomes available",
-          "proof": "Worker catch-up creates one durable breach alert after outage; newly eligible manager receives routed escalation without ticket status mutation."
+          "title": "retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket",
+          "proof": "Drains the seeded working-time target across the breach boundary, verifies one durable alert, live manager routing, inactive coverage denial and ticket state retention."
         },
         {
           "runner": "vitest",
