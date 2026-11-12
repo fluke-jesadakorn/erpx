@@ -8,3 +8,4 @@ pub mod room_board;
 pub mod pms_http;
 pub mod stay_room;
 pub mod room_command;
+pub mod night_audit;
