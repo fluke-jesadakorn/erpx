@@ -1,4 +1,4 @@
-import {afterEach,describe,expect,test,vi} from 'vitest';
+import {afterEach,beforeEach,describe,expect,it,test,vi} from 'vitest';
 import {createElement,isValidElement,type ComponentProps,type ReactElement,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {ProjectPurchaseProvider,useProjectPurchases} from '@erpx/feature-projects/components/purchase-context';
@@ -28,8 +28,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import type {StaffActor,StaffPerson} from "@erpx/server-operations/public/staff-policy";
 import {projectSchema,type ProjectRow} from "@erpx/server-projects/domain/staff-projects";
 import {createStaffProjectsApplication,type StaffProjectsPorts,type StaffProjectsRepository} from "@erpx/server-projects/application/staff-projects";
-import {createProjectMilestoneApplication,type ProjectMilestonePorts,type ProjectMilestoneRepository} from "@erpx/server-projects/application/milestones";
-import {createProjectActualsApplication,type ProjectActualsPorts,type ProjectActualsRepository} from "@erpx/server-projects/application/actuals";
+import {createProjectMilestoneApplication} from "@erpx/server-projects/application/milestones";
 import {createProjectStructureApplication,type ProjectStructurePorts,type ProjectStructureRepository} from "@erpx/server-projects/application/structure";
 import {projectMilestoneSchema,type ProjectMilestoneRow} from "@erpx/server-projects/domain/milestones";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['projects','finance'],assignments:[],workspaces:[]};
@@ -41,9 +40,7 @@ function common(calls:string[]){return {clock:{now:()=>Date.parse('2026-10-06T00
 function brief(facts:Partial<StaffProjectsRepository<string>>={}){const calls:string[]=[],ports:StaffProjectsPorts<string>={...common(calls),repository:repository<StaffProjectsRepository<string>>({visibleProject:async()=>({...project}),...facts},calls)};return {calls,ports,app:createStaffProjectsApplication(ports)};}
 const milestone:ProjectMilestoneRow={id:'milestone',company_id:'company',project_id:'project',parent_milestone_id:null,ordinal_position:0,title:'Delivery',description:'',due_at:1,owner_user_id:'member',owner_name:'Member',state:'planned',version:1,created_by:'owner',completed_at:null,created_at:1,updated_at:1,depends_on_ids:[],depends_on_titles:[],blocked_by_titles:[],blocked_by_count:0};
 const milestoneInput=projectMilestoneSchema.parse({title:'Delivery',dueAt:'2026-10-08T12:00:00Z',ownerUserId:'member'});
-function milestones(facts:Partial<ProjectMilestoneRepository<string>>={}){const calls:string[]=[],ports:ProjectMilestonePorts<string>={...common(calls),repository:repository<ProjectMilestoneRepository<string>>({isProjectMember:async()=>({}),milestone:async()=>({...milestone}),previousDependencies:async()=>({results:[]}),referencedDependencies:async()=>({results:[]}),incompletePrerequisites:async()=>({results:[]}),...facts},calls)};return {calls,ports,app:createProjectMilestoneApplication(ports)};}
 const time={id:'time',project_id:'project',user_id:'member',work_date:'2026-10-05',minutes:30,state:'submitted' as const,version:1,reviewed_by:null,rejection_reason:'',created_at:1,updated_at:1,is_actor:false,can_review:true};
-function actuals(facts:Partial<ProjectActualsRepository<string>>={}){const calls:string[]=[],ports:ProjectActualsPorts<string>={...common(calls),repository:repository<ProjectActualsRepository<string>>({commandReceipt:async()=>null,costCommandReceipt:async()=>null,workLogForDate:async()=>null,dailyMinutes:async()=>({minutes:'0'}),workLog:async()=>({...time}),expenseLine:async()=>({id:'line',debit_minor:'10000',currency:'THB',entry_date:'2026-10-05',journal_status:'posted',category:'expense'}),existingAllocation:async()=>null,allocationReviewFacts:async()=>({id:'allocation',company_id:'company',project_id:'project',branch_id:'branch',department_id:'department',created_by:'preparer',state:'draft',version:1,journal_status:'posted',journal_line_id:'line',amount_minor:'100'}),...facts},calls)};return {calls,ports,app:createProjectActualsApplication(ports)};}
 function structure(facts:Partial<ProjectStructureRepository<string>>={}){const calls:string[]=[],ports:ProjectStructurePorts<string>={...common(calls),repository:repository<ProjectStructureRepository<string>>({currentProjectAuthority:async()=>({}),currentWorkAuthority:async()=>({}),graphTasks:async()=>({results:[]}),graphActuals:async()=>({results:[]}),handoffReadiness:async()=>({ready:true}),currentTask:async()=>({id:'task',version:2,project_id:'project'}),taskBinding:async()=>null,currentHandoff:async()=>({id:'handoff',status:'pending',version:1,recipient_id:'recipient',prepared_by:'owner',snapshot_sha256:'digest'}),...facts},calls),listMilestones:async()=>[],sha256:async(value)=>{calls.push('hash:'+JSON.parse(value).project.id);return 'digest';}};return {calls,ports,app:createProjectStructureApplication(ports)};}
 const handoff={action:'prepare-handoff',expectedVersion:4,recipientId:'recipient',evidence:'Completed evidence',reason:'Independent review required'};
 describe('Project brief and member ownership',()=>{
@@ -54,22 +51,7 @@ describe('Project brief and member ownership',()=>{
  test('missing current visible project keeps the existing 404 behavior',async()=>{const f=brief({visibleProject:async()=>null});await expect(f.app.getProject(actor,'missing')).rejects.toMatchObject({status:404,code:'PROJECT_NOT_FOUND'});});
 });
 describe('Milestone dependency and lifecycle decisions',()=>{
- test('the owner must select a current active project member',async()=>{const f=milestones({isProjectMember:async()=>null});await expect(f.app.saveProjectMilestone(actor,'project',null,milestoneInput,'key')).rejects.toMatchObject({code:'PROJECT_MEMBER_REQUIRED'});expect(f.calls.some(c=>c.startsWith('prepare'))).toBe(false);});
- test('self prerequisite is rejected before repository cycle checks',async()=>{const f=milestones();await expect(f.app.saveProjectMilestone(actor,'project','milestone',{...milestoneInput,dependsOnMilestoneIds:['milestone']},'key')).rejects.toMatchObject({code:'PROJECT_DEPENDENCY_CYCLE'});});
- test('scoped dependency cycles never prepare a graph change',async()=>{const f=milestones({referencedDependencies:async()=>({results:[{id:'prerequisite',state:'planned'}]}),dependencyCycle:async()=>({cyclic:true})});await expect(f.app.saveProjectMilestone(actor,'project',null,{...milestoneInput,dependsOnMilestoneIds:['prerequisite']},'key')).rejects.toMatchObject({code:'PROJECT_DEPENDENCY_CYCLE'});expect(f.calls.some(c=>c.startsWith('prepare'))).toBe(false);});
- test('blocked completion explains the current prerequisites',async()=>{const f=milestones({incompletePrerequisites:async()=>({results:[{title:'Independent acceptance'}]})});await expect(f.app.transitionProjectMilestone(actor,'project','milestone',{action:'complete',expectedVersion:1,reason:'Reviewed work'},'key')).rejects.toMatchObject({code:'PROJECT_DEPENDENCIES_INCOMPLETE',message:'Complete these prerequisites first: Independent acceptance.'});});
- test('a completed dependent blocks prerequisite reopening',async()=>{const f=milestones({milestone:async()=>({...milestone,state:'completed'}),completedSuccessor:async()=>({})});await expect(f.app.transitionProjectMilestone(actor,'project','milestone',{action:'reopen',expectedVersion:1,reason:'Rework approved'},'key')).rejects.toMatchObject({code:'PROJECT_MILESTONE_DEPENDENT_COMPLETED'});});
- test('durable graph constraint becomes a lifecycle error with the exact original cause',()=>{const f=milestones(),cause=Object.assign(new Error('PROJECT_EXECUTION_GRAPH_CYCLE'),{code:'23514'});try{f.app.projectConstraint(cause);}catch(error){expect(error).toMatchObject({code:'PROJECT_EXECUTION_GRAPH_CYCLE',status:409,cause});}});
-});
-describe('Project actual time and Finance cost sources',()=>{
- test('injected clock and engagement bounds reject future and pre-engagement work',async()=>{for(const workDate of ['2026-10-07','2025-12-31']){const f=actuals();await expect(f.app.saveProjectWorkLog(actor,'project',{workDate,minutes:10},'key')).rejects.toMatchObject({code:'PROJECT_WORK_DATE_INVALID'});expect(f.calls.some(c=>c.startsWith('prepare'))).toBe(false);}});
- test('daily submitted plus approved time cannot exceed 1440 minutes',async()=>{const f=actuals({dailyMinutes:async()=>({minutes:'1440'})});await expect(f.app.saveProjectWorkLog(actor,'project',{workDate:'2026-10-05',minutes:1},'key')).rejects.toMatchObject({code:'PROJECT_TIME_DAILY_LIMIT'});});
- test('the contributor cannot approve their own time',async()=>{const f=actuals({workLog:async()=>({...time,user_id:'owner'})});await expect(f.app.decideProjectWorkLog(actor,'project','time',{action:'approve',expectedVersion:1,reason:'Review complete'},'key')).rejects.toMatchObject({code:'SELF_REVIEW_FORBIDDEN'});});
- test('time revisions require rejected state and the current version',async()=>{const f=actuals({workLogForDate:async()=>({...time,state:'rejected',version:2})});await expect(f.app.saveProjectWorkLog(actor,'project',{workDate:'2026-10-05',minutes:20,expectedVersion:1},'key')).rejects.toMatchObject({code:'PROJECT_TIME_NOT_EDITABLE'});});
- test('a non-posted or non-expense debit cannot become a project cost',async()=>{const f=actuals({expenseLine:async()=>({id:'line',debit_minor:'100',currency:'THB',entry_date:'2026-10-05',journal_status:'draft',category:'expense'})});await expect(f.app.createProjectCostAllocation(actor,{projectId:'project',sourceLineId:'line',amount:'1'},'key')).rejects.toMatchObject({code:'PROJECT_COST_SOURCE_INVALID'});});
- test('cost authority and current branch restrict access before Finance source lookup',async()=>{const f=actuals();await expect(f.app.createProjectCostAllocation({...actor,branchId:'another'},{projectId:'project',sourceLineId:'line',amount:'1'},'key')).rejects.toMatchObject({code:'PROJECT_NOT_FOUND'});expect(f.calls.some(c=>c.startsWith('prepare'))).toBe(false);});
- test('posted expense allocation stages exact minor units and same scope with source/capacity guards',async()=>{const f=actuals();await f.app.createProjectCostAllocation(actor,{projectId:'project',sourceLineId:'line',amount:'75.01'},'key');expect(f.calls.find(c=>c.startsWith('prepareAllocation:'))).toContain(',7501,');expect(f.calls.at(-1)).toContain('guardCostScope,guardExpenseSource,guardAllocationCap,guardUniqueAllocation,prepareAllocation,prepareActualEvent');});
- test('source reversal prevents approval but still permits independent rejection',async()=>{const f=actuals({allocationReviewFacts:async()=>({id:'allocation',company_id:'company',project_id:'project',branch_id:'branch',department_id:'department',created_by:'preparer',state:'draft',version:1,journal_status:'reversed'})});await expect(f.app.decideProjectCostAllocation(actor,'allocation',{action:'approve',expectedVersion:1,reason:'Review current source'},'key')).rejects.toMatchObject({code:'PROJECT_COST_SOURCE_STALE'});expect(await f.app.decideProjectCostAllocation(actor,'allocation',{action:'reject',expectedVersion:1,reason:'Source is reversed'},'other')).toMatchObject({state:'rejected',version:2});});
+ test('durable graph constraint becomes a lifecycle error with the exact original cause',()=>{const app=createProjectMilestoneApplication<string>({repository:{milestoneRows:async()=>({results:[]})},getProject:async()=>({...project})}),cause=Object.assign(new Error('PROJECT_EXECUTION_GRAPH_CYCLE'),{code:'23514'});try{app.projectConstraint(cause);}catch(error){expect(error).toMatchObject({code:'PROJECT_EXECUTION_GRAPH_CYCLE',status:409,cause});}});
 });
 describe('Project graph and independent receiving handoff',()=>{
  test('revoked current authority prevents graph facts and command replay',async()=>{const f=structure({currentProjectAuthority:async()=>null});await expect(f.app.projectStructureCommand(actor,'project',handoff,'key')).rejects.toMatchObject({code:'PROJECT_NOT_FOUND'});expect(f.calls).not.toContain('replay');});
@@ -581,4 +563,67 @@ test.each([
  if(scenario.unknown){await expect(commands.send(scenario.path,corrected)).rejects.toThrow('Recover the original');expect((await commands.retry()).acknowledge()).toBe(true);expect(calls[2]).toEqual(calls[0]);expect(key).toBe(1);}
  else{expect((await commands.send(scenario.path,corrected)).acknowledge()).toBe(true);expect(calls[1].key).not.toBe(calls[0].key);expect(calls[1].body).not.toBe(calls[0].body);expect(key).toBe(2);}
  expect(browser.events).toEqual([]);
+});
+
+import {createServer,type IncomingMessage,type ServerResponse} from 'node:http';
+import type {AddressInfo} from 'node:net';
+import {nativeProjectCommand} from '../../../packages/server-projects/src/public/native-project-commands';
+vi.mock('server-only',()=>({}));
+describe('Native Projects command transport',()=>{
+ const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
+ const projectContext=(overrides:Record<string,unknown>={})=>({userId:'user',holdingId:'h001',companyId:'company',branchId:null,departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'assignment',assignmentVersion:3,revision:7,role:'owner',assignmentScopeKind:'holding',modules:['projects'],permissions:['records.write'],expiresAt:Date.now()+60_000,...overrides});
+ const projectHeaders=()=>new Headers({host:'acme.example.com',origin:'https://acme.example.com',cookie:'__Host-erpx-product=session','idempotency-key':'command-key-1234','x-erpx-context-company':'company','x-erpx-context-assignment':'assignment','x-erpx-context-revision':'7','x-erpx-context-assignment-version':'3'});
+ const projectRequest=()=>new Request('https://acme.example.com/api/v1/holdings/acme/projects/project/work-logs',{method:'POST',headers:projectHeaders(),body:JSON.stringify({workDate:'2026-09-12',minutes:45})});
+ const command=()=>nativeProjectCommand(projectRequest(),'acme',{operation:'work-log.save',projectId:'project',key:'command-key-1234',body:{workDate:'2026-09-12',minutes:45}});
+ let server:ReturnType<typeof createServer>|undefined,received:{url?:string;headers?:IncomingMessage['headers'];body?:string}|undefined;
+ beforeEach(async()=>{
+  received=undefined;
+  const handler=async(req:IncomingMessage,res:ServerResponse)=>{
+   const chunks:Buffer[]=[];for await(const chunk of req)chunks.push(Buffer.from(chunk));
+   received={url:req.url,headers:req.headers,body:Buffer.concat(chunks).toString('utf8')};
+   const reply=await (globalThis as unknown as {__projectCommandReply?:()=>Promise<{status:number;value:unknown}>}).__projectCommandReply?.();
+   const {status,value}=reply??{status:200,value:{data:{id:'project-time-command-key-1234',version:1,state:'submitted'},context:projectContext()}};
+   res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(value));
+  };
+  for(;;){
+   server=createServer((req,res)=>{void handler(req,res);});
+   await new Promise<void>(resolve=>server!.listen(0,'127.0.0.1',resolve));
+   const port=(server.address() as AddressInfo).port;
+   if(!reserved.has(port)&&!(port>=3200&&port<=3299)){
+    process.env.ERPX_NATIVE_PROJECTS_CONFIG=JSON.stringify({privateBaseUrl:`http://127.0.0.1:${port}`,timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001'}]});break;
+   }
+   await new Promise<void>(resolve=>server!.close(()=>resolve()));
+  }
+ });
+ afterEach(async()=>{
+  delete process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+  delete (globalThis as unknown as {__projectCommandReply?:unknown}).__projectCommandReply;
+  if(server)await new Promise<void>(resolve=>server!.close(()=>resolve()));
+ });
+ it('forwards the exact owner path, cookie, origin, context and command key',async()=>{
+  const receipt=await command();
+  expect(receipt).toEqual({id:'project-time-command-key-1234',version:1,state:'submitted'});
+  expect(received?.url).toBe('/api/v1/holdings/acme/projects/project/work-logs');
+  expect(received?.headers?.cookie).toBe('__Host-erpx-product=session');
+  expect(received?.headers?.origin).toBe('https://acme.example.com');
+  expect(received?.headers?.['idempotency-key']).toBe('command-key-1234');
+  expect(received?.headers?.['x-erpx-context-company']).toBe('company');
+  expect(received?.headers?.['x-erpx-context-revision']).toBe('7');
+  expect(received?.body).toBe(JSON.stringify({workDate:'2026-09-12',minutes:45}));
+ });
+ it('rejects a changed native context and a mismatched receipt identity',async()=>{
+  (globalThis as unknown as {__projectCommandReply?:()=>Promise<{status:number;value:unknown}>}).__projectCommandReply=async()=>({status:200,value:{data:{id:'project-time-command-key-1234',version:1,state:'submitted'},context:projectContext({revision:8})}});
+  await expect(command()).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED',status:409});
+  (globalThis as unknown as {__projectCommandReply?:()=>Promise<{status:number;value:unknown}>}).__projectCommandReply=async()=>({status:200,value:{data:{id:'different',version:1,state:'submitted'},context:projectContext()}});
+  await expect(command()).rejects.toMatchObject({code:'NATIVE_PROJECTS_UNAVAILABLE',status:503});
+ });
+ it('surfaces a bounded owner denial without accepting its body as a receipt',async()=>{
+  (globalThis as unknown as {__projectCommandReply?:()=>Promise<{status:number;value:unknown}>}).__projectCommandReply=async()=>({status:422,value:{error:{code:'PROJECT_TIME_DAILY_LIMIT',message:'Total submitted and approved project time cannot exceed 24 hours.'}}});
+  await expect(command()).rejects.toMatchObject({code:'PROJECT_TIME_DAILY_LIMIT',status:422});
+ });
+ it('refuses an unconfigured Holding origin and a short command key before sending',async()=>{
+  const foreign=new Request('https://other.example.com/api/v1/holdings/acme/projects/project/work-logs',{method:'POST',headers:new Headers({...Object.fromEntries(projectHeaders()),host:'other.example.com'})});
+  await expect(nativeProjectCommand(foreign,'acme',{operation:'work-log.save',projectId:'project',key:'command-key-1234',body:{}})).rejects.toMatchObject({code:'NOT_FOUND',status:404});
+  await expect(nativeProjectCommand(projectRequest(),'acme',{operation:'work-log.save',projectId:'project',key:'short',body:{}})).rejects.toMatchObject({code:'PROJECTS_REQUEST_INVALID',status:422});
+ });
 });

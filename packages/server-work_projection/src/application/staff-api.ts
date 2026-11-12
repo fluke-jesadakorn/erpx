@@ -6,14 +6,15 @@ import type {} from "@erpx/server-identity_access/public/authorization";
 import type {staffPeople,activeStaff,companyAuthority} from "@erpx/server-operations/public/staff-policy";
 import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,staffSettings} from "@erpx/server-operations/public/staff-settings";
 import type {listTasks,taskDetail} from '@erpx/server-operations/public/staff-tasks';
-import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema,saveProjectMilestone,transitionProjectMilestone} from "@erpx/server-projects/public/project-milestones";
-import type {decideProjectWorkLog,listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema,saveProjectWorkLog} from "@erpx/server-projects/public/project-actuals";
+import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema} from "@erpx/server-projects/public/project-milestones";
+import type {listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema} from "@erpx/server-projects/public/project-actuals";
 import type {canEditTemplate,changeScheduleState,endSchedule,getTemplate,listTemplates,runTemplate,saveSchedule,saveTemplate,scheduleSchema,templateSchema,ScheduleRow} from "@erpx/server-operations/public/routines";
 import type {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import type {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import type {getProject,listProjects,projectSchema,saveProject} from "@erpx/server-projects/public/staff-projects";
 import type {StaffResource,StaffRequestContext} from "@erpx/server-work_projection/domain/staff-api";
 type WithoutDatabase<F> = F extends (...args:infer A)=>infer R ? A extends [unknown,...infer Tail] ? (...args:Tail)=>R:never:never;
+export type ProjectCommandPort = {request:Request;holdingSlug:string;operation:"work-log.save" | "work-log.review" | "milestone.save" | "milestone.transition";projectId:string;recordId?:string;input:unknown;key:string;branchSlug?:string;departmentSlug?:string};
 export type StaffApiPorts={requireWorkContext:typeof requireWorkContext;prepare(actor:WorkContext):Promise<void>;now():number;error(status:number,code:string,message:string):Error;requestPublicOrigin:typeof requestPublicOrigin;markNotificationRead(actor:WorkContext,id:string,key:string,now:number):Promise<unknown>;
 listStaffNotifications:WithoutDatabase<typeof listStaffNotifications>;
 staffPeople:WithoutDatabase<typeof staffPeople>;
@@ -28,11 +29,8 @@ listTasks:WithoutDatabase<typeof listTasks>;
 saveProject:WithoutDatabase<typeof saveProject>;
 taskDetail:WithoutDatabase<typeof taskDetail>;
 listProjectMilestones:WithoutDatabase<typeof listProjectMilestones>;
-saveProjectMilestone:WithoutDatabase<typeof saveProjectMilestone>;
-transitionProjectMilestone:WithoutDatabase<typeof transitionProjectMilestone>;
-decideProjectWorkLog:WithoutDatabase<typeof decideProjectWorkLog>;
 listProjectWorkLogs:WithoutDatabase<typeof listProjectWorkLogs>;
-saveProjectWorkLog:WithoutDatabase<typeof saveProjectWorkLog>;
+projectCommand(command:ProjectCommandPort):Promise<unknown>;
 canEditTemplate:WithoutDatabase<typeof canEditTemplate>;
 changeScheduleState:WithoutDatabase<typeof changeScheduleState>;
 endSchedule:WithoutDatabase<typeof endSchedule>;
@@ -57,7 +55,7 @@ approvalQueue(companyId:string,value:0 | 1):Promise<{results:Record<string,unkno
 headPlacement(companyId:string,value:string,personId:string):Promise<{position_id:string|null}|null>;
 betaApproval(value:string,companyId:string):Promise<Record<string,unknown>|null>;};};
 export function createStaffApiService(ports:StaffApiPorts){return async function execute(resource:StaffResource,request:Request,context:StaffRequestContext){
-const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requireWorkContext(holdingSlug);await ports.prepare(actor);
+const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requireWorkContext(holdingSlug);await ports.prepare(actor);const projectScope=actor.scope.kind==='holding'?{}:{branchSlug:actor.scope.branchSlug,...(actor.scope.kind==='department'?{departmentSlug:actor.scope.departmentSlug}:{})};
       let data: unknown;
       if (request.method === "GET") {
         if (resource === "staff" && p[0] === "notifications")
@@ -165,36 +163,48 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
             data=await ports.changeAppointment(actor,{kind:"head",departmentId:p[1],positionId:holder?.position_id??null,personId:head.personId,expectedVersion:head.expectedVersion,reason:head.reason},key);
           }
         else if (resource === "projects" && p[1] === "milestones" && p[3] === "transition")
-          data = await ports.transitionProjectMilestone(
-            actor,
-            p[0],
-            p[2],
-            ports.projectMilestoneTransitionSchema(input),
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "milestone.transition",
+            projectId: p[0],
+            recordId: p[2],
+            input: ports.projectMilestoneTransitionSchema(input),
             key,
-          );
+          });
         else if (resource === "projects" && p[1] === "work-logs" && p[3] === "review")
-          data = await ports.decideProjectWorkLog(
-            actor,
-            p[0],
-            p[2],
-            ports.projectWorkLogDecisionSchema(input),
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "work-log.review",
+            projectId: p[0],
+            recordId: p[2],
+            input: ports.projectWorkLogDecisionSchema(input),
             key,
-          );
+          });
         else if (resource === "projects" && p[1] === "work-logs" && p.length <= 3)
-          data = await ports.saveProjectWorkLog(
-            actor,
-            p[0],
-            ports.projectWorkLogSchema(input),
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "work-log.save",
+            projectId: p[0],
+            input: ports.projectWorkLogSchema(input),
             key,
-          );
+          });
         else if (resource === "projects" && p[1] === "milestones" && p.length <= 3)
-          data = await ports.saveProjectMilestone(
-            actor,
-            p[0],
-            p[2] ?? null,
-            ports.projectMilestoneSchema(input),
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "milestone.save",
+            projectId: p[0],
+            recordId: p[2],
+            input: ports.projectMilestoneSchema(input),
             key,
-          );
+          });
         else if (resource === "projects" && p.length < 2)
           data = await ports.saveProject(
             actor,

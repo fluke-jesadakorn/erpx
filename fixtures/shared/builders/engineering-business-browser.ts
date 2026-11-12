@@ -5,8 +5,6 @@ import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {moduleRegistry} from "@erpx/catalogue/module-registry";
 import type {seedExpenseCompany} from "../../expenses/company";
 import {saveProject,projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
-import {saveProjectMilestone,projectMilestoneSchema} from "@erpx/server-projects/public/project-milestones";
-import {createProjectCostAllocation,decideProjectCostAllocation,projectCostAllocationSchema,projectCostAllocationDecisionSchema} from "@erpx/server-projects/public/project-actuals";
 import {createAccount,createAccountSchema,createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
 import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
@@ -64,12 +62,22 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
  for(const viewport of ['desktop','mobile'] as const){
   const label=`${viewport} · Business engineering ${run}`;
   const project=await saveProject(db,source,null,projectSchema.parse({title:`${label} customer delivery`,description:'Fictional normal-login engineering workflow only.',memberUserIds:[reviewer.userId,f.manager.userId]}),key());
-  const milestone=async(title:string,parent:string|null=null,depends:string[]=[],position=0)=>saveProjectMilestone(db,source,String(project.id),null,projectMilestoneSchema.parse({title,dueAt:new Date(now+7*86400000).toISOString(),ownerUserId:source.userId,parentMilestoneId:parent,dependsOnMilestoneIds:depends,ordinalPosition:position}),key());
+  const milestone=async(title:string,parent:string|null=null,depends:string[]=[],position=0)=>{
+   const id=`milestone-${key()}`;
+   await db.batch([
+    db.prepare("INSERT INTO staff_project_milestones(id,company_id,project_id,title,description,due_at,owner_user_id,parent_milestone_id,ordinal_position,state,version,created_by,completed_at,created_at,updated_at) VALUES(?,?,?,?,'',?,?,?,?,'planned',1,?,NULL,?,?)")
+     .bind(id,f.company,String(project.id),title,now+7*86400000,source.userId,parent,position,source.userId,now,now),
+    ...depends.map(predecessor=>db.prepare("INSERT INTO staff_project_milestone_dependencies(company_id,project_id,predecessor_milestone_id,successor_milestone_id,created_by,created_at) VALUES(?,?,?,?,?,?)")
+     .bind(f.company,String(project.id),predecessor,id,source.userId,now)),
+   ]);
+   return {id};
+  };
   const root=await milestone('Customer delivery'),discovery=await milestone('Approved discovery',String(root.id),[],1),build=await milestone('Implemented release',String(root.id),[String(discovery.id)],2);
   const task=await saveTask(db,source,null,taskSchema.parse({title:`${label} implement customer work`,description:'Record source work and hand it back to the project owner.',assigneeUserId:reviewer.userId,projectId:project.id}),key());
   const costJournal=await routedJournal({chartId:f.chart,periodId:f.period,entryDate:today,currency:'THB',sourceType:'manual',memo:`${label} real project expense source`,lines:[{accountId:f.accounts.expense,debit:'75.01',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'75.01'}]});
-  const cost=await createProjectCostAllocation(source,projectCostAllocationSchema.parse({projectId:project.id,sourceLineId:`${costJournal.id}-0`,amount:'75.01'}),key());
-  await decideProjectCostAllocation(f.manager,cost.id,projectCostAllocationDecisionSchema.parse({action:'approve',expectedVersion:1,reason:'Independent Finance approves the exact posted 75.01 THB source.'}),key());
+  const cost={id:`project-cost-${key()}`};
+  await db.prepare("INSERT INTO staff_project_cost_allocations(id,company_id,project_id,journal_line_id,amount_minor,state,version,created_by,approved_by,rejected_by,rejection_reason,created_at,updated_at) VALUES(?,?,?,?,7501,'approved',2,?,?,NULL,'',?,?)")
+   .bind(cost.id,f.company,String(project.id),`${costJournal.id}-0`,source.userId,f.manager.userId,now,now).run();
   const asset=await createAsset(source,{branchId:f.branch,code:`BROWSER-${viewport}-${run}`,name:`${label} zero-cost safety station`,category:'Engineering inspection fixture',currency:'THB',cost:'0.00',acquiredDate:today},key());
   // The preventive plan definition is stored directly as the owner row the
  // native command unit would persist; the TypeScript writer was retired
