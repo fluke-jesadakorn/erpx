@@ -19,7 +19,7 @@ import { holdingResources as nativeHoldingResources } from '../../../../packages
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
-import { taskFieldsSchema, taskSchema, taskActionSchema, taskDelegationSchema, taskDelegationRevokeSchema, type TaskRow, type TaskDetail, canConfigureTask as purecanConfigureTask, type TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
+import { taskFieldsSchema, taskSchema, taskActionSchema, taskDelegationSchema, type TaskRow, type TaskDetail, canConfigureTask as purecanConfigureTask, type TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
 import { createStaffTasksApplication, type StaffTasksRepository } from '@erpx/server-operations/application/staff-tasks';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { StaffTasksCollaborationFacts } from '@erpx/server-collaboration/public/operations-staff-tasks-facts';
@@ -51,16 +51,6 @@ function application(provided?: SqlDatabase, projectReadWhere='TRUE',workReadArg
         guard4(key: string, value: "task-delegation-unique", companyId: string, id: string, now: number, now2: number) { return assertion(database, key, value, `NOT EXISTS(SELECT 1 FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=? AND expires_at>?)`, [companyId, id, now, now2]); },
         stageDelegateTaskEffect(delegationId: string, companyId: string, id: string, userId: string, delegateUserId: string, now: number, expiresAt: number, reason: string, now2: number, now3: number) { return database.prepare("INSERT INTO staff_task_delegations(id,company_id,task_id,delegator_user_id,delegate_user_id,starts_at,expires_at,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(delegationId, companyId, id, userId, delegateUserId, now, expiresAt, reason, now2, now3); },
         stageDelegateTaskEffect2(now: number, id: string, companyId: string) { return database.prepare("UPDATE staff_tasks SET version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(now, id, companyId); },
-        readRevokeTaskDelegationDelegation(delegationId: string, companyId: string, id: string, now: number, now2: number) {
-            return database.prepare("SELECT * FROM staff_task_delegations WHERE id=? AND company_id=? AND task_id=? AND status='active' AND starts_at<=? AND expires_at>?").bind(delegationId, companyId, id, now, now2).first<{
-                id: string;
-                delegate_user_id: string;
-                version: number;
-            }>();
-        },
-        guard8(key: string, value: "task-delegation-active", id: string, companyId: string, id2: string, now: number, now2: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM staff_task_delegations WHERE id=? AND company_id=? AND task_id=? AND status='active' AND starts_at<=? AND expires_at>?)", [id, companyId, id2, now, now2]); },
-        stageRevokeTaskDelegationEffect(userId: string, reason: string, now: number, now2: number, id: string, companyId: string) { return database.prepare("UPDATE staff_task_delegations SET status='revoked',revoked_by=?,revoke_reason=?,revoked_at=?,updated_at=?,version=version+1 WHERE id=? AND company_id=?").bind(userId, reason, now, now2, id, companyId); },
-        stageRevokeTaskDelegationEffect2(now: number, id: string, companyId: string) { return database.prepare("UPDATE staff_tasks SET version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(now, id, companyId); },
         guard11(...args) { return StaffTasksIdentityAccessFacts(database).guard11(...args); },
         guard12(key: string, value: "task-version", id: string, version: number, states: string[]) {
             return assertion(database, key, value, `EXISTS(SELECT 1 FROM staff_tasks WHERE id=? AND version=? AND state IN (${states.map(() => "?").join(",")}))`, [id, version, ...states]);
@@ -124,7 +114,6 @@ export async function listTasks(db: SqlDatabase, actor: StaffActor, projectId?: 
 
 export function canConfigureTask(actor: StaffActor, task: TaskRow) { return invokeSync(() => purecanConfigureTask(actor, task)); }
 export async function delegateTask(db: SqlDatabase, actor: StaffActor, id: string, input: z.infer<typeof taskDelegationSchema>, key: string) { return withWorkTaskPurchasedCommand(db,actor,{key,operations:['task.delegate'],id,purpose:'settle-existing'},tx=>invoke(() => application(tx).delegateTask(actor, id, input, key))); }
-export async function revokeTaskDelegation(db: SqlDatabase, actor: StaffActor, id: string, input: z.infer<typeof taskDelegationRevokeSchema>, key: string) { return withWorkTaskPurchasedCommand(db,actor,{key,operations:['task.delegate-revoke'],id,purpose:'settle-existing'},tx=>invoke(() => application(tx).revokeTaskDelegation(actor, id, input, key))); }
 export function taskVersionGuard(db: SqlDatabase, key: string, id: string, version: number, states: string[]) { return invokeSync(() => application(db).taskVersionGuard(key, id, version, states)); }
 export async function validateTaskConfiguration(db: SqlDatabase, actor: StaffActor, input: z.infer<typeof taskFieldsSchema>, creator = actor.userId, serviceTask = false) { return invoke(() => application(db).validateTaskConfiguration(actor, input, creator, serviceTask)); }
 export function configGuards(db: SqlDatabase, key: string, actor: StaffActor, input: z.infer<typeof taskFieldsSchema>) { return invokeSync(() => application(db).configGuards(key, actor, input)); }

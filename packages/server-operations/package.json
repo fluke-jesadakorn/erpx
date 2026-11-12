@@ -86,6 +86,7 @@
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/project-package-obligation-sources": "./src/public/project-package-obligation-sources.ts",
     "./public/people-app-entrypoint-facts": "./src/public/people-app-entrypoint-facts.ts",
+    "./public/native-staff-work-page": "./src/public/native-staff-work-page.ts",
     "./public/task-attachment-read": "./src/public/task-attachment-read.ts",
     "./public/work-package-obligations": "./src/public/work-package-obligations.ts",
     "./public/staff-policy": "./src/public/staff-policy.ts",

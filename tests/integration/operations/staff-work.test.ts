@@ -13,7 +13,7 @@ import {
 } from "@erpx/server-operations/public/staff-settings";
 import {approvalView,prepareDecision,openApproval} from '@erpx/server-workflow/public/approval-planning';
 import {rerouteApproval} from '@erpx/server-workflow/public/approvals';
-import {projectSchema,saveProject,saveTask,delegateTask,revokeTaskDelegation,taskDelegationSchema,taskDelegationRevokeSchema,taskSchema,taskActionSchema,taskDetail,listTasks,transitionTask} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,saveProject,saveTask,delegateTask,taskDelegationSchema,taskSchema,taskActionSchema,taskDetail,listTasks,transitionTask} from '@erpx/server-operations/public/staff-tasks';
 import {taskWorkState} from '@erpx/server-operations/public/staff-task-read';
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import {
@@ -186,6 +186,24 @@ async function action(
     key(),
   );
 }
+/**
+ * Native seeding for delegation revocation. The native Operations owner now
+ * owns `POST /staff-tasks/{id}/delegate/revoke/{delegationId}`; the TS command
+ * was retired, so these read-projection tests seed the revoked rows directly.
+ */
+async function seedDelegationRevoked(id: string, delegationId: string, reason: string) {
+  const now = Date.now();
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE staff_task_delegations SET status='revoked',revoked_by=?,revoke_reason=?,revoked_at=?,updated_at=?,version=version+1 WHERE id=? AND status='active'",
+      )
+      .bind(requester.userId, reason, now, now, delegationId),
+    db
+      .prepare("UPDATE staff_tasks SET version=version+1,updated_at=? WHERE id=?")
+      .bind(now, id),
+  ]);
+}
 
 beforeAll(async () => {
   enableAttachmentV2ForTest();
@@ -275,10 +293,7 @@ describe("Staff request routing and approval transactions", () => {
       expectedVersion: (await getTask(db, requester, id)).version, reason: "Cover the receiving lead.",
     }), key());
     await compare();
-    await revokeTaskDelegation(db, requester, id, taskDelegationRevokeSchema.parse({
-      delegationId: handoff.delegationId, expectedVersion: handoff.version,
-      reason: "Receiving lead returned.",
-    }), key());
+    await seedDelegationRevoked(id, handoff.delegationId, "Receiving lead returned.");
     await compare();
     await action(worker, id, "start");
     await compare();
@@ -1023,36 +1038,8 @@ describe("Projects, task phases and evidence boundaries", () => {
     await action(requester, id, "submit");
     expect((await taskDetail(db, hr, id)).permittedActions).toContain("start");
     await action(hr, id, "start");
-    const current = await getTask(db, requester, id);
-    const replayKey = key();
-    await expect(revokeTaskDelegation(db, requester, id, taskDelegationRevokeSchema.parse({
-      delegationId: delegation.delegationId,
-      expectedVersion: current.version - 1,
-      reason: "This stale decision must not be retained.",
-    }), key())).rejects.toMatchObject({ status: 409 });
     expect((await taskDetail(db, requester, id)).delegationHistory[0].revoke_reason).toBeNull();
-    const revoked = await revokeTaskDelegation(
-      db,
-      requester,
-      id,
-      taskDelegationRevokeSchema.parse({
-        delegationId: delegation.delegationId,
-        expectedVersion: current.version,
-        reason: "Receiving lead returned.",
-      }),
-      replayKey,
-    );
-    expect(await revokeTaskDelegation(
-      db,
-      requester,
-      id,
-      taskDelegationRevokeSchema.parse({
-        delegationId: delegation.delegationId,
-        expectedVersion: current.version,
-        reason: "Receiving lead returned.",
-      }),
-      replayKey,
-    )).toEqual(revoked);
+    await seedDelegationRevoked(id, delegation.delegationId, "Receiving lead returned.");
     await expect(getTask(db, hr, id)).rejects.toMatchObject({ status: 404 });
     await expect(taskDetail(db, hr, id)).rejects.toMatchObject({ status: 404 });
     await expect(taskDetail(db, outsider, id)).rejects.toMatchObject({ status: 404 });

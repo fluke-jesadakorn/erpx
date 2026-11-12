@@ -1,5 +1,6 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {staffHandler} from "@erpx/server-work_projection/public/staff-api";
+import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
 import {
   nativeStaffWorkAvailable,
   nativeStaffWorkCommand,
@@ -12,9 +13,11 @@ const headers = {"Cache-Control": "private, no-store"};
 const retained = staffHandler("staff-tasks");
 
 /**
- * The retained handler still owns levels, templates, schedules, milestones,
- * notifications, approvals reroute and appointments. Only the task workspace,
- * task detail and task commands switch to the native owner.
+ * The native Operations owner is authoritative for the task workspace, task
+ * detail and the revise/transition/delegate/revoke commands. A configured
+ * native owner that cannot answer must fail closed; there is no retained task
+ * command fallback. The retained handler answers only the path shapes the
+ * native owner does not serve.
  */
 function nativePath(p: string[]): string | null {
   if (p.length === 0) return "";
@@ -26,29 +29,33 @@ function nativePath(p: string[]): string | null {
   return null;
 }
 
+function unavailable() {
+  return errorResponse(
+    new ApiError(503, "NATIVE_STAFF_WORK_UNAVAILABLE", "The native Task owner is unavailable."),
+  );
+}
+
 export async function GET(request: Request, context: Context) {
   const { holdingSlug, path = [] } = await context.params;
-  if (nativeStaffWorkAvailable()) {
-    const target = nativePath(path);
-    if (target !== null) {
-      const projectId = new URL(request.url).searchParams.get("projectId");
-      const data = await nativeStaffWorkRead(request, holdingSlug, target, projectId);
-      return Response.json(canonicalDestinationLinks({ data }), { headers });
-    }
+  const target = nativePath(path);
+  if (target !== null) {
+    if (!nativeStaffWorkAvailable()) return unavailable();
+    const projectId = new URL(request.url).searchParams.get("projectId");
+    const data = await nativeStaffWorkRead(request, holdingSlug, target, projectId);
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   }
   return retained(request, context);
 }
 
 export async function POST(request: Request, context: Context) {
   const { holdingSlug, path = [] } = await context.params;
-  if (nativeStaffWorkAvailable()) {
-    const target = nativePath(path);
-    if (target !== null) {
-      const key = request.headers.get("Idempotency-Key") ?? "";
-      const body = await request.json();
-      const data = await nativeStaffWorkCommand(request, holdingSlug, target, body, key);
-      return Response.json(canonicalDestinationLinks({ data }), { headers });
-    }
+  const target = nativePath(path);
+  if (target !== null) {
+    if (!nativeStaffWorkAvailable()) return unavailable();
+    const key = request.headers.get("Idempotency-Key") ?? "";
+    const body = await request.json();
+    const data = await nativeStaffWorkCommand(request, holdingSlug, target, body, key);
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   }
   return retained(request, context);
 }

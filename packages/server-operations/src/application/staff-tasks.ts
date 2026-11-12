@@ -15,7 +15,7 @@ import type { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import type { staffGuard } from "@erpx/server-operations/public/staff-policy";
 import type { notification } from "@erpx/server-operations/public/staff-policy";
 import type { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import { taskFieldsSchema, taskSchema, taskActionSchema, taskDelegationSchema, taskDelegationRevokeSchema, type TaskRow, isOrdinaryTask, type TaskDetail, canConfigureTask, canAttachTask, isActiveDelegate, type TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
+import { taskFieldsSchema, taskSchema, taskActionSchema, taskDelegationSchema, type TaskRow, isOrdinaryTask, type TaskDetail, canConfigureTask, canAttachTask, isActiveDelegate, type TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { OperationsCommands } from '@erpx/server-operations/domain/commands';
 type Tail<Value extends unknown[]> = Value extends [
@@ -39,14 +39,6 @@ export interface StaffTasksRepository<Effect> {
     guard4(key: string, value: "task-delegation-unique", companyId: string, id: string, now: number, now2: number): Effect;
     stageDelegateTaskEffect(delegationId: string, companyId: string, id: string, userId: string, delegateUserId: string, now: number, expiresAt: number, reason: string, now2: number, now3: number): Effect;
     stageDelegateTaskEffect2(now: number, id: string, companyId: string): Effect;
-    readRevokeTaskDelegationDelegation(delegationId: string, companyId: string, id: string, now: number, now2: number): Promise<{
-        id: string;
-        delegate_user_id: string;
-        version: number;
-    } | null>;
-    guard8(key: string, value: "task-delegation-active", id: string, companyId: string, id2: string, now: number, now2: number): Effect;
-    stageRevokeTaskDelegationEffect(userId: string, reason: string, now: number, now2: number, id: string, companyId: string): Effect;
-    stageRevokeTaskDelegationEffect2(now: number, id: string, companyId: string): Effect;
     guard11(key: string, value: "task-configure", id: string, companyId: string, userId: string, userId2: string): Effect;
     guard12(key: string, value: "task-version", id: string, version: number, states: string[]): Effect;
     guard13(key: string, value: "task-project", projectId: string, companyId: string, userId: string, userId2: string): Effect;
@@ -148,33 +140,6 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
             r.stageDelegateTaskEffect(delegationId, actor.companyId, id, actor.userId, input.delegateUserId, now, expiresAt, input.reason, now, now),
             r.stageDelegateTaskEffect2(now, id, actor.companyId),
             ports.notification(task, input.delegateUserId, "task", id, result.version, `Task delegated to you until ${new Date(expiresAt).toISOString()}`),
-        ], scope(task));
-    }
-    async function revokeTaskDelegation(actor: StaffActor, id: string, input: z.infer<typeof taskDelegationRevokeSchema>, key: string) {
-        const recordId = `${id}:${input.delegationId}`;
-        const prior = await ports.commands.replay<{
-            id: string;
-            delegationId: string;
-            version: number;
-            status: string;
-        }>(actor, key, "task.delegate-revoke", recordId, input);
-        if (prior)
-            return prior;
-        const task = await getTask(actor, id);
-        if (!canConfigureTask(actor, task))
-            throw new BusinessRuleError(403, "TASK_DELEGATION_REQUIRED", "Only the task creator or project owner can revoke this delegation.");
-        const delegation = await r.readRevokeTaskDelegationDelegation(input.delegationId, actor.companyId, id, ports.clock.now(), ports.clock.now());
-        if (!delegation)
-            throw new BusinessRuleError(404, "TASK_DELEGATION_NOT_FOUND", "Active task delegation not found.");
-        const result = { id, delegationId: delegation.id, version: input.expectedVersion + 1, status: "revoked" };
-        return ports.commands.commit(actor, key, "task.delegate-revoke", input, recordId, result.version, result, [
-            ports.staffGuard(key, actor.companyId, actor.userId),
-            configurationGuard(key, actor, task),
-            taskVersionGuard(key, id, input.expectedVersion, [task.state]),
-            r.guard8(key, "task-delegation-active", delegation.id, actor.companyId, id, ports.clock.now(), ports.clock.now()),
-            r.stageRevokeTaskDelegationEffect(actor.userId, input.reason, ports.clock.now(), ports.clock.now(), delegation.id, actor.companyId),
-            r.stageRevokeTaskDelegationEffect2(ports.clock.now(), id, actor.companyId),
-            ports.notification(task, delegation.delegate_user_id, "task", id, result.version, "Task delegation revoked; the accountable assignee resumes ownership."),
         ], scope(task));
     }
     function configurationGuard(key: string, actor: StaffActor, task: TaskRow) {
@@ -391,7 +356,7 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
         return ports.commands.commit(actor, key, operation, input, id, input.expectedVersion + 1, { id, state, version: input.expectedVersion + 1, ...(prepared ? { manifest: prepared.manifest } : {}) }, steps, scope(task));
     }
 
-    return { listTasks, getTask, taskSourceReadGuard, canConfigureTask, delegateTask, revokeTaskDelegation, taskVersionGuard, validateTaskConfiguration, configGuards, saveTask, taskWorkState, taskDetail, transitionTask, canAttachTask };
+    return { listTasks, getTask, taskSourceReadGuard, canConfigureTask, delegateTask, taskVersionGuard, validateTaskConfiguration, configGuards, saveTask, taskWorkState, taskDetail, transitionTask, canAttachTask };
 }
 
 export type StaffTaskReadPorts<Effect>=Pick<StaffTasksPorts<Effect>,'readablePost'|'approvalView'|'taskRoute'>&{repository:Pick<StaffTasksRepository<Effect>,'readGetTaskRow'|'guard3'>};

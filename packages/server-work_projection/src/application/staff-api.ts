@@ -5,7 +5,7 @@ import type {listStaffNotifications} from "@erpx/server-collaboration/public/sta
 import type {} from "@erpx/server-identity_access/public/authorization";
 import type {staffPeople,activeStaff,companyAuthority} from "@erpx/server-operations/public/staff-policy";
 import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,staffSettings} from "@erpx/server-operations/public/staff-settings";
-import type {listTasks,saveTask,taskActionSchema,taskDelegationRevokeSchema,taskDelegationSchema,taskDetail,taskSchema,delegateTask,revokeTaskDelegation,transitionTask} from '@erpx/server-operations/public/staff-tasks';
+import type {listTasks,taskDetail} from '@erpx/server-operations/public/staff-tasks';
 import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema,saveProjectMilestone,transitionProjectMilestone} from "@erpx/server-projects/public/project-milestones";
 import type {decideProjectWorkLog,listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema,saveProjectWorkLog} from "@erpx/server-projects/public/project-actuals";
 import type {canEditTemplate,changeScheduleState,endSchedule,getTemplate,listTemplates,runTemplate,saveSchedule,saveTemplate,scheduleSchema,templateSchema,ScheduleRow} from "@erpx/server-operations/public/routines";
@@ -26,11 +26,7 @@ getProject:WithoutDatabase<typeof getProject>;
 listProjects:WithoutDatabase<typeof listProjects>;
 listTasks:WithoutDatabase<typeof listTasks>;
 saveProject:WithoutDatabase<typeof saveProject>;
-saveTask:WithoutDatabase<typeof saveTask>;
 taskDetail:WithoutDatabase<typeof taskDetail>;
-delegateTask:WithoutDatabase<typeof delegateTask>;
-revokeTaskDelegation:WithoutDatabase<typeof revokeTaskDelegation>;
-transitionTask:WithoutDatabase<typeof transitionTask>;
 listProjectMilestones:WithoutDatabase<typeof listProjectMilestones>;
 saveProjectMilestone:WithoutDatabase<typeof saveProjectMilestone>;
 transitionProjectMilestone:WithoutDatabase<typeof transitionProjectMilestone>;
@@ -50,10 +46,6 @@ changeAppointment:WithoutDatabase<typeof changeAppointment>;headSchema:typeof he
 levelAssignmentSchema:typeof levelAssignmentSchema.parse;
 levelSchema:typeof levelSchema.parse;
 projectSchema:typeof projectSchema.parse;
-taskActionSchema:typeof taskActionSchema.parse;
-taskDelegationRevokeSchema:typeof taskDelegationRevokeSchema.parse;
-taskDelegationSchema:typeof taskDelegationSchema.parse;
-taskSchema:typeof taskSchema.parse;
 projectMilestoneSchema:typeof projectMilestoneSchema.parse;
 projectMilestoneTransitionSchema:typeof projectMilestoneTransitionSchema.parse;
 projectWorkLogDecisionSchema:typeof projectWorkLogDecisionSchema.parse;
@@ -172,38 +164,6 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
             const holder=await ports.facts.headPlacement(actor.companyId,p[1],head.personId);
             data=await ports.changeAppointment(actor,{kind:"head",departmentId:p[1],positionId:holder?.position_id??null,personId:head.personId,expectedVersion:head.expectedVersion,reason:head.reason},key);
           }
-        else if (resource === "staff-tasks" && p[1] === "transition")
-          data = await ports.transitionTask(
-            actor,
-            p[0],
-            ports.taskActionSchema(input),
-            key,
-          );
-        else if (resource === "staff-tasks" && p[1] === "delegate" && p[2] === "revoke")
-          data = await ports.revokeTaskDelegation(
-            actor,
-            p[0],
-            ports.taskDelegationRevokeSchema({ ...input, delegationId: p[3] }),
-            key,
-          );
-        else if (resource === "staff-tasks" && p[1] === "delegate")
-          data = await ports.delegateTask(
-            actor,
-            p[0],
-            ports.taskDelegationSchema(input),
-            key,
-          );
-        else if (
-          resource === "staff-tasks" &&
-          (p.length < 2 || p[1] === "revise")
-        )
-          data = await ports.saveTask(
-            actor,
-            p[0] ?? null,
-            ports.taskSchema(input),
-            key,
-            p[1] === "revise",
-          );
         else if (resource === "projects" && p[1] === "milestones" && p[3] === "transition")
           data = await ports.transitionProjectMilestone(
             actor,
