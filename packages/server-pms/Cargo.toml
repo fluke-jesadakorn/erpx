@@ -70,6 +70,14 @@ name = "pms_room_command_postgres"
 path = "../../tests/integration/pms/rust-pms-room-command-postgres.test.rs"
 
 [[test]]
+name = "pms_reservation"
+path = "../../tests/unit/pms/rust-pms-reservation.test.rs"
+
+[[test]]
+name = "pms_reservation_postgres"
+path = "../../tests/integration/pms/rust-pms-reservation-postgres.test.rs"
+
+[[test]]
 name = "pms_night_audit"
 path = "../../tests/unit/pms/rust-pms-night-audit.test.rs"
 

@@ -10,6 +10,8 @@ pub mod stay_room_http;
 pub mod stay_room_postgres;
 pub mod room_command_http;
 pub mod room_command_postgres;
+pub mod reservation_http;
+pub mod reservation_postgres;
 pub mod night_audit_postgres;
 pub mod night_audit_worker;
 pub mod report_http;

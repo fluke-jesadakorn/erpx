@@ -22,6 +22,12 @@ use erpx_server_pms::public::report::{
     PmsReportHttpFuture, PmsReportHttpResponse, PmsReportRange, PmsReportRangeRequest,
     pms_range_report, pms_report_entries,
 };
+use erpx_server_pms::public::reservation::{
+    PgPmsReservationRepository, PmsReservationActor, PmsReservationCommand,
+    PmsReservationHttpBackend, PmsReservationHttpCommandRequest, PmsReservationHttpContext,
+    PmsReservationHttpFuture, PmsReservationHttpResponse, lock_reservation_sources,
+    pms_reservation,
+};
 use erpx_server_pms::public::room_board::{
     PgPmsBoardRead, PmsBoardActor, PmsBoardEntitlement, PmsBoardEntitlementPort, PmsBoardSelection,
     PmsStaff, PmsStaffDirectory, pms_room_board,
@@ -82,6 +88,15 @@ struct PmsSources;
 impl HoldingWorkSourcePreparation for PmsSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move { lock_front_desk_sources(c).await })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PmsReservationSources;
+
+impl HoldingWorkSourcePreparation for PmsReservationSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move { lock_reservation_sources(c).await })
     }
 }
 
@@ -710,6 +725,87 @@ impl<C: Clock + Send + Sync + 'static> PmsService<C> {
             )
             .await
     }
+    /// Apply one native staff reservation command (create/change/cancel).
+    /// Public booking, payment providers, email delivery and Finance posting
+    /// remain outside this owner slice.
+    pub async fn reservation_command(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        selected_context: PmsReservationHttpContext,
+        key: CommandKey,
+        command: PmsReservationCommand,
+    ) -> Result<PmsReservationHttpResponse, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let permission = command.operation().permission();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                WorkAuthorizationRequest {
+                    permission: permission.into(),
+                    module: Some("pms".into()),
+                    destination: "pms".into(),
+                    api: true,
+                },
+                PmsReservationSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let selected_context = selected_context.clone();
+                    let key = key.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(Error::from(scope()));
+                        }
+                        current.require_permission(permission)?;
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let assignment = selected.assignment();
+                        if selected_context.company_id != workspace.company_id.as_str()
+                            || selected_context.branch_slug.as_deref()
+                                != workspace.branch_slug.as_deref()
+                            || selected_context.department_slug.as_deref()
+                                != workspace.department_slug.as_deref()
+                            || selected_context.assignment_id != assignment.id.as_str()
+                            || selected_context.revision != selected.revision()
+                            || selected_context.assignment_version != assignment.version
+                        {
+                            return Err(Error::from(BusinessError::new(
+                                FailureKind::Conflict,
+                                "WORK_CONTEXT_CHANGED",
+                                "Your selected work context changed. Review the current workspace and role.",
+                            )));
+                        }
+                        let actor = PmsReservationActor {
+                            board: pms_actor(current)?,
+                            assignment_id: assignment.id.as_str().to_owned(),
+                            role: assignment.role.clone(),
+                            revision: selected.revision(),
+                            assignment_version: assignment.version,
+                        };
+                        let mut repository = PgPmsReservationRepository::new(connection);
+                        let now = clock.now().get();
+                        let result =
+                            pms_reservation(&actor, &key, &command, &mut repository, now).await?;
+                        Ok(PmsReservationHttpResponse {
+                            data: serde_json::to_value(result)
+                                .map_err(|_| Error::from(unavailable()))?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct PmsBackend<C> {
@@ -810,6 +906,41 @@ impl<C: Clock + Send + Sync + 'static> PmsRoomCommandHttpBackend for PmsBackend<
             });
             self.service
                 .room_command(
+                    request.host,
+                    proof,
+                    selection,
+                    request.context,
+                    request.key,
+                    request.command,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PmsReservationHttpBackend for PmsBackend<C> {
+    fn command<'a>(
+        &'a self,
+        request: PmsReservationHttpCommandRequest<'a>,
+    ) -> PmsReservationHttpFuture<'a, PmsReservationHttpResponse> {
+        Box::pin(async move {
+            let (proof, mut selection) = self.context(request.headers)?;
+            selection.mutation = true;
+            selection.expected = Some(ExpectedWorkSelection {
+                revision: request.context.revision,
+                assignment_id: AssignmentId::new(request.context.assignment_id.clone())
+                    .map_err(|_| {
+                        BusinessError::new(
+                            FailureKind::Conflict,
+                            "WORK_CONTEXT_CHANGED",
+                            "Your selected work context changed. Review the current workspace and role.",
+                        )
+                    })?,
+                assignment_version: request.context.assignment_version,
+            });
+            self.service
+                .reservation_command(
                     request.host,
                     proof,
                     selection,
