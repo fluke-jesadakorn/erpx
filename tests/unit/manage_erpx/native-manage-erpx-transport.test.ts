@@ -26,7 +26,7 @@ const responseBody={
 
 function transport(value:unknown=responseBody,status=200){
   const calls:{method:string;url:string;host:string|null;cookie:string|null;body:unknown}[]=[];
-  const fn=vi.fn(async (method:'GET',url:URL,headers:Headers,body:undefined,signal:AbortSignal)=>{
+  const fn=vi.fn(async (method:'GET'|'POST',url:URL,headers:Headers,body:string|undefined,signal:AbortSignal)=>{
     expect(signal.aborted).toBe(false);
     calls.push({method,url:url.toString(),host:headers.get('host'),cookie:headers.get('cookie'),body});
     return new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json; charset=utf-8'}});
@@ -141,5 +141,24 @@ describe('native Manage ERPX onboarding transport',()=>{
     expect(nativeManageErpxFailure(new NativeManageErpxError('NATIVE_MANAGE_ERPX_RESPONSE_INVALID')))
       .toMatchObject({status:503,code:'NATIVE_MANAGE_ERPX_UNAVAILABLE'});
     expect(nativeManageErpxFailure(new Error('network'))).toBeUndefined();
+  });
+});
+
+describe('native Manage ERPX onboarding command transport',()=>{
+  it('forwards the exact verified POST body and validates the receipt',async()=>{
+    const body={companyName:'Acme Company',branchName:'Main',slug:'acme'};
+    const replies={
+      data:{state:'active',href:'/holdings/acme/home'},
+      context:{userId:'owner'},
+    };
+    const {fn,calls}=transport(replies),client=createNativeManageErpxClient(config() as never,fn);
+    await expect(client.onboardingCommand(incoming,body)).resolves.toEqual({state:'active',href:'/holdings/acme/home'});
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({method:'POST',host:'acme.example.test',cookie:'erpx=synthetic',body:JSON.stringify(body)});
+    expect(calls[0]!.url).toBe('http://127.0.0.1:3301/api/v1/onboarding');
+  });
+  it('rejects a receipt that does not match the owner envelope',async()=>{
+    const {fn}=transport({data:{state:'active',href:'/holdings/acme/home'}}),client=createNativeManageErpxClient(config() as never,fn);
+    await expect(client.onboardingCommand(incoming,{companyName:'Acme Company',branchName:'Main',slug:'acme'})).rejects.toMatchObject({code:'NATIVE_MANAGE_ERPX_RESPONSE_INVALID'});
   });
 });

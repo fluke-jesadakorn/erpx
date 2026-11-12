@@ -68,6 +68,14 @@ beforeAll(async () => {
     env.STAFF_TEST_MIGRATIONS as TestMigration[],
   );
   await applyMigrations(
+    env.H001_READ_DB,
+    env.STAFF_TEST_MIGRATIONS as TestMigration[],
+  );
+  await applyMigrations(
+    env.H002_READ_DB,
+    env.STAFF_TEST_MIGRATIONS as TestMigration[],
+  );
+  await applyMigrations(
     control,
     env.CONTROL_TEST_MIGRATIONS as TestMigration[],
   );
@@ -932,7 +940,7 @@ describe("AI reservations and private output", () => {
     );
   });
 });
-  });
+describe("tenant admission and verified invitations", () => {
   it("links only the invited verified account and retries without duplicate access", async () => {
     const user = {
         id: key(),
