@@ -2823,6 +2823,7 @@ async fn assemble_checked(
         let mut billing_rate_targets = Vec::new();
         let mut pos_targets = Vec::new();
         let mut pos_command_targets = Vec::new();
+        let mut pos_workspace_targets = Vec::new();
         let mut commercial_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut commerce_targets = Vec::new();
@@ -3030,6 +3031,14 @@ async fn assemble_checked(
                 );
                 pos_command_targets.push(
                     erpx_server_pos::public::commands_http::PosCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: pos_backend.clone(),
+                    },
+                );
+                pos_workspace_targets.push(
+                    erpx_server_pos::public::read_http::PosWorkspaceHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -5098,6 +5107,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_pos::public::commands_http::pos_command_router(pos_command_targets)
                     .map_err(|_| "PRIVATE_API_POS_COMMAND_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !pos_workspace_targets.is_empty() {
+            router = router.merge(
+                erpx_server_pos::public::read_http::pos_workspace_router(pos_workspace_targets)
+                    .map_err(|_| "PRIVATE_API_POS_WORKSPACE_CONFIGURATION_INVALID")?,
             );
         }
         if !commercial_targets.is_empty() {

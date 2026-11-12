@@ -33,6 +33,18 @@ use erpx_server_organization::public::pos_issuer::{
 use erpx_server_pos::public::cash_movement::{
     CashMovementActor, CreateCashMovement, PgCashMovementCommand, create_cash_movement,
 };
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    current_package_catalogue,
+};
+use erpx_server_pos::public::read::{
+    PgPosWorkspaceRead, PosReadActor, PosWorkspaceEntitlements, PosWorkspaceQuery,
+    PosWorkspaceTab, pos_workspace,
+};
+use erpx_server_pos::public::read_http::{
+    PosWorkspaceHttpBackend, PosWorkspaceHttpFuture, PosWorkspaceHttpRequest,
+    PosWorkspaceHttpResponse, PosWorkspaceHttpTarget,
+};
 use erpx_server_pos::public::cash_movement_http::{
     CashMovementHttpBackend, CashMovementHttpFuture, CashMovementHttpRequest,
     CashMovementHttpResponse, CashMovementHttpTarget,
@@ -381,6 +393,15 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
         }
     }
 
+    fn read_access() -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: "pos.read".into(),
+            module: Some("pos".into()),
+            destination: "pos".into(),
+            api: true,
+        }
+    }
+
     fn input<Input>(
         &self,
         input: Input,
@@ -397,6 +418,71 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
             request.mutation = false;
             Ok(request)
         }
+    }
+
+    pub async fn workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        query: PosWorkspaceQuery,
+    ) -> Result<PosWorkspaceHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::read_access(),
+                PosWorkspaceSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let query = query.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let assignment = selected.assignment();
+                        let actor = PosReadActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: workspace.company_id.clone(),
+                            branch_id: workspace.branch_id.clone(),
+                            department_id: workspace.department_id.clone(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                        };
+                        let now = clock.now();
+                        let entitlements = workspace_entitlements(
+                            connection, &holding, &company, query.tab, now,
+                        )
+                        .await?;
+                        let mut repository = PgPosWorkspaceRead::new(&mut *connection);
+                        let data = pos_workspace(
+                            &actor, &query, &entitlements, &mut repository, now,
+                        )
+                        .await?
+                        .to_wire();
+                        let _ = assignment;
+                        Ok(PosWorkspaceHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
     }
 
     pub async fn create<Input>(
@@ -795,6 +881,143 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
     }
 }
 
+
+#[derive(Clone, Copy)]
+struct PosWorkspaceSources;
+
+impl HoldingWorkSourcePreparation for PosWorkspaceSources {
+    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+/// Mirrors the retained `ERPX_POS_PACKAGE_ENFORCEMENT` rollout switch.
+fn pos_purchase_mode() -> Result<PackageEnforcementMode, BusinessError> {
+    let raw = std::env::var("ERPX_POS_PACKAGE_ENFORCEMENT")
+        .unwrap_or_else(|_| "disabled".to_owned());
+    let mode = match raw.as_str() {
+        "disabled" => PackageEnforcementMode::Disabled,
+        "shadow" => PackageEnforcementMode::Shadow,
+        "enforced" => PackageEnforcementMode::Enforced,
+        _ => {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "POS_PACKAGE_ENFORCEMENT_CONFIGURATION",
+                "Package enforcement is unavailable.",
+            ));
+        }
+    };
+    if mode != PackageEnforcementMode::Disabled
+        && std::env::var("ERPX_ENVIRONMENT").as_deref() != Ok("local")
+    {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "POS_PACKAGE_ENFORCEMENT_ENVIRONMENT",
+            "Package enforcement is unavailable in this environment.",
+        ));
+    }
+    Ok(mode)
+}
+
+const POS_PURCHASE_CAPABILITIES: [&str; 12] = [
+    "pos.sales",
+    "pos.payments",
+    "pos.refunds",
+    "pos.shifts",
+    "pos.restaurant",
+    "pos.kitchen",
+    "pos.hotel-charge",
+    "inventory.stock-core",
+    "finance.pos-posting",
+    "finance.accounting",
+    "finance.hotel-posting",
+    "pms.guest-accounts",
+];
+
+/// Build the retained purchase projection once per workspace read: three
+/// batched inspections (new-work, settle-existing, history) over the same
+/// capability set, exactly like `readPurchasedAccesses` in the TS wrapper.
+async fn workspace_entitlements(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    _tab: Option<PosWorkspaceTab>,
+    now: TimestampMillis,
+) -> Result<PosWorkspaceEntitlements, Error> {
+    let mode = pos_purchase_mode()?;
+    if mode == PackageEnforcementMode::Disabled {
+        return Ok(PosWorkspaceEntitlements::default());
+    }
+    let catalogue = current_package_catalogue()?;
+    let mut facts: std::collections::BTreeMap<String, (bool, bool, bool)> =
+        POS_PURCHASE_CAPABILITIES
+            .iter()
+            .map(|capability| ((*capability).to_owned(), (false, false, false)))
+            .collect();
+    let mut revision = String::new();
+    for purpose in [
+        CapabilityPurpose::NewWork,
+        CapabilityPurpose::SettleExisting,
+        CapabilityPurpose::History,
+    ] {
+        let request = PurchaseRequest {
+            capabilities: POS_PURCHASE_CAPABILITIES
+                .iter()
+                .map(|capability| (*capability).to_owned())
+                .collect(),
+            purpose,
+            mode,
+        };
+        let mut reader =
+            PgCompanyPurchaseReader::new(holding.clone(), company.clone(), &mut *connection, &catalogue);
+        let inspection = reader.inspect(&request, now).await?;
+        revision = inspection.revision.clone();
+        for access in &inspection.access {
+            if let Some(entry) = facts.get_mut(&access.capability) {
+                match purpose {
+                    CapabilityPurpose::NewWork => entry.0 = access.allowed_by_mode,
+                    CapabilityPurpose::SettleExisting => entry.1 = access.allowed_by_mode,
+                    CapabilityPurpose::History => entry.2 = access.allowed_by_mode,
+                }
+            }
+        }
+    }
+    let history = |capability: &str| {
+        facts
+            .get(capability)
+            .map(|entry| entry.2)
+            .unwrap_or(false)
+    };
+    let new_work = |capability: &str| {
+        facts
+            .get(capability)
+            .map(|entry| entry.0)
+            .unwrap_or(false)
+    };
+    let mut purchases = serde_json::Map::new();
+    for (capability, (new_work, settle_existing, history)) in &facts {
+        purchases.insert(
+            capability.clone(),
+            serde_json::json!({
+                "newWork": new_work,
+                "settleExisting": settle_existing,
+                "history": history,
+                "revision": revision,
+            }),
+        );
+    }
+    Ok(PosWorkspaceEntitlements {
+        package_enforced: true,
+        sales_history: history("pos.sales"),
+        kitchen_history: history("pos.kitchen"),
+        shifts_history: history("pos.shifts"),
+        room_charge_enabled: new_work("pos.hotel-charge")
+            && new_work("pms.guest-accounts")
+            && new_work("finance.hotel-posting"),
+        purchases: Some(Value::Object(purchases)),
+    })
+}
+
 pub struct PosBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
@@ -919,6 +1142,21 @@ impl<C: Clock + Send + Sync + 'static> CashMovementHttpBackend for PosBackend<C>
     }
 }
 
+
+impl<C: Clock + Send + Sync + 'static> PosWorkspaceHttpBackend for PosBackend<C> {
+    fn read<'a>(
+        &'a self,
+        request: PosWorkspaceHttpRequest<'a>,
+    ) -> PosWorkspaceHttpFuture<'a, PosWorkspaceHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .workspace(request.host, proof, move || Ok(selection), request.query)
+                .await
+                .map_err(business)
+        })
+    }
+}
 #[allow(dead_code)]
 fn _router(targets: Vec<CashMovementHttpTarget>) -> Result<axum::Router, BusinessError> {
     erpx_server_pos::public::cash_movement_http::cash_movement_router(targets)
