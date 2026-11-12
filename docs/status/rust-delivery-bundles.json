@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1223,
+    "revision": 1231,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -20988,7 +20988,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire TS writer in adapters/social-home.ts (33 write statements)",
-        "scope": "G4 per-capability retirement for collaboration: adapters/social-home.ts holds 33 retained write statements of the owner total 219. Classify against packages/server-collaboration/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "scope": "Step-0 native counterpart table (2026-11-13): native social.rs writes social_posts, social_comments, social_mentions, social_topics, social_post_topics, social_comment_topics, social_reactions, social_follows and staff_notifications (Change::PublishPost/PublishComment/EditComment/Tombstone/SetReaction/SetFollow). Native has NO writer for social_post_drafts (TS lines 70/73/86), social_post_participants (99), social_post_sources (100), social_post_revisions (254) or social_reports (327), and no native upload/draft intake. The TS commands remain live from server-operations handover, server-manage_erpx beta-api and server-pms home-api, so even the native-covered subset cannot be deleted without switching those owners. Producer-first block: native draft save/publish-from-draft, participants/sources, revisions, reports and upload/discard are required before any retirement.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -20996,23 +20996,29 @@
           "packages/server-collaboration/Cargo.toml",
           "packages/server-collaboration/package.json",
           "packages/feature-collaboration/**",
-          "fixtures/**",
           "tests/unit/collaboration/**",
           "tests/integration/collaboration/**"
         ],
         "resources": [
           "owner:collaboration"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/social-home.ts, then six-point retirement with the owner KPI pair.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "BLOCKED ON NATIVE PRODUCER: native social.rs covers post/comment/mention/topic/reaction/follow/notification but has no writer for social_post_drafts, social_post_participants, social_post_sources, social_post_revisions, social_reports or upload-discard intake; live TS callers remain in server-operations handover, server-manage_erpx beta-api and server-pms home-api. Implement those native commands and switch those owners before retiring the TS writer; removalTaskId=retire.collaboration.social-home.",
+        "handoff": {
+          "runId": "run-20261113-b",
+          "agentId": "lead",
+          "at": "2026-11-12T20:58:29.787Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "BLOCKED ON NATIVE PRODUCER: native social.rs covers post/comment/mention/topic/reaction/follow/notification but has no writer for social_post_drafts, social_post_participants, social_post_sources, social_post_revisions, social_reports or upload-discard intake; live TS callers remain in server-operations handover, server-manage_erpx beta-api and server-pms home-api. Implement those native commands and switch those owners before retiring the TS writer; removalTaskId=retire.collaboration.social-home."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -29159,6 +29165,139 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "work_projection",
+        "workflowIds": [
+          "shared/work-card-preferences"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "retire.work_projection.work-card-preference-writer",
+        "title": "Retire the dead TypeScript work-card preference writer",
+        "scope": "The workplace work/card-preferences route is native-only (readNativeWorkCardPreferences/saveNativeWorkCardPreferences) and the native Rust work-card preference suite owns the command. The TS saveWorkCardPreferences adapter/application had no production caller and only the integration command oracle exercised it. Delete the TS writer and its unit SQL, keep readWorkCardPreferences for work-summary, drop the public export, and keep the two unrelated capability tests in the same file. Work_projection KPI 42 -> 41.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "packages/server-work_projection/package.json",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/card-preferences/**",
+          "tests/unit/shared.work/**",
+          "tests/integration/shared.work/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "21c39fcbcc21be2184f7d0c4861dbcb8935d8aa9",
+        "implementedCommit": "d03f553260db7322e470f4b132b14e89fcbb2711",
+        "lastPushedSha": "d03f553260db7322e470f4b132b14e89fcbb2711",
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "d03f553260db7322e470f4b132b14e89fcbb2711",
+            "note": "Root typecheck passes after deleting the TS work-card preference command."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "d03f553260db7322e470f4b132b14e89fcbb2711",
+            "note": "Test typecheck passes after keeping only the unrelated capability tests in the oracle file."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.work.work-card-preferences.integration",
+            "result": "passed",
+            "sourceSha": "d03f553260db7322e470f4b132b14e89fcbb2711",
+            "note": "2/2 remaining unrelated capability cases pass; the deleted preference command cases are covered by the native Rust suite."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.work.rust-work-card-preferences-postgres.integration",
+            "result": "passed",
+            "sourceSha": "d03f553260db7322e470f4b132b14e89fcbb2711",
+            "note": "5/5 native Rust work-card preference cases pass including save/replay/version/membership."
+          },
+          {
+            "command": "retirement:ts-writes: work_projection",
+            "result": "passed",
+            "sourceSha": "d03f553260db7322e470f4b132b14e89fcbb2711",
+            "before": 42,
+            "after": 41,
+            "note": "git grep over packages/server-work_projection/src/**/*.ts: 42 before, 41 after. The removed statement was the dead work_card_preferences INSERT.",
+            "residual": [
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar-commands-facts.ts",
+                "writes": 26,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar-reminders-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.work_projection.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.work_projection.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar/reminder-authority.ts",
+                "writes": 1,
+                "removalTaskId": "retire.work_projection.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar/reminder-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.work_projection.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/daily-plan.ts",
+                "writes": 1,
+                "removalTaskId": "retire.work_projection.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/navigation-counts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.work_projection.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/page-layouts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.work_projection.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/quick-access-preferences.ts",
+                "writes": 2,
+                "removalTaskId": "retire.work_projection.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/workflow-projector.ts",
+                "writes": 3,
+                "removalTaskId": "retire.work_projection.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Work_projection residual: calendar commands/facts (26) are producer-first; work-card preference writes are native.",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -29167,21 +29306,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 137,
-      "migratedPackets": 71,
+      "totalPackets": 138,
+      "migratedPackets": 72,
       "statusCounts": {
-        "pending": 26,
+        "pending": 25,
         "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 71,
-        "blocked": 23,
+        "migrated": 72,
+        "blocked": 24,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T20:55:33.245Z",
+    "updatedAt": "2026-11-12T21:04:32.991Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
