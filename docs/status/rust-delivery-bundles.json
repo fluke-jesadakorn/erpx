@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 613,
+    "revision": 616,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-b",
+      "runId": "run-20261112-c",
       "agentId": "lead",
-      "startedAt": "2026-11-12T01:52:42.182Z",
-      "heartbeatAt": "2026-11-12T02:31:08.037Z",
-      "expiresAt": "2026-11-12T03:01:08.037Z",
-      "generation": 27,
-      "tokenHash": "9f491d39a9b36ce8bd2e2507f2a042cf84dd1a6d8824db3c72895c82066396e3"
+      "startedAt": "2026-11-12T03:04:52.750Z",
+      "heartbeatAt": "2026-11-12T03:04:52.750Z",
+      "expiresAt": "2026-11-12T03:34:52.751Z",
+      "generation": 28,
+      "tokenHash": "34c8a7377d02e4b845d5fa5a8fb1b3af450ee07c634f1dc41cdda366a45e90ff"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9748,15 +9748,8 @@
         "resources": [
           "owner:brand"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-b",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T01:55:53.700Z",
-          "heartbeatAt": "2026-11-12T02:31:08.037Z",
-          "expiresAt": "2026-11-12T03:01:08.037Z",
-          "generation": 27
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
         "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
         "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
@@ -9796,14 +9789,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
         "nextAction": "Presentation reads pushed 19580e083 (workspace/document brand, storefront overlay, profiles, executive evidence). Mount request: composition BrandPresentationContext read service; switch work_projection/pms/operations presentation-queries, people_payroll explorer detail, runtime executive brand-evidence. Remaining brand slice: identity-read-port.",
         "handoff": {
-          "runId": "run-20261110-g24",
-          "agentId": "worker-brand",
-          "at": "2026-11-12T01:52:42.182Z",
+          "runId": "run-20261112-b",
+          "agentId": "lead",
+          "at": "2026-11-12T03:04:52.750Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
+          "reason": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
           "nextAction": "Presentation reads pushed 19580e083 (workspace/document brand, storefront overlay, profiles, executive evidence). Mount request: composition BrandPresentationContext read service; switch work_projection/pms/operations presentation-queries, people_payroll explorer detail, runtime executive brand-evidence. Remaining brand slice: identity-read-port."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -10693,15 +10686,8 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-b",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T01:55:53.671Z",
-          "heartbeatAt": "2026-11-12T02:31:08.037Z",
-          "expiresAt": "2026-11-12T03:01:08.037Z",
-          "generation": 27
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
         "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
@@ -10738,15 +10724,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
         "nextAction": "goods-journal-port pushed 19580e083 and verified through the registered suite. Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets.",
         "handoff": {
-          "runId": "run-20261110-g24",
-          "agentId": "worker-finance",
-          "at": "2026-11-12T01:52:42.182Z",
+          "runId": "run-20261112-b",
+          "agentId": "lead",
+          "at": "2026-11-12T03:04:52.750Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
-          "nextAction": "goods-journal-port pushed 19580e083 (receipt/delivery journal + Company functional-FX valuation on caller transaction). Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets."
+          "reason": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
+          "nextAction": "goods-journal-port pushed 19580e083 and verified through the registered suite. Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-finance",
@@ -12879,14 +12865,7 @@
           "owner:ecommerce"
         ],
         "status": "blocked",
-        "claim": {
-          "runId": "run-20261112-b",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T01:57:16.972Z",
-          "heartbeatAt": "2026-11-12T02:31:08.037Z",
-          "expiresAt": "2026-11-12T03:01:08.037Z",
-          "generation": 27
-        },
+        "claim": null,
         "baseSha": "c5d734cf8895f5a064a1b692f945a516212d19d9",
         "implementedCommit": "dd392c70c19e127c2c1fe61a1e6514f8364b7523",
         "lastPushedSha": null,
@@ -12907,15 +12886,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
         "nextAction": "BLOCKED on native producer ports before mount/switch: (1) Commerce active_product + functional_currency read port over commerce_products/Company currency, (2) Finance snapshotMoney port (money_transaction_snapshots capture for source_type=ecommerce_listing, amount_kind=unit_price, scale 2) which has no Rust implementation yet and belongs to migrate.finance. Listing owner code and 42/42 tests are complete at dd392c70c; mount EcommerceListingHttpTarget + ecommerce_listing_router after those ports land, then re-point the Next entity===\"listing\" branch and delete TS createListing.",
         "handoff": {
-          "runId": "run-20261110-g24",
-          "agentId": "worker-ecommerce",
-          "at": "2026-11-12T01:36:14.623Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Lead: mount ecommerce_listing_router + backend, switch the Next listing branch, retire TS createListing, then rerun the two registered suites after the PMS untracked suite is registered."
+          "runId": "run-20261112-b",
+          "agentId": "lead",
+          "at": "2026-11-12T03:04:52.750Z",
+          "previousStatus": "blocked",
+          "reason": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
+          "nextAction": "BLOCKED on native producer ports before mount/switch: (1) Commerce active_product + functional_currency read port over commerce_products/Company currency, (2) Finance snapshotMoney port (money_transaction_snapshots capture for source_type=ecommerce_listing, amount_kind=unit_price, scale 2) which has no Rust implementation yet and belongs to migrate.finance. Listing owner code and 42/42 tests are complete at dd392c70c; mount EcommerceListingHttpTarget + ecommerce_listing_router after those ports land, then re-point the Next entity===\"listing\" branch and delete TS createListing."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-ecommerce",
@@ -13798,14 +13777,14 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261112-b",
+          "runId": "run-20261112-c",
           "agentId": "worker-pms",
-          "claimedAt": "2026-11-12T01:53:46.584Z",
-          "heartbeatAt": "2026-11-12T02:31:08.037Z",
-          "expiresAt": "2026-11-12T03:01:08.037Z",
-          "generation": 27
+          "claimedAt": "2026-11-12T03:04:57.858Z",
+          "heartbeatAt": "2026-11-12T03:04:57.858Z",
+          "expiresAt": "2026-11-12T03:34:57.858Z",
+          "generation": 28
         },
-        "baseSha": "786f6503d984dce5214f042d2e0e82724b3cee61",
+        "baseSha": "944884f5468d50813c63b81acb5cf65566a80ade",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -13918,18 +13897,68 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.rust-pms-room-command.unit",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.rust-pms-stay-room.unit",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "bun run test:integration -- --suite=pms.rust-pms-room-command-postgres.integration",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "bun run test:integration -- --suite=pms.rust-stay-room-postgres.integration",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "bun run test:integration -- --suite=pms.rust-pms-http.integration",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "bun run test:integration -- --suite=pms.pms.integration",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Room/housekeeping commands pushed c41bc2a19 (remote verified): room.save/dnd/observe + task assign/start/complete/inspect, PG/http/router + composition mount, writer lock SHARE ROW EXCLUSIVE, stay unit-test parity fix included. Remaining pms packets: reservations/booking lifecycle, guest cashier/stock, night audit/reports/settings.",
+        "nextAction": "Packet migrate.pms.stay_front_desk_commands COMPLETE and pushed 9f96ad765: stay assign/move, room save/dnd/observe, room_type.save, task create/assign/start/complete/inspect, maintenance open/close, block create/release with PG+HTTP+TS integration checks. Remaining pms packets: reservations/booking lifecycle, guest cashier/minibar-linen stock, night audit/reports/settings.",
         "handoff": {
-          "runId": "run-20261110-g24",
+          "runId": "run-20261112-b",
           "agentId": "worker-pms",
-          "at": "2026-11-12T01:52:42.182Z",
+          "at": "2026-11-12T03:04:52.750Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
-          "nextAction": "worker-pms implementing stay_room_postgres/stay_room_http/public against existing domain/application; lead then adds catalogue registration + composition PmsService command mount, runs cargo/unit/PG checks and commits only pms paths"
+          "reason": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
+          "nextAction": "Room/housekeeping commands pushed c41bc2a19 (remote verified): room.save/dnd/observe + task assign/start/complete/inspect, PG/http/router + composition mount, writer lock SHARE ROW EXCLUSIVE, stay unit-test parity fix included. Remaining pms packets: reservations/booking lifecycle, guest cashier/stock, night audit/reports/settings."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pms",
@@ -16335,15 +16364,8 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-b",
-          "agentId": "worker-people",
-          "claimedAt": "2026-11-12T02:29:03.569Z",
-          "heartbeatAt": "2026-11-12T02:31:08.037Z",
-          "expiresAt": "2026-11-12T03:01:08.037Z",
-          "generation": 27
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "628b48a1087fbccd9936608693aa3dc76031cc97",
         "lastPushedSha": "786f6503d984dce5214f042d2e0e82724b3cee61",
@@ -16368,9 +16390,16 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
         "nextAction": "employees packet native and pushed (628b48a10 in 786f6503d): save_person/record/status, engagement create+transition, compensation create+transition, person detail; registered suites 9/9 + 6/6. Mount blocked on three composition ports: Organization placement/history/roster, Identity account link/revocation, Finance money snapshot. Remaining packets: leave-requests, expenses.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-b",
+          "agentId": "worker-people",
+          "at": "2026-11-12T03:04:52.750Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
+          "nextAction": "employees packet native and pushed (628b48a10 in 786f6503d): save_person/record/status, engagement create+transition, compensation create+transition, person detail; registered suites 9/9 + 6/6. Mount blocked on three composition ports: Organization placement/history/roster, Identity account link/revocation, Finance money snapshot. Remaining packets: leave-requests, expenses."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-people-payroll",
         "plannedPackage": "erpx-server-people-payroll",
@@ -16541,17 +16570,17 @@
       "migratedPackets": 23,
       "statusCounts": {
         "pending": 11,
-        "in_progress": 4,
+        "in_progress": 1,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 23,
-        "blocked": 7,
+        "blocked": 10,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 27,
-    "updatedAt": "2026-11-12T02:48:50.971Z",
+    "lastCoordinatorGeneration": 28,
+    "updatedAt": "2026-11-12T03:04:57.883Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16594,10 +16623,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g24",
-      "runId": "run-20261112-b",
-      "at": "2026-11-12T01:52:42.184Z",
-      "reason": "run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
+      "previousRunId": "run-20261112-b",
+      "runId": "run-20261112-c",
+      "at": "2026-11-12T03:04:52.751Z",
+      "reason": "run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
       "wipReviewed": true,
       "previousRunStopped": true
     }
