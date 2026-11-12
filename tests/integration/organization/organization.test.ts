@@ -3,7 +3,8 @@ import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-
 import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import {organizationOverview,installStaffLevels,savePosition,positionSchema,saveOrganizationTemplate,applyOrganizationTemplate,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {organizationOverview,savePosition,positionSchema,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {installStaffLevels} from '../../support/helpers/organization-levels';
 import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import { directoryUpdateSchema,saveDirectoryPerson,setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
 import { grantPersonAccess,revokePersonAccess } from "@erpx/server-identity_access/public/account-access";
@@ -110,14 +111,6 @@ it("defaults new Positions to backoffice and preserves roster requirement on omi
   const renamed=positionSchema.parse({title:"Operations specialist",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,expectedVersion:2,reason:"Clarify title"});
   await savePosition(db,hr,staffPosition,renamed,key());
   expect((await db.prepare("SELECT roster_required FROM organization_positions WHERE id=?").bind(staffPosition).first<{roster_required:number}>())?.roster_required).toBe(1);
-});
-it("reviews a reusable template, reuses the CEO, adds vacancies and never grants roles",async()=>{
-  const template=await saveOrganizationTemplate(db,hr,null,{name:"Small team",expectedVersion:0,positions:[{key:"ceo",title:"CEO",levelNumber:1,reportsToKey:null,isCeo:true,rosterRequired:false},{key:"staff",title:"Team staff",levelNumber:6,reportsToKey:"ceo",isCeo:false,rosterRequired:false}]},key());
-  const before=await db.prepare("SELECT count(*) n FROM assignments WHERE company_id=?").bind(f.company).first();
-  const input={expectedVersion:1,branchId:f.branch,departmentId:f.department,reason:"Reviewed branch expansion"};const command=key();
-  await applyOrganizationTemplate(db,hr,String(template.id),input,command);await applyOrganizationTemplate(db,hr,String(template.id),input,command);
-  const data=await organizationOverview(db,hr);expect(data.positions.filter(p=>p.is_ceo)).toHaveLength(1);expect(data.positions.filter(p=>p.title==="Team staff")).toHaveLength(1);
-  expect(await db.prepare("SELECT count(*) n FROM assignments WHERE company_id=?").bind(f.company).first()).toEqual(before);
 });
 it("routes HR grants through fresh MFA and review while preventing self changes and broader scope",async()=>{
   await expect(grantPersonAccess(hr,`person-${f.claimant.userId}`,{role:"treasury",scope:"department",expiresAt:"2027-01-01"},key())).rejects.toMatchObject({code:"FRESH_MFA_REQUIRED"});

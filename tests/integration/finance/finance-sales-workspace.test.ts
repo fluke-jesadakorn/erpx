@@ -205,7 +205,7 @@ async function zeroLedgerSalesCompany() {
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),salesManager=await actor('sales-manager','sales_manager'),treasury=await actor('treasury','treasury');
-  const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');
+  const {savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');const {installStaffLevels}=await import('../../support/helpers/organization-levels');
   await installStaffLevels(db,owner,key());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),key())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[salesManager,3],[treasury,4]] as const){

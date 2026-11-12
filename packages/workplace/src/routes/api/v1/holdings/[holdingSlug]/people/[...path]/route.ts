@@ -14,7 +14,7 @@ import {saveSpendingTemplate,spendingTemplateSchema} from '@erpx/server-people_p
 import { expenseRoute } from "@erpx/server-people_payroll/public/expense-routing";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
-import {organizationOverview,positionSchema,savePosition,organizationTemplateSchema,saveOrganizationTemplate,applyOrganizationTemplateSchema,applyOrganizationTemplate,installStaffLevels,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {organizationOverview,positionSchema,savePosition,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
 import { nativeOrganizationChange, nativeOrganizationFailure, nativeOrganizationOverview, nativeOrganizationPositionMoveCommand, nativeOrganizationPositionMoveList, nativeOrganizationWorkspace } from "@erpx/feature-organization/lib/native-organization";
 import { ownedPeoplePayrollRun, ownedPeoplePayrollRuns, ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
 import { nativePeoplePayrollCommand, nativePeoplePayrollFailure, peoplePayrollPageContext } from "@erpx/feature-people_payroll/public/native-payroll-summary-page";
@@ -219,6 +219,8 @@ export async function POST(request: Request, context: Context) {
       catch(error){const failure=nativeOrganizationFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}
       if(native)return Response.json(canonicalDestinationLinks({data:native}),{headers:{"Cache-Control":"private, no-store"}});
       if(p[1]==="position-moves")throw new ApiError(503,"NATIVE_ORGANIZATION_UNAVAILABLE","The native organization position-move service is unavailable.");
+      if(p[1]==="levels" && p.length===2)throw new ApiError(503,"NATIVE_ORGANIZATION_UNAVAILABLE","The native organization level catalog is unavailable.");
+      if(p[1]==="templates" && (p.length===2 || p.length===3 || (p.length===4 && p[3]==="apply")))throw new ApiError(503,"NATIVE_ORGANIZATION_UNAVAILABLE","The native organization template service is unavailable.");
       const {write}=await holdingResources(actor.holdingId);
       if(p[1]==="changes"&&p[2]==="preview"&&p.length===3)return Response.json(canonicalDestinationLinks({data:await previewOrganizationNodeChange(write,actor,parsed(organizationNodeChangeSchema.safeParse(input)))}));
       if(p[1]==="positions" && p[2] && p[3]==="default-pay")return Response.json(canonicalDestinationLinks({data:await savePositionPayDefault(write,actor,p[2],parsed(positionPayInput.safeParse(input)),id)}));
@@ -227,14 +229,11 @@ export async function POST(request: Request, context: Context) {
       if(p[1]==="acceptance" && p[2]==="submit") return Response.json(canonicalDestinationLinks({data:await submitCompanyBusinessAcceptance(write,actor,parsed(companyAcceptanceSubmitSchema.safeParse(input)),id)}));
       if(p[1]==="acceptance" && p[2]==="review") return Response.json(canonicalDestinationLinks({data:await decideCompanyBusinessAcceptance(write,actor,parsed(companyAcceptanceDecisionSchema.safeParse(input)),id)}));
       if(p[1]==="acceptance" && p[2]==="revoke") return Response.json(canonicalDestinationLinks({data:await revokeCompanyBusinessAcceptance(write,actor,parsed(companyAcceptanceRevokeSchema.safeParse(input)),id)}));
-      if(p[1]==="levels" && p.length===2)return Response.json(canonicalDestinationLinks({data:await installStaffLevels(write,actor,id)}));
       if(p[1]==="changes"&&["draft","submit"].includes(p[2])&&p.length===3)return Response.json(canonicalDestinationLinks({data:await saveOrganizationNodeChange(write,actor,null,parsed(organizationNodeChangeSchema.safeParse(input)),id,p[2]==="submit")}));
       if(p[1]==="changes"&&p[2]&&["draft","submit"].includes(p[3]))return Response.json(canonicalDestinationLinks({data:await saveOrganizationNodeChange(write,actor,p[2],parsed(organizationNodeChangeSchema.safeParse(input)),id,p[3]==="submit")}));
       if(p[1]==="changes"&&p[2]&&p[3]==="review")return Response.json(canonicalDestinationLinks({data:await decideOrganizationNodeChange(write,actor,p[2],parsed(organizationNodeDecisionSchema.safeParse(input)),id)}));
       if(p[1]==="changes"&&p[2]&&p[3]==="cancel"){const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input));return Response.json(canonicalDestinationLinks({data:await cancelOrganizationNodeChange(write,actor,p[2],data.expectedVersion,id)}));}
       if(p[1]==="positions" && p.length<=3)return Response.json(canonicalDestinationLinks({data:await savePosition(write,actor,p[2]??null,parsed(positionSchema.safeParse(input)),id)}));
-      if(p[1]==="templates" && p[3]==="apply")return Response.json(canonicalDestinationLinks({data:await applyOrganizationTemplate(write,actor,p[2],parsed(applyOrganizationTemplateSchema.safeParse(input)),id)}));
-      if(p[1]==="templates" && p.length<=3)return Response.json(canonicalDestinationLinks({data:await saveOrganizationTemplate(write,actor,p[2]??null,parsed(organizationTemplateSchema.safeParse(input)),id)}));
     }
     if(p[0]==="directory"&&p[2]==="invite")return Response.json(canonicalDestinationLinks({data:await invitePerson(actor,p[1],parsed(grantSchema.safeParse(input)),id)}));
     if(p[0]==="directory"&&p[2]==="invitations"&&p[3]&&p[4]==="retry")return Response.json(canonicalDestinationLinks({data:await retryInvitationDelivery(actor,p[1],p[3],id)}));

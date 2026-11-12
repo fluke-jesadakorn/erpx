@@ -32,7 +32,7 @@ export async function seedZeroReferencePartsCompany(db:PostgresDatabase,options:
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),serviceReviewer=await actor('service-reviewer','holding_owner'),technician=await actor('technician','employee');
-  const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');
+  const {savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');const {installStaffLevels}=await import('../../../tests/support/helpers/organization-levels');
   await installStaffLevels(db,owner,key());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),key())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[serviceReviewer,3],[technician,4]] as const){

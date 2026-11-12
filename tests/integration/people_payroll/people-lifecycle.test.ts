@@ -5,7 +5,8 @@ import {
   expenseDb as raw,
   key,
 } from "../../support/helpers/expense-fixture";
-import {installStaffLevels,savePosition,positionSchema} from '@erpx/server-organization/public/organization';
+import {savePosition,positionSchema} from '@erpx/server-organization/public/organization';
+import {installStaffLevels} from '../../support/helpers/organization-levels';
 import {
   peopleLifecycleData,
   previewPackage,

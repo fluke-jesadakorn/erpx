@@ -1,7 +1,8 @@
 import { afterEach,beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import {installStaffLevels,positionSchema,savePosition,decideOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {positionSchema,savePosition,decideOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {installStaffLevels} from '../../support/helpers/organization-levels';
 import { openOrganizationDraft, saveOrganizationDraft, getOrganizationDraft, previewOrganizationDraft, submitOrganizationDraft, drainOrganizationDrafts } from "@erpx/server-organization/public/organization-drafts";
 import { emptyDraft, draftDefinitionSchema, type DraftItem } from "@erpx/feature-organization/lib/organization-draft";
 import { lifecycleInput } from "@erpx/feature-people_payroll/lib/people-lifecycle";

@@ -528,7 +528,7 @@ async function zeroWorkerLearningCompany(purchased=true){
   actor.iam=await loadIamAuthority(db,company,userId,role,sessionId);return actor;
  }
  const owner=await account('company-hr-owner','holding_owner'),contributor=await account('learning-participant');
- const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');await installStaffLevels(db,owner,key());
+ const {savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');const {installStaffLevels}=await import('../../support/helpers/organization-levels');await installStaffLevels(db,owner,key());
  const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Actual first Company leader',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Normal Organization prepares the first worker position'}),key())).id);
  const worker=String((await savePosition(db,owner,null,positionSchema.parse({title:'Actual Learning participant',levelId:`org-level-${company}-6`,branchId:branch,departmentId:department,isCeo:false,reportsToPositionId:ceo,expectedVersion:0,reason:'Normal Organization prepares the explicit Learning worker position'}),key())).id);
  const store=packageGrantStore(db,{authorize:async(_tx,id)=>{if(id!==company)throw Error('PROJECT_WORKER_FIXTURE_COMPANY');return {userId:'isolated-learning-worker-provider'};},obligations:async()=>{throw Error('PROJECT_WORKER_FIXTURE_CANNOT_INACTIVATE');}});

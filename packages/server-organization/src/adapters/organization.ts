@@ -27,7 +27,7 @@ import {canReadOrganizationChanges,organizationChangeNotice} from '@erpx/server-
 import {organizationMemberSql} from '@erpx/server-organization/adapters/organization-channels';
 import {canSeeDefaultPay,defaultCatalog} from '@erpx/server-organization/adapters/staff-defaults';
 import {createOrganizationApplication,type OrganizationPorts,type RelocationAuthority} from '@erpx/server-organization/application/organization';
-import type {ChangeFilters,NodeChangeInput,NodeDecisionInput,PositionInput,TemplateInput,ApplyTemplateInput} from '@erpx/server-organization/domain/organization';
+import type {ChangeFilters,NodeChangeInput,NodeDecisionInput,PositionInput} from '@erpx/server-organization/domain/organization';
 export {positionSchema,organizationTemplateSchema,applyOrganizationTemplateSchema,organizationNodeChangeSchema,organizationNodeDecisionSchema} from '@erpx/server-organization/domain/organization';
 import {organizationGuard}from '@erpx/server-organization/public/organization-graph-guard';
 import {organizationRoster}from '@erpx/server-organization/public/organization-roster-read';
@@ -140,14 +140,7 @@ savePosition:async(actor,id,input,key,guard,rosterRequired,exiting,now)=>{const 
     db.prepare("UPDATE organization_positions SET requirements=? WHERE id=? AND company_id=?").bind(input.requirements,recordId,actor.companyId),
     ...rosterPositionExitStatements(db,actor,exiting,key,input.reason),
   ]);
-},installLevels:async(actor,key,titles)=>{
-  return executeCommand(db,actor,key,"organization.levels.install",{},actor.companyId,1,{id:actor.companyId},titles.map((name,index)=>db.prepare("INSERT INTO staff_levels(id,company_id,code,name,rank,level_number,active,created_at,updated_at) VALUES(?,?,?,?,?,?,1,?,?) ON CONFLICT DO NOTHING").bind(`org-level-${actor.companyId}-${index+1}`,actor.companyId,`ORG_L${index+1}`,name,-index-1,index+1,Date.now(),Date.now())));
-},saveTemplate:async(actor,id,input,key)=>{const recordId=id??`org-template-${key}`,version=input.expectedVersion+1;
-  return executeCommand(db,actor,key,"organization.template.save",input,recordId,version,{id:recordId,version},[
-    ...(id?[assertion(db,key,"template-version","EXISTS(SELECT 1 FROM organization_templates WHERE id=? AND company_id=? AND version=?)",[id,actor.companyId,input.expectedVersion])]:[]),
-    db.prepare("INSERT INTO organization_templates(id,company_id,name,positions_json,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,positions_json=excluded.positions_json,version=excluded.version,updated_at=excluded.updated_at").bind(recordId,actor.companyId,input.name,JSON.stringify(input.positions),version,actor.userId,Date.now(),Date.now()),
-  ]);
-},template:(companyId,id)=>db.prepare('SELECT positions_json,version FROM organization_templates WHERE id=? AND company_id=?').bind(id,companyId).first<{positions_json:string;version:number}>(),ceoPosition:companyId=>db.prepare('SELECT id FROM organization_positions WHERE company_id=? AND is_ceo=1 AND active=1').bind(companyId).first<{id:string}>(),stageTemplatePosition:(actor,input,p,id,levelId,parentId)=>db.prepare('INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,is_ceo,roster_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,actor.companyId,input.branchId,input.departmentId,p.title,levelId,parentId,p.isCeo?1:0,p.rosterRequired?1:0,actor.userId,Date.now(),Date.now()),applyTemplate:(actor,id,input,key,guard,positionIds,stages)=>executeCommand(db,actor,key,'organization.template.apply',input,id,input.expectedVersion,{id,positionIds},[guard,assertion(db,key,'template-version','EXISTS(SELECT 1 FROM organization_templates WHERE id=? AND company_id=? AND version=?)',[id,actor.companyId,input.expectedVersion]),...stages])};}
+},template:(companyId,id)=>db.prepare('SELECT positions_json,version FROM organization_templates WHERE id=? AND company_id=?').bind(id,companyId).first<{positions_json:string;version:number}>(),ceoPosition:companyId=>db.prepare('SELECT id FROM organization_positions WHERE company_id=? AND is_ceo=1 AND active=1').bind(companyId).first<{id:string}>()};}
 async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 const application=(db:SqlDatabase)=>createOrganizationApplication(portsFor(db));
 export const organizationOverview=(db:SqlDatabase,actor:WorkContext,query:Record<string,unknown>={})=>invoke(()=>application(db).overview(actor,query));
@@ -155,8 +148,5 @@ export const saveOrganizationNodeChange=(db:SqlDatabase,actor:WorkContext,id:str
 export const previewOrganizationNodeChange=(db:SqlDatabase,actor:WorkContext,input:NodeChangeInput)=>invoke(()=>application(db).previewChange(actor,input));
 export const decideOrganizationNodeChange=(db:SqlDatabase,actor:WorkContext,id:string,input:NodeDecisionInput,key:string)=>invoke(()=>application(db).reviewChange(actor,id,input,key));
 export const cancelOrganizationNodeChange=(db:SqlDatabase,actor:WorkContext,id:string,version:number,key:string)=>invoke(()=>application(db).cancelChange(actor,id,version,key));
-export const installStaffLevels=(db:SqlDatabase,actor:WorkContext,key:string)=>invoke(()=>application(db).installLevels(actor,key));
 export const savePosition=(db:SqlDatabase,actor:WorkContext,id:string|null,input:PositionInput,key:string)=>invoke(()=>application(db).savePosition(actor,id,input,key));
-export const saveOrganizationTemplate=(db:SqlDatabase,actor:WorkContext,id:string|null,input:TemplateInput,key:string)=>invoke(()=>application(db).saveTemplate(actor,id,input,key));
-export const applyOrganizationTemplate=(db:SqlDatabase,actor:WorkContext,id:string,input:ApplyTemplateInput,key:string)=>invoke(()=>application(db).applyTemplate(actor,id,input,key));
 export const validateStaffOrganization=(db:SqlDatabase,companyId:string,person:Pick<OrganizationPerson,'person_id'|'branch_id'|'department_id'|'position_id'|'level_id'|'manager_person_id'>,required:boolean)=>invoke(()=>application(db).validateStaff(companyId,person,required));
