@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 951,
+    "revision": 959,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T13:50:50.821Z",
-      "expiresAt": "2026-11-12T14:20:50.821Z",
+      "heartbeatAt": "2026-11-12T14:01:00.201Z",
+      "expiresAt": "2026-11-12T14:31:00.201Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -13960,8 +13960,8 @@
           "runId": "run-20261112-r",
           "agentId": "lead",
           "claimedAt": "2026-11-12T13:53:12.437Z",
-          "heartbeatAt": "2026-11-12T13:53:12.437Z",
-          "expiresAt": "2026-11-12T14:23:12.438Z",
+          "heartbeatAt": "2026-11-12T14:01:00.201Z",
+          "expiresAt": "2026-11-12T14:31:00.201Z",
           "generation": 43
         },
         "baseSha": null,
@@ -19973,8 +19973,8 @@
           "runId": "run-20261112-r",
           "agentId": "lead",
           "claimedAt": "2026-11-12T13:38:46.765Z",
-          "heartbeatAt": "2026-11-12T13:50:50.821Z",
-          "expiresAt": "2026-11-12T14:20:50.821Z",
+          "heartbeatAt": "2026-11-12T14:01:00.201Z",
+          "expiresAt": "2026-11-12T14:31:00.201Z",
           "generation": 43
         },
         "baseSha": null,
@@ -22311,7 +22311,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Support TypeScript SQL writers",
-        "scope": "Classify the 21 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: service-teams 7, ticket-portal 5, ticket-portal-customer 5, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Classify the 19 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: service-teams 7, ticket-portal 5, ticket-portal-customer 5, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -22610,8 +22610,8 @@
           "runId": "run-20261112-r",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T13:09:34.797Z",
-          "heartbeatAt": "2026-11-12T13:50:50.821Z",
-          "expiresAt": "2026-11-12T14:20:50.821Z",
+          "heartbeatAt": "2026-11-12T14:01:00.201Z",
+          "expiresAt": "2026-11-12T14:31:00.201Z",
           "generation": 43
         },
         "baseSha": null,
@@ -23188,6 +23188,108 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.support.evidence-command",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/feature-attachments"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the Support evidence bind/revoke TS writers",
+        "scope": "The native Support evidence route already owns bind-evidence/revoke-evidence. Remove the TS bindSupportEvidence/revokeSupportEvidence adapter/application/barrels, seed bound/revoked evidence owner rows for retained read/portal tests, and keep the remaining planner event write bound to retire.support.residual-writers. KPI support-evidence.ts 2 -> 0 and support owner 21 -> 19.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/feature-support/**",
+          "fixtures/**",
+          "tests/support/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "d2fa43da89a49979324c1f79063252df03420ca1",
+        "lastPushedSha": "d2fa43da89a49979324c1f79063252df03420ca1",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d2fa43da89a49979324c1f79063252df03420ca1",
+            "before": 21,
+            "after": 19,
+            "note": "The remaining 19 writes are service-teams/ticket-portal/evidence-planning/attachment-purchases, bound to retire.support.residual-writers."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "d2fa43da89a49979324c1f79063252df03420ca1",
+            "note": "33 modules, 1183 suites."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "d2fa43da89a49979324c1f79063252df03420ca1"
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "d2fa43da89a49979324c1f79063252df03420ca1"
+          },
+          {
+            "command": "bunx tsc --noEmit -p tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "d2fa43da89a49979324c1f79063252df03420ca1",
+            "note": "No test type errors in support evidence/customer-access/engineering helper paths."
+          },
+          {
+            "command": "bun run test:unit -- --suite=support.services.unit",
+            "result": "passed",
+            "sourceSha": "d2fa43da89a49979324c1f79063252df03420ca1",
+            "note": "52/52; bind/revoke command tests removed with the dead TS use cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.evidence.integration",
+            "result": "passed",
+            "sourceSha": "d2fa43da89a49979324c1f79063252df03420ca1",
+            "note": "12/12; bound/revoked evidence is seeded as owner rows, upload/scan/read coverage retained."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.workplace-journeys.engineering-workplace-platform-attachments.integration -t \"support_ticket/\"",
+            "result": "passed",
+            "sourceSha": "d2fa43da89a49979324c1f79063252df03420ca1",
+            "note": "3/3 support_ticket owner-intake cases."
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/support-evidence.ts",
+            "result": "passed",
+            "sourceSha": "d2fa43da89a49979324c1f79063252df03420ca1",
+            "before": 2,
+            "after": 0,
+            "note": "TS bind/revoke writers, use cases and barrel exports are gone; native Support evidence route is the only bind/revoke authority. The remaining planner event write stays bound to retire.support.residual-writers."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Support evidence bind/revoke is native-only: TS writers/use cases/barrels deleted; tests seed bound/revoked owner rows; support-evidence.ts 2->0 and owner 21->19. Pushed d2fa43da8.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -23196,21 +23298,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 113,
-      "migratedPackets": 47,
+      "totalPackets": 114,
+      "migratedPackets": 48,
       "statusCounts": {
         "pending": 34,
         "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 47,
+        "migrated": 48,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:53:12.477Z",
+    "updatedAt": "2026-11-12T14:01:00.293Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
