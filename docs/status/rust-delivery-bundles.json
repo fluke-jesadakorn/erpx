@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 839,
+    "revision": 841,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -20239,15 +20239,22 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-o",
+          "agentId": "worker-finance",
+          "claimedAt": "2026-11-12T11:17:40.572Z",
+          "heartbeatAt": "2026-11-12T11:17:40.572Z",
+          "expiresAt": "2026-11-12T11:47:40.572Z",
+          "generation": 40
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/finance.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Worker retiring the first finance writer batch (AI/due-drafts, supplier payments, tax/consolidation/accruals, instruments/asset-policies/refunds) with native-authority proof per file; KPI 382 baseline, residual must be re-classified to the new after value.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -21633,8 +21640,8 @@
       "totalPackets": 96,
       "migratedPackets": 39,
       "statusCounts": {
-        "pending": 30,
-        "in_progress": 2,
+        "pending": 29,
+        "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 1,
         "migrated": 39,
@@ -21644,7 +21651,7 @@
       }
     },
     "lastCoordinatorGeneration": 40,
-    "updatedAt": "2026-11-12T11:16:26.758Z",
+    "updatedAt": "2026-11-12T11:18:11.136Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
