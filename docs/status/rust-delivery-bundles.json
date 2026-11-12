@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1264,
+    "revision": 1267,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-c",
       "agentId": "lead",
       "startedAt": "2026-11-12T21:18:48.018Z",
-      "heartbeatAt": "2026-11-12T22:03:04.755Z",
-      "expiresAt": "2026-11-12T22:33:04.755Z",
+      "heartbeatAt": "2026-11-12T22:04:53.074Z",
+      "expiresAt": "2026-11-12T22:34:53.074Z",
       "generation": 47,
       "tokenHash": "91a1002fa2a1a47f0b2fca58abc16158516e2acc4bf018d2c5fa1d969162a3a1"
     },
@@ -22536,8 +22536,8 @@
           "runId": "run-20261113-c",
           "agentId": "worker-workflow-retire",
           "claimedAt": "2026-11-12T21:38:26.941Z",
-          "heartbeatAt": "2026-11-12T22:03:04.755Z",
-          "expiresAt": "2026-11-12T22:33:04.755Z",
+          "heartbeatAt": "2026-11-12T22:04:53.074Z",
+          "expiresAt": "2026-11-12T22:34:53.074Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29451,8 +29451,8 @@
           "runId": "run-20261113-c",
           "agentId": "lead",
           "claimedAt": "2026-11-12T21:18:59.466Z",
-          "heartbeatAt": "2026-11-12T22:03:04.755Z",
-          "expiresAt": "2026-11-12T22:33:04.755Z",
+          "heartbeatAt": "2026-11-12T22:04:53.074Z",
+          "expiresAt": "2026-11-12T22:34:53.074Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29469,7 +29469,7 @@
           "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
           "nextAction": "Implement the collaboration-side native draft/publish/edit/report/upload commands with Rust unit+PG tests, then hand off the three caller switches (operations caller waits for its active claim to release)."
         },
-        "nextAction": "Native ModeratePost pushed at 21acc72db (unit 13/13, PG 9/9). Wiring can_hide_posts in src/composition/src/collaboration.rs is BLOCKED by the active retire.customer_authority.remaining-writers claim on src/composition/src/**; removalTaskId=retire.customer_authority.remaining-writers. Native handover publish (server-operations publishHandover -> savePostDraft/publishPost) still needs a handover command with sources/recipients/receipt; handover remains TS. After composition wiring + handover, switch the last callers and delete the TS social-home writer/barrels with Collaboration KPI before/after.",
+        "nextAction": "Native ModeratePost pushed at 21acc72db. Remaining blockers: (1) can_hide_posts wiring in src/composition/src/collaboration.rs is blocked by the active retire.customer_authority.remaining-writers claim on src/composition/src/** (removalTaskId recorded); (2) the last TS social-home write caller is operations publishHandover, now tracked as migrate.operations.handover-publish (needs a native handover command with task/PMS facts, recipients, sources and receipt). After both land, switch the last callers and delete the TS social-home writer/barrels with Collaboration KPI before/after.",
         "scopeRefinementRequired": false
       },
       {
@@ -29516,8 +29516,8 @@
           "runId": "run-20261113-c",
           "agentId": "worker-ca-access-duplicates",
           "claimedAt": "2026-11-12T21:23:12.405Z",
-          "heartbeatAt": "2026-11-12T22:03:04.755Z",
-          "expiresAt": "2026-11-12T22:33:04.755Z",
+          "heartbeatAt": "2026-11-12T22:04:53.074Z",
+          "expiresAt": "2026-11-12T22:34:53.074Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29574,6 +29574,53 @@
         "handoff": null,
         "nextAction": "Add the native Files revoke/expire-draft-uploads port, wire it into the collaboration upload-cancel unit, then implement the four native social upload commands with Rust unit+PG tests.",
         "scopeRefinementRequired": false
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "operations",
+        "workflowIds": [
+          "operations/handover"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "migrate.operations.handover-publish",
+        "title": "Native handover publish command (post + sources + recipients + receipt)",
+        "scope": "The pms/operations handover publish is the last live caller of the TS social-home savePostDraft/publishPost writers. It validates the current daily snapshot, selected staff tasks and PMS records, recipient readability, saves a handover draft (purpose=handover, sources, participants), publishes the post, and records the handover receipt/notifications in one owner transaction. Port that flow to a native command: collaboration owns the post/draft rows and audience/participants/sources; operations supplies the current task/PMS/people facts through existing owner ports; the command must keep the same receipt, source-version checks, participant readability and atomic rollback. Then switch the pms front `/home/handover` route to the native command and remove the TS savePostDraft/publishPost calls from server-operations handover. KPI removal is recorded under migrate.collaboration.social-draft-commands once the social-home writer can be deleted.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "packages/server-operations/Cargo.toml",
+          "packages/server-operations/package.json",
+          "packages/server-pms/src/**",
+          "packages/server-collaboration/src/**",
+          "packages/feature-collaboration/**",
+          "packages/feature-operations/**",
+          "src/composition/src/**",
+          "tests/unit/operations/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/operations/**",
+          "tests/integration/collaboration/**",
+          "tests/support/helpers/**"
+        ],
+        "resources": [
+          "owner:operations",
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Design the native handover command against the current TS publishHandover ports, then implement the draft/post/recipient/source/receipt unit with Rust unit+PG tests and switch the pms /home/handover route.",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -29582,10 +29629,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 141,
+      "totalPackets": 142,
       "migratedPackets": 73,
       "statusCounts": {
-        "pending": 25,
+        "pending": 26,
         "in_progress": 6,
         "ready_for_integration": 10,
         "integrating": 0,
@@ -29596,7 +29643,7 @@
       }
     },
     "lastCoordinatorGeneration": 47,
-    "updatedAt": "2026-11-12T22:03:04.796Z",
+    "updatedAt": "2026-11-12T22:04:53.107Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
