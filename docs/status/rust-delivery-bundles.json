@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1144,
+    "revision": 1149,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21896,22 +21896,121 @@
         "resources": [
           "owner:sales"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-b",
-          "agentId": "worker-sales-native",
-          "claimedAt": "2026-11-12T19:21:40.593Z",
-          "heartbeatAt": "2026-11-12T19:21:40.593Z",
-          "expiresAt": "2026-11-12T19:51:40.593Z",
-          "generation": 46
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+        "lastPushedSha": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-sales/src",
+            "result": "passed",
+            "before": 36,
+            "after": 29,
+            "sourceSha": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-sales/src/adapters/notification-reconciliation.ts",
+                "writes": 3,
+                "removalTaskId": "retire.sales.notification-reconciliation",
+                "removalCondition": "Native provider-truth reconciliation command and workplace route replace the TS reconcile writer."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/pricing.ts",
+                "writes": 7,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native sales pricing command/read port."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notes.ts",
+                "writes": 6,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native sales notes command/read port."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/followups.ts",
+                "writes": 4,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native sales follow-up command/read port."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notifications.ts",
+                "writes": 3,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Retained queue/settings/retry command port; delivery writer already native."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/pricing-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native pricing purchase guard/command port."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notification-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native notification queue/retry authority port."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/followup-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native follow-up purchase guard/command port."
+              }
+            ],
+            "note": "Native durable delivery replaces notification-execution.ts (7 writes). Source/consent/order checks, purchased authorization, 90s lease, attempts<8, source-hash CAS and at-most-once dispatch preserved."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-server-sales --locked",
+            "result": "passed",
+            "sourceSha": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo test -p erpx-server-sales --test sales_notification_execution",
+            "result": "passed",
+            "sourceSha": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+            "sourceKind": "committed",
+            "note": "6/6"
+          },
+          {
+            "command": "cargo test -p erpx-server-sales --test sales_notification_execution_postgres",
+            "result": "passed",
+            "sourceSha": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+            "sourceKind": "committed",
+            "note": "10/10 worker run on the same sales tree"
+          },
+          {
+            "command": "bun run test:integration -- --suite=sales.sales.integration",
+            "result": "passed",
+            "sourceSha": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+            "sourceKind": "committed",
+            "note": "11/11 sales suite incl. 4 retained reconciliation cases (worker run)"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "a03620cfe641c7a75a1bfc18d3c6966821da3c07",
+            "sourceKind": "committed",
+            "note": "1198 suites at the worker run; the committed manifest adds only the two sales suites"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "STEP 0 AUDIT (HEAD 0344be06e): sales owner KPI 36; adapters/notification-execution.ts = 7 writes (deliver/claim/terminal/insert/recover). The job needs a sales-owned Rust repository over commerce_customer_notifications + sales_notification_execution_attempts, the source/authority checks currently in notification-purchases.ts (source joins, queued-command authority, purchase capability sales.orders, receipts, locks), a composition-bound EmailDispatchPort (Resend, fail-closed without credentials), worker registration, native-only runtime jobs switch, deletion of notification-execution.ts + barrel/export, and migration of the execution oracle. Reconciliation (3 writes) stays live under its own removal task. Do not reuse identity Access account-mail tables; do not weaken source/lease/idempotency semantics. Record sales KPI 36 -> 29 with residual 3.",
+        "nextAction": "Delivery closed. Residual 29 classified: 3 reconciliation + 26 residual owners. Deployment prerequisite: ERPX_NATIVE_SERVER_BIN for the jobs service.",
         "handoff": {
           "runId": "run-20261113-a",
           "agentId": "worker-sales-native",
@@ -27466,6 +27565,97 @@
         },
         "nextAction": "Claim and implement the native position command plus its two producer ports.",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.notification-reconciliation",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "sales",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the Sales notification reconciliation TypeScript writer",
+        "scope": "3 residual writes in adapters/notification-reconciliation.ts: independent provider-truth verification and immutable reconciliation receipt for an uncertain customer notice. Needs a native owner command + route for the commerce customer-notifications reconcile action, then delete the TS writer and move the oracle.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "packages/feature-sales/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**",
+          "tests/integration/sales/**",
+          "tests/support/helpers/**",
+          "tests/unit/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for notification-reconciliation.ts against the sales notification execution slice; implement the native reconcile command/route, switch the workplace commerce route, delete the TS writer/barrel, move the oracle, and record the KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.sales.residual-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "sales",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the residual Sales TypeScript writers",
+        "scope": "26 residual sales writes: pricing 7, notes 6, followups 4, notifications 3, pricing-purchases 2, notification-purchases 2, followup-purchases 2. Each needs a native owner command/read port and oracle move.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "packages/server-sales/Cargo.toml",
+          "packages/server-sales/package.json",
+          "packages/feature-sales/**",
+          "src/composition/src/**",
+          "packages/server-runtime/src/adapters/runtime/jobs.ts",
+          "fixtures/**",
+          "scripts/local/**",
+          "tests/integration/sales/**",
+          "tests/integration/manufacturing/**",
+          "tests/support/helpers/**",
+          "tests/unit/sales/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 per-file native counterpart audit; start with notes/followups (smallest live capability) and record the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -27474,21 +27664,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 129,
-      "migratedPackets": 62,
+      "totalPackets": 131,
+      "migratedPackets": 63,
       "statusCounts": {
-        "pending": 28,
-        "in_progress": 7,
+        "pending": 30,
+        "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 62,
+        "migrated": 63,
         "blocked": 23,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T19:21:44.753Z",
+    "updatedAt": "2026-11-12T19:39:23.910Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
