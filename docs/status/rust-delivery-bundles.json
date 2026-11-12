@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 923,
+    "revision": 936,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T13:19:20.050Z",
-      "expiresAt": "2026-11-12T13:49:20.050Z",
+      "heartbeatAt": "2026-11-12T13:23:26.467Z",
+      "expiresAt": "2026-11-12T13:53:26.467Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -19926,8 +19926,8 @@
         "resources": [
           "owner:quality"
         ],
-        "status": "pending",
-        "nextAction": "Land the native ports (Count effects, Files attachment boundary, alert acknowledge, product entry, goods-receipt hold) then delete the residual writers and measure retirement:ts-writes.",
+        "status": "in_progress",
+        "nextAction": "Alert acknowledge retired (quality KPI 15->14 at fa7cd6e05): native command+route+client, TS writer/schema/export deleted, oracles native. Residual 14: alert sweep due-soon/overdue inserts (2), inventory-count-effects (5), attachment-purchases (2), product-entry (1), quality purchase helpers (4). Each needs its native owner port + route authority before deletion; then re-run the owner KPI.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -19939,11 +19939,70 @@
           "Deleted TS readers and exports",
           "Moved oracles and KPI delta"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261112-r",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T13:38:46.765Z",
+          "heartbeatAt": "2026-11-12T13:38:46.765Z",
+          "expiresAt": "2026-11-12T14:08:46.765Z",
+          "generation": 43
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-quality alert acknowledge writer",
+            "result": "passed",
+            "before": 15,
+            "after": 14,
+            "sourceSha": "fa7cd6e05e761ad3c8e879cd21a5ff32bed8357e",
+            "sourceKind": "committed",
+            "note": "Native POST /quality/{alert_id}/acknowledge command (owner unit: FOR UPDATE + exact version/acknowledged/terminal/recipient assertion + UPDATE) is mounted through the existing quality router and the feature route is native-only. Deleted the TS acknowledgeQualityAlert writer, its application/domain schema and public export; TS writer oracles moved to native Rust unit + PostgreSQL tests. Residual 14 quality writes remain: alert sweep inserts 2, inventory-count-effects 5, attachment-purchases 2, product-entry 1, quality purchases 4."
+          },
+          {
+            "command": "cargo check -p erpx-server-quality -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "fa7cd6e05e761ad3c8e879cd21a5ff32bed8357e",
+            "sourceKind": "committed",
+            "note": "Native quality command + composition compile."
+          },
+          {
+            "command": "bun run test:integration -- --suite=quality.rust-quality-alert-acknowledge.integration",
+            "result": "passed",
+            "sourceSha": "fa7cd6e05e761ad3c8e879cd21a5ff32bed8357e",
+            "sourceKind": "committed",
+            "note": "2/2 owner admission/transport cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=quality.rust-quality-http-postgres.integration",
+            "result": "passed",
+            "sourceSha": "fa7cd6e05e761ad3c8e879cd21a5ff32bed8357e",
+            "sourceKind": "committed",
+            "note": "6/6 incl. real PostgreSQL ack/replay/conflict/stale/terminal/purchase cases."
+          },
+          {
+            "command": "bun run test:unit -- --suite=quality.semantic-services.unit",
+            "result": "passed",
+            "sourceSha": "fa7cd6e05e761ad3c8e879cd21a5ff32bed8357e",
+            "sourceKind": "committed",
+            "note": "15/15."
+          },
+          {
+            "command": "bun run test:unit -- --suite=quality.native-quality-transport.unit",
+            "result": "passed",
+            "sourceSha": "fa7cd6e05e761ad3c8e879cd21a5ff32bed8357e",
+            "sourceKind": "committed",
+            "note": "11/11 incl. acknowledge transport."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "fa7cd6e05e761ad3c8e879cd21a5ff32bed8357e",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID:33 modules,1184 suites."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null
@@ -22222,7 +22281,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Support TypeScript SQL writers",
-        "scope": "Classify the 42 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, support-incidents 7, service-teams 7, ticket-portal 5, ticket-portal-customer 5, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Classify the 35 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, service-teams 7, ticket-portal 5, ticket-portal-customer 5, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -22521,8 +22580,8 @@
           "runId": "run-20261112-r",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T13:09:34.797Z",
-          "heartbeatAt": "2026-11-12T13:19:20.050Z",
-          "expiresAt": "2026-11-12T13:49:20.050Z",
+          "heartbeatAt": "2026-11-12T13:23:26.467Z",
+          "expiresAt": "2026-11-12T13:53:26.467Z",
           "generation": 43
         },
         "baseSha": null,
@@ -22614,6 +22673,340 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.support.incidents",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/incidents"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the Support incident TS writers",
+        "scope": "The native Support incident command route already owns incident create/change/link/close. Remove the TS createSupportIncident/changeSupportIncident adapter/application/barrels and migrate retained tests to seeded support_incidents/support_incident_tickets/support_incident_events owner rows. KPI support-incidents.ts 7 -> 0 and support owner 42 -> 35. Native Rust incident command suite owns command behavior; retained TS reads stay covered by seeded rows.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/feature-support/**",
+          "fixtures/**",
+          "tests/support/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**",
+          "tests/integration/shared.workplace-journeys/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-r",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T13:23:26.553Z",
+          "heartbeatAt": "2026-11-12T13:23:26.553Z",
+          "expiresAt": "2026-11-12T13:53:26.553Z",
+          "generation": 43
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete the TS incident writers/use cases/barrels; seed incident/link/event owner rows in retained tests; run support KPI and incident/obligation/surface suites.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.collaboration.social-drafts",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Native social draft, revision, report and upload producers",
+        "scope": "Produce native social_post_drafts save/cancel/update/publish, social_post_revisions, social_reports, participants/sources, upload draft/cleanup and mention notifications in domain/social.rs + application/social.rs + adapters/social_pg.rs, exposed by social_http.rs, then switch server-pms/operations/manage_erpx/agent/feature-apps callers off adapters/social-home.ts. Removal condition: the named TS writers are deleted and the owner KPI command returns 0 for that capability.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/feature-collaboration/**",
+          "packages/feature-apps/**",
+          "tests/integration/collaboration/**",
+          "tests/unit/collaboration/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.collaboration.web-push-registration",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Native web-push registration, preferences and session producer",
+        "scope": "Add native push registration/preferences/session endpoints and a native drain selection (web_push_http.rs + push_preferences/push_subscriptions writers) covering pushSettings, registerPush, savePushPreferences, removePushDevice/Session and drainWebPush, then retire adapters/web-push.ts. Removal condition: the named TS writers are deleted and the owner KPI command returns 0 for that capability.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/feature-collaboration/**",
+          "packages/workplace/src/**",
+          "tests/integration/collaboration/**",
+          "tests/unit/collaboration/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.collaboration.messaging-manage",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Native messaging manage, people picker and upload/discard producers",
+        "scope": "Extend domain/messaging_teams.rs + application/messaging_teams.rs and the messaging HTTP router with rename/membership reconcile, messagingPeople and attachment upload/discard commands, then remove the remaining TS branches in adapters/messaging.ts and the feature-apps messaging route. Removal condition: the named TS writers are deleted and the owner KPI command returns 0 for that capability.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/feature-collaboration/**",
+          "packages/feature-apps/**",
+          "tests/integration/collaboration/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.collaboration.support-notifications",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Native Support notification effect producer",
+        "scope": "Add support_notification.rs with the 11 incident/ticket/reopen/reviewer/session/policy/clock/SLA staff_notifications effects over the closed server-support notification source projections, switch server-support support-incidents/support-sessions adapters, then retire adapters/support-notification-effects.ts. Removal condition: the named TS writers are deleted and the owner KPI command returns 0 for that capability.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/server-support/src/**",
+          "tests/integration/collaboration/**",
+          "tests/integration/support/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.inventory.sales-reservation-writer",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Native sales reservation, lot allocation and fulfillment writers",
+        "scope": "Produce native reservation create/consume, lot balance/move and fulfillment allocation writers mounted for commerce orders, then retire adapters/commerce-facts.ts and the reservation half of commerce-stock-owner-effects.ts. Removal condition: the named TS writers are deleted and the owner KPI command returns 0 for that capability.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "packages/server-commerce/src/**",
+          "tests/integration/inventory/**",
+          "tests/integration/commerce/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.inventory.transit-and-count-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Native stock transit and generic count writers",
+        "scope": "Add native transit dispatch/receive/loss-decide/cancel writers and a generic count save/transition writer mounted through the supply route, with oracle migrations from inventory-transit.ts and inventory-counts.ts, then delete those TS adapters. Removal condition: the named TS writers are deleted and the owner KPI command returns 0 for that capability.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "packages/feature-supply/src/**",
+          "tests/integration/inventory/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.files.generic-attachment-command",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "files",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Native generic attachment command engine",
+        "scope": "Implement the native generic attachment create/reserve/complete/scan/remove command set for non-field owners (brand, legal portal, messaging, finance) with owner authorization, then retire adapters/attachments/service-repository.ts writers and the migration/legal-portal repositories that have no native counterpart. Removal condition: the named TS writers are deleted and the owner KPI command returns 0 for that capability.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/feature-files/src/**",
+          "tests/integration/files/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -22622,11 +23015,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 104,
+      "totalPackets": 112,
       "migratedPackets": 45,
       "statusCounts": {
-        "pending": 28,
-        "in_progress": 4,
+        "pending": 34,
+        "in_progress": 6,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 45,
@@ -22636,7 +23029,7 @@
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:19:20.140Z",
+    "updatedAt": "2026-11-12T13:38:46.800Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
