@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1236,
+    "revision": 1241,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -28544,11 +28544,11 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "d2f3f267d3343b0a843836201690a00e7c141e76",
+        "lastPushedSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
         "checks": [
           {
             "command": "retirement:ts-writes packages/server-customer_authority/src",
@@ -28659,11 +28659,122 @@
             "result": "passed",
             "sourceSha": "00e7ae4c70b6f74cc961ad2d5feeb98f064227ce",
             "sourceKind": "committed"
+          },
+          {
+            "command": "retirement:ts-writes packages/server-customer_authority/src",
+            "result": "passed",
+            "before": 35,
+            "after": 29,
+            "sourceSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-customer_authority/src/adapters/access.ts",
+                "writes": 6,
+                "removalTaskId": "retire.customer_authority.remaining-writers",
+                "removalCondition": "Native customer access command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-support.ts",
+                "writes": 6,
+                "removalTaskId": "retire.customer_authority.remaining-writers",
+                "removalCondition": "Native portal support command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/duplicates.ts",
+                "writes": 5,
+                "removalTaskId": "retire.customer_authority.remaining-writers",
+                "removalCondition": "Native duplicate review command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/identity.ts",
+                "writes": 4,
+                "removalTaskId": "retire.customer_authority.remaining-writers",
+                "removalCondition": "Native customer identity command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-access.ts",
+                "writes": 3,
+                "removalTaskId": "retire.customer_authority.remaining-writers",
+                "removalCondition": "Native portal access command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.customer_authority.remaining-writers",
+                "removalCondition": "Native Files-backed attachment boundary."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/duplicate-request.ts",
+                "writes": 2,
+                "removalTaskId": "retire.customer_authority.remaining-writers",
+                "removalCondition": "Native duplicate request command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.customer_authority.remaining-writers",
+                "removalCondition": "Native portal purchase guard."
+              }
+            ],
+            "note": "Portal enrollment reserve/release/accept native; TS writer/crypto/barrels deleted."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-authority",
+            "result": "passed",
+            "sourceSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business",
+            "result": "passed",
+            "sourceSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --test portal_enrollment",
+            "result": "passed",
+            "sourceSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
+            "sourceKind": "committed",
+            "note": "6/6"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --test portal_enrollment_http",
+            "result": "passed",
+            "sourceSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
+            "sourceKind": "committed",
+            "note": "2/2"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --test portal_enrollment_postgres",
+            "result": "passed",
+            "sourceSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
+            "sourceKind": "committed",
+            "note": "4/4"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
+            "sourceKind": "committed",
+            "note": "1205 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "d2f3f267d3343b0a843836201690a00e7c141e76",
+            "sourceKind": "committed"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
-        "nextAction": "Batch 1b: native public portal enrollment endpoint + composition mount + feature-portal route switch, delete portal-enrollment.ts (6), migrate oracle, KPI 35->29.",
+        "blocker": null,
+        "nextAction": "Closed: enrollment + invitations + delivery native. Remaining 29 bound to retire.customer_authority.remaining-writers.",
         "handoff": {
           "runId": "run-20261113-b",
           "agentId": "worker-ca-enrollment",
@@ -29325,6 +29436,56 @@
         },
         "nextAction": "ReportPost native and pushed at d268a4ed3 (unit 8/8, PG 4/4; erpx-service check blocked by another worker's portal_enrollment WIP). Remaining: SavePostDraft/UpdateDraft, PublishDraft, EditPost/revisions, upload-discard, then switch manage_erpx/pms/operations callers and retire social-home.",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.remaining-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "customer_authority",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Retire the remaining Customer Authority TypeScript writers",
+        "scope": "29 residual writes: access 6, portal-support 6, duplicates 5, identity 4, portal-access 3, attachment-purchases 2, duplicate-request 2, portal-purchases 1.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "packages/server-customer_authority/Cargo.toml",
+          "packages/server-customer_authority/package.json",
+          "packages/feature-customer_authority/**",
+          "packages/feature-portal/**",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-access/**",
+          "packages/server-runtime/src/adapters/runtime/jobs.ts",
+          "src/composition/src/**",
+          "Cargo.lock",
+          "fixtures/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 per-file native counterpart audit; start with access.ts 6 + duplicates.ts 5, each with native port, route switch, oracle move and KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -29333,21 +29494,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 139,
-      "migratedPackets": 72,
+      "totalPackets": 140,
+      "migratedPackets": 73,
       "statusCounts": {
-        "pending": 25,
+        "pending": 26,
         "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 72,
-        "blocked": 28,
+        "migrated": 73,
+        "blocked": 27,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 47,
-    "updatedAt": "2026-11-12T21:18:59.499Z",
+    "updatedAt": "2026-11-12T21:22:03.379Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
