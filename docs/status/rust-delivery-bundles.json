@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 748,
+    "revision": 751,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17897,8 +17897,15 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-k",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T08:09:27.789Z",
+          "heartbeatAt": "2026-11-12T08:09:27.789Z",
+          "expiresAt": "2026-11-12T08:39:27.789Z",
+          "generation": 36
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -17925,11 +17932,41 @@
             "sourceSha": "fae453f082553bef32ddcfaccfb94f7d4a96209c",
             "sourceKind": "committed",
             "note": "TEST_CATALOGUE_VALID: 1178 suites."
+          },
+          {
+            "command": "retirement:ts-writes packages/server-projects actuals and milestones writers",
+            "result": "passed",
+            "before": 32,
+            "after": 15,
+            "sourceSha": "56dfd9372feea5587fe6d14e4e5646d330f8c4ca",
+            "sourceKind": "committed",
+            "note": "Work-log/cost-allocation/milestone TS writers deleted; POSTs call native command routes with no TS fallback. Residual 15: project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1."
+          },
+          {
+            "command": "cargo check -p erpx-server-projects -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "56dfd9372feea5587fe6d14e4e5646d330f8c4ca",
+            "sourceKind": "committed",
+            "note": "Native command routes compile."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "56dfd9372feea5587fe6d14e4e5646d330f8c4ca",
+            "sourceKind": "committed",
+            "note": "No consumer imports the deleted writers."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "56dfd9372feea5587fe6d14e4e5646d330f8c4ca",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 1178 suites; project actual/milestone oracles now seed SQL directly."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-j lease expired; benefits retirement pushed a605d7203; WIP reviewed",
-        "nextAction": "Attachment purchase/read TS modules retired (fae453f08): projects owner KPI 34->32; no imports/exports remain. Residual 32 writes are the still-retained command writers: actuals 9, milestones 8, project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1. Removal condition: native command/read route authoritative + oracles moved, then delete statement/export; keep in_progress until residual 0 or formally reassigned.",
+        "blocker": null,
+        "nextAction": "KPI 34->32 (attachment purchase/read) then 32->15 (actuals 9 + milestones 8 writers deleted; native command client, native-only POSTs, oracles seeded via SQL). Residual 15: project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1. Removal condition: switch structure/staff-project/purchase/scheduled-task writes to native routes and delete their TS statements/exports; keep in_progress until residual reaches 0.",
         "handoff": {
           "runId": "run-20261112-j",
           "agentId": "lead",
@@ -18551,6 +18588,65 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.assets.register-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "assets",
+        "workflowIds": [
+          "assets/asset-register",
+          "assets/condition",
+          "assets/feature-placement",
+          "assets/feature-maintenance-lifecycle",
+          "assets/feature-retirement"
+        ],
+        "workstream": "S06",
+        "kind": "migration",
+        "title": "Retire the Assets register/custody TS writers and move test seeding to owner rows",
+        "scope": "The native Assets route is authoritative; server-assets adapters/assets.ts createAsset/changeAsset are used only by tests/fixtures as seeding. Delete the writers, application write paths, schemas and exports; replace test/fixture seeding with owner-row inserts; delete the TS application oracle cases; record KPI 12->4.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "finance",
+          "maintenance"
+        ],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "packages/server-assets/package.json",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**",
+          "tests/unit/shared.business-contracts/**",
+          "tests/integration/support/**",
+          "tests/integration/finance/**",
+          "tests/integration/maintenance/**",
+          "tests/integration/shared.executive/**",
+          "tests/support/helpers/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete createAsset/changeAsset + application/schema/exports; add owner-row asset seeding helper and migrate all test/fixture callers; delete TS oracle cases; prove KPI 12->4 and no references; typecheck/catalogue/affected suites; push.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-assets",
+        "plannedPackage": "erpx-server-assets",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -18559,21 +18655,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 69,
+      "totalPackets": 70,
       "migratedPackets": 32,
       "statusCounts": {
-        "pending": 11,
-        "in_progress": 2,
+        "pending": 12,
+        "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 32,
-        "blocked": 14,
+        "blocked": 13,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 36,
-    "updatedAt": "2026-11-12T08:07:04.901Z",
+    "updatedAt": "2026-11-12T08:09:27.825Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
