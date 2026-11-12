@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 993,
+    "revision": 999,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -22311,7 +22311,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Support TypeScript SQL writers",
-        "scope": "Classify the 7 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: ticket-portal-customer 5, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Classify the 2 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them: support-evidence-planning 1 and attachment-purchases 1. Each needs a native cross-owner port and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -22335,7 +22335,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Audit the native customer ticket-portal projection/ack path (keeping the file-preview gap explicit), then retire the smallest complete native-backed file and record the owner KPI pair.",
+        "nextAction": "Add the native evidence planning event and native Support attachment purchase boundary, then retire the final two cross-owner writer files and close the Support owner KPI at 0.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -24083,6 +24083,111 @@
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null
+      },
+      {
+        "id": "retire.support.ticket-portal-customer",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/ticket-portal"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the customer Support ticket-portal TS writers",
+        "scope": "The native Support ticket-portal router is mounted and the native PostgreSQL oracle covers projection/acknowledgement. Add the feature-portal customer native client, switch the customer tickets GET and acknowledgement POST routes plus the tickets SSR page to native-only, delete the TS projection/acknowledgement writers and their request/barrel exports, keep the retained file-preview path explicit, and move the page test to a native client stub. KPI ticket-portal-customer.ts 5 -> 0 and support owner 7 -> 2.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/feature-portal/**",
+          "src/composition/src/**",
+          "tests/support/**",
+          "tests/unit/support/**",
+          "tests/unit/shared.business-contracts/**",
+          "tests/integration/support/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "541b26669597b6f3063d70cee24ba1f50aab20d4",
+        "lastPushedSha": "541b26669597b6f3063d70cee24ba1f50aab20d4",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/ticket-portal-customer.ts",
+            "result": "passed",
+            "sourceSha": "541b26669597b6f3063d70cee24ba1f50aab20d4",
+            "before": 5,
+            "after": 0,
+            "note": "The TS customer projection/acknowledgement writers and their request/barrel exports are deleted; the mounted native customer ticket-portal routes are the only projection/acknowledgement authority. The sanitized file-preview path remains explicitly on its existing owner reader."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "541b26669597b6f3063d70cee24ba1f50aab20d4",
+            "before": 2622,
+            "after": 2617,
+            "note": "Global write KPI moved by the five retired customer ticket-portal statements."
+          },
+          {
+            "command": "cargo test -p erpx-service --features existing-business --test ticket_portal_postgres",
+            "result": "passed",
+            "sourceSha": "541b26669597b6f3063d70cee24ba1f50aab20d4",
+            "note": "1/1 native PostgreSQL workflow oracle covers prepare, independent decision, response, customer projection, acknowledgement, replay and receipts. The customer route/page now consume the same native projection/ack."
+          },
+          {
+            "command": "cargo test -p erpx-server-support --test ticket_portal_rules",
+            "result": "passed",
+            "sourceSha": "541b26669597b6f3063d70cee24ba1f50aab20d4",
+            "note": "6/6 native rules and HTTP ingress contract."
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "541b26669597b6f3063d70cee24ba1f50aab20d4"
+          },
+          {
+            "command": "bunx tsc -p packages/feature-portal/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "541b26669597b6f3063d70cee24ba1f50aab20d4"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/shared.business-contracts/customer-portal-application.test.ts",
+            "result": "passed",
+            "sourceSha": "541b26669597b6f3063d70cee24ba1f50aab20d4",
+            "note": "79/79; the public ticket page and acknowledgement route unit tests now assert native client delegation."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "541b26669597b6f3063d70cee24ba1f50aab20d4",
+            "before": 7,
+            "after": 2,
+            "residual": [
+              {
+                "path": "packages/server-support/src/adapters/support-evidence-planning.ts",
+                "writes": 1,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Retire after the native evidence planning event covers the remaining planner write and retained Files tests seed the event row."
+              },
+              {
+                "path": "packages/server-support/src/adapters/attachment-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Retire after the native Support attachment purchase boundary owns the Support guard and the fixture stops calling the TS guard."
+              }
+            ],
+            "note": "Support residual is exactly the two classified cross-owner files above (2 writes), both bound to retire.support.residual-writers; both ticket-portal writer files are gone from the Support KPI."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Customer Support ticket-portal writers retired: native projection/ack routes and SSR page authoritative, TS writers/barrels deleted, native PG oracle green, KPI 5->0 (support 7->2, global 2622->2617). Pushed 541b26669.",
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -24091,21 +24196,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 117,
-      "migratedPackets": 51,
+      "totalPackets": 118,
+      "migratedPackets": 52,
       "statusCounts": {
         "pending": 34,
         "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 51,
+        "migrated": 52,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T14:56:53.756Z",
+    "updatedAt": "2026-11-12T15:06:55.187Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
