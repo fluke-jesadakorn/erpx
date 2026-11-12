@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 721,
+    "revision": 723,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17990,6 +17990,67 @@
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null
+      },
+      {
+        "id": "retire.operations.exceptions",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "operations",
+        "workflowIds": [
+          "operations/feature-exception-queue",
+          "operations/feature-escalations",
+          "operations/feature-approval-decisions",
+          "operations/feature-resolution",
+          "operations/feature-queue-policies",
+          "operations/feature-operations-summary"
+        ],
+        "workstream": "S15",
+        "kind": "migration",
+        "title": "Retire the dead Operations exceptions/queue-policy TS writers",
+        "scope": "The operations route is native-only for policies/exceptions (Rust field_exceptions/field_policy + rust-operations-commands-postgres cover the behavior). Remove the TS reviewQueuePolicy/openOperationsException/changeOperationsException/draftQueuePolicy writers, their application/repository write paths and exports, delete the TS oracle suite, and record the owner KPI drop. Keep nativeFieldException/nativeFieldPolicy and the read workspace/detail/work paths.",
+        "dependsOn": [
+          "retire.operations"
+        ],
+        "requiredPorts": [
+          "workflow",
+          "collaboration"
+        ],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/integration/operations/**",
+          "tests/unit/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-i",
+          "agentId": "worker-operations",
+          "claimedAt": "2026-11-12T07:09:24.114Z",
+          "heartbeatAt": "2026-11-12T07:09:24.114Z",
+          "expiresAt": "2026-11-12T07:39:24.114Z",
+          "generation": 34
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete the four dead exception/policy TS writers + application/repository write paths + exports; delete the TS oracle suite (native rust-operations-commands-postgres owns it); run cargo/native + typecheck/catalogue; report KPI 36->29 before/after.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-operations",
+        "plannedPackage": "erpx-server-operations",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -17998,11 +18059,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 62,
+      "totalPackets": 63,
       "migratedPackets": 29,
       "statusCounts": {
         "pending": 9,
-        "in_progress": 2,
+        "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 29,
@@ -18012,7 +18073,7 @@
       }
     },
     "lastCoordinatorGeneration": 34,
-    "updatedAt": "2026-11-12T07:06:28.986Z",
+    "updatedAt": "2026-11-12T07:09:24.114Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
