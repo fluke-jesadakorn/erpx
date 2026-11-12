@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 866,
+    "revision": 880,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T12:26:25.188Z",
-      "expiresAt": "2026-11-12T12:56:25.189Z",
+      "heartbeatAt": "2026-11-12T12:48:10.099Z",
+      "expiresAt": "2026-11-12T13:18:10.099Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -20971,38 +20971,163 @@
           "tests/support/**",
           "tests/unit/support/**",
           "tests/integration/support/**",
-          "tests/integration/customer_authority/**"
+          "tests/integration/customer_authority/**",
+          "tests/integration/customer_360/**",
+          "tests/integration/shared.workplace-journeys/**",
+          "tests/integration/sales/**",
+          "tests/integration/collaboration/**"
         ],
         "resources": [
           "owner:support"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-r",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T12:26:29.926Z",
-          "heartbeatAt": "2026-11-12T12:26:29.926Z",
-          "expiresAt": "2026-11-12T12:56:29.926Z",
-          "generation": 43
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c49762d55ae5c72573d8a279568a24515a95c827",
+        "lastPushedSha": "c49762d55ae5c72573d8a279568a24515a95c827",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/support.ts",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827",
+            "before": 10,
+            "after": 0,
+            "note": "The Support ticket create/change SQL writer and its dead application use cases are gone; the native Rust ticket command is the only command authority."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827",
+            "before": 60,
+            "after": 50,
+            "residual": [
+              {
+                "path": "packages/server-support/src/adapters/support-sessions.ts",
+                "writes": 14,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native Support session command and read own the full lifecycle; delete the TS writer after the session suite is moved to native seeding."
+              },
+              {
+                "path": "packages/server-support/src/adapters/support-incidents.ts",
+                "writes": 7,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native Support incident command owns create/change/link; delete the TS writer after the incident oracle is native-seeded."
+              },
+              {
+                "path": "packages/server-support/src/adapters/service-teams.ts",
+                "writes": 7,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native service-team command owns save/preview/resolve; delete the TS writer and move its unit oracle to native seeding."
+              },
+              {
+                "path": "packages/server-support/src/adapters/support-sla.ts",
+                "writes": 6,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native Support SLA command owns policy and clock mutations; delete the TS writer after the SLA suite is native-seeded."
+              },
+              {
+                "path": "packages/server-support/src/adapters/ticket-portal.ts",
+                "writes": 5,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native ticket-portal command owns prepare/decide/respond/acknowledge; delete the TS writer after the portal oracle is native-seeded."
+              },
+              {
+                "path": "packages/server-support/src/adapters/ticket-portal-customer.ts",
+                "writes": 5,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native customer portal command owns the verified customer surface; delete the TS writer after the customer projection tests are native-seeded."
+              },
+              {
+                "path": "packages/server-support/src/adapters/support-sla-alerts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native SLA alert drain and acknowledgement own the alert lifecycle; delete the TS writer after the alert tests are native-seeded."
+              },
+              {
+                "path": "packages/server-support/src/adapters/support-evidence.ts",
+                "writes": 2,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native Support evidence command owns attach/revoke; delete the TS writer after the evidence oracle is native-seeded."
+              },
+              {
+                "path": "packages/server-support/src/adapters/support-evidence-planning.ts",
+                "writes": 1,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native evidence planning owns the purpose and placement decision; delete the TS planner write."
+              },
+              {
+                "path": "packages/server-support/src/adapters/attachment-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native attachment purchase boundary owns the guard; delete the TS purchase helper write."
+              }
+            ]
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827"
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827"
+          },
+          {
+            "command": "bun run test:unit -- --suite=support.services.unit",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827",
+            "note": "64/64; command tests removed with the dead TS application use cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.support.integration --suite=support.evidence.integration --suite=support.sla.integration --suite=support.sessions.integration --suite=support.incidents.integration",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827",
+            "note": "29/29; retained reads seeded from owner rows and native Rust command suites own command behavior."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.package-obligations.integration",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827",
+            "note": "14/14."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.package-surfaces.integration",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827",
+            "note": "22/22; the native Field fixture was prebuilt before the passing run."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.workplace-journeys.engineering-workplace-workers.integration --suite=sales.customers-workspace.integration --suite=collaboration.work.integration",
+            "result": "passed",
+            "sourceSha": "c49762d55ae5c72573d8a279568a24515a95c827",
+            "note": "17/17 cross-owner consumers."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/support.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Support ticket create/change is native-only: TS writer, dead application use cases and barrels deleted; retained reads and fixtures seed owner rows; owned KPI 60->50 (support.ts 10->0) with the remaining 50 writes bound to retire.support.residual-writers. Pushed c49762d55.",
         "handoff": {
-          "runId": "run-20261112-q",
+          "runId": "run-20261112-r",
           "agentId": "lead",
-          "at": "2026-11-12T12:26:25.187Z",
+          "at": "2026-11-12T12:28:14.137Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
+          "reason": "released with work preserved",
           "nextAction": "Step-0 native counterpart audit for adapters/support.ts, then six-point retirement with the owner KPI pair."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "retire.work_projection.calendar-commands-facts",
@@ -21998,6 +22123,52 @@
           "reason": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
           "nextAction": "Port opening/legacy-revenue/journal-review to native journal ports (seed tests inline, no fixtures path), switch the route, delete the three writers, measure retirement:ts-writes."
         }
+      },
+      {
+        "id": "retire.support.residual-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/tickets",
+          "support/sla-watch",
+          "support/incidents",
+          "support/feature-support-sessions",
+          "support/feature-capabilities",
+          "support/feature-attachments"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the remaining Support TypeScript SQL writers",
+        "scope": "Classify the 50 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, support-incidents 7, service-teams 7, support-sla 6, ticket-portal 5, ticket-portal-customer 5, support-sla-alerts 2, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/server-support/Cargo.toml",
+          "packages/server-support/package.json",
+          "packages/feature-support/**",
+          "fixtures/**",
+          "tests/support/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for the remaining Support writer files, then retire the smallest complete native-backed file first and record the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -22006,21 +22177,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 98,
-      "migratedPackets": 40,
+      "totalPackets": 99,
+      "migratedPackets": 41,
       "statusCounts": {
-        "pending": 27,
-        "in_progress": 4,
+        "pending": 28,
+        "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 40,
+        "migrated": 41,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T12:26:29.926Z",
+    "updatedAt": "2026-11-12T12:49:33.428Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
