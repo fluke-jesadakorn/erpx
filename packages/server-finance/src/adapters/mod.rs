@@ -10,6 +10,7 @@ pub(crate) mod raw_field_invoice_marker;
 pub(crate) mod attachment_target_source;
 pub(crate) mod asset_purchase_source;
 pub(crate) mod asset_acquisition_money;
+pub(crate) mod money_snapshot;
 pub(crate) mod field_history_candidates;
 pub(crate) mod field_history_money_lines;
 pub(crate) mod initial_history_marker_roots;

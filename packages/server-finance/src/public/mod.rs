@@ -10,6 +10,7 @@ pub mod raw_field_invoice_marker;
 pub mod attachment_target_source;
 pub mod asset_purchase_source;
 pub mod asset_acquisition_money;
+pub mod money_snapshot;
 pub mod field_history_candidates;
 pub mod field_history_money_lines;
 pub mod initial_history_marker_roots;

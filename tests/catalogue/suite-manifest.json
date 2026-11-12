@@ -59476,6 +59476,398 @@
         "migratedSlots": []
       }
     },
+{
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native money snapshot must retain configured/ISO scale validation, manual rate selection and USD conversion bounds without the TypeScript writer."
+      },
+      "id": "finance.rust-money-snapshot.unit",
+      "files": [
+        "tests/unit/finance/rust-money-snapshot.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "money_snapshot"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-finance/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "fixtures/finance/rust-instruments/conformance.v1.json",
+        "tests/support/finance/journal-facts.rs",
+        "scripts/testing/fixtures/finance-node-oracle.ts",
+        "scripts/testing/fixtures/generate-finance-rust-goldens.ts"
+      ]
+    },
+{
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native money snapshot over PostgreSQL must retain the lock order, source/amount identity, replay image and Company isolation."
+      },
+      "id": "finance.rust-money-snapshot-postgres.integration",
+      "files": [
+        "tests/integration/finance/rust-money-snapshot-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "money_snapshot_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-finance/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "fixtures/finance/rust-instruments/conformance.v1.json",
+        "tests/support/finance/journal-facts.rs",
+        "scripts/testing/fixtures/finance-node-oracle.ts",
+        "scripts/testing/fixtures/generate-finance-rust-goldens.ts"
+      ]
+    },
+{
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS guest-account policy must retain the exact account/financial rules and owner evidence without a TypeScript fallback."
+      },
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "id": "pms.rust-guest-accounts.unit",
+      "files": [
+        "tests/unit/pms/rust-pms-guest-accounts.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_guest_accounts"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/Cargo.toml",
+        "packages/server-pms/src/domain/room_board.rs",
+        "packages/server-pms/src/application/room_board.rs"
+      ]
+    },
+{
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS guest accounts over migrated PostgreSQL must retain serializable units, Company isolation and same-transaction evidence."
+      },
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "id": "pms.rust-guest-accounts-postgres.integration",
+      "files": [
+        "tests/integration/pms/rust-pms-guest-accounts-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_guest_accounts_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/Cargo.toml",
+        "packages/server-pms/src/domain/room_board.rs",
+        "packages/server-pms/src/application/room_board.rs"
+      ]
+    },
     {
       "lane": "unit",
       "owner": "people_payroll",
@@ -94506,6 +94898,273 @@
         "rust-toolchain.toml",
         "tests/support/rust-postgres.rs"
       ]
+    },
+    {
+      "id": "workflow.rust-pms-social-event.unit",
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "The native Workflow PMS social projector must retain the exact event label/group table, UTC+7 business day, sha256 post/notice identities and body fallbacks."
+      },
+      "files": [
+        "tests/unit/workflow/rust-pms-social-event.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-workflow",
+        "targets": [
+          "pms_social_event"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-workflow/Cargo.toml"
+      ]
+    },
+    {
+      "id": "workflow.rust-pms-social-event-postgres.integration",
+      "lane": "integration",
+      "owner": "workflow",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Workflow PMS social projection must retain the outbox/command-receipt join, business-day post, source link, delivery receipt, notification and receipt idempotency on the caller transaction."
+      },
+      "files": [
+        "tests/integration/workflow/rust-pms-social-event-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-workflow",
+        "targets": [
+          "pms_social_event_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-workflow/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ]
+    },
+    {
+      "id": "pms.rust-pms-social-source-postgres.integration",
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "The PMS-owned source read must retain the exact records/transfer/correction union plus the refund payout originalId lookup on the caller connection."
+      },
+      "files": [
+        "tests/integration/pms/rust-pms-social-source-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_social_source_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-pms/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ]
+    },
+    {
+      "id": "collaboration.rust-pms-social-publish-postgres.integration",
+      "lane": "integration",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration",
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Collaboration-owned PMS social writes must retain the post upsert, source link, delivery receipt, advisory lock, version read and notification upsert on the caller transaction."
+      },
+      "files": [
+        "tests/integration/collaboration/rust-pms-social-publish-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "pms_social_publish_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-collaboration/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ]
+    },
+    {
+      "id": "identity_access.rust-pms-social-recipients-postgres.integration",
+      "lane": "integration",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access",
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Identity-owned PMS social recipients must retain the exact readable-source policy, review-role filter, same-person fallback, actor exclusion, branch scope and active-branch gate."
+      },
+      "files": [
+        "tests/integration/identity_access/rust-pms-social-recipients-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "pms_social_recipients_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-identity_access/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ]
+    },
+    {
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "The generic Finance Money snapshot producer must preserve retained identity/amount bounds, ISO and Company scales, exact USD rounding and effective-date rate ordering before any cross-owner writer uses it."
+      },
+      "framework": "cargo",
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/server-finance",
+        "@erpx/feature-finance",
+        "@erpx/catalogue",
+        "@erpx/contracts"
+      ],
+      "id": "finance.rust-money-snapshot.unit",
+      "lane": "unit",
+      "fixture": "none",
+      "files": [
+        "tests/unit/finance/rust-money-snapshot.test.rs"
+      ],
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "money_snapshot"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-finance/Cargo.toml",
+        "packages/server-finance/src/adapters/money_snapshot.rs",
+        "packages/server-finance/src/public/money_snapshot.rs",
+        "packages/feature-finance/src/lib/company-money.ts",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ]
+    },
+    {
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Finance Money snapshots must preserve the exact serializable lock order, configured scale, effective-date quote, signed amount conversion, Company isolation, replay denial and owner-unit rollback."
+      },
+      "framework": "cargo",
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/server-finance",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/feature-finance"
+      ],
+      "id": "finance.rust-money-snapshot-postgres.integration",
+      "lane": "integration",
+      "fixture": "postgres",
+      "files": [
+        "tests/integration/finance/rust-money-snapshot-postgres.test.rs"
+      ],
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "money_snapshot_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-finance/Cargo.toml",
+        "packages/server-finance/src/adapters/money_snapshot.rs",
+        "packages/server-finance/src/public/money_snapshot.rs",
+        "packages/feature-finance/src/lib/company-money.ts",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [],
+        "migratedSlots": []
+      }
     }
   ]
 }
