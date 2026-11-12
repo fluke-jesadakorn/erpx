@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1297,
+    "revision": 1308,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-e",
+      "runId": "run-20261113-f",
       "agentId": "lead",
-      "startedAt": "2026-11-12T23:14:53.970Z",
-      "heartbeatAt": "2026-11-12T23:14:53.970Z",
-      "expiresAt": "2026-11-12T23:44:53.972Z",
-      "generation": 49,
-      "tokenHash": "15dbbf1e3782dfb057a1e1646874ab7bb61142b93e40eee979622fff7c0052f3"
+      "startedAt": "2026-11-12T23:52:03.192Z",
+      "heartbeatAt": "2026-11-12T23:52:03.192Z",
+      "expiresAt": "2026-11-13T00:22:03.194Z",
+      "generation": 50,
+      "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -21776,23 +21776,54 @@
         "resources": [
           "owner:organization"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-e",
-          "agentId": "worker-organization-retire",
-          "claimedAt": "2026-11-12T23:14:54.074Z",
-          "heartbeatAt": "2026-11-12T23:14:54.074Z",
-          "expiresAt": "2026-11-12T23:44:54.074Z",
-          "generation": 49
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "4288324029817f608093f25dbfe61028ca22b4f0",
+        "lastPushedSha": "4288324029817f608093f25dbfe61028ca22b4f0",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4288324029817f608093f25dbfe61028ca22b4f0",
+            "before": 59,
+            "after": 55,
+            "note": "Four dead beta-onboarding writers are owned by the native onboarding command; retired template/position ports and exports removed. Live draft/change/department writers retained."
+          },
+          {
+            "command": "cargo test -p erpx-server-organization",
+            "result": "passed",
+            "sourceSha": "4288324029817f608093f25dbfe61028ca22b4f0",
+            "note": "113/113 across 18 binaries with pinned Bun/Node oracle env."
+          },
+          {
+            "command": "bunx tsc -p packages/server-organization/tsconfig.json --noEmit && bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "4288324029817f608093f25dbfe61028ca22b4f0"
+          },
+          {
+            "command": "bun scripts/testing/test.ts tests/unit/organization/organization-services.test.ts tests/integration/organization/organization.test.ts",
+            "result": "passed",
+            "sourceSha": "4288324029817f608093f25dbfe61028ca22b4f0",
+            "note": "71/71 unit and 25/25 integration; drafts/authority/staff-defaults/access and manage_erpx suites also pass."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "4288324029817f608093f25dbfe61028ca22b4f0"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Classify the organization TS writers against the native organization crate and delete only members whose native command owns the table and whose TS caller is native-only or dead; move oracles and record the owner KPI pair.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead: switch the People organization route native-only and add native draft/acceptance commands; then retire the remaining organization writers.",
+        "handoff": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-organization-retire",
+          "at": "2026-11-12T23:56:02.807Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead: switch the People organization route native-only and add native draft/acceptance commands; then retire the remaining organization writers."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -29993,6 +30024,151 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.sales.notes-followups",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "sales",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S11",
+        "kind": "migration",
+        "title": "Retire the Sales notes and follow-up TypeScript writers",
+        "scope": "Producer-first native customer-note (6 writes) and follow-up (4 writes) commands plus purchase boundaries, feature-sales/workplace route switches, TS deletion and oracle migration. Sales owner KPI 19 -> 9 with the remaining producer-first writes classified.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "packages/server-sales/Cargo.toml",
+          "packages/server-sales/package.json",
+          "packages/feature-sales/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/orders/**",
+          "src/composition/src/**",
+          "fixtures/**",
+          "tests/integration/sales/**",
+          "tests/integration/support/**",
+          "tests/integration/customer_360/**",
+          "tests/support/helpers/**",
+          "tests/unit/sales/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-sales-notes",
+          "claimedAt": "2026-11-12T23:52:16.944Z",
+          "heartbeatAt": "2026-11-12T23:52:16.944Z",
+          "expiresAt": "2026-11-13T00:22:16.944Z",
+          "generation": 50
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-sales/src",
+            "result": "passed",
+            "before": 19,
+            "after": 13,
+            "sourceSha": "b158554f95723b541439baf06713e267c463fb7a",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-sales/src/adapters/notes.ts",
+                "writes": 6,
+                "removalTaskId": "retire.sales.notes",
+                "removalCondition": "Native customer_360 note command already serves the route; migrate support/customer_360 fixtures off the TS writer, then delete notes.ts."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notifications.ts",
+                "writes": 3,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native notification settings/queue/retry ingress ships."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notification-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native notification purchase boundary owns queue/retry authorization."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/pricing-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native pricing purchase boundary owns command assertions."
+              }
+            ],
+            "note": "Follow-up commands + purchase boundary native; TS writers deleted."
+          },
+          {
+            "command": "cargo check -p erpx-server-sales",
+            "result": "passed",
+            "sourceSha": "b158554f95723b541439baf06713e267c463fb7a",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business",
+            "result": "passed",
+            "sourceSha": "b158554f95723b541439baf06713e267c463fb7a",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo test -p erpx-server-sales --test sales_followups",
+            "result": "passed",
+            "sourceSha": "b158554f95723b541439baf06713e267c463fb7a",
+            "sourceKind": "committed",
+            "note": "4/4"
+          },
+          {
+            "command": "cargo test -p erpx-server-sales --test sales_followups_postgres",
+            "result": "passed",
+            "sourceSha": "b158554f95723b541439baf06713e267c463fb7a",
+            "sourceKind": "committed",
+            "note": "4/4"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "b158554f95723b541439baf06713e267c463fb7a",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "b158554f95723b541439baf06713e267c463fb7a",
+            "sourceKind": "committed",
+            "note": "1211 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "b158554f95723b541439baf06713e267c463fb7a",
+            "sourceKind": "committed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Retire the remaining Sales note writers: seed customer_contact_notes + history rows directly in tests/integration/support/{support,package-obligations}.test.ts and tests/integration/customer_360/customer-timeline.test.ts, move/delete the command oracle in tests/integration/sales/customer-notes.test.ts, delete createCustomerNote/changeCustomerNote from server-sales notes.ts + public barrel/package key (keep customerNotesForOrder/Customer reads), reuse the native customer_360 note oracles, and record sales KPI 13->7.",
+        "handoff": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-sales-notes",
+          "at": "2026-11-12T23:52:16.876Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Released for the notes batch refinement."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -30001,7 +30177,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 143,
+      "totalPackets": 144,
       "migratedPackets": 76,
       "statusCounts": {
         "pending": 22,
@@ -30009,13 +30185,13 @@
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 76,
-        "blocked": 31,
+        "blocked": 32,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 49,
-    "updatedAt": "2026-11-12T23:19:48.619Z",
+    "lastCoordinatorGeneration": 50,
+    "updatedAt": "2026-11-12T23:56:02.807Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -30058,10 +30234,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-d",
-      "runId": "run-20261113-e",
-      "at": "2026-11-12T23:14:53.972Z",
-      "reason": "Lease expired after the legal slice push; worker WIP preserved, claims re-established",
+      "previousRunId": "run-20261113-e",
+      "runId": "run-20261113-f",
+      "at": "2026-11-12T23:52:03.194Z",
+      "reason": "run-20261113-e lease expired 23:44Z; organization cargo test finished and no worker process or tree change remained for 3+ minutes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
