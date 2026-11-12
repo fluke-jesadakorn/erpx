@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 633,
+    "revision": 636,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-d",
+      "runId": "run-20261112-e",
       "agentId": "lead",
-      "startedAt": "2026-11-12T03:43:43.823Z",
-      "heartbeatAt": "2026-11-12T03:43:43.823Z",
-      "expiresAt": "2026-11-12T04:13:43.825Z",
-      "generation": 29,
-      "tokenHash": "7a35f41181c9559b044c9420e436c2a02cd991e59e3cc524d77b2c9060731327"
+      "startedAt": "2026-11-12T04:14:11.965Z",
+      "heartbeatAt": "2026-11-12T04:14:11.965Z",
+      "expiresAt": "2026-11-12T04:44:11.966Z",
+      "generation": 30,
+      "tokenHash": "d21af2e6a9e81c31627b4b4c6c30165fb7d69879c535e1f89e73cf96a86b3b2b"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10817,23 +10817,23 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-d",
-          "agentId": "worker-pos",
-          "claimedAt": "2026-11-12T03:49:30.455Z",
-          "heartbeatAt": "2026-11-12T03:49:30.455Z",
-          "expiresAt": "2026-11-12T04:19:30.455Z",
-          "generation": 29
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
         "nextAction": "Implement the first inventoried pos packet (migrate.pos.provider-and-payment-workers), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-d",
+          "agentId": "worker-pos",
+          "at": "2026-11-12T04:14:11.964Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
+          "nextAction": "Implement the first inventoried pos packet (migrate.pos.provider-and-payment-workers), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pos",
         "plannedPackage": "erpx-server-pos",
@@ -13791,14 +13791,14 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261112-d",
+          "runId": "run-20261112-e",
           "agentId": "worker-pms",
-          "claimedAt": "2026-11-12T03:43:49.528Z",
-          "heartbeatAt": "2026-11-12T03:43:49.528Z",
-          "expiresAt": "2026-11-12T04:13:49.528Z",
-          "generation": 29
+          "claimedAt": "2026-11-12T04:14:11.999Z",
+          "heartbeatAt": "2026-11-12T04:14:11.999Z",
+          "expiresAt": "2026-11-12T04:44:11.999Z",
+          "generation": 30
         },
-        "baseSha": "8ccd3eaa00cff4c1dd5115539b2f81d730a31aa2",
+        "baseSha": "00e855b6fb8582a069089391f27a788c99c0e385",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -13991,18 +13991,38 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "0608a873372650ca15499a112f749dc116f7673e"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "4192326d1b5a6a24c731ef36af0b72171e028d31"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "4192326d1b5a6a24c731ef36af0b72171e028d31"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_report_projection",
+            "result": "passed",
+            "sourceSha": "4192326d1b5a6a24c731ef36af0b72171e028d31"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_report_projection_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "4192326d1b5a6a24c731ef36af0b72171e028d31"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Night-audit state machine + worker turn pushed 0608a8733 (unit 16/16, PG 8/8); NOT mounted. Next: composition user route for night.start/resume + PmsNightAuditGuardPort (19 day-control counts + Finance setup facts) + ports.trade room-night posting consumer; night.step correctly fails closed PMS_NIGHT_POSTING_PORT_REQUIRED. Remaining pms packets: reservations/booking, guest cashier/stock, reports/settings.",
+        "nextAction": "PMS dashboard/report reads implemented + mounted 4192326d1 (unit 15/15, PG 5/5): range/entries routes, occupancy/ADR/RevPAR/flow/balances over PMS-owned facts; Finance-backed balances and booking pace/channels omitted for their owner ports. Catalogue/structure currently red on an external POS WIP (3 unregistered pos test files), not PMS. Remaining pms packets: reservations/booking, guest cashier/stock, night-audit mount (guard+posting ports), reports/settings residuals.",
         "handoff": {
-          "runId": "run-20261112-c",
+          "runId": "run-20261112-d",
           "agentId": "worker-pms",
-          "at": "2026-11-12T03:43:43.822Z",
+          "at": "2026-11-12T04:14:11.964Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous coordinator lease expired with no heartbeat; WIP reviewed on disk and active worker claims restored",
-          "nextAction": "Packet migrate.pms.stay_front_desk_commands COMPLETE and pushed 9f96ad765: stay assign/move, room save/dnd/observe, room_type.save, task create/assign/start/complete/inspect, maintenance open/close, block create/release with PG+HTTP+TS integration checks. Remaining pms packets: reservations/booking lifecycle, guest cashier/minibar-linen stock, night audit/reports/settings."
+          "reason": "Recovery: run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
+          "nextAction": "Night-audit state machine + worker turn pushed 0608a8733 (unit 16/16, PG 8/8); NOT mounted. Next: composition user route for night.start/resume + PmsNightAuditGuardPort (19 day-control counts + Finance setup facts) + ports.trade room-night posting consumer; night.step correctly fails closed PMS_NIGHT_POSTING_PORT_REQUIRED. Remaining pms packets: reservations/booking, guest cashier/stock, reports/settings."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pms",
@@ -16465,15 +16485,8 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-d",
-          "agentId": "worker-people",
-          "claimedAt": "2026-11-12T03:43:49.553Z",
-          "heartbeatAt": "2026-11-12T03:43:49.553Z",
-          "expiresAt": "2026-11-12T04:13:49.553Z",
-          "generation": 29
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "9e57921af0b706b01fec2584a3c28133fafc26ee",
         "lastPushedSha": "9e57921af0b706b01fec2584a3c28133fafc26ee",
@@ -16546,15 +16559,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
         "nextAction": "employees, leave-requests and expenses packets native and pushed (628b48a10, 5546be88a, 9e57921af). Registered suites: workforce 9/9 + PG 6/6; leave 9/9 + PG 7/7; expense 13/13 + PG 7/7. Remaining: composition ports (Organization placement/spending route, Identity account link, Finance money snapshot/settlement, Files evidence, Workflow approvals) and workplace route switches.",
         "handoff": {
-          "runId": "run-20261112-c",
+          "runId": "run-20261112-d",
           "agentId": "worker-people",
-          "at": "2026-11-12T03:43:43.822Z",
+          "at": "2026-11-12T04:14:11.964Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous coordinator lease expired with no heartbeat; WIP reviewed on disk and active worker claims restored",
-          "nextAction": "employees + leave-requests packets native and pushed (628b48a10, 5546be88a): workforce commands and full leave lifecycle incl. accrual drain; leave 9/9, leave PG 7/7, workforce 9/9. Remaining: expenses packet; composition ports (Organization placement, Identity account link, Finance money snapshot, Staff/Route/Approval/Evidence) before route switches."
+          "reason": "Recovery: run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
+          "nextAction": "employees, leave-requests and expenses packets native and pushed (628b48a10, 5546be88a, 9e57921af). Registered suites: workforce 9/9 + PG 6/6; leave 9/9 + PG 7/7; expense 13/13 + PG 7/7. Remaining: composition ports (Organization placement/spending route, Identity account link, Finance money snapshot/settlement, Files evidence, Workflow approvals) and workplace route switches."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-people-payroll",
@@ -16726,17 +16739,17 @@
       "migratedPackets": 23,
       "statusCounts": {
         "pending": 8,
-        "in_progress": 3,
+        "in_progress": 1,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 23,
-        "blocked": 10,
+        "blocked": 12,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 29,
-    "updatedAt": "2026-11-12T03:51:20.282Z",
+    "lastCoordinatorGeneration": 30,
+    "updatedAt": "2026-11-12T04:14:16.927Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16779,10 +16792,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-c",
-      "runId": "run-20261112-d",
-      "at": "2026-11-12T03:43:43.825Z",
-      "reason": "Previous coordinator lease expired with no heartbeat; WIP reviewed on disk and active worker claims restored",
+      "previousRunId": "run-20261112-d",
+      "runId": "run-20261112-e",
+      "at": "2026-11-12T04:14:11.966Z",
+      "reason": "run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
       "wipReviewed": true,
       "previousRunStopped": true
     }
