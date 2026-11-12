@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1029,
+    "revision": 1042,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-s",
       "agentId": "lead",
       "startedAt": "2026-11-12T16:09:25.074Z",
-      "heartbeatAt": "2026-11-12T16:21:42.700Z",
-      "expiresAt": "2026-11-12T16:51:42.700Z",
+      "heartbeatAt": "2026-11-12T16:38:41.573Z",
+      "expiresAt": "2026-11-12T17:08:41.573Z",
       "generation": 44,
       "tokenHash": "0eabcfe48eaa2e019bd9ff44fd08efe3a2603848f1f8ad8c4b5c16915521bdc5"
     },
@@ -13958,8 +13958,8 @@
         "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
+        "lastPushedSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
         "checks": [
           {
             "command": "retirement:ts-writes packages/server-collaboration dead field-service notification shim",
@@ -14043,18 +14043,52 @@
             "sourceSha": "0435266f1341a90605c4b514cb1aab67e371ff3d",
             "sourceKind": "committed",
             "note": "TEST_CATALOGUE_VALID:33 modules,1183 suites."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test messaging_http",
+            "result": "passed",
+            "sourceSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
+            "note": "4/4 native Messaging HTTP cases including the file-discard origin/key/reason rules."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test messaging_files_postgres",
+            "result": "passed",
+            "sourceSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
+            "note": "6/6 PostgreSQL owner cases for bind/content and native message-file discard, replay and authority refusal."
+          },
+          {
+            "command": "vitest integration tests/integration/collaboration/messaging.test.ts",
+            "result": "passed",
+            "sourceSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
+            "note": "19/19. Discard oracles were retired with the native command; the serializable owner unit now takes the ordered attachment object locks in its own transaction instead of requiring a second pool connection."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
+            "before": 195,
+            "after": 195,
+            "note": "Transport/oracle completion only; no collaboration TS SQL writer changed in this slice."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
+            "before": 2598,
+            "after": 2597,
+            "note": "Global KPI moved by the retired generic Files withdraw repository step."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Recover expired run-20261112-r after the agent AI-provider worker completed its slice and lease expired; WIP reviewed, previous run stopped.",
-        "nextAction": "Messaging history/file content native; attachments bind/content fail-closed. Retired the dead Support notification effect shims (11 staff_notifications inserts) plus their projection sources (slice 11->0, 0435266f1). Remaining: native messaging upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain.",
+        "blocker": "handoff",
+        "nextAction": "Lead reviews the frozen discard/owner-unit slice at 8af0ff8a2; remaining collaboration work is native upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain.",
         "handoff": {
-          "runId": "run-20261112-r",
-          "agentId": "lead",
-          "at": "2026-11-12T16:09:25.073Z",
+          "runId": "run-20261112-s",
+          "agentId": "worker-collaboration-discard",
+          "at": "2026-11-12T16:49:52.106Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Recover expired run-20261112-r after the agent AI-provider worker completed its slice and lease expired; WIP reviewed, previous run stopped.",
-          "nextAction": "Messaging history/file content native; attachments bind/content fail-closed. Retired the dead Support notification effect shims (11 staff_notifications inserts) plus their projection sources (slice 11->0, 0435266f1). Remaining: native messaging upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain."
+          "reason": "handoff",
+          "nextAction": "Lead reviews the frozen discard/owner-unit slice at 8af0ff8a2; remaining collaboration work is native upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -20841,8 +20875,8 @@
           "runId": "run-20261112-s",
           "agentId": "lead",
           "claimedAt": "2026-11-12T16:31:39.034Z",
-          "heartbeatAt": "2026-11-12T16:31:39.034Z",
-          "expiresAt": "2026-11-12T17:01:39.034Z",
+          "heartbeatAt": "2026-11-12T16:38:41.573Z",
+          "expiresAt": "2026-11-12T17:08:41.573Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21213,8 +21247,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-runtime-connections",
           "claimedAt": "2026-11-12T16:19:50.652Z",
-          "heartbeatAt": "2026-11-12T16:21:42.700Z",
-          "expiresAt": "2026-11-12T16:51:42.700Z",
+          "heartbeatAt": "2026-11-12T16:38:41.573Z",
+          "expiresAt": "2026-11-12T17:08:41.573Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21569,16 +21603,60 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "pending",
-        "nextAction": "Retire the largest identity_access writer clusters batch by batch and record the KPI after each.",
+        "status": "in_progress",
+        "nextAction": "Batch 1 landed at 9eff55d99: TS access-review start/item-decision/cancel writers, transaction ports and input schemas deleted; holding and platform IAM POST paths now fail closed without native config; identity_access KPI 240->231. Next: retire the position-gpo cluster (33) or people-access (18) with a native owner port.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": null,
-        "baseSha": null,
+        "claim": {
+          "runId": "run-20261112-s",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T16:38:41.604Z",
+          "heartbeatAt": "2026-11-12T16:38:41.604Z",
+          "expiresAt": "2026-11-12T17:08:41.604Z",
+          "generation": 44
+        },
+        "baseSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "9eff55d99bfc467b899da7e5cf35188c28568279",
+            "note": "Root TypeScript project typechecks with the retired access-review commands and schemas removed."
+          },
+          {
+            "command": "cd packages/server-identity_access && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "9eff55d99bfc467b899da7e5cf35188c28568279",
+            "note": "Identity access package typecheck passes."
+          },
+          {
+            "command": "bun run test:unit -- --suite=identity_access.directory-services.unit",
+            "result": "passed",
+            "sourceSha": "9eff55d99bfc467b899da7e5cf35188c28568279",
+            "note": "47/47 unit cases pass after deleting the removed access-review command case."
+          },
+          {
+            "command": "bun run test:integration -- --suite=identity_access.iam-roles-reviews.integration",
+            "result": "passed",
+            "sourceSha": "9eff55d99bfc467b899da7e5cf35188c28568279",
+            "note": "Native owner oracle 4/4 passes, including access_review_certifies_keeps_revokes_and_cancels_with_cas."
+          },
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-identity_access/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "9eff55d99bfc467b899da7e5cf35188c28568279",
+            "note": "identity_access TS write KPI 240 -> 231 (-9)."
+          },
+          {
+            "command": "bun run test:integration -- --suite=identity_access.iam.integration",
+            "result": "failed",
+            "sourceSha": "9eff55d99bfc467b899da7e5cf35188c28568279",
+            "note": "4/36 fail outside this slice: native field-inbox notification reads call next/headers() outside a request scope (three notification/role cases) and account-grant read expectation differs; this lane's changed cases pass and the retired required case now maps to the native PostgreSQL scenario."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null
@@ -24997,8 +25075,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T16:12:35.696Z",
-          "heartbeatAt": "2026-11-12T16:21:42.700Z",
-          "expiresAt": "2026-11-12T16:51:42.700Z",
+          "heartbeatAt": "2026-11-12T16:38:41.573Z",
+          "expiresAt": "2026-11-12T17:08:41.573Z",
           "generation": 44
         },
         "baseSha": null,
@@ -25008,6 +25086,134 @@
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null
+      },
+      {
+        "id": "retire.shared.dead-effect-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "shared",
+        "workflowIds": [],
+        "workstream": "S01",
+        "kind": "migration",
+        "title": "Retire unused TypeScript command-effect writers",
+        "scope": "Delete the six write statements in five modules that no runtime or test consumer reaches: the retired routine-occurrence audit/outbox/assertion effects, the identity assertion-cleanup helper, the quality scrap notification producer and the benefits purchase-command wrapper with its dead helpers. The native routine-occurrence command and the current owner command paths own these effects. Module shells remain only where ownership.json and generated app @source/turbo inputs still list the path; remove those shells in the register sweep task.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/adapters/operations-routine-journal-effects.ts",
+          "packages/server-workflow/src/adapters/operations-routines-facts.ts",
+          "packages/server-workflow/src/adapters/identity-command-effects.ts",
+          "packages/server-workflow/src/public/operations-routine-journal-effects.ts",
+          "packages/server-workflow/src/public/operations-routines-facts.ts",
+          "packages/server-workflow/src/public/identity-command-effects.ts",
+          "packages/server-workflow/package.json",
+          "packages/server-collaboration/src/adapters/quality-notifications.ts",
+          "packages/server-collaboration/src/public/quality-notifications.ts",
+          "packages/server-benefits/src/adapters/purchases.ts"
+        ],
+        "resources": [
+          "owner:workflow",
+          "owner:collaboration",
+          "owner:benefits"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "549fd511705a7558771af087b48f7a1a9cb563ee",
+        "lastPushedSha": "549fd511705a7558771af087b48f7a1a9cb563ee",
+        "checks": [
+          {
+            "command": "retirement:ts-writes five-file scope (workflow routine/identity effects, collaboration quality notifications, benefits purchases)",
+            "result": "passed",
+            "before": 9,
+            "after": 3,
+            "sourceSha": "549fd511705a7558771af087b48f7a1a9cb563ee",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-workflow/src/adapters/identity-command-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Port recordDirectoryVerification's directory.verified outbox effect into the native directory-verification owner unit."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/quality-notifications.ts",
+                "writes": 2,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native quality hold/alert notification producer owns both staff_notifications inserts."
+              }
+            ],
+            "note": "Removed six unreachable writes: routine-occurrence audit/outbox/assertion effects (3), identity assertion cleanup (1), quality scrap notification (1), benefits purchase-command wrapper (1). No runtime or test consumer remained; module shells for the two routine files stay only because ownership.json and generated app @source/turbo inputs still list the paths."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "549fd511705a7558771af087b48f7a1a9cb563ee",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "549fd511705a7558771af087b48f7a1a9cb563ee",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 33 modules, 1187 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "549fd511705a7558771af087b48f7a1a9cb563ee",
+            "sourceKind": "committed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next ready slice: live owner port; dead-effect writers are exhausted.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.access-review-commands",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the TypeScript access-review commands after the native owner mount",
+        "scope": "Delete the superseded TS access-review start/item-decision/cancel writers, transaction ports, input schemas and exports; both the holding and Platform IAM POST routes must fail closed without the native owner config; move the required oracle to the native PostgreSQL scenario and seed retained reminder/browser fixtures with owner rows. identity_access KPI 240 -> 231.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/iam/**",
+          "packages/feature-admin/src/routes/api/v1/platform/iam/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**",
+          "fixtures/shared/**",
+          "tests/catalogue/engineering-scenarios.json"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "pending",
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Claim, record implemented/pushed SHA with the access-review checks, and mark migrated.",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "claim": null
       }
     ],
     "migrationProgress": {
@@ -25016,21 +25222,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 120,
-      "migratedPackets": 54,
+      "totalPackets": 122,
+      "migratedPackets": 55,
       "statusCounts": {
         "pending": 31,
-        "in_progress": 6,
+        "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 54,
+        "migrated": 55,
         "blocked": 19,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T16:31:39.071Z",
+    "updatedAt": "2026-11-12T16:55:12.819Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
