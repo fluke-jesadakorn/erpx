@@ -93621,7 +93621,9 @@
         "packages/server-pms/Cargo.toml",
         "Cargo.toml",
         "Cargo.lock",
-        "rust-toolchain.toml"
+        "rust-toolchain.toml",
+        "packages/server-pms/src/domain/room_command.rs",
+        "packages/server-pms/src/application/room_command.rs"
       ],
       "apps": [
         "pms",
@@ -93662,7 +93664,13 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "tests/support/rust-postgres.rs"
+        "packages/server-pms/src/domain/room_command.rs",
+        "packages/server-pms/src/application/room_command.rs",
+        "packages/server-pms/src/adapters/room_command_postgres.rs",
+        "packages/server-pms/src/adapters/room_command_http.rs",
+        "packages/server-pms/src/public/room_command.rs",
+        "tests/support/rust-postgres.rs",
+        "migrations/postgres/holding-write/0031_pms.sql"
       ],
       "apps": [
         "pms",

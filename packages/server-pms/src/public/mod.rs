@@ -7,3 +7,4 @@ pub mod front_desk;
 pub mod room_board;
 pub mod pms_http;
 pub mod stay_room;
+pub mod room_command;

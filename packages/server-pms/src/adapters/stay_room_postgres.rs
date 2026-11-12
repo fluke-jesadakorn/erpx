@@ -77,11 +77,14 @@ async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
 ///
 /// The caller must invoke this (or let `load` invoke it) before `replay` reads a
 /// retained receipt so the receipt and the facts come from one serializable
-/// unit. `NOWAIT` maps lock contention to `PRE_SNAPSHOT_LOCK_CONTENDED`; the
+/// unit. `SHARE ROW EXCLUSIVE` excludes other PMS command writers before their
+/// snapshots but still admits owner read transactions, so this writer never
+/// upgrades a shared lock into an update and cannot deadlock with a peer
+/// command. `NOWAIT` maps contention to `PRE_SNAPSHOT_LOCK_CONTENDED`; the
 /// caller retries the complete transaction instead of waiting on another owner.
 pub async fn lock_stay_room_sources(c: &mut PgConnection) -> Result<(), Error> {
     serializable(c).await?;
-    sqlx::query("LOCK TABLE pms_properties,pms_records IN SHARE MODE NOWAIT")
+    sqlx::query("LOCK TABLE pms_properties,pms_records IN SHARE ROW EXCLUSIVE MODE NOWAIT")
         .execute(&mut *c)
         .await
         .map_err(PersistenceError::pre_snapshot_lock_conflict)?;

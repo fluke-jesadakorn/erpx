@@ -21,6 +21,12 @@ use erpx_server_pms::public::room_board::{
     PgPmsBoardRead, PmsBoardActor, PmsBoardEntitlement, PmsBoardEntitlementPort, PmsBoardSelection,
     PmsStaff, PmsStaffDirectory, pms_room_board,
 };
+use erpx_server_pms::public::room_command::{
+    PgPmsRoomCommandRepository, PmsRoomAssigneeScopePort, PmsRoomCommandActor,
+    PmsRoomCommandHttpBackend, PmsRoomCommandHttpCommandRequest, PmsRoomCommandHttpContext,
+    PmsRoomCommandHttpFuture, PmsRoomCommandHttpResponse, PmsRoomCommandInput,
+    lock_room_command_sources, pms_room_command,
+};
 use erpx_server_pms::public::stay_room::{
     PgPmsStayRoomRepository, PmsStayRoomActor, PmsStayRoomCommand, PmsStayRoomEntitlement,
     PmsStayRoomEntitlementPort, PmsStayRoomHttpBackend, PmsStayRoomHttpCommandRequest,
@@ -71,6 +77,34 @@ struct PmsSources;
 impl HoldingWorkSourcePreparation for PmsSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move { lock_front_desk_sources(c).await })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PmsRoomCommandSources;
+
+impl HoldingWorkSourcePreparation for PmsRoomCommandSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move { lock_room_command_sources(c).await })
+    }
+}
+
+/// Assignment-scope fact resolved by composition in the same serializable
+/// snapshot as the PMS unit. The retained `readAssignments2` is a read-only
+/// Identity fact; the PMS adapter never claims Identity authority.
+struct PmsRoomAssigneeScope(bool);
+
+impl PmsRoomAssigneeScopePort for PmsRoomAssigneeScope {
+    type Error = BusinessError;
+    fn assignee_in_scope<'a>(
+        &'a mut self,
+        _company_id: &'a str,
+        _branch_id: &'a str,
+        _assignee_id: &'a str,
+        _now: i64,
+    ) -> erpx_server_pms::public::room_board::PmsBoardFuture<'a, bool, Self::Error> {
+        let allowed = self.0;
+        Box::pin(async move { Ok(allowed) })
     }
 }
 
@@ -447,6 +481,120 @@ impl<C: Clock + Send + Sync + 'static> PmsService<C> {
             )
             .await
     }
+    /// Apply one native room/housekeeping command. Permission and People
+    /// assignment scope follow the retained PMS operation table; the context
+    /// selectors are compared with the retained Account selection and never
+    /// become authority.
+    pub async fn room_command(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        selected_context: PmsRoomCommandHttpContext,
+        key: CommandKey,
+        command: erpx_server_pms::public::room_command::PmsRoomCommand,
+    ) -> Result<PmsRoomCommandHttpResponse, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let permission = command.operation().permission();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                WorkAuthorizationRequest {
+                    permission: permission.into(),
+                    module: Some("pms".into()),
+                    destination: "pms".into(),
+                    api: true,
+                },
+                PmsRoomCommandSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let selected_context = selected_context.clone();
+                    let key = key.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(Error::from(scope()));
+                        }
+                        current.require_permission(permission)?;
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let assignment = selected.assignment();
+                        if selected_context.company_id != workspace.company_id.as_str()
+                            || selected_context.branch_slug.as_deref()
+                                != workspace.branch_slug.as_deref()
+                            || selected_context.department_slug.as_deref()
+                                != workspace.department_slug.as_deref()
+                            || selected_context.assignment_id != assignment.id.as_str()
+                            || selected_context.revision != selected.revision()
+                            || selected_context.assignment_version != assignment.version
+                        {
+                            return Err(Error::from(BusinessError::new(
+                                FailureKind::Conflict,
+                                "WORK_CONTEXT_CHANGED",
+                                "Your selected work context changed. Review the current workspace and role.",
+                            )));
+                        }
+                        let board = pms_actor(current)?;
+                        let now = clock.now().get();
+                        // Retained `readAssignments2`: the selected owner must be
+                        // a current assignment for this company/branch. The read
+                        // runs before the PMS repository borrows the connection
+                        // and stays inside the same serializable snapshot.
+                        let assignee_allowed = match &command.input {
+                            PmsRoomCommandInput::TaskAssign { assignee_id, .. } => {
+                                let branch = board.branch_id.as_deref().unwrap_or("");
+                                sqlx::query_scalar::<_, i32>(
+                                    "SELECT 1 FROM assignments \
+                                     WHERE user_id=$1 AND company_id=$2 AND revoked_at IS NULL \
+                                     AND valid_from<=$3 AND valid_until>$3 \
+                                     AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=$4))",
+                                )
+                                .bind(assignee_id)
+                                .bind(&board.company_id)
+                                .bind(now)
+                                .bind(branch)
+                                .fetch_optional(&mut *connection)
+                                .await?
+                                .is_some()
+                            }
+                            _ => true,
+                        };
+                        let actor = PmsRoomCommandActor {
+                            board,
+                            assignment_id: assignment.id.as_str().to_owned(),
+                            role: assignment.role.clone(),
+                            revision: selected.revision(),
+                            assignment_version: assignment.version,
+                        };
+                        let mut repository = PgPmsRoomCommandRepository::new(connection);
+                        let mut scope = PmsRoomAssigneeScope(assignee_allowed);
+                        let result = pms_room_command(
+                            &actor,
+                            &key,
+                            &command,
+                            &mut repository,
+                            &mut scope,
+                            now,
+                        )
+                        .await?;
+                        Ok(PmsRoomCommandHttpResponse {
+                            data: serde_json::to_value(result)
+                                .map_err(|_| Error::from(unavailable()))?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct PmsBackend<C> {
@@ -512,6 +660,41 @@ impl<C: Clock + Send + Sync + 'static> PmsStayRoomHttpBackend for PmsBackend<C> 
             });
             self.service
                 .stay_room(
+                    request.host,
+                    proof,
+                    selection,
+                    request.context,
+                    request.key,
+                    request.command,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PmsRoomCommandHttpBackend for PmsBackend<C> {
+    fn command<'a>(
+        &'a self,
+        request: PmsRoomCommandHttpCommandRequest<'a>,
+    ) -> PmsRoomCommandHttpFuture<'a, PmsRoomCommandHttpResponse> {
+        Box::pin(async move {
+            let (proof, mut selection) = self.context(request.headers)?;
+            selection.mutation = true;
+            selection.expected = Some(ExpectedWorkSelection {
+                revision: request.context.revision,
+                assignment_id: AssignmentId::new(request.context.assignment_id.clone())
+                    .map_err(|_| {
+                        BusinessError::new(
+                            FailureKind::Conflict,
+                            "WORK_CONTEXT_CHANGED",
+                            "Your selected work context changed. Review the current workspace and role.",
+                        )
+                    })?,
+                assignment_version: request.context.assignment_version,
+            });
+            self.service
+                .room_command(
                     request.host,
                     proof,
                     selection,

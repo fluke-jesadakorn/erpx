@@ -8,3 +8,5 @@ pub mod room_board;
 pub mod pms_http;
 pub mod stay_room_http;
 pub mod stay_room_postgres;
+pub mod room_command_http;
+pub mod room_command_postgres;

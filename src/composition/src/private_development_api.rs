@@ -2879,6 +2879,7 @@ async fn assemble_checked(
         > = Vec::new();
         let mut pms_targets = Vec::new();
         let mut pms_stay_room_targets = Vec::new();
+        let mut pms_room_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut maintenance_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3278,6 +3279,14 @@ async fn assemble_checked(
                 });
                 pms_stay_room_targets.push(
                     erpx_server_pms::public::stay_room::PmsStayRoomHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: pms_backend.clone(),
+                    },
+                );
+                pms_room_command_targets.push(
+                    erpx_server_pms::public::room_command::PmsRoomCommandHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -5303,6 +5312,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_pms::public::stay_room::pms_stay_room_router(pms_stay_room_targets)
                     .map_err(|_| "PRIVATE_API_PMS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !pms_room_command_targets.is_empty() {
+            router = router.merge(
+                erpx_server_pms::public::room_command::pms_room_command_router(
+                    pms_room_command_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PMS_CONFIGURATION_INVALID")?,
             );
         }
         if !benefits_targets.is_empty() {

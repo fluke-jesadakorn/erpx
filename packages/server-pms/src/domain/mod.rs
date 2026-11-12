@@ -6,3 +6,4 @@ pub mod front_desk;
 pub mod room_board;
 
 pub(crate) mod stay_room;
+pub(crate) mod room_command;

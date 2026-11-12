@@ -355,7 +355,7 @@ fn plan_stay_room_moves_in_house_stay_and_marks_old_room_dirty() {
     assert_eq!(old.data["cleaningCycle"], 4);
     assert!(plan.departure_task.is_some());
     let task = plan.departure_task.unwrap();
-    assert_eq!(task.data["roomId"], "new-room");
+    assert_eq!(task.data["roomId"], "old-room");
     assert_eq!(task.data["type"], "departure");
 }
 
