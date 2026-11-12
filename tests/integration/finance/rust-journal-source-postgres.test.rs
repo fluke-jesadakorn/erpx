@@ -188,6 +188,39 @@ async fn arbitrary_labels_missing_origin_and_mismatched_company_creator_or_sourc
 }
 
 #[tokio::test]
+async fn forged_inventory_transit_loss_label_is_not_a_journal_source() {
+    fixture::with_database(2, |pool| async move {
+        review::setup(&pool, false).await;
+        create(&pool, "forged-label", false, false).await.unwrap();
+        sqlx::query("UPDATE finance_journals SET source_type='inventory_transit_loss' WHERE id='journal-forged-label'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        denied(
+            inspect(&pool, "journal-forged-label").await,
+            "FINANCE_JOURNAL_SOURCE_UNSUPPORTED",
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT status FROM finance_journals WHERE id='journal-forged-label'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "draft"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM money_transaction_snapshots")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            0
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn aggregate_origin_budget_rejects_a_real_chain_of_individually_bounded_receipts() {
     fixture::with_database(2,|pool|async move{
         review::setup(&pool,false).await;create(&pool,"origin-budget-root",false,false).await.unwrap();

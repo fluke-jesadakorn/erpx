@@ -1,4 +1,4 @@
-import {nativeFieldJournalWorkspaceReadback,nativeFieldJournalLegacyUnavailable} from '@erpx/feature-finance/public/server';
+import {nativeFieldJournalWorkspaceReadback} from '@erpx/feature-finance/public/server';
 import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/feature-finance/public/server';
 import {nativeFinanceBankCommand} from '@erpx/feature-finance/lib/native-finance-bank';
 import {nativeFinanceBankHttpGet} from '@erpx/feature-finance/lib/native-finance-bank-read';
@@ -7,7 +7,6 @@ import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nati
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import {editManualDraft,manualDraftEditSchema} from "@erpx/server-finance/public/finance-manual-drafts";
 import {financeEntrypointQueries} from "@erpx/server-finance/public/entrypoint-queries";
 import {prepareBillingCorrection,decideBillingCorrection,billingCorrectionSchema,billingCorrectionDecisionSchema} from "@erpx/server-finance/public/finance-billing-corrections";
 import {instrumentWorkspace,prepareInstrument,decideInstrument,prepareInstrumentRun,decideInstrumentRun,reverseInstrumentRun,instrumentEditionSchema,instrumentDecisionSchema,instrumentRunSchema,instrumentReversalSchema} from "@erpx/server-finance/public/finance-instruments";
@@ -29,7 +28,7 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {createFinanceStarter,financeStarterSchema} from "@erpx/server-finance/public/finance-starter";
-import {aging,createAccount,createAccountSchema,changeAccountStatus,changeAccountStatusSchema,createChart,createChartSchema,createInvoice,voidDraftInvoice,createJournal,createJournalSchema,createParty,createPeriod,createPeriodSchema,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,reversePayment,reversePaymentSchema,allocatePayment,exportPaymentFile,createTaxCode,taxCodeSchema,createAsset,assetSchema,depreciateAsset,createBudget,budgetSchema,createLease,leaseSchema,createLoan,loanSchema,createRevenueContract,revenueContractSchema,createRevenueObligation,revenueObligationSchema,importAccounts,importBankStatement,listAccounts,listCharts,listJournals,listInvoices,listPayments,getPayment,postInvoice,invoicePostingSchema,postJournal,postJournalBatch,journalBatchSchema,reconcileBankTransaction,reverseJournal,statements,trialBalance,reportDateSchema,partySchema,invoiceSchema,prepareFxRevaluation,prepareFxRevaluationSchema,decideFxRevaluation,decideFxRevaluationSchema} from '@erpx/server-finance/public/finance';
+import {aging,createAccount,createAccountSchema,changeAccountStatus,changeAccountStatusSchema,createChart,createChartSchema,createInvoice,voidDraftInvoice,createParty,createPeriod,createPeriodSchema,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,reversePayment,reversePaymentSchema,allocatePayment,exportPaymentFile,createTaxCode,taxCodeSchema,createAsset,assetSchema,depreciateAsset,createBudget,budgetSchema,createLease,leaseSchema,createLoan,loanSchema,createRevenueContract,revenueContractSchema,createRevenueObligation,revenueObligationSchema,importAccounts,importBankStatement,listAccounts,listCharts,listJournals,listInvoices,listPayments,getPayment,postInvoice,invoicePostingSchema,postJournalBatch,journalBatchSchema,reconcileBankTransaction,statements,trialBalance,reportDateSchema,partySchema,invoiceSchema,prepareFxRevaluation,prepareFxRevaluationSchema,decideFxRevaluation,decideFxRevaluationSchema} from '@erpx/server-finance/public/finance';
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import { z } from "zod";
 import {financeDueWorkspace,scheduleFinanceDraft,decideFinanceDueDraft,financeDueDraftSchema,financeDueDecisionSchema} from "@erpx/server-finance/public/finance-due-drafts";
@@ -225,22 +224,22 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts.length === 3 && parts[0] === "journals" && parts[2] === "edit") {
       const response = await nativeJournalEdit(request, holdingSlug, parts[1]);
       if (response) return response;
+      throw new ApiError(503, "NATIVE_FINANCE_UNAVAILABLE", "The native Finance manual-draft edit service is unavailable.");
     }
     if (parts.length === 1 && parts[0] === "journals") {
       const response = await nativeJournalCreate(request, holdingSlug);
       if (response) return response;
+      throw new ApiError(503, "NATIVE_FINANCE_UNAVAILABLE", "The native Finance journal-create service is unavailable.");
     }
     if (parts.length === 3 && parts[0] === "journals" && parts[2] === "reverse") {
       const response = await nativeJournalReverse(request, holdingSlug, parts[1]);
       if (response) return response;
-      const actor=requirePermission(await requireWorkContext(holdingSlug),"finance.read");
-      const field=await nativeFieldJournalLegacyUnavailable(request,actor,holdingSlug,parts[1]);if(field)return field;
+      throw new ApiError(503, "NATIVE_FINANCE_UNAVAILABLE", "The native Finance journal-reversal service is unavailable.");
     }
     if (parts.length === 3 && parts[0] === "journals" && parts[2] === "post") {
       const response = await nativeJournalPost(request, holdingSlug, parts[1]);
       if (response) return response;
-      const actor=requirePermission(await requireWorkContext(holdingSlug),"finance.read");
-      const field=await nativeFieldJournalLegacyUnavailable(request,actor,holdingSlug,parts[1]);if(field)return field;
+      throw new ApiError(503, "NATIVE_FINANCE_UNAVAILABLE", "The native Finance journal-post service is unavailable.");
     }
     if (parts.length === 3 && parts[0] === "invoices" && parts[2] === "post") {
       const response = await nativeServiceInvoicePost(request, holdingSlug, parts[1]);
@@ -435,11 +434,9 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "charts" && parts[2] === "accounts" && parts[4] === "status" && parts.length === 5) { const parsed = changeAccountStatusSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid account status change."); return Response.json(canonicalDestinationLinks({ data: await changeAccountStatus(actor, parts[1], parts[3], parsed.data, needCommand(request)) })); }
     if (parts[0] === "charts" && parts[2] === "accounts" && parts.length === 3) { const parsed = createAccountSchema.safeParse({ ...(typeof input === "object" && input !== null ? input : {}), chartId: parts[1] }); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid account."); return Response.json(canonicalDestinationLinks({ data: await createAccount(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if (parts[0] === "periods" && parts.length === 1) { const parsed = createPeriodSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid period."); return Response.json(canonicalDestinationLinks({ data: await createPeriod(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
-    if (parts[0] === "journals" && parts.length === 1) { const parsed = createJournalSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid journal."); return Response.json(canonicalDestinationLinks({ data: await createJournal(actor, {...parsed.data,sourceType:"manual",sourceId:undefined,isOpening:false}, needCommand(request)) }), { status: 201 }); }
-    if(parts[0]==="journals"&&parts.length===3&&parts[2]==="edit")return Response.json(canonicalDestinationLinks({data:await editManualDraft(actor,parts[1],manualDraftEditSchema.parse(input),needCommand(request))}));
+    // Batch posting remains on the TypeScript owner service until a native
+    // batch command exists; single create/edit/post/reverse are native-only above.
     if(parts[0]==="journals"&&parts.length===2&&parts[1]==="batch-post")return Response.json(canonicalDestinationLinks({data:await postJournalBatch(actor,journalBatchSchema.parse(input),needCommand(request))}));
-    if (parts[0] === "journals" && parts[2] === "post") { const parsed = z.object({ expectedVersion: z.number().int().positive() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "expectedVersion is required."); return Response.json(canonicalDestinationLinks({ data: await postJournal(actor, parts[1], needCommand(request), parsed.data) })); }
-    if (parts[0] === "journals" && parts[2] === "reverse") { const parsed = z.object({ periodId: z.string(), entryDate: z.string().date(), memo: z.string().optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "A reversal period and date are required."); return Response.json(canonicalDestinationLinks({ data: await reverseJournal(actor, parts[1], needCommand(request), parsed.data) }), { status: 201 }); }
     if (parts[0] === "parties" && parts.length === 1) { const parsed = partySchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid party."); return Response.json(canonicalDestinationLinks({ data: await createParty(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if (parts[0] === "invoices" && parts.length === 1) { const parsed = invoiceSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid invoice."); return Response.json(canonicalDestinationLinks({ data: await createInvoice(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if(parts[0]==="invoices"&&parts.length===2){const parsed=invoiceSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0].message);return Response.json(canonicalDestinationLinks({data:await createInvoice(actor,parsed.data,needCommand(request),parts[1])}));}

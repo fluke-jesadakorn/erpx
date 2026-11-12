@@ -11,7 +11,7 @@ use erpx_server_finance::public::{
     journal_review::*, manual_draft_edit::*, manual_draft_provenance::*, *,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::{BusinessError, CommandKey};
+use erpx_server_shared::public::{BusinessError, CommandKey, UserId};
 use erpx_server_workflow::public::commands::*;
 use sqlx::PgConnection;
 
@@ -171,16 +171,48 @@ impl PgOwnerCommandEffects for Effects {
 fn draft(memo: &str) -> JournalDraft {
     JournalDraft{chart_id:"chart".into(),period_id:"period".into(),entry_date:"2026-01-01".into(),currency:"THB".into(),fx_rate:None,is_opening:false,memo:memo.into(),source_type:"manual".into(),source_id:None,lines:serde_json::from_value(serde_json::json!([{"accountId":"cash","debit":"100.00","credit":"0"},{"accountId":"sales","debit":"0","credit":"100.00"}])).unwrap()}
 }
+fn dimensioned_draft(amount: &str, dimensions: serde_json::Value) -> JournalDraft {
+    JournalDraft{chart_id:"chart".into(),period_id:"period".into(),entry_date:"2026-01-01".into(),currency:"THB".into(),fx_rate:None,is_opening:false,memo:"Reviewed correction of the draft amount".into(),source_type:"manual".into(),source_id:None,lines:serde_json::from_value(serde_json::json!([
+        {"accountId":"cash","debit":amount,"credit":"0","dimensions":dimensions},
+        {"accountId":"sales","debit":"0","credit":amount,"dimensions":dimensions}
+    ])).unwrap()}
+}
 async fn edit(
     pool: &erpx_server_runtime::public::postgres::DatabasePool,
     key: &str,
     expected: i64,
     fail_retain: bool,
 ) -> Result<(), Error> {
+    edit_as(
+        pool,
+        key,
+        expected,
+        fail_retain,
+        "reviewer",
+        draft("Edited writer draft"),
+        "Writer revision",
+    )
+    .await
+}
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The retained edit fixture varies actor, draft and evidence."
+)]
+async fn edit_as(
+    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    key: &str,
+    expected: i64,
+    fail_retain: bool,
+    user_id: &str,
+    draft: JournalDraft,
+    reason: &str,
+) -> Result<(), Error> {
     let key = key.to_owned();
-    PgUnitOfWork::new(pool.clone()).run(TransactionOptions::default(),move|c|{let key=key.clone();Box::pin(async move{
- let actor=source::review::actor();let id="journal-writer-root";let input=CommandJson::from_serializable(&serde_json::json!({"expectedVersion":expected,"reason":"Writer revision","memo":"Edited writer draft"}))?;
- let request=WorkflowRequest{key:key.clone(),operation:"finance.manual-draft.edit".into(),record_id:id.into(),input};let mut auth=Authority{actor:actor.clone(),command:source::command(id,&key),policy:source::review::Policy::default()};let mut effects=Effects{actor:actor.clone(),draft:draft("Edited writer draft"),id:id.into(),expected,reason:"Writer revision".into(),captured:None,plan:None,applied:None,fail_retain};let mut ids=source::review::Ids;PgCommandLedger::new(actor.company_id,c,&mut auth,&source::review::FixedClock,&mut ids).execute(&request,&mut effects).await?;Ok(())
+    let user_id = user_id.to_owned();
+    let reason = reason.to_owned();
+    PgUnitOfWork::new(pool.clone()).run(TransactionOptions::default(),move|c|{let key=key.clone();let user_id=user_id.clone();let reason=reason.clone();let draft=draft.clone();Box::pin(async move{
+ let mut actor=source::review::actor();actor.user_id=UserId::new(user_id).unwrap();let id="journal-writer-root";let input=CommandJson::from_serializable(&serde_json::json!({"expectedVersion":expected,"reason":reason,"memo":draft.memo}))?;
+ let request=WorkflowRequest{key:key.clone(),operation:"finance.manual-draft.edit".into(),record_id:id.into(),input};let mut auth=Authority{actor:actor.clone(),command:source::command(id,&key),policy:source::review::Policy::default()};let mut effects=Effects{actor:actor.clone(),draft,id:id.into(),expected,reason,captured:None,plan:None,applied:None,fail_retain};let mut ids=source::review::Ids;PgCommandLedger::new(actor.company_id,c,&mut auth,&source::review::FixedClock,&mut ids).execute(&request,&mut effects).await?;Ok(())
  })}).await
 }
 #[tokio::test]
@@ -200,4 +232,45 @@ async fn actual_edit_retains_original_edition_and_rolls_back_failed_final_retain
  let image:(serde_json::Value,serde_json::Value)=sqlx::query_as("SELECT (SELECT snapshot_json::jsonb FROM finance_manual_draft_editions WHERE journal_id='journal-writer-root' AND journal_version=1),(SELECT snapshot_json::jsonb FROM finance_manual_draft_editions WHERE journal_id='journal-writer-root' AND journal_version=2)").fetch_one(pool.raw()).await.unwrap();assert_eq!(image.0["journal"]["created_by"],"preparer");assert_eq!(image.1["journal"]["created_by"],"reviewer");assert_eq!(image.1["journal"]["version"],2);assert_eq!(image.1["lines"].as_array().unwrap().len(),2);
  assert!(sqlx::query("UPDATE finance_manual_draft_receipt_links SET actor_id='tampered' WHERE journal_id='journal-writer-root'").execute(pool.raw()).await.is_err());
 }).await;
+}
+
+#[tokio::test]
+async fn dimensioned_edit_retains_both_versions_and_posts_through_independent_native_review() {
+    fixture::with_database(2,|pool|async move{
+        source::review::setup(&pool,false).await;
+        source::create(&pool,"writer-root",false,false).await.unwrap();
+        sqlx::raw_sql(
+            "INSERT INTO finance_dimension_definitions(id,company_id,code,name,required,created_by,created_at)VALUES('dim-project','company','project','Project',1,'maker',0);\
+             INSERT INTO finance_dimension_values(id,dimension_id,company_id,code,name,created_at)VALUES('dim-project-p1','dim-project','company','P1','Project one',0)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        edit_as(
+            &pool,
+            "dimensioned-edit",
+            1,
+            false,
+            "editor",
+            dimensioned_draft("80.01", serde_json::json!({"project":"P1"})),
+            "Corrected the draft amount and selected the required project before approval",
+        )
+        .await
+        .unwrap();
+        let editions:(Vec<i64>,Vec<serde_json::Value>)=sqlx::query_as("SELECT array_agg(journal_version ORDER BY journal_version),array_agg(snapshot_json::jsonb ORDER BY journal_version) FROM finance_manual_draft_editions WHERE journal_id='journal-writer-root'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(editions.0, vec![1, 2]);
+        assert_eq!(editions.1[0]["lines"][0]["debit_minor"], 10_000);
+        assert_eq!(editions.1[0]["lines"][0]["dimension_json"], "{}");
+        assert_eq!(editions.1[1]["lines"][0]["debit_minor"], 8_001);
+        assert_eq!(editions.1[1]["lines"][0]["dimension_json"], "{\"project\":\"P1\"}");
+        source::run(&pool,std::sync::Arc::new(tokio::sync::Mutex::new(source::review::Policy::default())),"journal-writer-root","post-edited-native",JournalReviewInput::Post{expected_version:2}).await.unwrap();
+        let posted:(String,i64)=sqlx::query_as("SELECT status,version FROM finance_journals WHERE id='journal-writer-root'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(posted,("posted".into(),3));
+        let (debit,dimension):(i64,String)=sqlx::query_as("SELECT debit_minor,dimension_json FROM finance_journal_lines WHERE journal_id='journal-writer-root' AND ordinal=0").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!((debit,dimension),(8_001,"{\"project\":\"P1\"}".into()));
+        let money:String=sqlx::query_scalar("SELECT amount_units::text FROM money_transaction_snapshots WHERE source_id='journal-writer-root'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(money,"8001");
+        source::denied(edit_as(&pool,"dimensioned-stale",3,false,"editor",dimensioned_draft("81.01", serde_json::json!({"project":"P1"})),"Stale correction after posting").await,"MANUAL_DRAFT_CHANGED");
+        assert_eq!(source::counts(&pool,"dimensioned-stale").await,(0,0,0));
+    }).await;
 }

@@ -204,6 +204,331 @@ async fn genuinely_legacy_uncaptured_journal_only_creates_new_reversal_money_evi
     }).await;
 }
 
+fn persistence_sql_state(result: &Result<JournalReviewResult, Error>) -> Option<&str> {
+    match result {
+        Err(PgTransactionError::Persistence(error)) => error.sql_state(),
+        _ => None,
+    }
+}
+fn database_message(error: &sqlx::Error) -> &str {
+    error
+        .as_database_error()
+        .map(|database| database.message())
+        .unwrap_or_default()
+}
+async fn draft_image(
+    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    id: &str,
+) -> (serde_json::Value, serde_json::Value, i64, i64, i64) {
+    sqlx::query_as(
+        "SELECT (SELECT to_jsonb(j) FROM finance_journals j WHERE j.id=$1),\
+         (SELECT jsonb_agg(to_jsonb(l) ORDER BY l.ordinal,l.id) FROM finance_journal_lines l WHERE l.journal_id=$1),\
+         (SELECT count(*) FROM money_transaction_snapshots),\
+         (SELECT count(*) FROM finance_book_postings),\
+         (SELECT count(*) FROM finance_financial_events)",
+    )
+    .bind(id)
+    .fetch_one(pool.raw())
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn post_requires_an_independent_current_approver_with_no_effects() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, false).await;
+        seed_journal(&pool, "self-review", false).await;
+        sqlx::query("UPDATE finance_journals SET created_by='reviewer' WHERE id='self-review'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let policy = Arc::new(Mutex::new(Policy::default()));
+        business(
+            run(&pool, policy.clone(), "self-review", "self-review-native", post()).await,
+            "INDEPENDENT_APPROVER_REQUIRED",
+        );
+        assert_eq!(counts(&pool, "self-review-native").await, (0, 0, 0));
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT status FROM finance_journals WHERE id='self-review'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "draft"
+        );
+        sqlx::query("UPDATE finance_review_test_authority SET can_approve=false")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        business(
+            run(&pool, policy, "journal", "missing-approval-native", post()).await,
+            "INDEPENDENT_APPROVER_REQUIRED",
+        );
+        assert_eq!(counts(&pool, "missing-approval-native").await, (0, 0, 0));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM money_transaction_snapshots")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            0
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn post_requires_current_required_dimension_values_before_any_effect() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, false).await;
+        seed_journal(&pool, "dimension-journal", false).await;
+        sqlx::raw_sql(
+            "INSERT INTO finance_dimension_definitions(id,company_id,code,name,required,created_by,created_at)VALUES('dim-project','company','project','Project',1,'maker',0);\
+             INSERT INTO finance_dimension_values(id,dimension_id,company_id,code,name,created_at)VALUES('dim-project-p1','dim-project','company','P1','Project one',0)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let policy = Arc::new(Mutex::new(Policy::default()));
+        let failure = run(
+            &pool,
+            policy.clone(),
+            "dimension-journal",
+            "dimension-required-native",
+            post(),
+        )
+        .await;
+        assert_eq!(persistence_sql_state(&failure), Some("23514"));
+        assert_eq!(counts(&pool, "dimension-required-native").await, (0, 0, 0));
+        // The runtime sanitises persistence text, so prove the exact deferred
+        // Finance constraint that refused the same unedited draft.
+        let probe=sqlx::query("UPDATE finance_journals SET status='posted',posted_by='reviewer',posted_at=1 WHERE id='dimension-journal'").execute(pool.raw()).await.unwrap_err();
+        assert!(
+            database_message(&probe).contains("DIMENSION_VALUE_REQUIRED"),
+            "{}",
+            database_message(&probe)
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT status FROM finance_journals WHERE id='dimension-journal'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "draft"
+        );
+        sqlx::query("UPDATE finance_journal_lines SET dimension_json='{\"project\":\"P1\"}' WHERE journal_id='dimension-journal'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        run(
+            &pool,
+            policy,
+            "dimension-journal",
+            "dimension-filled-native",
+            post(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(counts(&pool, "dimension-filled-native").await, (1, 1, 1));
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT dimension_json FROM finance_journal_lines WHERE journal_id='dimension-journal' ORDER BY ordinal LIMIT 1"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "{\"project\":\"P1\"}"
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn backdated_post_before_a_reviewed_book_opening_is_refused_atomically() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, false).await;
+        sqlx::raw_sql(
+            "INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at)VALUES('book-chart-2','company','Second secondary','THB','maker',0,0);\
+             INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at)VALUES('book-cash-2','company','book-chart-2','100','Cash','asset',0,0),('book-sales-2','company','book-chart-2','400','Sales','revenue',0,0);\
+             INSERT INTO finance_book_rules(id,company_id,primary_chart_id,secondary_chart_id,effective_date,prepared_by,reason,opening_json,opening_hash,opening_period_id,created_at)VALUES('first-rule','company','chart','book-chart','2026-01-01','maker','First book','[]','synthetic-opening-hash','period',0),('later-rule','company','chart','book-chart-2','2026-01-05','maker','Later book','[]','synthetic-opening-hash','period',0);\
+             INSERT INTO finance_book_account_mappings(rule_id,primary_account_id,secondary_account_id)VALUES('first-rule','cash','book-cash'),('first-rule','sales','book-sales'),('later-rule','cash','book-cash-2'),('later-rule','sales','book-sales-2');\
+             UPDATE finance_book_rules SET status='approved',reviewed_by='reviewer',reviewed_at=1 WHERE id IN('first-rule','later-rule')",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        seed_journal(&pool, "backdated", false).await;
+        sqlx::query("UPDATE finance_journals SET entry_date='2026-01-02' WHERE id='backdated'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let policy = Arc::new(Mutex::new(Policy::default()));
+        let failure = run(
+            &pool,
+            policy.clone(),
+            "backdated",
+            "backdated-native",
+            post(),
+        )
+        .await;
+        assert_eq!(persistence_sql_state(&failure), Some("23514"));
+        assert_eq!(counts(&pool, "backdated-native").await, (0, 0, 0));
+        let probe=sqlx::query("UPDATE finance_journals SET status='posted',posted_by='reviewer',posted_at=1 WHERE id='backdated'").execute(pool.raw()).await.unwrap_err();
+        assert!(
+            database_message(&probe).contains("BOOK_POSTING_PRECEDES_REVIEWED_OPENING"),
+            "{}",
+            database_message(&probe)
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT status FROM finance_journals WHERE id='backdated'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "draft"
+        );
+        seed_journal(&pool, "current", false).await;
+        sqlx::query("UPDATE finance_journals SET entry_date='2026-01-06' WHERE id='current'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        run(&pool, policy, "current", "current-native", post())
+            .await
+            .unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM finance_book_postings WHERE primary_journal_id='current'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            2
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn fx_journal_post_retains_recorded_rate_fx_lines_and_secondary_book_values() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, true).await;
+        sqlx::raw_sql(
+            "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,memo,is_opening,status,version,created_by,created_at,updated_at)VALUES('fx-journal','company','chart','period','FX-1','2026-01-01','USD',35500000,'manual','Reviewed USD journal',0,'draft',1,'preparer',0,0);\
+             INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal)VALUES('fx-journal-0','fx-journal','cash',101,0,3586,0,0),('fx-journal-1','fx-journal','sales',0,101,0,3586,1)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        run(
+            &pool,
+            Arc::new(Mutex::new(Policy::default())),
+            "fx-journal",
+            "fx-journal-native",
+            post(),
+        )
+        .await
+        .unwrap();
+        let journal: (String, i64, String) = sqlx::query_as(
+            "SELECT status,fx_rate_micros,currency FROM finance_journals WHERE id='fx-journal'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(journal, ("posted".into(), 35_500_000, "USD".into()));
+        let lines: Vec<(i64, i64, i64, i64)> = sqlx::query_as(
+            "SELECT debit_minor,credit_minor,base_debit_minor,base_credit_minor \
+             FROM finance_journal_lines WHERE journal_id='fx-journal' ORDER BY ordinal",
+        )
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(lines, vec![(101, 0, 3586, 0), (0, 101, 0, 3586)]);
+        let secondary: Vec<(i64, i64, i64, i64)> = sqlx::query_as(
+            "SELECT l.debit_minor,l.credit_minor,l.base_debit_minor,l.base_credit_minor \
+             FROM finance_journal_lines l JOIN finance_book_postings b ON b.secondary_journal_id=l.journal_id \
+             WHERE b.primary_journal_id='fx-journal' ORDER BY l.ordinal",
+        )
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(secondary, vec![(101, 0, 3586, 0), (0, 101, 0, 3586)]);
+        let money: (String, String, Option<String>) = sqlx::query_as(
+            "SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_id='fx-journal'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(money, ("101".into(), "101".into(), None));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn current_authority_change_rolls_back_and_retains_the_exact_draft_image() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, false).await;
+        seed_journal(&pool, "rollback-image", false).await;
+        let before = draft_image(&pool, "rollback-image").await;
+        let policy = Arc::new(Mutex::new(Policy {
+            revoke_after_event: true,
+            ..Policy::default()
+        }));
+        business(
+            run(
+                &pool,
+                policy,
+                "rollback-image",
+                "rollback-image-native",
+                post(),
+            )
+            .await,
+            "FINANCE_SOURCE_ACCESS_CHANGED",
+        );
+        assert_eq!(draft_image(&pool, "rollback-image").await, before);
+        assert_eq!(counts(&pool, "rollback-image-native").await, (0, 0, 0));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn unrelated_account_currency_is_refused_by_current_native_posting_facts() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, false).await;
+        sqlx::raw_sql(
+            "INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,created_at,updated_at)VALUES('euro','company','chart','900','Unrelated EUR','expense','EUR',0,0);\
+             INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,memo,is_opening,status,version,created_by,created_at,updated_at)VALUES('currency-journal','company','chart','period','CUR-1','2026-01-01','USD',35500000,'manual','Declared third-currency review',0,'draft',1,'preparer',0,0);\
+             INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal)VALUES('currency-journal-0','currency-journal','euro',101,0,3586,0,0),('currency-journal-1','currency-journal','sales',0,101,0,3586,1)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        business(
+            run(
+                &pool,
+                Arc::new(Mutex::new(Policy::default())),
+                "currency-journal",
+                "currency-account-native",
+                post(),
+            )
+            .await,
+            "JOURNAL_REVIEW_SOURCE_CHANGED",
+        );
+        assert_eq!(counts(&pool, "currency-account-native").await, (0, 0, 0));
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT status FROM finance_journals WHERE id='currency-journal'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "draft"
+        );
+    })
+    .await;
+}
+
 async fn run(
     pool: &erpx_server_runtime::public::postgres::DatabasePool,
     policy: Arc<Mutex<Policy>>,
