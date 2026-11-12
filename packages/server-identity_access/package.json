@@ -33,7 +33,6 @@
     "./adapters/people-access": "./src/adapters/people-access.ts",
     "./adapters/inventory-authority-projections": "./src/adapters/inventory-authority-projections.ts",
     "./adapters/requested-holding-scope": "./src/adapters/requested-holding-scope.ts",
-    "./adapters/device-account-revocation": "./src/adapters/device-account-revocation.ts",
     "./adapters/workflow-flow-routing-facts": "./src/adapters/workflow-flow-routing-facts.ts",
     "./adapters/account-quick-access-request": "./src/adapters/account-quick-access-request.ts",
     "./adapters/account-invitation-list": "./src/adapters/account-invitation-list.ts",

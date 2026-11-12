@@ -598,7 +598,12 @@ it('shared account menu uses native Company assignment version and revision chec
  });
 });
 
-it('device switching fences native queued Work authority and Push in the owning Holding without revoking another device',async()=>{
+it('native device switch retirement fences queued Work authority and Push in the owning Holding without revoking another device',async()=>{
+ // Oracle seeding only: the saved-account command surface is native
+ // (`account_device_http.rs` over application/account_auth), so this seed mirrors
+ // the native `PostgresAccountWorkContextInvalidation` retirement of one Holding.
+ // The assertions below cover the retained TypeScript queued-authority and Push
+ // consumers that must fail closed on that native evidence.
  await withAdminDiscovery(async f=>{
   const {runWithRequestMemo}=await import('@erpx/server-runtime/public/runtime/request-memo'),{adminWorkRoleChoices,adminWorkspaceTarget}=await import('@erpx/server-identity_access/public/admin-workspace'),{requireWorkContext}=await import('@erpx/server-identity_access/public/authorization'),{requireQueuedCommandAuthority}=await import('@erpx/server-identity_access/public/queued-command-authority'),{currentPushSession}=await import('@erpx/server-identity_access/public/collaboration-push-session');
   const target=adminWorkspaceTarget(f.company,'/holdings/test/administration')!;
@@ -606,27 +611,15 @@ it('device switching fences native queued Work authority and Push in the owning 
   await expect(requireQueuedCommandAuthority(env.H001_DB,actor,'iam.read')).resolves.toBeDefined();
   const subscription={session_id:f.account.sessionId,user_id:f.account.id,company_id:f.company};expect(await currentPushSession(db,env.H001_DB,subscription,Date.now())).toBe(true);
   const sibling=await adminDiscoverySession(await personalSibling(f.central));providerRequestHeaders.value=request(adminOrigin,'/holdings/test/administration',sibling.cookie).headers;const siblingChoices=await adminWorkRoleChoices(target);await(await import('@erpx/server-identity_access/public/admin-workspace')).selectAdminWorkRole(target,f.owner.assignmentId,siblingChoices.revision,selected.assignmentVersion);
-  const other=await profileAccount(),{deviceAccountStore}=await import('@erpx/server-identity_access/adapters/device-account-store'),{invalidateDeviceWorkContexts}=await import('@erpx/server-identity_access/adapters/device-account-revocation');
-  const browser=await db.prepare('SELECT browser_id FROM account_device_accounts WHERE session_id=?').bind(f.central.sessionId).first<string>('browser_id');expect(browser).toBeTruthy();
-  const store=deviceAccountStore(db,browser!,Date.now,invalidateDeviceWorkContexts),proof=[f.central.sessionId,other.sessionId],initial=await store.initialize(proof,f.central.sessionId),next=initial.state.accounts.find(account=>account.email===other.email)!;
-  await store.activate(proof,next.handle,initial.state.revision);
+  await env.H001_DB.transaction(async transaction=>{
+   await transaction.prepare("LOCK TABLE iam_revoked_sessions,active_work_contexts IN SHARE ROW EXCLUSIVE MODE").run();
+   await transaction.prepare(`INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) SELECT session_id,company_id,user_id,? FROM active_work_contexts WHERE session_id=? AND user_id=? ON CONFLICT(session_id,company_id) DO NOTHING`).bind(Date.now(),f.account.sessionId,f.account.id).run();
+   await transaction.prepare('DELETE FROM active_work_contexts WHERE session_id=? AND user_id=?').bind(f.account.sessionId,f.account.id).run();
+  });
   await expect(requireQueuedCommandAuthority(env.H001_DB,actor,'iam.read')).rejects.toMatchObject({code:'QUEUED_AUTHORITY_CHANGED'});
   expect(await currentPushSession(db,env.H001_DB,subscription,Date.now())).toBe(false);
   expect(await env.H001_DB.prepare('SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=? AND user_id=?').bind(f.account.sessionId,f.company,f.account.id).first()).not.toBeNull();
   expect(await env.H001_DB.prepare('SELECT 1 FROM active_work_contexts WHERE session_id=?').bind(sibling.sessionId).first()).not.toBeNull();
   expect(await currentPushSession(db,env.H001_DB,{...subscription,session_id:sibling.sessionId},Date.now())).toBe(true);
- });
-});
-it('an interrupted multi-Holding invalidation fails closed and does not acknowledge a new selected account',async()=>{
- await withAdminDiscovery(async f=>{
-  const {adminWorkRoleChoices,adminWorkspaceTarget,selectAdminWorkRole}=await import('@erpx/server-identity_access/public/admin-workspace'),target=adminWorkspaceTarget(f.company,'/holdings/test/administration')!,choices=await adminWorkRoleChoices(target),selected=choices.options.find(option=>option.assignmentId===f.owner.assignmentId)!;await selectAdminWorkRole(target,selected.assignmentId,choices.revision,selected.assignmentVersion);
-  const other=await profileAccount(),{deviceAccountStore}=await import('@erpx/server-identity_access/adapters/device-account-store'),{invalidateDeviceWorkContexts}=await import('@erpx/server-identity_access/adapters/device-account-revocation');
-  const browser=(await db.prepare('SELECT browser_id FROM account_device_accounts WHERE session_id=?').bind(f.central.sessionId).first<string>('browser_id'))!,proof=[f.central.sessionId,other.sessionId];
-  const ordinary=deviceAccountStore(db,browser),initial=await ordinary.initialize(proof,f.central.sessionId),next=initial.state.accounts.find(account=>account.email===other.email)!;
-  const interrupted=deviceAccountStore(db,browser,Date.now,async sessions=>{await invalidateDeviceWorkContexts(sessions);throw Error('Declared later Holding interruption');});
-  await expect(interrupted.activate(proof,next.handle,initial.state.revision)).rejects.toThrow('Declared later Holding interruption');
-  const actual=await ordinary.read(proof);expect(actual.revision).toBe(initial.state.revision);expect(actual.accounts.find(account=>account.current)?.email).toBe(f.central.email);
-  expect(await env.H001_DB.prepare('SELECT 1 FROM iam_revoked_sessions WHERE session_id=?').bind(f.account.sessionId).first()).not.toBeNull();
-  expect(await env.H001_DB.prepare('SELECT 1 FROM active_work_contexts WHERE session_id=?').bind(f.account.sessionId).first()).toBeNull();
  });
 });
