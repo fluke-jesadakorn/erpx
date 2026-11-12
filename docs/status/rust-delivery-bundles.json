@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 682,
+    "revision": 685,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-h",
       "agentId": "lead",
       "startedAt": "2026-11-12T05:53:11.222Z",
-      "heartbeatAt": "2026-11-12T05:53:11.222Z",
-      "expiresAt": "2026-11-12T06:23:11.223Z",
+      "heartbeatAt": "2026-11-12T06:17:38.743Z",
+      "expiresAt": "2026-11-12T06:47:38.743Z",
       "generation": 33,
       "tokenHash": "f966cf31ae2914d9b63b2e0457cd4a6372c399414efdbb6f364058d0f4aacc86"
     },
@@ -12878,14 +12878,78 @@
           "owner:projects"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261112-h",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T06:17:38.806Z",
+          "heartbeatAt": "2026-11-12T06:17:38.806Z",
+          "expiresAt": "2026-11-12T06:47:38.806Z",
+          "generation": 33
+        },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "de4f574cc5a5a970a585978188d6f2194013b85a",
+        "lastPushedSha": "de4f574cc5a5a970a585978188d6f2194013b85a",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-files -p erpx-server-projects --locked --all-targets",
+            "result": "passed",
+            "sourceSha": "de4f574cc5a5a970a585978188d6f2194013b85a",
+            "sourceKind": "committed",
+            "note": "Native project bind/stage/read remain green after the TS guard."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "de4f574cc5a5a970a585978188d6f2194013b85a",
+            "sourceKind": "committed",
+            "note": "Composition mounts compile."
+          },
+          {
+            "command": "bun run test:unit -- --suite=files.application.unit",
+            "result": "passed",
+            "sourceSha": "de4f574cc5a5a970a585978188d6f2194013b85a",
+            "sourceKind": "committed",
+            "note": "41 passed including the new NATIVE_PROJECT_FILES_REQUIRED no-repository guard; 111 pre-existing private-read-constructor failures are in an untouched file."
+          },
+          {
+            "command": "bun run test:unit -- --suite=projects.native-project-wbs-transport.unit",
+            "result": "passed",
+            "sourceSha": "de4f574cc5a5a970a585978188d6f2194013b85a",
+            "sourceKind": "committed",
+            "note": "14/14 native project transport cases."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "de4f574cc5a5a970a585978188d6f2194013b85a",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 1179 suites."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "de4f574cc5a5a970a585978188d6f2194013b85a",
+            "sourceKind": "committed",
+            "note": "Clean TypeScript after deleting the TS project content branch and standalone project tests."
+          },
+          {
+            "command": "git grep -n -e \"target_type='project'\" -e \"targetType: *['\\\"]project\" -- 'packages/server-files/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "de4f574cc5a5a970a585978188d6f2194013b85a",
+            "sourceKind": "committed",
+            "note": "Dual-writer proof: only 2 read-only routing SELECTs; no TS SQL writer for project. Generic Files service now refuses project with 503 NATIVE_PROJECT_FILES_REQUIRED."
+          },
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "de4f574cc5a5a970a585978188d6f2194013b85a",
+            "sourceKind": "committed",
+            "note": "KPI 2894 -> 2889 (workflow/PMS slice); files owner unchanged at 125 because project used the shared generic writer, now authority-guarded. Global target 0."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after directory sign-in mount; WIP reviewed",
-        "nextAction": "Native project attachment BIND is mounted and switched (e36f681dc + supervisor 9532fd57e): POST /project-attachments/{set}/bind with replay ledger (project.attachment.bind), Files set/link reads, projects.wbs purchase admission, project version step; workplace bind route uses native only for target_type=project when configured. Checks: attachment http 2/2, unit 11/11, files policy 5/5, PG 1/1, files PG 5/5, transport 12/12, typecheck, catalogue 1119. Remaining: native project attachment STAGE (set create/reserve/upload/complete) and project attachment list/status/content reads still TS Files routes.",
+        "blocker": null,
+        "nextAction": "Project bind/stage/reads native and TS authority retired (de4f574cc): generic Files service fails closed NATIVE_PROJECT_FILES_REQUIRED before SQL/effects; routes always native; standalone TS project attachment oracles deleted. Remaining blocker to mark migrated under retirement gate: KPI delta for this slice is 0 because project used the shared generic writer; remove the two read-only routing SELECTs (project-target.ts) by adding native by-link/by-set routes so retirement:ts-statements can prove a drop.",
         "handoff": {
           "runId": "run-20261110-g16",
           "agentId": "lead",
@@ -14711,8 +14775,8 @@
           "runId": "run-20261112-h",
           "agentId": "lead",
           "claimedAt": "2026-11-12T05:53:11.261Z",
-          "heartbeatAt": "2026-11-12T05:53:11.261Z",
-          "expiresAt": "2026-11-12T06:23:11.261Z",
+          "heartbeatAt": "2026-11-12T06:17:38.743Z",
+          "expiresAt": "2026-11-12T06:47:38.743Z",
           "generation": 33
         },
         "baseSha": null,
@@ -15037,8 +15101,8 @@
           "runId": "run-20261112-h",
           "agentId": "lead",
           "claimedAt": "2026-11-12T05:53:11.299Z",
-          "heartbeatAt": "2026-11-12T05:53:11.299Z",
-          "expiresAt": "2026-11-12T06:23:11.299Z",
+          "heartbeatAt": "2026-11-12T06:17:38.743Z",
+          "expiresAt": "2026-11-12T06:47:38.743Z",
           "generation": 33
         },
         "baseSha": null,
@@ -17350,8 +17414,8 @@
           "runId": "run-20261112-h",
           "agentId": "worker-quality",
           "claimedAt": "2026-11-12T06:11:33.351Z",
-          "heartbeatAt": "2026-11-12T06:11:33.351Z",
-          "expiresAt": "2026-11-12T06:41:33.351Z",
+          "heartbeatAt": "2026-11-12T06:17:38.743Z",
+          "expiresAt": "2026-11-12T06:47:38.743Z",
           "generation": 33
         },
         "baseSha": null,
@@ -17393,7 +17457,7 @@
       }
     },
     "lastCoordinatorGeneration": 33,
-    "updatedAt": "2026-11-12T06:12:56.011Z",
+    "updatedAt": "2026-11-12T06:18:28.402Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
