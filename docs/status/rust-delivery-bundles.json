@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 676,
+    "revision": 678,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17101,17 +17101,48 @@
           "owner:quality"
         ],
         "status": "in_progress",
-        "nextAction": "Implement the Quality workspace/detail cutover end-to-end and report the KPI before/after.",
+        "nextAction": "Workspace/detail cutover landed at e0a9cd9dcd (client parity, native-only route authority, TS readers deleted, oracles moved; cargo/typecheck green). KPI 34 -> 34 because the readers were SELECT-only, so this slice is NOT migrated. Remainder (removal task retire.quality.writers): delete the still-reachable TS Quality writers (spec save/transition, inspect, release, disposition/scrap, cancellation) whose POST routes already use native, move their oracles and record the KPI delta; also clean sibling-owner reader helpers commerce quality-workspace-{stock,products} and inventory quality-workspace-lots.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261112-h",
+          "agentId": "worker-quality",
+          "claimedAt": "2026-11-12T06:10:51.905Z",
+          "heartbeatAt": "2026-11-12T06:10:51.905Z",
+          "expiresAt": "2026-11-12T06:40:51.905Z",
+          "generation": 33
+        },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "e0a9cd9dcdbc23ea0998a890ff140e2702e0aa03",
+        "lastPushedSha": "e0a9cd9dcdbc23ea0998a890ff140e2702e0aa03",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-quality --locked",
+            "result": "passed",
+            "sourceSha": "e0a9cd9dcdbc23ea0998a890ff140e2702e0aa03",
+            "sourceKind": "committed",
+            "note": "Quality crate compiles with the deleted TS readers."
+          },
+          {
+            "command": "bun run --filter '@erpx/feature-quality' typecheck",
+            "result": "passed",
+            "sourceSha": "e0a9cd9dcdbc23ea0998a890ff140e2702e0aa03",
+            "sourceKind": "committed",
+            "note": "Native workspace/detail client parity typechecks."
+          },
+          {
+            "command": "retirement:ts-writes packages/server-quality/src",
+            "result": "failed",
+            "before": 34,
+            "after": 34,
+            "sourceSha": "e0a9cd9dcdbc23ea0998a890ff140e2702e0aa03",
+            "sourceKind": "committed",
+            "note": "Read-only reader deletion does not move the write KPI; writer retirement (spec save/transition, inspect, release, disposition/scrap, cancellation) is still required."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": {
@@ -17294,7 +17325,7 @@
       }
     },
     "lastCoordinatorGeneration": 33,
-    "updatedAt": "2026-11-12T05:53:55.007Z",
+    "updatedAt": "2026-11-12T06:11:03.884Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
