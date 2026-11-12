@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 902,
+    "revision": 907,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T13:06:17.155Z",
-      "expiresAt": "2026-11-12T13:36:17.155Z",
+      "heartbeatAt": "2026-11-12T13:08:17.565Z",
+      "expiresAt": "2026-11-12T13:38:17.565Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -22186,7 +22186,7 @@
           "owner:finance"
         ],
         "status": "blocked",
-        "nextAction": "BLOCKED after implementation review: deleting createJournal/postJournal/reverseJournal breaks 31 cross-owner consumers (fixtures/finance|people_payroll|shared builders, scripts/local/browser-simulation.ts, integration suites in assets/crm/ecommerce/inventory/manufacturing/marketing/pms/procurement/projects/sales/shared.*) and legacy revenue recognition has no native owner command. Work reverted; finance KPI 382 unchanged; HEAD green (tests/config 0 errors after close-unit fix). Ordering: (1) shared SQL finance-journal seeding helper for fixtures/tests + migrate the 31 consumers, (2) native revenue-obligation recognize command + composition mount, (3) route switch + writer deletion for KPI 382 -> 376.",
+        "nextAction": "STEP 1 IN PROGRESS: 4 of 31 finance journal consumers migrated to tests/support/helpers/finance-journal-seed.ts (expansion, money-people, thai-payroll fixtures + attachments owner helper; validated by finance.reporting 6/6, expansion-rehearsal 1/1, money-people attachments 46/46). Remaining are behavioural oracles needing native HTTP: finance-opening-balances, finance-manual-drafts, finance-books, pms opening, commerce/payroll forged-source cases, plus setup in assets/projects/inventory/sales/shared.* suites and scripts/local/browser-simulation.ts. Writers still exist; finance KPI 382 unchanged. Then: native revenue-obligation recognize command+mount, route switch to native-only, delete createJournal/postJournal/reverseJournal (382 -> 376).",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
@@ -22222,7 +22222,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Support TypeScript SQL writers",
-        "scope": "Classify the 49 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, support-incidents 7, service-teams 7, support-sla 6, ticket-portal 5, ticket-portal-customer 5, support-sla-alerts 1, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Classify the 43 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, support-incidents 7, service-teams 7, ticket-portal 5, ticket-portal-customer 5, support-sla-alerts 1, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -22391,6 +22391,53 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.support.sla-policy-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/sla-watch"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the Support SLA policy and clock TS writers",
+        "scope": "The native Support SLA HTTP route already owns policy create/change and ticket clock attachment; the TS `createSupportPolicy`, `changeSupportPolicy` and `attachSupportClock` writers/use cases are duplicate authority. Delete them and their exports, seed approved policy and attached clock owner rows for retained read tests, and record support-sla.ts 6 -> 0 and owner 49 -> 43. The native Rust SLA command suite owns command behavior.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/feature-support/**",
+          "fixtures/**",
+          "tests/support/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**",
+          "tests/integration/shared.workplace-journeys/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-r",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T13:08:17.647Z",
+          "heartbeatAt": "2026-11-12T13:08:17.647Z",
+          "expiresAt": "2026-11-12T13:38:17.647Z",
+          "generation": 43
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete the TS SLA policy/clock writers and use cases, seed approved policies and attached clocks in retained read tests, then record the file KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -22399,11 +22446,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 101,
+      "totalPackets": 102,
       "migratedPackets": 43,
       "statusCounts": {
         "pending": 28,
-        "in_progress": 3,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 43,
@@ -22413,7 +22460,7 @@
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:06:17.265Z",
+    "updatedAt": "2026-11-12T13:08:17.648Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
