@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 915,
+    "revision": 923,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T13:15:43.198Z",
-      "expiresAt": "2026-11-12T13:45:43.198Z",
+      "heartbeatAt": "2026-11-12T13:19:20.050Z",
+      "expiresAt": "2026-11-12T13:49:20.050Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -22222,7 +22222,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Support TypeScript SQL writers",
-        "scope": "Classify the 43 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, support-incidents 7, service-teams 7, ticket-portal 5, ticket-portal-customer 5, support-sla-alerts 1, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Classify the 42 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, support-incidents 7, service-teams 7, ticket-portal 5, ticket-portal-customer 5, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -22521,8 +22521,8 @@
           "runId": "run-20261112-r",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T13:09:34.797Z",
-          "heartbeatAt": "2026-11-12T13:15:43.198Z",
-          "expiresAt": "2026-11-12T13:45:43.198Z",
+          "heartbeatAt": "2026-11-12T13:19:20.050Z",
+          "expiresAt": "2026-11-12T13:49:20.050Z",
           "generation": 43
         },
         "baseSha": null,
@@ -22532,6 +22532,88 @@
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null
+      },
+      {
+        "id": "retire.support.sla-alert-drain",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/sla-watch"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the Support SLA drain TS writer",
+        "scope": "The native `support_sla_command`/`sla_drain` worker already owns the SLA breach sweep and its purchase-gated alert inserts. Remove the Node job invocation and delete the TS `drainSupportSla` adapter/application writer; seed alert owner rows for retained read tests. KPI: support-sla-alerts.ts 1 -> 0 and support owner 43 -> 42.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/feature-support/**",
+          "packages/server-runtime/src/adapters/runtime/jobs.ts",
+          "fixtures/**",
+          "tests/support/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**",
+          "tests/integration/shared.workplace-journeys/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "523b6ef6b4fef97a67645e5335e969c31d419e6f",
+        "lastPushedSha": "523b6ef6b4fef97a67645e5335e969c31d419e6f",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/support-sla-alerts.ts",
+            "result": "passed",
+            "sourceSha": "523b6ef6b4fef97a67645e5335e969c31d419e6f",
+            "before": 1,
+            "after": 0,
+            "note": "The TS breach-sweep writer and the Node job invocation are gone; the native `sla_drain` worker/command owns alert insertion and notifications."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "523b6ef6b4fef97a67645e5335e969c31d419e6f"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "523b6ef6b4fef97a67645e5335e969c31d419e6f"
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "523b6ef6b4fef97a67645e5335e969c31d419e6f"
+          },
+          {
+            "command": "bun run test:unit -- --suite=support.services.unit",
+            "result": "passed",
+            "sourceSha": "523b6ef6b4fef97a67645e5335e969c31d419e6f",
+            "note": "59/59; the drain orchestration test was removed with the native handover."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.sla.integration --suite=support.package-obligations.integration --suite=shared.workplace-journeys.engineering-workplace-workers.integration",
+            "result": "passed",
+            "sourceSha": "523b6ef6b4fef97a67645e5335e969c31d419e6f",
+            "note": "23/23; alert rows are seeded as native owner state for retained read tests. The two package-surfaces drain-only oracles were removed because the native Rust sla_drain suite owns that behavior; its unrelated Field fixture case remains environment-blocked."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Support SLA breach sweep is native-only: TS drain writer/use case/barrel and Node job invocation removed; retained tests seed alert rows; support-sla-alerts.ts 1->0 and support owner 43->42. Pushed 523b6ef6b.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -22540,21 +22622,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 103,
-      "migratedPackets": 44,
+      "totalPackets": 104,
+      "migratedPackets": 45,
       "statusCounts": {
         "pending": 28,
         "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 44,
+        "migrated": 45,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:15:43.286Z",
+    "updatedAt": "2026-11-12T13:19:20.140Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
