@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1247,
+    "revision": 1251,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21865,7 +21865,6 @@
           "scripts/seed/seed-pos-local.ts",
           "scripts/seed/seed-hospitality-local.ts",
           "scripts/testing/workflows/verify-pos-development.ts",
-          "tests/support/helpers/engineering-service-hospitality-attachment-owners.ts",
           "tests/catalogue/engineering-scenarios.json",
           "tests/unit/pos/**",
           "tests/integration/pos/**",
@@ -21878,8 +21877,8 @@
         "status": "blocked",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
-        "lastPushedSha": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
+        "implementedCommit": "85226ab5b05924a2eb2bd4f29646a4d0eba92433",
+        "lastPushedSha": "85226ab5b05924a2eb2bd4f29646a4d0eba92433",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-pos/src/**/*.ts'",
@@ -21905,18 +21904,48 @@
             "result": "passed",
             "sourceSha": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
             "note": "100/100 executed. The run reports a stale registered case 'preserves line and bill discounts exactly when a quantity is split' that was removed from the file by 904b9cbd1; the catalogue register is outside this packet."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "85226ab5b05924a2eb2bd4f29646a4d0eba92433",
+            "before": 112,
+            "after": 88,
+            "note": "15 TS POS command branches and 67 repository members deleted after seeds/workflow/helper moved to tests/support/helpers/pos-native-seed.ts; pos-core.ts 77 -> 53."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos",
+            "result": "passed",
+            "sourceSha": "85226ab5b05924a2eb2bd4f29646a4d0eba92433",
+            "note": "80/80 owner cases."
+          },
+          {
+            "command": "bunx tsc -p packages/server-pos/tsconfig.json --noEmit && bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "85226ab5b05924a2eb2bd4f29646a4d0eba92433"
+          },
+          {
+            "command": "vitest integration tests/integration/pos/pos.test.ts",
+            "result": "passed",
+            "sourceSha": "85226ab5b05924a2eb2bd4f29646a4d0eba92433",
+            "note": "101/101, including a new coverage case for the fifteen oracle commands; the stale registered case is refreshed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "85226ab5b05924a2eb2bd4f29646a4d0eba92433"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
-        "nextAction": "Move the POS seed/workflow/helper callers to the native POS client, delete the shift/sale/tender/refund TS writers they kept alive, refresh the stale required case, and record the owner KPI pair.",
+        "blocker": "handoff",
+        "nextAction": "Lead: port the POS provider job helpers and remaining no-native command families, then retire each with its live caller.",
         "handoff": {
-          "runId": "run-20261113-b",
+          "runId": "run-20261113-c",
           "agentId": "worker-pos-retire",
-          "at": "2026-11-12T21:18:48.018Z",
+          "at": "2026-11-12T21:37:01.097Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
-          "nextAction": "Move the POS seed/workflow/helper callers to the native POS client, delete the shift/sale/tender/refund TS writers they kept alive, refresh the stale required case, and record the owner KPI pair."
+          "reason": "handoff",
+          "nextAction": "Lead: port the POS provider job helpers and remaining no-native command families, then retire each with its live caller."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -29518,7 +29547,7 @@
       }
     },
     "lastCoordinatorGeneration": 47,
-    "updatedAt": "2026-11-12T21:34:35.629Z",
+    "updatedAt": "2026-11-12T21:37:01.098Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
