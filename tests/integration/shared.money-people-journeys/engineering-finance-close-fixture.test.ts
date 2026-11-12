@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { seedFinanceCloseCompany } from "../../../fixtures/finance/builders/engineering-finance-close-browser";
-import {calculateCloseReconciliations,createJournal,createJournalSchema,postJournalBatch} from '@erpx/server-finance/public/finance';
+import {calculateCloseReconciliations,postJournalBatch} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 import { applyMigrations, env } from "../../support/runtime-env";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
@@ -104,13 +105,7 @@ describe("isolated Finance close browser fixture", () => {
     // without pretending to rerun the already covered POS/Field/Sales adapters.
     for (const amount of ["25.00", "-12.50", "100.00", "10.00"]) {
       const positive = !amount.startsWith("-"), value = amount.replace("-", "");
-      const journal = await createJournal(operating.reviewer, createJournalSchema.parse({
-        chartId: operating.chart, periodId: operating.period, entryDate: "2026-10-03", currency: "THB",
-        memo: "Declared synthetic operating cash source for close Company isolation", lines: [
-          { accountId: operating.accounts.cash, debit: positive ? value : "0", credit: positive ? "0" : value },
-          { accountId: operating.accounts.revenue, debit: positive ? "0" : value, credit: positive ? value : "0" },
-        ],
-      }), key());
+      const journal = await seedFinanceJournal(db,{companyId:operating.company,chartId:operating.chart,periodId:operating.period,entryDate:"2026-10-03",currency:"THB",memo:"Declared synthetic operating cash source for close Company isolation",key:key(),createdBy:operating.reviewer.userId,lines:[{accountId:operating.accounts.cash,debit:positive?value:"0",credit:positive?"0":value},{accountId:operating.accounts.revenue,debit:positive?"0":value,credit:positive?value:"0"}]});
       await postJournalBatch(operating.manager, { journals: [{ id: String(journal.id), expectedVersion: 1 }], reason: "Independent review of declared operating receipt source and exact balanced amounts" }, key());
     }
     expect(await db.prepare("SELECT SUM(l.base_debit_minor-l.base_credit_minor) AS amount FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted' AND l.account_id=?")
@@ -123,13 +118,15 @@ describe("isolated Finance close browser fixture", () => {
 
   it("still rejects an actual native bank difference inside the close Company without adjusting the retained statement", async () => {
     const close = await seedFinanceCloseCompany(db, env.H001_FILES, "unbalanced close"), retained = await retainedSources(close);
-    const journal = await createJournal(close.preparer, createJournalSchema.parse({
-      chartId: close.chartId, periodId: close.periodIds[0], entryDate: "2027-01-15", currency: "THB",
-      memo: "Declared fictional extra cash requiring real bank reconciliation", lines: [
+    const journal = await seedFinanceJournal(db, {
+      companyId: close.companyId, chartId: close.chartId, periodId: close.periodIds[0],
+      entryDate: "2027-01-15", currency: "THB",
+      memo: "Declared fictional extra cash requiring real bank reconciliation", key: key(),
+      createdBy: close.preparer.userId, lines: [
         { accountId: close.accounts.bank, debit: "12.50", credit: "0" },
         { accountId: close.accounts.equity, debit: "0", credit: "12.50" },
       ],
-    }), key());
+    });
     await postJournalBatch(close.approver, { journals: [{ id: String(journal.id), expectedVersion: 1 }], reason: "Independent review of the real extra fictional cash posting" }, key());
     const reconciliation = await reconcile(close, close.periodIds[0]);
     expect(reconciliation.ready).toBe(false);
