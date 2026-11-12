@@ -93430,6 +93430,247 @@
         "packages/server-people_payroll/Cargo.toml",
         "tests/support/rust-postgres.rs"
       ]
+    },
+    {
+      "id": "commercial.rust-purchase-command-boundary.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native purchase-command boundary policy must preserve capability decisions, mode semantics and bounded owner facts."
+      },
+      "files": [
+        "tests/unit/commercial/rust-purchase-command-boundary.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "purchase_command_boundary"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-commercial/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "apps": [
+        "admin",
+        "account"
+      ],
+      "packages": [
+        "@erpx/server-commercial"
+      ]
+    },
+    {
+      "id": "commercial.rust-purchase-command-boundary-postgres.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native purchase-command boundary over migrated PostgreSQL must preserve owner-unit locks, assertions and rollback."
+      },
+      "files": [
+        "tests/integration/commercial/rust-purchase-command-boundary-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "purchase_command_boundary_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-commercial/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "admin",
+        "account"
+      ],
+      "packages": [
+        "@erpx/server-commercial"
+      ]
+    },
+    {
+      "id": "people_payroll.rust-workforce.unit",
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Workforce policy must preserve current-roster, company scope and bounded fact semantics."
+      },
+      "files": [
+        "tests/unit/people_payroll/rust-workforce.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-people-payroll",
+        "targets": [
+          "workforce"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-people_payroll/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll"
+      ]
+    },
+    {
+      "id": "people_payroll.rust-workforce-postgres.integration",
+      "lane": "integration",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Workforce reads over migrated PostgreSQL must preserve company/roster isolation and serializable enforcement."
+      },
+      "files": [
+        "tests/integration/people_payroll/rust-workforce-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-people-payroll",
+        "targets": [
+          "workforce_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-people_payroll/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll"
+      ]
+    },
+    {
+      "id": "pms.rust-pms-room-command.unit",
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS room commands must preserve actor, entitlement, record validation and plan transitions."
+      },
+      "files": [
+        "tests/unit/pms/rust-pms-room-command.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_room_command"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-pms/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ]
+    },
+    {
+      "id": "pms.rust-pms-room-command-postgres.integration",
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS room commands over migrated PostgreSQL must preserve receipts, audit and owner-unit rollback."
+      },
+      "files": [
+        "tests/integration/pms/rust-pms-room-command-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_room_command_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-pms/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ]
     }
   ]
 }
