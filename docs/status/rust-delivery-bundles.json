@@ -7867,7 +7867,7 @@
           "POS receipt deep-link gate fix",
           "browser refund request + independent approval"
         ],
-        "evidence": "receipt deep link 200 (was PRODUCT_ROLE_REQUIRED); browser refund.request 200 {id:b1470068}; reviewer refund.approve 200 {version:2}; pos_refunds completed approved_by usr_nisa; pos_lines returned 1000/refunded 2500; pos_payments refunded 2500; pos_refund_payments succeeded 2500; finance_payments refund settled POS-REF-\u2026; journal-refund and journal-refund-payment posted 2 lines each balanced 2500; typecheck and POS 13/13 + 17/17",
+        "evidence": "receipt deep link 200 (was PRODUCT_ROLE_REQUIRED); browser refund.request 200 {id:b1470068}; reviewer refund.approve 200 {version:2}; pos_refunds completed approved_by usr_nisa; pos_lines returned 1000/refunded 2500; pos_payments refunded 2500; pos_refund_payments succeeded 2500; finance_payments refund settled POS-REF-…; journal-refund and journal-refund-payment posted 2 lines each balanced 2500; typecheck and POS 13/13 + 17/17",
         "counts": {
           "owners": 3,
           "verified": 30,
@@ -7965,7 +7965,7 @@
           "Identity recipient validation",
           "full exception browser lifecycle"
         ],
-        "evidence": "browser exception open from POS sale adcdf454 v4 \u2192 200; acknowledge v2, start v3, assign v4, escalate v5, resolve v6, approve v7 (reviewed_by usr_nisa), close v8, reopen v9, prioritize high v10, resolve v11, reject v12, cancel v13; final operations_exceptions row cancelled/high/version 13; Operations tests 13/13, 7/7, 5/5, 6/6, 6/6, 3/3; native transport 11/11; typecheck passes",
+        "evidence": "browser exception open from POS sale adcdf454 v4 → 200; acknowledge v2, start v3, assign v4, escalate v5, resolve v6, approve v7 (reviewed_by usr_nisa), close v8, reopen v9, prioritize high v10, resolve v11, reject v12, cancel v13; final operations_exceptions row cancelled/high/version 13; Operations tests 13/13, 7/7, 5/5, 6/6, 6/6, 3/3; native transport 11/11; typecheck passes",
         "counts": {
           "owners": 3,
           "verified": 36,
@@ -7998,7 +7998,7 @@
           "native Maintenance work/plan history",
           "assets package fixtures"
         ],
-        "evidence": "browser maintenance list 200 with AST-ACCEPT \u00b7 Forklift inspection; work detail history Version 1 \u00b7 open \u00b7 Opened for acceptance; plan detail history activate; POS history and Operations pages still 200; Maintenance tests 6/6, 3/3, 2/2, 1/1, 1/1, 2/2, 2/2; Assets tests 4/4, 10/10, 17/17, 2/2, 13/13; typecheck passes",
+        "evidence": "browser maintenance list 200 with AST-ACCEPT · Forklift inspection; work detail history Version 1 · open · Opened for acceptance; plan detail history activate; POS history and Operations pages still 200; Maintenance tests 6/6, 3/3, 2/2, 1/1, 1/1, 2/2, 2/2; Assets tests 4/4, 10/10, 17/17, 2/2, 13/13; typecheck passes",
         "counts": {
           "owners": 4,
           "verified": 38,
@@ -8032,7 +8032,7 @@
           "native Maintenance create",
           "maintenance owner completion"
         ],
-        "evidence": "browser create form 200 {id:maintenance-eaaf2f20\u2026,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 \u00b7 create \u00b7 Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
+        "evidence": "browser create form 200 {id:maintenance-eaaf2f20…,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 · create · Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
         "counts": {
           "owners": 5,
           "verified": 42,
@@ -8047,7 +8047,7 @@
         "bundles": [
           "payroll summary browser investigation"
         ],
-        "evidence": "native payroll summary target mounted via existing operations company binding; /people/people/payroll/dashboard stays Loading your workspace\u2026; alternate canonical paths 404/403; experiment reverted without changing counts",
+        "evidence": "native payroll summary target mounted via existing operations company binding; /people/people/payroll/dashboard stays Loading your workspace…; alternate canonical paths 404/403; experiment reverted without changing counts",
         "counts": {
           "owners": 5,
           "verified": 42,
@@ -8200,7 +8200,7 @@
         "bundles": [
           "native platform migration run"
         ],
-        "evidence": "browser erpx-management run succeeded 412\u2192412 pending0; platform_migration_runs succeeded h001 receipt; replay same run id/one row; platform tests 26/26, organization 2/2, typecheck/health pass",
+        "evidence": "browser erpx-management run succeeded 412→412 pending0; platform_migration_runs succeeded h001 receipt; replay same run id/one row; platform tests 26/26, organization 2/2, typecheck/health pass",
         "counts": {
           "owners": 5,
           "verified": 47,
@@ -8883,7 +8883,7 @@
           "Common Records create / Billing cost / Work Projection quick-access / Runtime outbox / Shared fences (23 commits)",
           "Distribute Field Count/Parts/Finance source witnesses (unmounted)"
         ],
-        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial\u2194Finance lock order is unresolved.",
+        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial↔Finance lock order is unresolved.",
         "counts": {
           "owners": 0,
           "verified": 65,
@@ -9245,7 +9245,7 @@
           }
         ],
         "nextActions": [
-          "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial\u2194Finance lock order is resolved with the Field parts consumer.",
+          "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial↔Finance lock order is resolved with the Field parts consumer.",
           "Audit each owner against the strict native, frontend, legacy-retirement, local-gate, review and pushed-source requirements before certifying completion; the former eight and three owner claims are historical and were not sufficient under this gate.",
           "Resolve the recorded server-assets/composition API drift, validate affected consumers and normal-authenticated registration; container preparation is deferred until after this goal.",
           "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 694,
+    "revision": 695,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -10662,7 +10662,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory finance source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -11201,7 +11201,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory inventory source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -12212,7 +12212,7 @@
         "workstream": "S11",
         "kind": "inventory",
         "title": "Inventory crm source and consumers",
-        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing\u2192CRM\u2192Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
+        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing→CRM→Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -12311,7 +12311,7 @@
         "workstream": "S11",
         "kind": "inventory",
         "title": "Inventory marketing source and consumers",
-        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing\u2192CRM\u2192Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
+        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing→CRM→Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -14314,7 +14314,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory commerce source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -14855,7 +14855,7 @@
           "at": "2026-11-12T01:52:42.182Z",
           "previousStatus": "ready_for_integration",
           "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
-          "nextAction": "Native incremental projector (f205ed3aa) covers task/routine, leave, overtime, payroll with exact receipt/work_items/checkpoint; composition handler + CLI mounted (680895d2c); production supervision + restart added (bba6a3bd3). Crate checks: workflow/runtime all-targets pass. Remaining projector side-effects still TS (PMS social events, sales customer notifications, Legal/Executive/Social/Expense/Finance/Request AI) \u2014 each needs its owner port before the owned predicate can expand and the TS general supervisor retire. Verification note: erpx-service/catalogue are currently blocked by concurrent uncommitted finance WIP and an unregistered brand test in the shared worktree (not ours)."
+          "nextAction": "Native incremental projector (f205ed3aa) covers task/routine, leave, overtime, payroll with exact receipt/work_items/checkpoint; composition handler + CLI mounted (680895d2c); production supervision + restart added (bba6a3bd3). Crate checks: workflow/runtime all-targets pass. Remaining projector side-effects still TS (PMS social events, sales customer notifications, Legal/Executive/Social/Expense/Finance/Request AI) — each needs its owner port before the owned predicate can expand and the TS general supervisor retire. Verification note: erpx-service/catalogue are currently blocked by concurrent uncommitted finance WIP and an unregistered brand test in the shared worktree (not ours)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-workflow",
@@ -17574,6 +17574,63 @@
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null
+      },
+      {
+        "id": "retire.operations",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "operations",
+        "workflowIds": [
+          "operations/feature-exception-queue",
+          "operations/feature-escalations",
+          "operations/feature-approval-decisions",
+          "operations/feature-resolution",
+          "operations/feature-queue-policies",
+          "operations/feature-operations-summary"
+        ],
+        "workstream": "S15",
+        "kind": "migration",
+        "title": "Retire the retained Operations TypeScript command writers",
+        "scope": "Remove the Operations TS command writers only after their native route is authoritative: routines/templates/schedules, staff-task command fallback, operations exceptions/queue policy, and the Work purchase/attachment guards. Migrate oracles to native seeding and record the owner KPI before/after. Audit first; do not delete a writer whose retained route still dispatches it.",
+        "dependsOn": [
+          "migrate.operations"
+        ],
+        "requiredPorts": [
+          "workflow",
+          "collaboration"
+        ],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "packages/feature-operations/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/staff-tasks/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/**",
+          "packages/server-work_projection/src/adapters/staff-api.ts",
+          "packages/server-work_projection/src/application/staff-api.ts",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Audit each of the 38 Operations TS writes against the actual route. Retire the dead subset first (staff-task command fallback if the route fails closed, then exceptions/queue policy), delete exports, migrate tests, record retirement:ts-writes before/after with residuals, typecheck/catalogue/affected suites, push.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-operations",
+        "plannedPackage": "erpx-server-operations",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false
       }
     ],
     "migrationProgress": {
@@ -17582,10 +17639,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 59,
+      "totalPackets": 60,
       "migratedPackets": 26,
       "statusCounts": {
-        "pending": 8,
+        "pending": 9,
         "in_progress": 2,
         "ready_for_integration": 11,
         "integrating": 0,
@@ -17596,7 +17653,7 @@
       }
     },
     "lastCoordinatorGeneration": 33,
-    "updatedAt": "2026-11-12T06:34:00.057Z",
+    "updatedAt": "2026-11-12T06:39:02.492Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
