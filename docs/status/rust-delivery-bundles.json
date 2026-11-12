@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 636,
+    "revision": 649,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -9748,11 +9748,11 @@
         "resources": [
           "owner:brand"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
-        "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
-        "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+        "implementedCommit": "e86bde6c6253fabee7f0982932389323c380f13b",
+        "lastPushedSha": "e86bde6c6253fabee7f0982932389323c380f13b",
         "checks": [
           {
             "command": "cargo check -p erpx-server-brand --locked",
@@ -9786,18 +9786,42 @@
             "result": "passed",
             "sourceSha": "19580e0835c1dde972e2d399e77a681c8f890638",
             "note": "9/9 branding profile/storefront/media and presentation read cases pass on leased Postgres."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "e86bde6c6253fabee7f0982932389323c380f13b",
+            "note": "Composition compiles with BrandingService::presentation and the native presentation route."
+          },
+          {
+            "command": "cargo test -p erpx-server-brand --test branding_http",
+            "result": "passed",
+            "sourceSha": "e86bde6c6253fabee7f0982932389323c380f13b",
+            "note": "2/2 transport cases pass, covering all five presentation kinds."
+          },
+          {
+            "command": "cargo test -p erpx-server-brand --test branding_postgres",
+            "result": "passed",
+            "sourceSha": "e86bde6c6253fabee7f0982932389323c380f13b",
+            "note": "9/9 branding and presentation read cases pass."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=shared.work.presentation-owner-queries.unit",
+            "result": "passed",
+            "sourceSha": "e86bde6c6253fabee7f0982932389323c380f13b",
+            "note": "14/14 cases prove work-projection and operations consumers delegate to the native read (suite run in the lane before foreign catalogue WIP blocked the runner)."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
-        "nextAction": "Presentation reads pushed 19580e083 (workspace/document brand, storefront overlay, profiles, executive evidence). Mount request: composition BrandPresentationContext read service; switch work_projection/pms/operations presentation-queries, people_payroll explorer detail, runtime executive brand-evidence. Remaining brand slice: identity-read-port.",
+        "blocker": null,
+        "nextAction": "Brand presentation reads are native, mounted and switched (e86bde6c6). Remaining brand packets: identity-read-port, storefront-front-projection.",
         "handoff": {
-          "runId": "run-20261112-b",
+          "runId": "run-20261112-e",
           "agentId": "lead",
-          "at": "2026-11-12T03:04:52.750Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
-          "nextAction": "Presentation reads pushed 19580e083 (workspace/document brand, storefront overlay, profiles, executive evidence). Mount request: composition BrandPresentationContext read service; switch work_projection/pms/operations presentation-queries, people_payroll explorer detail, runtime executive brand-evidence. Remaining brand slice: identity-read-port."
+          "at": "2026-11-12T04:16:57.925Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead review complete; mark migrated"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-brand",
@@ -10817,22 +10841,51 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "baseSha": "1399b44cf061b48c26e3761dd49b554ade9cb99d",
+        "implementedCommit": "9dbdce5b1e18134eb8b00e8311c085355c760e2e",
+        "lastPushedSha": "9dbdce5b1e18134eb8b00e8311c085355c760e2e",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-pos --locked",
+            "result": "passed",
+            "sourceSha": "9dbdce5b1e18134eb8b00e8311c085355c760e2e",
+            "sourceKind": "committed",
+            "note": "POS crate compiles with the workspace/day read and router."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --tests --locked",
+            "result": "passed",
+            "sourceSha": "9dbdce5b1e18134eb8b00e8311c085355c760e2e",
+            "sourceKind": "committed",
+            "note": "80/80 owner cases pass across 10 targets including workspace 12, workspace-http 5 and workspace-postgres 6."
+          },
+          {
+            "command": "bun run test:integration -- --suite=pos.rust-pos-workspace-postgres.integration",
+            "result": "passed",
+            "sourceSha": "9dbdce5b1e18134eb8b00e8311c085355c760e2e",
+            "sourceKind": "committed",
+            "note": "6/6 registered PostgreSQL cases pass (scope isolation, tab gates, cash summary, sale facts, day close, entitlement projection)."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "9dbdce5b1e18134eb8b00e8311c085355c760e2e",
+            "sourceKind": "committed",
+            "note": "Repository layout passed; catalogue valid at 1170 suites with the three POS workspace suites registered."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
-        "nextAction": "Implement the first inventoried pos packet (migrate.pos.provider-and-payment-workers), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
+        "blocker": "handoff",
+        "nextAction": "Lead: mount PosWorkspaceHttpBackend + router and switch the feature-pos read route; then retire the TS workspace read.",
         "handoff": {
-          "runId": "run-20261112-d",
+          "runId": "run-20261112-e",
           "agentId": "worker-pos",
-          "at": "2026-11-12T04:14:11.964Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-d lease expired; pms report slice pushed 4192326d1; WIP reviewed, no pms writer active",
-          "nextAction": "Implement the first inventoried pos packet (migrate.pos.provider-and-payment-workers), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+          "at": "2026-11-12T04:38:27.595Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: mount PosWorkspaceHttpBackend + router and switch the feature-pos read route; then retire the TS workspace read."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pos",
@@ -16736,20 +16789,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 54,
-      "migratedPackets": 23,
+      "migratedPackets": 24,
       "statusCounts": {
         "pending": 8,
         "in_progress": 1,
-        "ready_for_integration": 10,
+        "ready_for_integration": 11,
         "integrating": 0,
-        "migrated": 23,
-        "blocked": 12,
+        "migrated": 24,
+        "blocked": 10,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 30,
-    "updatedAt": "2026-11-12T04:14:16.927Z",
+    "updatedAt": "2026-11-12T04:38:27.595Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
