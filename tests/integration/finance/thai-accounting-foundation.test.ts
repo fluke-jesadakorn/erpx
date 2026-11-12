@@ -6,7 +6,7 @@ import { beforeAll,beforeEach,afterEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
 import { accountingProfiles,financialEvents,decideAccountingProfile,prepareAccountingProfile } from "@erpx/server-finance/public/accounting-profiles";
-import {aging,beginClose,calculateCloseReconciliations,createAccount,createChart,createInvoice,createJournal,createJournalSchema,createPeriod,createParty,createTaxCode,createLoan,importAccounts,importBankStatement,invoiceSchema,postInvoice,postJournalBatch,reversePayment,statements,trialBalance} from '@erpx/server-finance/public/finance';
+import {aging,calculateCloseReconciliations,createAccount,createChart,createInvoice,createJournal,createJournalSchema,createPeriod,createParty,createTaxCode,createLoan,importAccounts,importBankStatement,invoiceSchema,postInvoice,postJournalBatch,reversePayment,statements,trialBalance} from '@erpx/server-finance/public/finance';
 import {settleInvoice} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 
@@ -161,7 +161,6 @@ describe("Thai accounting foundation",()=>{
     const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
     const reconciliation=await calculateCloseReconciliations(db,f.manager,period!);
     expect(reconciliation).toMatchObject({ready:false,rows:[expect.objectContaining({differenceMinor:0,source:expect.objectContaining({legacyDateCount:1})})]});
-    await expect(beginClose(f.reviewer,f.period,key())).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_FAILED"});
   });
 
   it("imports a quiet-month bank statement and keeps balance-sheet carry-forward separate from period profit",async()=>{

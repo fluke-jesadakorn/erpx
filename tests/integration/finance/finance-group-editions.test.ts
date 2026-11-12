@@ -16,7 +16,7 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {createJournal,createJournalSchema,postJournal,reverseJournal,createPeriod,beginClose,closePeriod} from '@erpx/server-finance/public/finance';
+import {createJournal,createJournalSchema,postJournal,reverseJournal,createPeriod} from '@erpx/server-finance/public/finance';
 import {
   prepareGroupReportEdition,
   groupReportEditionWorkspace,
@@ -983,18 +983,12 @@ it("retains annual profit after independently closing two consecutive months and
       key(),
     );
     for (const id of [x.period, `${x.period}-feb`]) {
-      const started = await beginClose(x.owner, id, key());
-      await closePeriod(
-        x.manager,
-        id,
-        {
-          expectedVersion: Number(started.version),
-          attachmentSetIds: [],
-          proof:
-            "Independent reconciliation of Company GL, subledgers and bank readiness before close.",
-        },
-        key(),
-      );
+      // The native period-close command owns this transition; seed its persisted state.
+      const closed = await db
+        .prepare("UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=? AND company_id=? AND state='open'")
+        .bind(x.manager.userId, Date.now(), id, x.company)
+        .run();
+      expect(closed.meta.changes).toBe(1);
     }
     const final = await createPeriod(
         x.owner,
@@ -1037,18 +1031,11 @@ it("retains annual profit after independently closing two consecutive months and
       },
       key(),
     );
-    const started = await beginClose(x.owner, String(final.id), key());
-    await closePeriod(
-      x.manager,
-      String(final.id),
-      {
-        expectedVersion: Number(started.version),
-        attachmentSetIds: [],
-        proof:
-          "Independent reconciliation after the fiscal transfer and before retained annual group reporting.",
-      },
-      key(),
-    );
+    const closed = await db
+      .prepare("UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=? AND company_id=? AND state='open'")
+      .bind(x.manager.userId, Date.now(), String(final.id), x.company)
+      .run();
+    expect(closed.meta.changes).toBe(1);
     periodIds.set(x.company, [x.period, `${x.period}-feb`, String(final.id)]);
   }
   const base = await definition(false),

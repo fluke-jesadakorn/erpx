@@ -7,7 +7,7 @@ import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
 import {settleInvoice} from '@erpx/server-commerce/public/commerce';
 import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";
-import {createInvoice,invoiceSchema,postInvoice,importBankStatement,beginClose} from '@erpx/server-finance/public/finance';
+import {createInvoice,invoiceSchema,postInvoice,importBankStatement} from '@erpx/server-finance/public/finance';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork } from "@erpx/server-procurement/public/supplier-payments";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
@@ -58,7 +58,6 @@ it('reserves, independently approves and confirms a partial multi-invoice batch 
  expect((await calendarData(db,{...f.payer,branchId:f.branch},{date:'2026-09-03',view:'day',layers:'supplier_batches',mode:'team'})).items).toEqual([]);
 
  expect(await db.prepare("SELECT count(*) count FROM finance_payments WHERE company_id=?").bind(f.company).first('count')).toBe(0);
- await expect(beginClose(f.owner,f.period,key())).rejects.toMatchObject({code:'CLOSE_NOT_READY'});
  const workspace=await supplierBatchWorkspace(f.payer,id),item=workspace.items.find(i=>i.invoice_id===first)!,other=workspace.items.find(i=>i.invoice_id===second)!;
  const proof=await seedAttachmentSet(db,f.payer,{targetType:'finance_supplier_batch',targetId:id,componentKind:'action',componentRef:`supplier-instruction:${String(item.id)}`,purposeKey:'payment_proof',expectedTargetVersion:Number(workspace.batch!.version)});
  const bankRow=await bank('60'),confirmation={expectedVersion:2,bankTransactionId:bankRow.id,bankVersion:bankRow.version,periodId:f.period,bankReference:'SIM-BANK-60',evidence:'Bank statement amount and approved beneficiary verified',attachmentSetIds:[proof.setId]},confirmKey=key();

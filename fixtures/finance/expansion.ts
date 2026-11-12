@@ -17,7 +17,7 @@ import {
   snapshotFinancialReport,
   exportFinancialReport,
 } from "@erpx/server-finance/public/finance-planning";
-import {createJournal,createJournalSchema,postJournal,postInvoice,importBankStatement,createPeriod,beginClose,closePeriod,calculateCloseReconciliations,trialBalance} from '@erpx/server-finance/public/finance';
+import {createJournal,createJournalSchema,postJournal,postInvoice,importBankStatement,createPeriod,calculateCloseReconciliations,trialBalance} from '@erpx/server-finance/public/finance';
 import {
   createBankCsvMapping,
   bankCsvMappingSchema,
@@ -204,18 +204,15 @@ export async function seedFinanceExpansionRehearsal(
     .bind(f.period)
     .run();
   const close = async (x: typeof f, id: string) => {
-    const prepared = await beginClose(x.reviewer, id, key());
-    await closePeriod(
-      x.manager,
-      id,
-      {
-        expectedVersion: Number(prepared.version),
-        attachmentSetIds: [],
-        proof:
-          "Independent retained GL, bank and source-owner reconciliation for synthetic engineering close",
-      },
-      key(),
-    );
+    // The native period-close command owns this transition; seed its persisted
+    // state so retained fixture assertions exercise the closed period without a
+    // retired TypeScript close writer.
+    await db
+      .prepare(
+        "UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=?",
+      )
+      .bind(x.manager.userId, Date.now(), id)
+      .run();
   };
   const statement = async (
     date: string,

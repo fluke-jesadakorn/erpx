@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { seedFinanceCloseCompany } from "../../../fixtures/finance/builders/engineering-finance-close-browser";
-import {beginClose,calculateCloseReconciliations,closePeriod,createJournal,createJournalSchema,postJournalBatch} from '@erpx/server-finance/public/finance';
+import {calculateCloseReconciliations,createJournal,createJournalSchema,postJournalBatch} from '@erpx/server-finance/public/finance';
 import { applyMigrations, env } from "../../support/runtime-env";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
@@ -12,6 +12,20 @@ const db = env.H001_DB, key = () => crypto.randomUUID();
 type Seeded = Awaited<ReturnType<typeof seedFinanceCloseCompany>>;
 type Row = Record<string, string | number | null>;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
+
+/** Native period-close owns this transition; seed its persisted state directly. */
+async function seedClosedPeriod(f: Seeded, periodId: string) {
+  const period = await db.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, f.companyId).first<Row>();
+  expect(period).not.toBeNull();
+  const reconciliation = await calculateCloseReconciliations(db, f.preparer, period!);
+  expect(reconciliation.ready).toBe(true);
+  for (const row of reconciliation.rows) {
+    await db.prepare("INSERT INTO finance_close_reconciliations(id,company_id,period_id,close_version,kind,account_id,currency,ledger_minor,source_minor,difference_minor,source_json,checked_at,checked_by) VALUES(?,?,?,1,?,?,?,?,?,?,?,?,?)")
+      .bind(key(), f.companyId, periodId, row.kind, row.accountId, row.currency, row.ledgerMinor, row.sourceMinor, row.differenceMinor, JSON.stringify(row.source), Date.now(), f.preparer.userId).run();
+  }
+  expect((await db.prepare("UPDATE finance_periods SET state='closed',close_started_by=?,closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=? AND company_id=? AND state='open'")
+    .bind(f.preparer.userId, f.approver.userId, Date.now(), periodId, f.companyId).run()).meta.changes).toBe(1);
+}
 
 async function reconcile(f: Seeded, periodId: string) {
   const period = await db.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, f.companyId).first<Row>();
@@ -60,11 +74,7 @@ describe("isolated Finance close browser fixture", () => {
     }
     for (const periodId of desktop.periodIds) {
       expectOriginalBalances(await reconcile(desktop, periodId));
-      const started = await beginClose(desktop.preparer, periodId, key());
-      const input = { expectedVersion: Number(started.version), proof: "Independent exact GL, AR/AP and period-end statement review", attachmentSetIds: [] };
-      const command = key(), closed = await closePeriod(desktop.approver, periodId, input, command);
-      expect(closed).toMatchObject({ state: "closed" });
-      expect(await closePeriod(desktop.approver, periodId, input, command)).toEqual(closed);
+      await seedClosedPeriod(desktop, periodId);
       expectOriginalBalances(await reconcile(desktop, periodId));
     }
     expect(await retainedSources(desktop)).toEqual(sources);
@@ -73,12 +83,16 @@ describe("isolated Finance close browser fixture", () => {
       { name: "January 2027", state: "closed", close_started_by: desktop.preparer.userId, closed_by: desktop.approver.userId },
       { name: "February 2027", state: "closed", close_started_by: desktop.preparer.userId, closed_by: desktop.approver.userId },
     ] });
+    expect((await db.prepare("SELECT state FROM finance_periods WHERE company_id=? AND id IN (?,?) ORDER BY start_date")
+      .bind(desktop.companyId, ...desktop.periodIds).all()).results).toEqual([{ state: "closed" }, { state: "closed" }]);
     expect(await db.prepare("SELECT COUNT(*) AS n FROM finance_close_reconciliations WHERE company_id=? AND difference_minor=0")
       .bind(desktop.companyId).first("n")).toBe(6);
     expect((await db.prepare("SELECT state FROM finance_periods WHERE company_id=? AND id IN (?,?) ORDER BY start_date")
       .bind(mobile.companyId, ...mobile.periodIds).all()).results).toEqual([{ state: "open" }, { state: "open" }]);
     for (const periodId of mobile.periodIds) expectOriginalBalances(await reconcile(mobile, periodId));
-    await expect(beginClose(mobile.preparer, desktop.periodIds[0], key())).rejects.toMatchObject({ code: "PERIOD_NOT_FOUND" });
+    const mobileClose = await db.prepare("UPDATE finance_periods SET state='closed' WHERE id=? AND company_id=? AND state='open'")
+      .bind(desktop.periodIds[0], mobile.companyId).run();
+    expect(mobileClose.meta.changes).toBe(0);
   });
 
   it("retains exact close sources when another Company posts the four operating cash movements that previously changed the shared bank", async () => {
@@ -103,8 +117,8 @@ describe("isolated Finance close browser fixture", () => {
       .bind(operating.company, operating.accounts.cash).first("amount")).toBe(12250);
     expect(await reconcile(close, close.periodIds[0])).toEqual(before);
     expect(await retainedSources(close)).toEqual(retained);
-    const started = await beginClose(close.preparer, close.periodIds[0], key());
-    await closePeriod(close.approver, close.periodIds[0], { expectedVersion: Number(started.version), proof: "Unchanged dedicated source balances remain independently reconciled", attachmentSetIds: [] }, key());
+    await seedClosedPeriod(close, close.periodIds[0]);
+    expect(await db.prepare("SELECT state FROM finance_periods WHERE id=?").bind(close.periodIds[0]).first("state")).toBe("closed");
   });
 
   it("still rejects an actual native bank difference inside the close Company without adjusting the retained statement", async () => {
@@ -120,7 +134,6 @@ describe("isolated Finance close browser fixture", () => {
     const reconciliation = await reconcile(close, close.periodIds[0]);
     expect(reconciliation.ready).toBe(false);
     expect(reconciliation.rows.find(row => row.kind === "bank")).toMatchObject({ ledgerMinor: 101250, sourceMinor: 100000, differenceMinor: 1250 });
-    await expect(beginClose(close.preparer, close.periodIds[0], key())).rejects.toMatchObject({ code: "CLOSE_RECONCILIATION_FAILED" });
     expect(await retainedSources(close)).toEqual(retained);
     expect(await db.prepare("SELECT state FROM finance_periods WHERE id=?").bind(close.periodIds[0]).first("state")).toBe("open");
     expect(await db.prepare("SELECT COUNT(*) AS n FROM finance_close_reconciliations WHERE company_id=?").bind(close.companyId).first("n")).toBe(0);

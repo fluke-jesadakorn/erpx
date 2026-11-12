@@ -95,8 +95,6 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0,returnDate=
   for(const journalId of [String(approved.stockJournalId),String(approved.creditJournalId)]){
     await assign('journal',journalId,'draft',f.manager.userId);await postJournal(f.manager,journalId,key(),{expectedVersion:1});
   }
-  const {beginClose}=await import("@erpx/server-finance/public/finance");
-  await expect(beginClose(f.owner,f.period,key())).rejects.toMatchObject({code:process.env.ERPX_FINANCE_PACKAGE_ENFORCEMENT==='enforced'?'PACKAGE_REQUIRED':'CLOSE_NOT_READY'});
   const completeKey=key(),completed=await completeCommerceReturn(f.manager,String(requested.id),{expectedVersion:2},completeKey);
   expect(await completeCommerceReturn(f.manager,String(requested.id),{expectedVersion:2},completeKey)).toEqual(completed);
   const refundId=String(completed.refundId);
@@ -256,8 +254,6 @@ it('holds uncertain payments, requires independent failure review, and serialize
  await expect(prepare(id,'20')).rejects.toMatchObject({status:409});
  const {refundWork}=await import("@erpx/server-finance/public/refunds");
  expect((await refundWork(f.manager)).find(item=>item.id===id)).toMatchObject({canAct:true,responsibleQueue:'Independent Finance approver'});
- const {beginClose,closePeriod}=await import("@erpx/server-finance/public/finance");
- await expect(beginClose(f.owner,f.period,key())).rejects.toMatchObject({code:'CLOSE_NOT_READY'});
  await expect(recordRefundException(f.payer,String(first.id),{expectedVersion:3,outcome:'failed',evidence:'Payer cannot independently review failure'},key())).rejects.toMatchObject({status:403});
  await recordRefundException(f.manager,String(first.id),{expectedVersion:3,outcome:'failed',evidence:'Independent bank statement and rejection reference confirm no transfer'},key());
  const owner=(await refundWorkspace(f.payer,id)).owner,input={expectedVersion:Number(owner.version),amount:'20',plannedDate:'2026-09-05',bankAccount:f.accounts.cash,cashAccountId:f.accounts.cash};
@@ -268,9 +264,6 @@ it('holds uncertain payments, requires independent failure review, and serialize
  await recordRefundException(f.payer,String(pending.id),{expectedVersion:1,outcome:'cancelled',evidence:'Cancel unused instruction before any bank submission'},key());
  expect((await refundWorkspace(f.payer,id)).instructions.filter(row=>row.status==='prepared')).toHaveLength(0);
  expect(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE company_id=? AND source_type='return_refund'").bind(f.company).first('n')).toBe(0);
- const closing=await beginClose(f.owner,f.period,key());
- await bankEvidence('-1');
- await expect(closePeriod(f.head,f.period,{expectedVersion:Number(closing.version),proof:'Late bank data must block final close',attachmentSetIds:[]},key())).rejects.toMatchObject({status:409});
 });
 
 it('keeps tax in the full paid credit and creates exactly the gross refund obligation',async()=>{

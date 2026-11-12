@@ -1,9 +1,11 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { expenseDb as db, expenseFixture, key } from "./expense-fixture";
-import {createJournal,createJournalSchema,createLease,createLoan,createParty,createRevenueContract,importBankStatement,beginClose,closePeriod,createInvoice,invoiceSchema,partySchema,postInvoice,createPayment,approvePayment,releasePayment,confirmPayment,reconcileBankTransaction} from '@erpx/server-finance/public/finance';
+import {createJournal,createJournalSchema,createLease,createLoan,createParty,createRevenueContract,importBankStatement,createInvoice,invoiceSchema,partySchema,postInvoice,createPayment,approvePayment,releasePayment,confirmPayment,reconcileBankTransaction} from '@erpx/server-finance/public/finance';
 import { createAsset,assetSchema } from "@erpx/server-finance/public/finance-assets";
 import { createAccrualSchedule,accrualScheduleSchema } from "@erpx/server-finance/public/finance-accruals";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import {executeCommand} from '@erpx/server-workflow/public/commands';
+import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';
 import { createLearningCourse,changeLearningCourse,createLearningAssignment,changeLearningAssignment } from "@erpx/server-learning/public/learning";
 import { requestPayrollCorrection,payrollCorrectionRequestSchema,updateTimeEntry,timeEntryUpdateSchema } from "@erpx/server-people_payroll/public/people-payroll";
 import {createOvertime,commandOvertime} from '@erpx/server-people_payroll/public/overtime';
@@ -37,7 +39,22 @@ export async function financePeopleAttachmentOwner(tuple:AttachmentOwnerTuple):P
  if(tuple.targetType==="finance_loan"){const created=await createLoan(actor,{loanNumber:key(),lender:"Synthetic lender",currency:"THB",principal:"100",annualRate:"0",commencementDate:"2026-09-01",maturityDate:"2027-09-01"},key());return standard(String(created.id),"finance_loans");}
  if(tuple.targetType==="finance_revenue_contract"){const party=await createParty(actor,partySchema.parse({kind:"customer",code:key(),name:"Synthetic customer",currency:"THB"}),key()),created=await createRevenueContract(actor,{customerId:String(party.id),contractNumber:key(),currency:"THB",transactionPrice:"100"},key());return standard(String(created.id),"finance_revenue_contracts");}
  if(tuple.targetType==="finance_bank_statement"){const bank=await bankFixture(f,"100");return standard(bank.statementId,"finance_bank_statements");}
- if(tuple.targetType==="finance_period"){const started=await beginClose(f.reviewer,f.period,key());return {...standard(f.period,"finance_periods",Number(started.version)),actor:f.manager,versionColumn:"close_version",componentRef:"close-approval",bindingType:"finance_period_close",bindAction:(setId,command)=>closePeriod(f.manager,f.period,{expectedVersion:Number(started.version),proof:reason,attachmentSetIds:[setId]},command)};}
+ if(tuple.targetType==="finance_period"){
+  // Native period-close owns the closing transition and workpaper binding.
+  // Seed the prepared close and execute only the real Files binding effects;
+  // the native Rust period-close suite proves the complete close command.
+  await db.prepare("UPDATE finance_periods SET state='closing',close_started_by=?,close_version=1 WHERE id=? AND company_id=? AND state='open'").bind(f.reviewer.userId,f.period,f.company).run();
+  let bound:unknown;
+  return {...standard(f.period,"finance_periods",1),actor:f.manager,versionColumn:"close_version",componentRef:"close-approval",bindingType:"finance_period_close",bindAction:async(setId,command)=>{
+   if(bound)return bound;
+   const write=db,prepared=await prepareAttachmentBinding(write,f.manager,{attachmentSetIds:[setId],bindingContract:{targetType:"finance_period",bindingType:"finance_period_close",contexts:[{purposeKey:"close_workpaper",componentKind:"action",componentRef:"close-approval"}]},targetId:f.period,expectedTargetVersion:1,commandId:command,bindingId:`${f.period}:2`});
+   bound=await executeCommand(write,f.manager,command,"finance.period.close",{attachmentSetIds:[setId]},f.period,2,{id:f.period,state:"closed",version:2},[
+    ...prepared.guards,...prepared.steps,
+    write.prepare("UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=2 WHERE id=? AND company_id=? AND state='closing' AND close_version=1").bind(f.manager.userId,Date.now(),f.period,f.company),
+   ]);
+   return bound;
+  }};
+ }
  if(tuple.targetType==="finance_payment"){
   const invoice=await payableFixture(f),payment=await createPayment(f.reviewer,{partyId:invoice.partyId,kind:"payment",paymentNumber:key(),paymentDate:"2026-09-05",currency:"THB",amount:"100",bankAccount:f.accounts.cash},key());
   await approvePayment(f.manager,String(payment.id),{expectedVersion:1,proof:reason},key());await releasePayment(f.payer,String(payment.id),{expectedVersion:2,proof:reason},key());const bank=await bankFixture(f,"-100");

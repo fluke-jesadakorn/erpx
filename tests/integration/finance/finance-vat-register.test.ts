@@ -5,7 +5,7 @@ import { beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
 import { prepareAccountingProfile,decideAccountingProfile } from "@erpx/server-finance/public/accounting-profiles";
-import {beginClose,calculateCloseReconciliations,closePeriod,createAccount,createInvoice,createParty,invoiceSchema,partySchema,postInvoice} from '@erpx/server-finance/public/finance';
+import {calculateCloseReconciliations,createAccount,createInvoice,createParty,invoiceSchema,partySchema,postInvoice} from '@erpx/server-finance/public/finance';
 import { prepareVatEntry,reviewVatEntry,vatEntrySchema,prepareVatCorrection,reviewVatCorrection,vatCorrectionSchema,prepareVatPackage,approveVatPackage,exportVatWorkpaper,recordVatFiling,supersedeVatPackage,vatPackageDetail,vatPackageExport,vatWorkspace,taxEntryDetail,vatCorrectionDetail } from "@erpx/server-finance/public/finance-tax-register";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 
@@ -52,7 +52,6 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
   });
   it("prevents incomplete and stale packages and retains superseded versions",async()=>{
     const id=await invoice();await expect(prepareVatPackage(f.reviewer,packageInput(),key())).rejects.toMatchObject({code:"VAT_GL_RECONCILIATION_REQUIRED"});
-    await expect(beginClose(f.reviewer,f.period,key())).rejects.toMatchObject({code:"CLOSE_NOT_READY"});
     await approvedEntry(id);const p=await prepareVatPackage(f.reviewer,packageInput(),key());
     await expect(approveVatPackage({...f.reviewer,role:"finance_approver"},p.id,{expectedVersion:1,reason:"Self approval is prohibited"},key())).rejects.toMatchObject({code:"INDEPENDENT_APPROVER_REQUIRED"});
     await approvedEntry(await invoice("receivable","200","14"));
@@ -80,11 +79,12 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     await approvedEntry(await invoice("payable"),{treatment:"allocated",deductibleBps:5000});
     const p=await prepareVatPackage(f.reviewer,packageInput(),key());expect(p.result).toMatchObject({inputVatMinor:700,deductibleInputMinor:350,payableMinor:0,creditMinor:350,netMinor:-350});
   });
-  it("retains VAT close evidence, refuses late GL and rejects pending corrections or unmatched tax movement",async()=>{
+  it("refuses late GL while closing and keeps reviewed VAT evidence separate from unmatched tax movement",async()=>{
     const source=await invoice(),entry=await approvedEntry(source);
-    const prepared=await beginClose(f.reviewer,f.period,key());
-    const evidence=JSON.parse(String(await db.prepare("SELECT detail_json FROM finance_close_checks WHERE period_id=? AND check_key='statutory-vat'").bind(f.period).first("detail_json")));
-    expect(evidence).toMatchObject({ready:true,rows:[expect.objectContaining({ledger_minor:700,register_minor:700})]});
+    // Native period-close owns the transition and its close-check evidence;
+    // seed only the persisted closing state this retained VAT oracle observes.
+    const seeded=await db.prepare("UPDATE finance_periods SET state='closing',close_started_by=?,close_version=close_version+1 WHERE id=? AND company_id=? AND state='open'").bind(f.reviewer.userId,f.period,f.company).run();
+    expect(seeded.meta.changes).toBe(1);
     const journal=`late-vat-${key()}`;
     const lateSteps=[
       db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,memo,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'2026-09-30','THB','manual','Unmatched tax evidence fixture','draft',?,1,1)").bind(journal,f.company,f.chart,f.period,journal,f.reviewer.userId),
@@ -96,14 +96,11 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     const correction=await prepareVatCorrection(f.reviewer,entry,vatCorrectionSchema.parse({...facts(source,{documentReference:"Corrected supporting tax invoice reference"}),expectedEntryVersion:2,reason:"Review newly received document evidence without changing retained tax amounts"}),key());
     const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
     expect(await calculateCloseReconciliations(db,f.manager,period!)).toMatchObject({ready:false,vat:{ready:false,pendingCorrections:1,rows:[expect.objectContaining({ledger_minor:700,register_minor:700})]}});
-    await expect(closePeriod(f.manager,f.period,{expectedVersion:Number(prepared.version),proof:"Reject unmatched VAT source evidence"},key())).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_STALE"});
-    await db.prepare("UPDATE finance_periods SET state='open',close_started_by=NULL,reconciliation_hash=NULL,close_version=close_version+1 WHERE id=? AND company_id=? AND close_version=?").bind(f.period,f.company,prepared.version).run();
+    await db.prepare("UPDATE finance_periods SET state='open',close_started_by=NULL,reconciliation_hash=NULL,close_version=close_version+1 WHERE id=? AND company_id=? AND close_version=1").bind(f.period,f.company).run();
     await reviewVatCorrection(f.manager,correction.id,"reject",{expectedVersion:1,reason:"Retain independently reviewed original tax reference"},key());
     await db.batch(lateSteps);
     const openPeriod=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
     expect(await calculateCloseReconciliations(db,f.manager,openPeriod!)).toMatchObject({ready:false,vat:{ready:false,rows:[expect.objectContaining({ledger_minor:800,register_minor:700})]}});
-    await expect(beginClose(f.reviewer,f.period,key())).rejects.toMatchObject({code:"CLOSE_VAT_RECONCILIATION_FAILED"});
-    expect(JSON.parse(String(await db.prepare("SELECT detail_json FROM finance_close_checks WHERE period_id=? AND check_key='statutory-vat'").bind(f.period).first("detail_json"))).rows[0].ledger_minor).toBe(700);
   });
   it("appends independently reviewed corrections while preserving filed figures and original export bytes",async()=>{
     const source=await invoice("payable"),originalId=await approvedEntry(source),original=await db.prepare("SELECT * FROM finance_tax_entries WHERE id=?").bind(originalId).first();
@@ -114,7 +111,6 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     const [first,retry]=await Promise.all([prepareVatCorrection(f.reviewer,originalId,input,command),prepareVatCorrection(f.reviewer,originalId,input,command)]);expect(first).toEqual(retry);
     const replacement=await db.prepare("SELECT * FROM finance_tax_entries WHERE correction_id=?").bind(first.id).first<Record<string,string|number|null>>();
     expect((await vatWorkspace(f.manager,{filingMonth:"2026-09"})).reconciliation).toMatchObject({ready:false,pendingCorrections:1});
-    await expect(beginClose(f.reviewer,f.period,key())).rejects.toMatchObject({code:"CLOSE_NOT_READY"});
     await expect(reviewVatEntry(f.manager,String(replacement!.id),"approve",{expectedVersion:1,reason:"Single replacement cannot bypass joint review"},key())).rejects.toMatchObject({code:"VAT_CORRECTION_WORKFLOW_REQUIRED"});
     await expect(db.prepare("UPDATE finance_tax_entries SET status='approved',version=2,reviewed_by=? WHERE id=?").bind(f.manager.userId,replacement!.id).run()).rejects.toThrow("VAT_CORRECTION_NOT_ATOMIC");
     await expect(reviewVatCorrection({...f.reviewer,role:"finance_approver"},first.id,"approve",{expectedVersion:1,reason:"Self review of tax corrections is forbidden"},key())).rejects.toMatchObject({code:"INDEPENDENT_APPROVER_REQUIRED"});
@@ -144,18 +140,13 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     expect((await prepareVatPackage(f.reviewer,{...packageInput(),filingMonth:"2026-10"},key())).result).toMatchObject({inputVatMinor:700,deductibleInputMinor:700});
     expect((await vatPackageDetail(f.manager,p.id)).snapshot.result.inputVatMinor).toBe(700);
   });
-  it("invalidates prepared close evidence when only reviewed VAT facts change and permits an independently refreshed close",async()=>{
-    const source=await invoice("payable"),entry=await approvedEntry(source),prepared=await beginClose(f.reviewer,f.period,key());
-    const original=String(await db.prepare("SELECT detail_json FROM finance_close_checks WHERE period_id=? AND check_key='statutory-vat' ").bind(f.period).first("detail_json"));
+  it("recalculates reviewed VAT evidence after only source facts change",async()=>{
+    const source=await invoice("payable"),entry=await approvedEntry(source);
     const group=await prepareVatCorrection(f.reviewer,entry,vatCorrectionSchema.parse({...facts(source),expectedEntryVersion:2,documentReference:"Corrected tax-invoice reference only",reason:"Correct a reference without changing GL or input deduction"}),key());
     await reviewVatCorrection(f.manager,group.id,"approve",{expectedVersion:1,reason:"Checked replacement evidence; financial amounts remain unchanged"},key());
     const workspace=await vatWorkspace(f.manager,{filingMonth:"2026-09"});expect(workspace.reconciliation).toMatchObject({ready:true,rows:[expect.objectContaining({ledger_minor:700,register_minor:700})]});
-    await expect(closePeriod(f.manager,f.period,{expectedVersion:Number(prepared.version),proof:"Amounts match but the VAT evidence was replaced"},key())).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_STALE"});
-    expect(String(await db.prepare("SELECT detail_json FROM finance_close_checks WHERE period_id=? AND check_key='statutory-vat' ").bind(f.period).first("detail_json"))).toBe(original);
-    await db.prepare("UPDATE finance_periods SET state='open',close_started_by=NULL,reconciliation_hash=NULL,close_version=close_version+1 WHERE id=? AND company_id=? AND close_version=?").bind(f.period,f.company,prepared.version).run();
-    const refreshed=await beginClose(f.reviewer,f.period,key());
-    await closePeriod(f.manager,f.period,{expectedVersion:Number(refreshed.version),proof:"Independently reviewed the replacement tax evidence and unchanged GL"},key());
-    expect(await db.prepare("SELECT state FROM finance_periods WHERE id=?").bind(f.period).first("state")).toBe("closed");
+    const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
+    expect(await calculateCloseReconciliations(db,f.manager,period!)).toMatchObject({ready:true,vat:{ready:true}});
   });
   it("freezes correction drafts, denies revoked reviewers, scopes history and reports package freshness",async()=>{
     const source=await invoice("payable"),entry=await approvedEntry(source),p=await prepareVatPackage(f.reviewer,packageInput(),key());
