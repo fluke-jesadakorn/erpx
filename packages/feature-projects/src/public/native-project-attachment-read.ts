@@ -278,6 +278,41 @@ export function createNativeProjectAttachmentReadClient(
         actor,
         `/projects/${encodeURIComponent(projectId)}/attachment-links/${encodeURIComponent(linkId)}/status`,
       ),
+    content: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeProjectsPageContext,
+      projectId: string,
+      linkId: string,
+      variant: 'original' | 'preview',
+    ): Promise<Response> => {
+      const response = await call(
+        transport,
+        config.base,
+        config.holdings,
+        incoming,
+        actor,
+        `/projects/${encodeURIComponent(projectId)}/attachment-links/${encodeURIComponent(linkId)}/content?variant=${variant}`,
+        config.timeout,
+      );
+      if (response.status !== 200) {
+        await jsonReply(response);
+        return failure('NATIVE_PROJECTS_UNAVAILABLE', response.status);
+      }
+      const body = await boundedBytes(response, 10 * 1024 * 1024);
+      const headers = new Headers();
+      for (const name of [
+        'content-type',
+        'content-disposition',
+        'cache-control',
+        'x-content-type-options',
+        'content-security-policy',
+        'accept-ranges',
+      ]) {
+        const value = response.headers.get(name);
+        if (value) headers.set(name, value);
+      }
+      return new Response(body as unknown as BodyInit, { headers });
+    },
   };
 }
 
@@ -292,6 +327,40 @@ export async function nativeProjectAttachmentSets(
     incoming,
     actor,
     projectId,
+  );
+}
+
+export async function nativeProjectAttachmentStatus(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  projectId: string,
+  linkId: string,
+): Promise<unknown> {
+  const raw = process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+  if (raw === undefined) return failure('NATIVE_PROJECTS_CONFIGURATION_INVALID', 503);
+  return createNativeProjectAttachmentReadClient(nativeProjectsConfiguration(raw)).status(
+    incoming,
+    actor,
+    projectId,
+    linkId,
+  );
+}
+
+export async function nativeProjectAttachmentContent(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  projectId: string,
+  linkId: string,
+  variant: 'original' | 'preview',
+): Promise<Response> {
+  const raw = process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+  if (raw === undefined) return failure('NATIVE_PROJECTS_CONFIGURATION_INVALID', 503);
+  return createNativeProjectAttachmentReadClient(nativeProjectsConfiguration(raw)).content(
+    incoming,
+    actor,
+    projectId,
+    linkId,
+    variant,
   );
 }
 
