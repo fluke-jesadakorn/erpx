@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1193,
+    "revision": 1198,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21060,8 +21060,8 @@
         "status": "blocked",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
-        "lastPushedSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+        "implementedCommit": "17363f280c8d92ea6f429111ad4d21c710f4d924",
+        "lastPushedSha": "17363f280c8d92ea6f429111ad4d21c710f4d924",
         "checks": [
           {
             "command": "grep -rn \"fulfillOrder\" packages apps tests fixtures scripts (source only)",
@@ -21088,18 +21088,43 @@
             "before": 58,
             "after": 58,
             "note": "fulfillOrder was orchestration-only (0 literal SQL). The 28 adapter/commerce.ts writes belong to other live commands (save/return/invoice), so this capability cannot produce a write-KPI delta."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "17363f280c8d92ea6f429111ad4d21c710f4d924",
+            "before": 58,
+            "after": 51,
+            "note": "Seven fulfillment-only repository members had no remaining caller after fulfillOrder retired and are deleted."
+          },
+          {
+            "command": "bunx tsc -p packages/server-commerce/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "17363f280c8d92ea6f429111ad4d21c710f4d924"
+          },
+          {
+            "command": "vitest unit tests/unit/shared.commerce/commerce-application.test.ts",
+            "result": "passed",
+            "sourceSha": "17363f280c8d92ea6f429111ad4d21c710f4d924",
+            "note": "117/117."
+          },
+          {
+            "command": "vitest integration tests/integration/shared.work/flow-routing.test.ts",
+            "result": "passed",
+            "sourceSha": "17363f280c8d92ea6f429111ad4d21c710f4d924",
+            "note": "15/15; commerce fulfillment seeding and adjacent order commands unchanged."
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Lead: classify the 28 shared adapters/commerce.ts writes by live command (save/return/invoice) into their own retire tasks; the fulfillOrder capability itself is retired with zero literal SQL.",
+        "nextAction": "Lead: split the remaining 21 adapter/commerce.ts writes plus 30 other Commerce writes into command-level retire packets (save/return/invoice/settlement) with native counterparts.",
         "handoff": {
           "runId": "run-20261113-b",
           "agentId": "worker-commerce-retire",
-          "at": "2026-11-12T20:30:18.919Z",
+          "at": "2026-11-12T20:32:47.343Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Lead: classify the 28 shared adapters/commerce.ts writes by live command (save/return/invoice) into their own retire tasks; the fulfillOrder capability itself is retired with zero literal SQL."
+          "nextAction": "Lead: split the remaining 21 adapter/commerce.ts writes plus 30 other Commerce writes into command-level retire packets (save/return/invoice/settlement) with native counterparts."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -28419,6 +28444,51 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [
+          "collaboration/handbook"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "retire.collaboration.handbook-writers",
+        "title": "Retire the TypeScript Handbook write commands",
+        "scope": "The feature-apps handbook route is already native-only (ERPX_NATIVE_HANDBOOK_CONFIG) and the native Rust handbook router owns article/editor writes. Delete the three TS write commands (setHandbookEditor, saveHandbookArticle, actOnHandbook) and their repository SQL from the collaboration adapter/application, keep the handbook read path, drop the public/index/runtime barrels, and replace integration seeding with direct SQL. Test edits at tests/integration/people_payroll/employee-services.test.ts and tests/integration/operations/work-projections.test.ts plus a tests/support/helpers handbook seed helper are recorded here; work-projections and tests/support overlap other active claims and are committed as reviewed edits rather than claimed. Expected Collaboration KPI 194 -> 185.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/server-runtime/src/public/handbook.ts",
+          "packages/feature-collaboration/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/people_payroll/employee-services.test.ts"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-b",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T20:31:00.608Z",
+          "heartbeatAt": "2026-11-12T20:31:00.608Z",
+          "expiresAt": "2026-11-12T21:01:00.608Z",
+          "generation": 46
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Delete the TS handbook write commands and SQL, migrate the write-semantics tests to native coverage, and record the KPI before/after.",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -28427,11 +28497,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 135,
+      "totalPackets": 136,
       "migratedPackets": 68,
       "statusCounts": {
         "pending": 28,
-        "in_progress": 6,
+        "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 68,
@@ -28441,7 +28511,7 @@
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T20:30:25.474Z",
+    "updatedAt": "2026-11-12T20:32:47.344Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
