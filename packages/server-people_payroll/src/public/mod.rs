@@ -2,6 +2,7 @@ pub mod identity_facts;
 pub mod invitation_person_link;
 pub mod workforce_reference;
 pub mod workforce;
+pub mod roster_position_exit;
 pub mod leave;
 pub mod expense;
 

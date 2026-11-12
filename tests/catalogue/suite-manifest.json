@@ -95473,6 +95473,237 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "organization.rust-position.unit",
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "files": [
+        "tests/unit/organization/rust-position.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Organization position save retains schema bounds, permission/replay order, scope, level, reporting, in-use and reports-to issue guards."
+      },
+      "apps": [
+        "admin",
+        "people"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-organization",
+        "targets": [
+          "organization_position"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-organization/Cargo.toml"
+      ]
+    },
+    {
+      "id": "organization.rust-position-postgres.integration",
+      "lane": "integration",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "files": [
+        "tests/integration/organization/rust-position-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native Organization position save retains Company scope, version CAS, receipt replay, level/reporting guards and persisted readback."
+      },
+      "apps": [
+        "admin",
+        "people"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-organization",
+        "targets": [
+          "organization_position_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-organization/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
+    },
+    {
+      "id": "people_payroll.rust-roster-position-exit.unit",
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native roster Position-exit planning must preserve the empty-list no-op, bounded input, the retained phase order and the exact assignment/request predicates."
+      },
+      "files": [
+        "tests/unit/people_payroll/rust-roster-position-exit.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-people-payroll",
+        "targets": [
+          "roster_position_exit"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-people_payroll/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-people_payroll/src/domain/roster_position_exit.rs",
+        "packages/server-people_payroll/src/application/roster_position_exit.rs",
+        "packages/server-people_payroll/src/public/roster_position_exit.rs"
+      ],
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll"
+      ]
+    },
+    {
+      "id": "people_payroll.rust-roster-position-exit-postgres.integration",
+      "lane": "integration",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll",
+        "collaboration"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native roster Position-exit effects must keep the retained Company scope, future active assignment release, both history rows, request invalidation and both Collaboration notices on one serializable transaction."
+      },
+      "files": [
+        "tests/integration/people_payroll/rust-roster-position-exit-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-people-payroll",
+        "targets": [
+          "roster_position_exit_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-people_payroll/Cargo.toml",
+        "packages/server-collaboration/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-people_payroll/src/domain/roster_position_exit.rs",
+        "packages/server-people_payroll/src/application/roster_position_exit.rs",
+        "packages/server-people_payroll/src/adapters/roster_position_exit_postgres.rs",
+        "packages/server-people_payroll/src/public/roster_position_exit.rs",
+        "packages/server-collaboration/src/adapters/roster_position_notifications.rs",
+        "packages/server-collaboration/src/public/roster_position_notifications.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      },
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll",
+        "@erpx/server-collaboration"
+      ]
+    },
+    {
+      "id": "collaboration.rust-roster-position-notifications.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native roster Position-change notices must keep bounded input, the retained recipient joins, notified versions, message text and duplicate suppression."
+      },
+      "files": [
+        "tests/unit/collaboration/rust-roster-position-notifications.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "roster_position_notifications"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-collaboration/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/src/adapters/roster_position_notifications.rs",
+        "packages/server-collaboration/src/public/roster_position_notifications.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-collaboration"
+      ]
     }
   ]
 }

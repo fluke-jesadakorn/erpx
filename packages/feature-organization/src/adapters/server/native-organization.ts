@@ -698,6 +698,17 @@ function levelsData(value: unknown): Row {
   return value.data;
 }
 
+function positionData(value: unknown): Row {
+  if (
+    !exact(value, ['data']) ||
+    !exact(value.data, ['id', 'version']) ||
+    !identifier(value.data.id) ||
+    !integer(value.data.version, 1)
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return value.data;
+}
+
 function templateData(value: unknown): Row {
   if (
     !exact(value, ['data']) ||
@@ -1001,7 +1012,7 @@ export function createNativeOrganizationClient(
         idempotencyKey: string;
         origin?: string;
         preview?: boolean;
-        result?: 'command' | 'levels' | 'template' | 'apply';
+        result?: 'command' | 'levels' | 'template' | 'apply' | 'position';
       },
     ): Promise<Row> {
       const response = await call(
@@ -1025,6 +1036,7 @@ export function createNativeOrganizationClient(
       if (input.result === 'levels') return levelsData(value);
       if (input.result === 'template') return templateData(value);
       if (input.result === 'apply') return applyTemplateData(value);
+      if (input.result === 'position') return positionData(value);
       return commandData(value);
     },
     async access(

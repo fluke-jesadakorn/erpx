@@ -128,6 +128,7 @@ pub mod organization_access;
 pub mod organization_nodes_http;
 #[cfg(feature = "existing-business")]
 pub mod organization_setup;
+pub mod organization_position;
 pub mod people_payroll;
 pub mod platform_administration;
 pub mod platform_iam;

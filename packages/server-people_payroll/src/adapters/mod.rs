@@ -2,6 +2,7 @@ pub(crate) mod identity_facts;
 pub(crate) mod invitation_person_link;
 pub(crate) mod workforce_reference;
 pub(crate) mod workforce;
+pub(crate) mod roster_position_exit_postgres;
 pub(crate) mod leave;
 pub(crate) mod expense;
 

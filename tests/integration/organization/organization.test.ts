@@ -3,8 +3,9 @@ import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-
 import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import {organizationOverview,savePosition,positionSchema,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {organizationOverview,positionSchema,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
 import {installStaffLevels} from '../../support/helpers/organization-levels';
+import {savePosition} from '../../support/helpers/organization-positions';
 import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import { directoryUpdateSchema,saveDirectoryPerson,setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
 import { grantPersonAccess,revokePersonAccess } from "@erpx/server-identity_access/public/account-access";
@@ -95,22 +96,6 @@ it("allows the explicit CEO exception and rejects self or junior reporting manag
   await setDirectoryStatus(hr,result.id,{status:"active",expectedVersion:1},key());
   await expect(saveDirectoryPerson(hr,result.id,{...input,expectedVersion:2,positionId:staffPosition,levelId:level(6),managerPersonId:result.id},key())).rejects.toMatchObject({code:"STAFF_ORGANIZATION_INCOMPLETE"});
   await expect(saveDirectoryPerson(hr,result.id,{...input,expectedVersion:2,positionId:staffPosition,levelId:level(1),managerPersonId:`person-${f.owner.userId}`},key())).rejects.toMatchObject({code:"STAFF_ORGANIZATION_INCOMPLETE"});
-});
-it("checks position scope and optimistic versions without allowing reporting cycles",async()=>{
-  await expect(savePosition(db,hr,ceo,positionSchema.parse({title:"CEO",branchId:null,departmentId:null,levelId:level(1),reportsToPositionId:staffPosition,isCeo:false,expectedVersion:1,reason:"Bad cycle"}),key())).rejects.toMatchObject({status:422});
-  const input=positionSchema.parse({title:"Operations specialist",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,expectedVersion:1,reason:"Rename position"});
-  const command=key();await savePosition(db,hr,staffPosition,input,command);await savePosition(db,hr,staffPosition,input,command);
-  await expect(savePosition(db,hr,staffPosition,input,key())).rejects.toMatchObject({status:409});
-  const outsider={...hr,branchId:"other",assignmentScope:"branch" as const};
-  await expect(savePosition(db,outsider,staffPosition,input,key())).rejects.toMatchObject({status:403});
-});
-it("defaults new Positions to backoffice and preserves roster requirement on omitted edits",async()=>{
-  expect((await db.prepare("SELECT roster_required FROM organization_positions WHERE id=?").bind(staffPosition).first<{roster_required:number}>())?.roster_required).toBe(0);
-  const enabled=positionSchema.parse({title:"Operations staff",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,rosterRequired:true,expectedVersion:1,reason:"Staff work shifts"});
-  await savePosition(db,hr,staffPosition,enabled,key());
-  const renamed=positionSchema.parse({title:"Operations specialist",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,expectedVersion:2,reason:"Clarify title"});
-  await savePosition(db,hr,staffPosition,renamed,key());
-  expect((await db.prepare("SELECT roster_required FROM organization_positions WHERE id=?").bind(staffPosition).first<{roster_required:number}>())?.roster_required).toBe(1);
 });
 it("routes HR grants through fresh MFA and review while preventing self changes and broader scope",async()=>{
   await expect(grantPersonAccess(hr,`person-${f.claimant.userId}`,{role:"treasury",scope:"department",expiresAt:"2027-01-01"},key())).rejects.toMatchObject({code:"FRESH_MFA_REQUIRED"});

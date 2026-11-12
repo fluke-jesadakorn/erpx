@@ -9,7 +9,9 @@ import {
 } from '../../../packages/feature-organization/src/adapters/server/native-organization';
 import {
   nativeOrganizationFailure,
+  nativeOrganizationPositionSave,
   nativeOrganizationSelector,
+  nativePositionSelector,
 } from '@erpx/feature-organization/lib/native-organization';
 
 const actor: NativeOrganizationPageContext = {
@@ -196,5 +198,62 @@ describe('native organization setup transport', () => {
       code: 'WORK_CONTEXT_CHANGED',
       message: 'Your work role changed. Reload and review before submitting.',
     });
+  });
+});
+
+describe('native position selector and transport', () => {
+  it('selects only position create and edit paths', () => {
+    expect(nativePositionSelector(['organization', 'positions'])).toEqual({ id: null });
+    expect(nativePositionSelector(['organization', 'positions', 'position-1'])).toEqual({
+      id: 'position-1',
+    });
+    expect(nativePositionSelector(['organization', 'positions', 'position-1', 'default-pay'])).toBeUndefined();
+    expect(nativePositionSelector(['organization', 'position-moves'])).toBeUndefined();
+  });
+
+  it('posts the exact position body and validates the command receipt', async () => {
+    const { api, calls } = client({ data: { id: 'position-position-key', version: 1 } });
+    const body = {
+      title: 'Operations Lead',
+      branchId: null,
+      departmentId: null,
+      levelId: 'level-3',
+      reportsToPositionId: 'position-ceo',
+      isCeo: false,
+      expectedVersion: 0,
+      reason: 'Open the operations lead position',
+    };
+    const result = await api.change(incoming, actor, {
+      path: '/positions',
+      body,
+      idempotencyKey: 'position-key-0001',
+      result: 'position',
+    });
+    expect(result).toEqual({ id: 'position-position-key', version: 1 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(
+      'http://127.0.0.1:3999/api/v1/holdings/acme/people/organization/positions',
+    );
+    expect(calls[0]!.body).toBe(JSON.stringify(body));
+    expect(calls[0]!.headers.get('idempotency-key')).toBe('position-key-0001');
+  });
+
+  it('fails closed without a native configuration', async () => {
+    const previous = process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+    delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+    try {
+      await expect(
+        nativeOrganizationPositionSave(
+          { ...actor, modules: [], iam: { permissions: [] } } as never,
+          'acme',
+          ['organization', 'positions'],
+          {},
+          'position-key-0002',
+          incoming,
+        ),
+      ).resolves.toBeUndefined();
+    } finally {
+      if (previous !== undefined) process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = previous;
+    }
   });
 });

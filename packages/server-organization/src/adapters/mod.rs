@@ -19,5 +19,7 @@ pub(crate) mod postgres_organization_setup;
 pub mod pos_issuer;
 pub(crate) mod access_http;
 pub(crate) mod postgres_access;
+pub(crate) mod postgres_position;
 pub(crate) mod postgres_position_moves;
+pub(crate) mod position_http;
 pub(crate) mod position_moves_http;

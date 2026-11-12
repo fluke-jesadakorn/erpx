@@ -38,6 +38,10 @@ name = "maintenance_notifications"
 path = "../../tests/unit/collaboration/rust-maintenance-notifications.test.rs"
 
 [[test]]
+name = "roster_position_notifications"
+path = "../../tests/unit/collaboration/rust-roster-position-notifications.test.rs"
+
+[[test]]
 name = "maintenance_notifications_postgres"
 path = "../../tests/integration/collaboration/rust-maintenance-notifications-postgres.test.rs"
 

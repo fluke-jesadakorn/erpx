@@ -527,12 +527,6 @@
           "file": "tests/integration/organization/organization.test.ts",
           "title": "applies independently reviewed branch and department changes with safe suspension and immutable history",
           "proof": "Independent node proposal/review creates branch/department, moves scoped placements atomically, prevents suspension with live dependents, and archives/reopens with immutable applied history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/organization/organization.test.ts",
-          "title": "checks position scope and optimistic versions without allowing reporting cycles",
-          "proof": "Position edits enforce company/placement/version and refuse cyclic reporting managers."
         }
       ],
       "moduleId": "organization",

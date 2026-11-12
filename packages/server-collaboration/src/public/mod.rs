@@ -48,4 +48,6 @@ pub mod supplier_bill_match_notification;
 
 pub mod staff_facts;
 
+pub mod roster_position_notifications;
+
 pub mod pms_social_event;

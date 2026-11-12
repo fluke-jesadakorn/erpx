@@ -276,6 +276,44 @@ export async function nativeOrganizationPositionMoveList(
   return result;
 }
 
+/** Exact native selector for position create/edit. Labels, default pay and
+ * every other position sub-path stay with the retained owner for now. */
+export function nativePositionSelector(
+  parts: readonly string[],
+): { id: string | null } | undefined {
+  if (parts[0] !== 'organization' || parts[1] !== 'positions') return undefined;
+  if (parts.length === 2) return { id: null };
+  if (parts.length === 3 && parts[2]) return { id: parts[2] };
+  return undefined;
+}
+
+/** Native position create/edit command. A missing configuration returns
+ * `undefined` so the route fails closed instead of falling back to TypeScript. */
+export async function nativeOrganizationPositionSave(
+  actor: WorkContext,
+  holdingSlug: string,
+  parts: readonly string[],
+  body: unknown,
+  idempotencyKey: string,
+  incoming: Pick<Headers, 'get'>,
+): Promise<Row | undefined> {
+  const selector = nativePositionSelector(parts);
+  if (!selector) return undefined;
+  const native = client(actor);
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_CONTEXT_CHANGED');
+  return await native.change(incoming, context(actor), {
+    path:
+      selector.id === null
+        ? '/positions'
+        : `/positions/${encodeURIComponent(selector.id)}`,
+    body,
+    idempotencyKey,
+    result: 'position',
+  });
+}
+
 /** Native preview/submit/cancel command. Only the exact People catch-all
  * position-move selectors are handled; every other organization command stays
  * with its existing owner until a native replacement exists. */

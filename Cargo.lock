@@ -1170,6 +1170,7 @@ name = "erpx-server-people-payroll"
 version = "0.1.0"
 dependencies = [
  "erpx-server-benefits",
+ "erpx-server-collaboration",
  "erpx-server-runtime",
  "erpx-server-shared",
  "icu_collator",

@@ -69,4 +69,6 @@ pub(crate) mod supplier_bill_match_notification;
 
 pub(crate) mod staff_facts;
 
+pub(crate) mod roster_position_notifications;
+
 pub mod pms_social_event;

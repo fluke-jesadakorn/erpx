@@ -2886,6 +2886,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut organization_setup_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut organization_position_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut approval_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut handbook_targets = Vec::new();
@@ -4865,6 +4867,25 @@ async fn assemble_checked(
                     )),
                 },
             );
+                organization_position_targets.push(
+                    erpx_server_organization::public::position::OrganizationPositionHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::organization_position::OrganizationPositionBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::organization_position::OrganizationPositionService::new(
+                                authorizer.clone(),
+                                crate::organization_position::OrganizationPositionConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 let configuration = if config
                     .field_service_issues
                     .contains(&holding.registration.holding_id)
@@ -5224,6 +5245,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_organization::public::organization_setup_http::organization_setup_router(
                     organization_setup_targets,
+                )
+                .map_err(|_| "PRIVATE_API_ORGANIZATION_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !organization_position_targets.is_empty() {
+            router = router.merge(
+                erpx_server_organization::public::position::organization_position_router(
+                    organization_position_targets,
                 )
                 .map_err(|_| "PRIVATE_API_ORGANIZATION_CONFIGURATION_INVALID")?,
             );

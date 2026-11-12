@@ -84,5 +84,13 @@ name = "position_moves_apply"
 path = "../../tests/unit/organization/rust-position-moves-apply.test.rs"
 
 [[test]]
+name = "organization_position"
+path = "../../tests/unit/organization/rust-position.test.rs"
+
+[[test]]
+name = "organization_position_postgres"
+path = "../../tests/integration/organization/rust-position-postgres.test.rs"
+
+[[test]]
 name = "staff_department_route_postgres"
 path = "../../tests/integration/organization/rust-staff-department-route-postgres.test.rs"
