@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1169,
+    "revision": 1174,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -27985,6 +27985,121 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "retire.learning.course-change-certificate",
+        "title": "Retire the TypeScript Learning course-change and certificate-revoke writers",
+        "scope": "Native Learning serves course publish/reject/retire and certificate revocation. Delete the TS writers/exports, fail those route paths closed without config, and seed published/retired course state in fixtures (fixture edits committed at 42ee72500). Learning KPI 15 -> 12.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "packages/feature-learn/**",
+          "tests/integration/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "27e61d761b21c0efebe5caf4ff0f8f428550fad4",
+        "implementedCommit": "42ee725008b9d6c338c55cbd4fc7791776c1730a",
+        "lastPushedSha": "42ee725008b9d6c338c55cbd4fc7791776c1730a",
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "42ee725008b9d6c338c55cbd4fc7791776c1730a",
+            "note": "Root typecheck passes after deleting the TS course-change and certificate-revoke writers."
+          },
+          {
+            "command": "cd packages/server-learning && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "42ee725008b9d6c338c55cbd4fc7791776c1730a",
+            "note": "Learning package typecheck passes."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "42ee725008b9d6c338c55cbd4fc7791776c1730a",
+            "note": "Test typecheck passes with the native published/retired course seeding helper."
+          },
+          {
+            "command": "bun run test:unit -- --suite=learning.rust-learning.unit",
+            "result": "passed",
+            "sourceSha": "42ee725008b9d6c338c55cbd4fc7791776c1730a",
+            "note": "25/25 native Learning owner cases pass (Rust source unchanged by this TS-only slice; run at 2b9f81c5b)."
+          },
+          {
+            "command": "bun run test:unit -- --suite=learning.rust-learning-http.unit",
+            "result": "passed",
+            "sourceSha": "42ee725008b9d6c338c55cbd4fc7791776c1730a",
+            "note": "3/3 native HTTP cases pass (course review/certificate routes)."
+          },
+          {
+            "command": "bun run test:integration -- --suite=learning.rust-learning-postgres.integration",
+            "result": "passed",
+            "sourceSha": "42ee725008b9d6c338c55cbd4fc7791776c1730a",
+            "note": "14/14 native PostgreSQL cases pass including course review and certificate revocation."
+          },
+          {
+            "command": "retirement:ts-writes: learning",
+            "result": "passed",
+            "sourceSha": "42ee725008b9d6c338c55cbd4fc7791776c1730a",
+            "before": 15,
+            "after": 12,
+            "note": "git grep over packages/server-learning/src/**/*.ts: 15 before, 12 after.",
+            "residual": [
+              {
+                "path": "packages/server-learning/src/adapters/learning.ts",
+                "writes": 6,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/learning-eligibility.ts",
+                "writes": 1,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Learning residuals: assignment create/change and eligibility consumption writers remain TS; assignment completion attachment binding needs a native client path test.",
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -27993,21 +28108,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 132,
-      "migratedPackets": 65,
+      "totalPackets": 133,
+      "migratedPackets": 66,
       "statusCounts": {
         "pending": 28,
         "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 65,
+        "migrated": 66,
         "blocked": 22,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T19:53:00.357Z",
+    "updatedAt": "2026-11-12T19:59:54.489Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
