@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 894,
+    "revision": 902,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T12:56:41.916Z",
-      "expiresAt": "2026-11-12T13:26:41.916Z",
+      "heartbeatAt": "2026-11-12T13:06:17.155Z",
+      "expiresAt": "2026-11-12T13:36:17.155Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -22222,7 +22222,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Support TypeScript SQL writers",
-        "scope": "Classify the 50 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, support-incidents 7, service-teams 7, support-sla 6, ticket-portal 5, ticket-portal-customer 5, support-sla-alerts 2, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Classify the 49 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, support-incidents 7, service-teams 7, support-sla 6, ticket-portal 5, ticket-portal-customer 5, support-sla-alerts 1, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -22299,6 +22299,98 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.support.sla-alert-ack",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/sla-watch"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the Support SLA alert acknowledgement TS writer",
+        "scope": "The native Support SLA HTTP command already owns alert acknowledgement; the TS `acknowledgeSupportAlert` adapter/application use case is a duplicate authority used only by tests. Delete it and its exports, seed acknowledged alert rows for retained read tests, and keep the remaining SLA drain write under `retire.support.residual-writers`. KPI: support-sla-alerts.ts 2 -> 1 and owner 50 -> 49.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/feature-support/**",
+          "fixtures/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "91f76f2ebd976c4e5665b1f4dec572d82f5dbcd6",
+        "lastPushedSha": "91f76f2ebd976c4e5665b1f4dec572d82f5dbcd6",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/support-sla-alerts.ts",
+            "result": "passed",
+            "sourceSha": "91f76f2ebd976c4e5665b1f4dec572d82f5dbcd6",
+            "before": 2,
+            "after": 1,
+            "residual": [
+              {
+                "path": "packages/server-support/src/adapters/support-sla-alerts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Native SLA drain worker/HTTP handover replaces drainSupportSla; then delete the TS sweep writer."
+              }
+            ]
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "91f76f2ebd976c4e5665b1f4dec572d82f5dbcd6"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "91f76f2ebd976c4e5665b1f4dec572d82f5dbcd6"
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "91f76f2ebd976c4e5665b1f4dec572d82f5dbcd6"
+          },
+          {
+            "command": "bun run test:unit -- --suite=support.services.unit",
+            "result": "passed",
+            "sourceSha": "91f76f2ebd976c4e5665b1f4dec572d82f5dbcd6",
+            "note": "63/63; acknowledgement command test removed with the dead TS use case."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.sla.integration",
+            "result": "passed",
+            "sourceSha": "91f76f2ebd976c4e5665b1f4dec572d82f5dbcd6",
+            "note": "3/3; retained reads use owner-row acknowledged alert state."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.package-obligations.integration",
+            "result": "passed",
+            "sourceSha": "91f76f2ebd976c4e5665b1f4dec572d82f5dbcd6",
+            "note": "14/14; acknowledged alert seeded directly for the obligation read."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Support SLA alert acknowledgement is native-only: TS adapter/application/barrel exports deleted; retained read tests seed acknowledged alert rows; file KPI 2->1 and owner 50->49 with the drain residual bound to retire.support.residual-writers. Pushed 91f76f2eb.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -22307,21 +22399,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 100,
-      "migratedPackets": 42,
+      "totalPackets": 101,
+      "migratedPackets": 43,
       "statusCounts": {
         "pending": 28,
         "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 42,
+        "migrated": 43,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T12:59:13.812Z",
+    "updatedAt": "2026-11-12T13:06:17.265Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
