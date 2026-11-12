@@ -26,12 +26,42 @@ Record source implementation, native composition/runtime binding and legacy runt
 | G0 — Coordination and baseline | Reconcile checkout/remote/dirty work; establish one lead, the run identity and resource queues; validate the ledger and preserve concurrent work. Exit: safe central coordination and a committed execution baseline. |
 | G1 — Source and consumer inventory | Audit all 41 owners, seven surfaces, 206 workflow mappings and auxiliary TS/jobs/providers. Distinguish already implemented slices from genuine gaps and remove stale next-action claims. Exit: every in-scope backend entrypoint has an owner, a source state and a task/removal condition. |
 | G2 — Public ports and dependency seams | Freeze bounded producer/consumer contracts and transaction/lock order for shared effects. Prioritize IAM, Commercial, Files/Records/Workflow, Finance and Inventory seams. Exit per seam: both owners know the public port and lead mount; its dependent implementation may run immediately without waiting for unrelated seams. |
-| G3 — Owner migration | Finish owner-local domain/application/adapters, native HTTP/SSR/internal callers and jobs/providers in coherent slices; integrate and retire the replaced TS per slice. Exit: every inventoried business capability has a native implementation, binding and targeted migration receipt. |
-| G4 — Runtime, surfaces and retirement audit | Finish central Account/Admin/Apps and public surfaces, workers/retries/leases, private-file/PDF consumers and auxiliary TS; audit routes/imports/exports/configuration/dependencies for remaining business execution. Exit: no untracked TS business runtime or dual authoritative writer remains; retained presentation/transport/test-oracle code is explicitly classified. |
+| G3 — Owner migration and contract cutover | Finish owner-local domain/application/adapters, native HTTP/SSR/internal callers and jobs/providers in coherent slices, then close **all four cutover layers per slice**: native owner implementation → native client parity (the Next transport accepts every returned field) → route authority (native is the primary payload, not an overlay) → delete the replaced TS writer/branch/fallback and move its test oracle. Exit: every inventoried business capability has a native implementation, binding, targeted migration receipt and a retirement KPI delta that strictly decreased. |
+| G4 — Read-tail and dual-writer audit | Finish central Account/Admin/Apps and public surfaces, workers/retries/leases, private-file/PDF consumers and the SELECT-only read tail; audit routes/imports/exports/configuration/dependencies for remaining business execution. G4 is not the first retirement pass: G3 already deleted each slice's TypeScript. Exit: no TS SELECT-only consumer without a native read port and no dual authoritative writer; retained presentation/transport code is explicitly classified with an expiry task. |
 | G5 — Final migration handoff | Freeze the integrated source, run the combined migration checks, reconcile inventory/tasks/evidence, commit and verify the remote SHA; leave authorized development/private services available. Exit: migration implementation and retirement are complete and the next AI can start deferred acceptance from a precise pushed source. |
 | A1 — Deferred acceptance | After G5, plan and run complete acceptance on the intended frozen candidate, followed by container/Dev Container, production preparation, performance, restore and rollback work under their own authorization and gates. This goal stays deferred during G0–G5. |
 
 Stable task IDs are `coordination.bootstrap`; `inventory.<owner>` and `migrate.<owner>` for each of the 41 owner IDs; `inventory.surface.<id>` and `migrate.surface.<id>` for the seven surfaces; `ports.common`, `ports.authority`, `ports.trade`, `ports.people`, `ports.growth`, `ports.agent`; `audit.runtime`; `integration.final`; and deferred `acceptance.full`. Inventory tasks are read-only and start with empty allowed write paths. Migration tasks start pending scope refinement: the lead records the bounded implementation paths and migration gate before assigning a worker's claim. Add capability subtasks through the coordinator when a whole owner would hold paths too broadly; do not rename IDs another AI already uses.
+
+### Contract cutover layer (mandatory)
+
+A native route switch alone is not a cutover. Every slice must name an owner for all three layers and include their paths in `allowedPaths`:
+
+1. **Owner package** — `packages/server-<owner>/src/**`.
+2. **Native client and route** — `packages/feature-<owner>/src/**` and the exact route path such as `packages/feature-<shell>/src/routes/api/v1/holdings/*/<capability>/**`.
+3. **Presenter/consumer** — only the `packages/workplace/src/routes/**` path that reads that payload.
+
+A partial native client projection, or merging a few native fields over a retained TypeScript payload, is **not** cutover. The native service may already return the complete payload; the cost of cutover is finishing the Next transport and removing the TypeScript authority, not writing more Rust.
+
+### Retirement KPI (mandatory at every milestone)
+
+```bash
+git grep -I -o -E "INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET" HEAD \
+  -- ':(glob)packages/server-*/src/**/*.ts' | wc -l
+```
+
+- Baseline at `1399b44cf` (2026-11-12): `2,894` write statements across 561 TypeScript adapters.
+- Every slice records a passed `retirement:ts-writes` check with `before`/`after` for its owner; `after` must be lower.
+- A `migrated` transition fails without that check, without a `removalTaskId`/`removalCondition` on every `retainedLegacy` entry, and without the declared `cutover` layers being true.
+- Counting closed packets is not progress; the KPI must fall on the pushed source.
+
+### Cutover order that matches the code
+
+1. Finish the native client parity and route authority of slices whose Rust payload is already complete (Quality workspace/detail is the current smallest example: the service returns eight fields, the client maps three).
+2. Delete test oracles that keep whole TypeScript writer trees reachable (the Manufacturing production oracle keeps six owners' `production-command-sources` alive).
+3. Batch the cross-owner producer ports (Finance customer witness and money snapshot) that block several consumers at once.
+4. Close the SELECT-only read tail per owner after its write path is native.
+
 
 Copyable goal template for any AI: `Continue <goal-id> / <task-id> from docs/production-plan.md#rust-migration-current and the tracked executionPlan. Read status and handoff, request the lead's central claim, change only its paths, pass the targeted migration gate, and report source/checks/retirement/next action for the lead to record. Keep acceptance deferred; use only codex/rust-backend-migration.`
 

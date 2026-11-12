@@ -323,11 +323,12 @@ export class MigrationWorkStore {
       return { runId: input.runId, expiresAt: expiry };
     });
   }
-  async update(id: string, input: Mutation & { status: WorkStatus; nextAction: string; baseSha?: string; implementedCommit?: string; pushedSha?: string; checks?: Record<string, unknown>[]; retainedLegacy?: unknown[] }) {
+  async update(id: string, input: Mutation & { status: WorkStatus; nextAction: string; baseSha?: string; implementedCommit?: string; pushedSha?: string; checks?: Record<string, unknown>[]; retainedLegacy?: unknown[]; cutover?: Record<string, unknown> }) {
     if (!statuses.has(input.status) || !input.nextAction.trim() || (input.implementedCommit !== undefined && !sha(input.implementedCommit))
       || (input.baseSha !== undefined && !sha(input.baseSha)) || (input.pushedSha !== undefined && !sha(input.pushedSha))
       || (input.checks !== undefined && (!Array.isArray(input.checks) || !input.checks.every(object)))
-      || (input.retainedLegacy !== undefined && !Array.isArray(input.retainedLegacy))) fail('INVALID_UPDATE');
+      || (input.retainedLegacy !== undefined && !Array.isArray(input.retainedLegacy))
+      || (input.cutover !== undefined && !object(input.cutover))) fail('INVALID_UPDATE');
     return this.mutate(input, plan => {
       const task = this.heldTask(plan, id, input.runId);
       if (id === 'integration.final' && terminal(input.status)
@@ -342,10 +343,20 @@ export class MigrationWorkStore {
       if (input.pushedSha !== undefined) task.lastPushedSha = input.pushedSha;
       if (input.checks) task.checks.push(...input.checks);
       if (input.retainedLegacy) task.retainedLegacy = input.retainedLegacy;
+      if (input.cutover) task.cutover = { ...(object(task.cutover) ? task.cutover as Record<string, unknown> : {}), ...input.cutover };
       if (task.status === 'migrated') {
         const latest = new Map<string, Record<string, unknown>>();
         for (const check of task.checks) if (check.sourceSha === task.implementedCommit && typeof check.command === 'string' && check.command.trim()) latest.set(check.command, check);
         if (!task.implementedCommit || !task.lastPushedSha || !latest.size || [...latest.values()].some(check => check.result !== 'passed')) fail('MIGRATION_EVIDENCE_REQUIRED');
+        if (['migration', 'integration'].includes(task.kind)) {
+          const retirement = [...latest.values()].filter(check => typeof check.command === 'string' && check.command.startsWith('retirement:ts-writes')).at(-1);
+          if (!retirement || retirement.result !== 'passed' || !Number.isInteger(retirement.before) || !Number.isInteger(retirement.after) || !(Number(retirement.after) < Number(retirement.before))) fail('RETIREMENT_KPI_REQUIRED');
+          if (task.retainedLegacy.some(entry => !object(entry) || typeof entry.removalTaskId !== 'string' || !entry.removalTaskId.trim() || typeof entry.removalCondition !== 'string' || !entry.removalCondition.trim())) fail('RETAINED_LEGACY_REMOVAL_TASK_REQUIRED');
+          if (task.cutover !== undefined) {
+            const cutover = task.cutover as Record<string, unknown>;
+            if (!object(cutover) || cutover.clientParity !== true || cutover.routeAuthority !== true || cutover.presenterParity !== true) fail('CONTRACT_CUTOVER_INCOMPLETE');
+          }
+        }
       }
       if (terminal(task.status)) task.claim = null;
       return { taskId: id, status: task.status };
@@ -368,8 +379,9 @@ export class MigrationWorkStore {
     });
   }
   async refine(id: string, fields: Record<string, unknown>, input: Mutation) {
-    const allowed = new Set(['title', 'allowedPaths', 'resources', 'dependsOn', 'requiredPorts', 'scope', 'deliverables', 'nextAction', 'aggregate', 'scopeRefinementRequired']);
+    const allowed = new Set(['title', 'allowedPaths', 'resources', 'dependsOn', 'requiredPorts', 'scope', 'deliverables', 'nextAction', 'aggregate', 'scopeRefinementRequired', 'cutover']);
     if (!object(fields) || Object.keys(fields).some(key => !allowed.has(key))) fail('IMMUTABLE_TASK_FIELD');
+    if (fields.cutover !== undefined && !object(fields.cutover)) fail('INVALID_CUTOVER');
     return this.mutate(input, plan => {
       const task = this.task(plan, id);
       if (task.claim || !['pending', 'blocked'].includes(task.status)) fail('REFINEMENT_REQUIRES_UNCLAIMED_TASK');
@@ -438,7 +450,7 @@ const commands: Record<string, { flags: string[]; positionals: number[] }> = {
   status: { flags: ['json', 'task', 'full'], positionals: [0] }, validate: { flags: [], positionals: [0] },
   begin: { flags: ['run', 'agent'], positionals: [0] }, claim: { flags: ['run', 'agent'], positionals: [1] },
   heartbeat: { flags: ['run'], positionals: [0] },
-  update: { flags: ['run', 'status', 'next-action', 'base-sha', 'implemented-commit', 'pushed-sha', 'check-file', 'retained-legacy-file'], positionals: [1] },
+  update: { flags: ['run', 'status', 'next-action', 'base-sha', 'implemented-commit', 'pushed-sha', 'check-file', 'retained-legacy-file', 'client-parity', 'route-authority', 'presenter-parity'], positionals: [1] },
   handoff: { flags: ['run', 'next-action'], positionals: [1] }, release: { flags: ['run'], positionals: [0, 1] },
   add: { flags: ['run', 'task-file'], positionals: [0] }, refine: { flags: ['run', 'task-file'], positionals: [1] },
   reservation: { flags: ['run', 'reason', 'wip-reviewed', 'paths-file', 'release'], positionals: [1] },
@@ -452,7 +464,7 @@ export async function runMigrationWorkCli(args: string[], write: (text: string) 
     if (!argument.startsWith('--')) { positional.push(argument); continue; }
     const match = /^--([a-z-]+)(?:=(.*))?$/.exec(argument);
     if (!match || ![...definition.flags, 'root', ...(['status', 'validate'].includes(command) ? [] : ['revision'])].includes(match[1]) || flags.has(match[1])) fail('INVALID_ARGUMENT');
-    const boolean = ['json', 'full', 'wip-reviewed', 'previous-run-stopped', 'release'].includes(match[1]);
+    const boolean = ['json', 'full', 'wip-reviewed', 'previous-run-stopped', 'release', 'client-parity', 'route-authority', 'presenter-parity'].includes(match[1]);
     if (boolean ? match[2] !== undefined : !match[2]) fail('INVALID_ARGUMENT');
     flags.set(match[1], match[2] ?? true);
   }
@@ -488,7 +500,10 @@ export async function runMigrationWorkCli(args: string[], write: (text: string) 
       }
       const retainedLegacy = flags.has('retained-legacy-file') ? jsonFile('retained-legacy-file') : undefined;
       if (retainedLegacy !== undefined && !Array.isArray(retainedLegacy)) fail('INVALID_RETAINED_LEGACY');
-      result = await store.update(positional[0], { ...common, status: required('status') as WorkStatus, nextAction: required('next-action'), baseSha: flags.get('base-sha') as string | undefined, implementedCommit: flags.get('implemented-commit') as string | undefined, pushedSha: flags.get('pushed-sha') as string | undefined, checks, retainedLegacy });
+      const cutover = ['client-parity', 'route-authority', 'presenter-parity'].some(name => flags.has(name))
+        ? { clientParity: flags.has('client-parity'), routeAuthority: flags.has('route-authority'), presenterParity: flags.has('presenter-parity') }
+        : undefined;
+      result = await store.update(positional[0], { ...common, status: required('status') as WorkStatus, nextAction: required('next-action'), baseSha: flags.get('base-sha') as string | undefined, implementedCommit: flags.get('implemented-commit') as string | undefined, pushedSha: flags.get('pushed-sha') as string | undefined, checks, retainedLegacy, cutover });
     } else if (command === 'handoff') result = await store.handoff(positional[0], { ...common, nextAction: required('next-action') });
     else if (command === 'add') result = await store.addTask(jsonFile('task-file') as MigrationTask, common);
     else if (command === 'refine') {

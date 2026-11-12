@@ -10,6 +10,7 @@ const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 const candidate = 'a'.repeat(40), pushed = 'b'.repeat(40);
 const passed = { command: 'cargo check -p owned && targeted-owner-regressions', result: 'passed', sourceSha: candidate };
+const retired = { command: 'retirement:ts-writes', before: 4, after: 0, result: 'passed', sourceSha: candidate };
 function task(id: string, patch: Partial<MigrationTask> = {}): MigrationTask {
   return { id, goalId: 'G1', owner: 'files', workflowIds: [], kind: 'migration', title: id,
     dependsOn: [], requiredPorts: [], allowedPaths: [`packages/${id}/**`], resources: [], status: 'pending',
@@ -213,7 +214,7 @@ describe('portable Rust migration work coordination', () => {
     expect(f.store.read().executionPlan.tasks[0].status).toBe('integrating');
     await expect(f.store.update('one', { runId: 'lead-1', status: 'migrated', nextAction: 'Next packet', implementedCommit: candidate, pushedSha: pushed, checks: [{ ...passed, result: 'failed' }] })).rejects.toThrow('MIGRATION_EVIDENCE_REQUIRED');
     expect(f.store.read().executionPlan.tasks[0].checks).toEqual([]);
-    await f.store.update('one', { runId: 'lead-1', status: 'migrated', nextAction: 'Next packet', baseSha: 'c'.repeat(40), implementedCommit: candidate, pushedSha: pushed, checks: [passed], retainedLegacy: [{ consumer: 'unrelated-owner', removalCondition: 'Other owner migrates' }] });
+    await f.store.update('one', { runId: 'lead-1', status: 'migrated', nextAction: 'Next packet', baseSha: 'c'.repeat(40), implementedCommit: candidate, pushedSha: pushed, checks: [passed, retired], retainedLegacy: [{ consumer: 'unrelated-owner', removalTaskId: 'migrate.two', removalCondition: 'Other owner migrates' }] });
     const ledger = f.store.read();
     expect(ledger.executionPlan.migrationProgress).toMatchObject({ totalPackets: 2, migratedPackets: 1, statusCounts: { migrated: 1, pending: 1 }, acceptance: false });
     expect(ledger.executionPlan.tasks[0]).toMatchObject({ claim: null, implementedCommit: candidate, lastPushedSha: pushed });
@@ -222,13 +223,37 @@ describe('portable Rust migration work coordination', () => {
     expect(ledger.executionPlan.integrationLog).toEqual(original.executionPlan.integrationLog);
   });
 
+  it('blocks migration without a retirement delta and expiring legacy retention', async () => {
+    const f = fixture(); await begin(f.store); await claim(f.store);
+    await f.store.update('one', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });
+    await f.store.handoff('one', { runId: 'lead-1', nextAction: 'Integrate' });
+    await claim(f.store);
+    const base = { runId: 'lead-1', status: 'migrated' as const, nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed };
+    await expect(f.store.update('one', { ...base, checks: [passed] })).rejects.toThrow('RETIREMENT_KPI_REQUIRED');
+    await expect(f.store.update('one', { ...base, checks: [passed, { ...retired, after: 4 }] })).rejects.toThrow('RETIREMENT_KPI_REQUIRED');
+    await expect(f.store.update('one', { ...base, checks: [passed, retired], retainedLegacy: [{ consumer: 'files', removalCondition: 'later' }] })).rejects.toThrow('RETAINED_LEGACY_REMOVAL_TASK_REQUIRED');
+    await f.store.update('one', { ...base, checks: [passed, retired], retainedLegacy: [{ consumer: 'files', removalTaskId: 'migrate.two', removalCondition: 'later' }] });
+    expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
+  });
+
+  it('requires every contract cutover layer when the task declares a cutover', async () => {
+    const f = fixture([task('one', { cutover: { clientParity: false, routeAuthority: false, presenterParity: false } })]); await begin(f.store); await claim(f.store);
+    await f.store.update('one', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });
+    await f.store.handoff('one', { runId: 'lead-1', nextAction: 'Integrate' });
+    await claim(f.store);
+    const base = { runId: 'lead-1', status: 'migrated' as const, nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed, checks: [passed, retired] };
+    await expect(f.store.update('one', base)).rejects.toThrow('CONTRACT_CUTOVER_INCOMPLETE');
+    await f.store.update('one', { ...base, cutover: { clientParity: true, routeAuthority: true, presenterParity: true } });
+    expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
+  });
+
   it('retains older and failed checks while gating on the latest command result in the implemented-source cohort', async () => {
     const f = fixture(); await begin(f.store); await claim(f.store);
     await f.store.update('one', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate', checks: [{ ...passed, result: 'failed', sourceSha: 'c'.repeat(40) }] });
     await f.store.update('one', { runId: 'lead-1', status: 'integrating', nextAction: 'Fix failing check', checks: [{ ...passed, result: 'failed' }] });
     await expect(f.store.update('one', { runId: 'lead-1', status: 'migrated', nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed })).rejects.toThrow('MIGRATION_EVIDENCE_REQUIRED');
-    await f.store.update('one', { runId: 'lead-1', status: 'migrated', nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed, checks: [passed] });
-    expect(f.store.read().executionPlan.tasks[0].checks).toHaveLength(3);
+    await f.store.update('one', { runId: 'lead-1', status: 'migrated', nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed, checks: [passed, retired] });
+    expect(f.store.read().executionPlan.tasks[0].checks).toHaveLength(4);
     expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
   });
 
@@ -305,15 +330,15 @@ describe('portable Rust migration work coordination', () => {
     await f.store.claim('integration.final', { runId: 'lead-1', agentId: 'lead' });
     await f.store.update('integration.final', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Review all remaining packets' });
     await f.store.update('integration.final', { runId: 'lead-1', status: 'integrating', nextAction: 'Review all remaining packets' });
-    await expect(f.store.update('integration.final', { runId: 'lead-1', status: 'migrated', nextAction: 'Acceptance later', implementedCommit: candidate, pushedSha: pushed, checks: [passed] })).rejects.toThrow('FINAL_MIGRATION_TASKS_INCOMPLETE');
+    await expect(f.store.update('integration.final', { runId: 'lead-1', status: 'migrated', nextAction: 'Acceptance later', implementedCommit: candidate, pushedSha: pushed, checks: [passed, retired] })).rejects.toThrow('FINAL_MIGRATION_TASKS_INCOMPLETE');
     await f.store.claim('new.slice', { runId: 'lead-1', agentId: 'slice-owner' });
     await f.store.update('new.slice', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });
     await f.store.update('new.slice', { runId: 'lead-1', status: 'integrating', nextAction: 'Run gates' });
-    await f.store.update('new.slice', { runId: 'lead-1', status: 'migrated', nextAction: 'Done', implementedCommit: candidate, pushedSha: pushed, checks: [passed] });
-    await expect(f.store.update('integration.final', { runId: 'lead-1', status: 'migrated', nextAction: 'Acceptance later', implementedCommit: candidate, pushedSha: pushed, checks: [passed] })).rejects.toThrow('FINAL_MIGRATION_TASKS_INCOMPLETE');
+    await f.store.update('new.slice', { runId: 'lead-1', status: 'migrated', nextAction: 'Done', implementedCommit: candidate, pushedSha: pushed, checks: [passed, retired] });
+    await expect(f.store.update('integration.final', { runId: 'lead-1', status: 'migrated', nextAction: 'Acceptance later', implementedCommit: candidate, pushedSha: pushed, checks: [passed, retired] })).rejects.toThrow('FINAL_MIGRATION_TASKS_INCOMPLETE');
     await f.store.claim('ports.new', { runId: 'lead-1', agentId: 'port-owner' });
     await f.store.update('ports.new', { runId: 'lead-1', status: 'done', nextAction: 'Port ready' });
-    await f.store.update('integration.final', { runId: 'lead-1', status: 'migrated', nextAction: 'Acceptance later', implementedCommit: candidate, pushedSha: pushed, checks: [passed] });
+    await f.store.update('integration.final', { runId: 'lead-1', status: 'migrated', nextAction: 'Acceptance later', implementedCommit: candidate, pushedSha: pushed, checks: [passed, retired] });
     expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
   });
 

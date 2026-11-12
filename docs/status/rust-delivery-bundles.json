@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 656,
+    "revision": 662,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-f",
+      "runId": "run-20261112-g",
       "agentId": "lead",
-      "startedAt": "2026-11-12T04:45:26.479Z",
-      "heartbeatAt": "2026-11-12T04:45:26.479Z",
-      "expiresAt": "2026-11-12T05:15:26.480Z",
-      "generation": 31,
-      "tokenHash": "9cd867bd8eb5f3131191266e57bf6672c1425be744f279056cda5de059c70948"
+      "startedAt": "2026-11-12T05:22:28.174Z",
+      "heartbeatAt": "2026-11-12T05:22:28.174Z",
+      "expiresAt": "2026-11-12T05:52:28.176Z",
+      "generation": 32,
+      "tokenHash": "e1fc083f210b9eb6cd463fb90db0b1dde3fcfd1bac2bb74605b527cf7e066fdf"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9290,10 +9290,21 @@
       "required": [
         "Native owner implements the scoped behavior.",
         "HTTP/SSR/internal/job consumer uses the native public port.",
-        "Replaced authoritative TS/Python writer, fallback and unused runtime edges are retired in the same packet.",
+        "Native client parity: the Next transport accepts every field the native service returns for that payload; a partial projection is not cutover.",
+        "Route authority: the route reads the native payload as its primary result; merging native fields over a retained TypeScript payload is not cutover.",
+        "Replaced authoritative TS/Python writer, fallback and unused runtime edges are deleted from source in the same packet.",
+        "TypeScript test/fixture oracles are moved to native seeding in the same packet; every retained entry carries removalTaskId and removalCondition.",
+        "A passed retirement:ts-writes check records the owner TypeScript write-statement count before and after, and after < before.",
+        "Contract cutover layers declared on the task (clientParity, routeAuthority, presenterParity) are all true.",
         "Scoped compile and affected authorization, transaction, replay/idempotency, audit/outbox and transport regressions pass.",
         "Post-retirement implementation is committed/pushed and remote SHA is verified."
       ],
+      "retirementKpi": {
+        "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
+        "baselineAt": "1399b44cf",
+        "baselineValue": 2894,
+        "targetValue": 0
+      },
       "browser": "Focused normal-authentication verification for affected integration; complete desktop/mobile matrix remains deferred.",
       "providers": "Implement adapters, retries/errors and fail-closed missing configuration. Missing credentials block only affected execution proof, never disjoint code work. Do not count retained TS as migrated or mocks as real provider verification.",
       "protection": "Preserve business data, schema/migration history, audits, receipts and immutable evidence. Python may remain only as an explicit development conformance oracle."
@@ -10710,15 +10721,8 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-f",
-          "agentId": "worker-finance",
-          "claimedAt": "2026-11-12T04:49:34.616Z",
-          "heartbeatAt": "2026-11-12T04:49:34.616Z",
-          "expiresAt": "2026-11-12T05:19:34.616Z",
-          "generation": 31
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
         "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
@@ -10755,14 +10759,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-f lease expired; guest-account slice pushed 6a0995214; starting retirement-first maintenance TS-writer slice",
         "nextAction": "goods-journal-port pushed 19580e083 and verified through the registered suite. Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets.",
         "handoff": {
-          "runId": "run-20261112-b",
-          "agentId": "lead",
-          "at": "2026-11-12T03:04:52.750Z",
+          "runId": "run-20261112-f",
+          "agentId": "worker-finance",
+          "at": "2026-11-12T05:22:28.173Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
+          "reason": "Recovery: run-20261112-f lease expired; guest-account slice pushed 6a0995214; starting retirement-first maintenance TS-writer slice",
           "nextAction": "goods-journal-port pushed 19580e083 and verified through the registered suite. Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -13886,14 +13890,14 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261112-f",
+          "runId": "run-20261112-g",
           "agentId": "worker-pms",
-          "claimedAt": "2026-11-12T04:45:26.512Z",
-          "heartbeatAt": "2026-11-12T04:45:26.512Z",
-          "expiresAt": "2026-11-12T05:15:26.512Z",
-          "generation": 31
+          "claimedAt": "2026-11-12T05:23:11.602Z",
+          "heartbeatAt": "2026-11-12T05:23:11.602Z",
+          "expiresAt": "2026-11-12T05:53:11.602Z",
+          "generation": 32
         },
-        "baseSha": "b005aaf3dde3d4f8707e89177c7ea5dd8404ddaf",
+        "baseSha": "0517689d6ee4b7217e1646de7789ecc0285acf54",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -14121,17 +14125,37 @@
             "command": "cargo test -p erpx-server-pms --test pms_reservation_postgres -- --test-threads=1",
             "result": "passed",
             "sourceSha": "d4a29556f90f2f332b0cdd0b67c538c246acbed5"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "6a0995214bb7ed5464b62a19d97ed6e405b9096b"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "6a0995214bb7ed5464b62a19d97ed6e405b9096b"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_guest_accounts",
+            "result": "passed",
+            "sourceSha": "6a0995214bb7ed5464b62a19d97ed6e405b9096b"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_guest_accounts_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "6a0995214bb7ed5464b62a19d97ed6e405b9096b"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Staff reservation create/change/cancel pushed d4a29556f (unit 15/15, PG 5/5) and mounted at POST /pms/reservation; Finance party/funding paths fail closed with explicit port codes. Remaining pms: guest cashier/minibar-linen stock, night-audit guard+posting mount, public booking/payment/email/provider, reports/settings residuals. NOTE: shared worktree currently fails erpx-service compile on another worker-in-flight src/composition/pos.rs (not in this commit); pushed tree does not contain that WIP.",
+        "nextAction": "Guest account open/update/charge/adjustment/transfer + mount pushed 6a0995214 (unit 10/10, PG 5/5); Finance settlement/refund/invoice/minibar-stock fail closed on owner ports. Retirement-first: pms TS writers still present (KPI owner 114), so this task is NOT complete until those writers/tests/exports are removed and KPI recorded. Remaining pms: guest cashier/stock, night-audit guard+posting mount, public booking/payment/email, reports/settings residuals.",
         "handoff": {
-          "runId": "run-20261112-e",
+          "runId": "run-20261112-f",
           "agentId": "worker-pms",
-          "at": "2026-11-12T04:45:26.479Z",
+          "at": "2026-11-12T05:22:28.174Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous coordinator lease expired; WIP reviewed on disk, POS mount pushed at 38a6d4b34, worker claims restored",
+          "reason": "Recovery: run-20261112-f lease expired; guest-account slice pushed 6a0995214; starting retirement-first maintenance TS-writer slice",
           "nextAction": "Staff reservation create/change/cancel pushed d4a29556f (unit 15/15, PG 5/5) and mounted at POST /pms/reservation; Finance party/funding paths fail closed with explicit port codes. Remaining pms: guest cashier/minibar-linen stock, night-audit guard+posting mount, public booking/payment/email/provider, reports/settings residuals. NOTE: shared worktree currently fails erpx-service compile on another worker-in-flight src/composition/pos.rs (not in this commit); pushed tree does not contain that WIP."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -16837,6 +16861,69 @@
           "Unit and PostgreSQL cases proving enforce/shadow ordering, denial and rollback."
         ],
         "claim": null
+      },
+      {
+        "id": "retire.maintenance.ts-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "maintenance",
+        "workflowIds": [
+          "maintenance/work-orders",
+          "maintenance/downtime",
+          "maintenance/feature-blocked-work",
+          "maintenance/feature-completion",
+          "maintenance/feature-maintenance-history"
+        ],
+        "workstream": "S06",
+        "kind": "migration",
+        "title": "Retire the retained Maintenance TypeScript command writers and test oracles",
+        "scope": "Remove the superseded Maintenance TS writers (preventive plan save/change/generate and work create/change), their application repository write paths, public exports and barrels. Migrate affected test/fixture seeding to native/owner facts, delete TS-oracle tests, and record the KPI before/after per owner. Reads and notification projections stay until their own owners switch.",
+        "dependsOn": [
+          "migrate.maintenance"
+        ],
+        "requiredPorts": [
+          "inventory",
+          "workflow"
+        ],
+        "allowedPaths": [
+          "packages/server-maintenance/src/**",
+          "packages/server-maintenance/Cargo.toml",
+          "packages/server-assets/src/public/asset-maintenance.ts",
+          "packages/server-assets/src/index.ts",
+          "packages/feature-maintenance/src/**",
+          "tests/unit/maintenance/**",
+          "tests/integration/maintenance/**",
+          "tests/unit/shared.business-contracts/**",
+          "tests/unit/assets/**",
+          "tests/integration/shared.executive/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:maintenance"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-g",
+          "agentId": "worker-maintenance",
+          "claimedAt": "2026-11-12T05:22:44.438Z",
+          "heartbeatAt": "2026-11-12T05:22:44.438Z",
+          "expiresAt": "2026-11-12T05:52:44.439Z",
+          "generation": 32
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete maintenance TS writers + exports, migrate test seeding, prove owner KPI 11 -> 0, run typecheck/affected suites, report before/after",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-maintenance",
+        "plannedPackage": "erpx-server-maintenance",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false
       }
     ],
     "migrationProgress": {
@@ -16845,7 +16932,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 54,
+      "totalPackets": 55,
       "migratedPackets": 24,
       "statusCounts": {
         "pending": 8,
@@ -16853,13 +16940,13 @@
         "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 24,
-        "blocked": 9,
+        "blocked": 10,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 31,
-    "updatedAt": "2026-11-12T04:49:34.616Z",
+    "lastCoordinatorGeneration": 32,
+    "updatedAt": "2026-11-12T05:23:11.650Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16902,10 +16989,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-e",
-      "runId": "run-20261112-f",
-      "at": "2026-11-12T04:45:26.481Z",
-      "reason": "Previous coordinator lease expired; WIP reviewed on disk, POS mount pushed at 38a6d4b34, worker claims restored",
+      "previousRunId": "run-20261112-f",
+      "runId": "run-20261112-g",
+      "at": "2026-11-12T05:22:28.176Z",
+      "reason": "run-20261112-f lease expired; guest-account slice pushed 6a0995214; starting retirement-first maintenance TS-writer slice",
       "wipReviewed": true,
       "previousRunStopped": true
     }
