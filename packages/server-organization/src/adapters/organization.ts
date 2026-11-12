@@ -27,7 +27,7 @@ import {organizationMemberSql} from '@erpx/server-organization/adapters/organiza
 import {canSeeDefaultPay,defaultCatalog} from '@erpx/server-organization/adapters/staff-defaults';
 import {createOrganizationApplication,type OrganizationPorts,type RelocationAuthority} from '@erpx/server-organization/application/organization';
 import type {ChangeFilters,NodeChangeInput,NodeDecisionInput} from '@erpx/server-organization/domain/organization';
-export {positionSchema,organizationTemplateSchema,applyOrganizationTemplateSchema,organizationNodeChangeSchema,organizationNodeDecisionSchema} from '@erpx/server-organization/domain/organization';
+export {positionSchema,organizationNodeChangeSchema,organizationNodeDecisionSchema} from '@erpx/server-organization/domain/organization';
 import {organizationGuard}from '@erpx/server-organization/public/organization-graph-guard';
 import {organizationRoster}from '@erpx/server-organization/public/organization-roster-read';
 const nodeImpactSql=`SELECT
@@ -36,7 +36,7 @@ const nodeImpactSql=`SELECT
  (SELECT count(*) FROM organization_positions WHERE company_id=? AND active=1 AND (branch_id=? OR department_id=?)) positions,
  (SELECT count(*) FROM (${identity_accessPlatformSources.assignments}) assignments WHERE company_id=? AND revoked_at IS NULL AND scope_node_id=?) assignments,
  (SELECT count(*) FROM (${commercePlatformSources.commerce_warehouses}) commerce_warehouses WHERE company_id=? AND branch_id=?) warehouses`;
-export async function organizationNodeImpact(db:SqlDatabase,companyId:string,nodeId:string){
+async function organizationNodeImpact(db:SqlDatabase,companyId:string,nodeId:string){
   return (await db.prepare(nodeImpactSql).bind(companyId,nodeId,companyId,nodeId,nodeId,companyId,nodeId,nodeId,companyId,nodeId,companyId,nodeId).first<{child_nodes:number;staff:number;positions:number;assignments:number;warehouses:number}>())!;
 }
 async function relocationSnapshot(db:SqlDatabase,companyId:string,departmentId:string){
@@ -130,8 +130,7 @@ commitReview:async(actor,id,input,key,_change,state,version,appliedNodeId,stages
     organizationChangeNotice(db,actor.companyId,id,key,"cancelled"),
   ]);
 },
-level:(companyId,id)=>db.prepare('SELECT level_number FROM staff_levels WHERE company_id=? AND id=? AND active=1').bind(companyId,id).first<{level_number:number|null}>(),
-template:(companyId,id)=>db.prepare('SELECT positions_json,version FROM organization_templates WHERE id=? AND company_id=?').bind(id,companyId).first<{positions_json:string;version:number}>(),ceoPosition:companyId=>db.prepare('SELECT id FROM organization_positions WHERE company_id=? AND is_ceo=1 AND active=1').bind(companyId).first<{id:string}>()};}
+level:(companyId,id)=>db.prepare('SELECT level_number FROM staff_levels WHERE company_id=? AND id=? AND active=1').bind(companyId,id).first<{level_number:number|null}>()};}
 async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 const application=(db:SqlDatabase)=>createOrganizationApplication(portsFor(db));
 export const organizationOverview=(db:SqlDatabase,actor:WorkContext,query:Record<string,unknown>={})=>invoke(()=>application(db).overview(actor,query));
