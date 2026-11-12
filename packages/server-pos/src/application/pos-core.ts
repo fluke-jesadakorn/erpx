@@ -132,10 +132,6 @@ export type PosUnit<Effect extends PosEffect> = {
     writePosFulfillments1(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
-    readCommerceStock2(facts: {
-        warehouse_id: string | number | boolean | null;
-        productId: string;
-    }): Promise<PosRow | null>;
     readInventoryLedger1(facts: {
         warehouse_id: string | number | boolean | null;
         productId: string;
@@ -295,9 +291,6 @@ export type PosUnit<Effect extends PosEffect> = {
         hash: string;
         fact3: string;
         fact4: number;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writeCommandAssertions2(facts: {
-        key: string;
     }): Promise<PosRows<Record<string, unknown>>>;
     readOrganizationNodes1(facts: {
         company: string;
@@ -567,9 +560,6 @@ export type PosUnit<Effect extends PosEffect> = {
         reason: string;
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
-    writePosShifts5(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
     readPosShifts3(facts: {
         shiftId: string;
     }): Promise<PosRow | null>;
@@ -699,12 +689,6 @@ export type PosUnit<Effect extends PosEffect> = {
         propertyId: string;
         company: string;
     }): Promise<PosRow | null>;
-    readPosFulfillments2(facts: {
-        itemId: string;
-    }): Promise<PosRow | null>;
-    writePosFulfillments4(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
     writePosSales7(facts: {
         fact0: number;
         id: string | number | boolean | null;
@@ -758,10 +742,6 @@ export type PosUnit<Effect extends PosEffect> = {
         fact12: string;
         note: string;
     }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales11(facts: {
-        user: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
     readPosLines7(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRow[]>;
@@ -770,10 +750,6 @@ export type PosUnit<Effect extends PosEffect> = {
         extra: number;
         subtotal: number;
         tax: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales12(facts: {
-        user: string;
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
     writePosSales13(facts: {
@@ -812,28 +788,13 @@ export type PosUnit<Effect extends PosEffect> = {
     readPosLines12(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRow | null>;
-    writePosReservations5(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
     writePosFulfillments10(facts: {
         state: string;
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
-    writePosFulfillments11(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosShifts5(facts: {
-        shift_id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosLines13(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
     readPosPayments8(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRow | null>;
-    readPosFulfillments6(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow[]>;
     readPosConnections1(facts: {
         company: string;
     }): Promise<PosRow | null>;
@@ -859,10 +820,6 @@ export type PosUnit<Effect extends PosEffect> = {
     readPosPayments9(facts: {
         pid: `${string}-${string}-${string}-${string}-${string}`;
     }): Promise<PosRow | null>;
-    writePosSales19(facts: {
-        fact0: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
     readPosPayments10(facts: {
         id: string;
         company: string;
@@ -877,19 +834,6 @@ export type PosUnit<Effect extends PosEffect> = {
     writeFinanceBankTransactions1(facts: {
         fact0: string | number | boolean | null;
         id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosPayments12(facts: {
-        id: string;
-        company: string;
-    }): Promise<PosRow | null>;
-    writePosPayments4(facts: {
-        fact0: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales20(facts: {
-        fact0: number;
-        sale_id: string | number | boolean | null;
-        sale_id2: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
     readPosPayments13(facts: {
         id: string;
@@ -969,10 +913,6 @@ export type PosUnit<Effect extends PosEffect> = {
         fact0: string;
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
-    readPosJobs3(facts: {
-        id: string;
-        company: string;
-    }): Promise<PosRow | null>;
     readPosRefundPayments3(facts: {
         record_id: string | number | boolean | null;
         company: string;
@@ -1018,10 +958,6 @@ export type PosUnit<Effect extends PosEffect> = {
     readPosRefunds1(facts: {
         id: string;
     }): Promise<PosRow | null>;
-    writePosRefunds3(facts: {
-        user: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
     readPosPayments15(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRow[]>;
@@ -2238,18 +2174,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
             await db.writeFinanceBankTransactions1({ fact0: settled!.finance_payment_id, id: bank.id });
             return { id: payment.id, saleId: sale.id, state: 'succeeded', bankTransactionId: bank.id };
         }
-        if (op === 'payment.cancel_transfer') {
-            const p = base.parse(input), payment = await db.readPosPayments10({ id: p.id, company: company });
-            if (!payment)
-                fail('POS_NOT_FOUND', 'Payment not found', 404);
-            version(payment, p);
-            await saleRow(db, actor, str(payment, 'sale_id'));
-            if (payment.method !== 'transfer' || payment.state !== 'pending')
-                fail('POS_TRANSFER_STATE', 'Only a pending bank transfer can be cancelled');
-            await db.writePosPayments4({ fact0: ports.clock.now(), id: payment.id });
-            await db.writePosSales20({ fact0: ports.clock.now(), sale_id: payment.sale_id, sale_id2: payment.sale_id });
-            return { id: payment.id, saleId: payment.sale_id, state: 'cancelled' };
-        }
         if (op === 'payment.retry' || op === 'payment.cancel') {
             const p = base.extend({ payerEmail: z.email().optional() }).parse(input), payment = await db.readPosPayments13({ id: p.id });
             if (!payment)
@@ -2433,12 +2357,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         version(refund, p);
         if (refund.state !== 'requested' || samePerson(actor, refund.requested_by))
             fail('POS_INDEPENDENT_REVIEW', 'A different manager must approve the pending request');
-        if (op === 'refund.reject') {
-            if (!p.reason)
-                fail('POS_REASON_REQUIRED', 'Enter a reason', 422);
-            await db.writePosRefunds3({ user: user, id: refund.id });
-            return { id: refund.id };
-        }
         if (op !== 'refund.approve')
             fail('POS_ACTION_UNKNOWN', 'Refund command not found', 404);
         const sale = await saleRow(db, actor, str(refund, 'sale_id'));
