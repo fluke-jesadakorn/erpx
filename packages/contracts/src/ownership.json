@@ -2215,8 +2215,6 @@
           "id": "registration",
           "migration": "clean",
           "source": [
-            "packages/server-assets/src/application/registration.ts",
-            "packages/server-assets/src/domain/registration.ts"
           ],
           "regression": [
             "tests/integration/assets/asset-maintenance.test.ts"
@@ -2228,9 +2226,7 @@
           "source": [
             "packages/server-assets/src/adapters/assets.ts",
             "packages/server-assets/src/application/assets.ts",
-            "packages/server-assets/src/application/registration.ts",
             "packages/server-assets/src/domain/assets.ts",
-            "packages/server-assets/src/domain/registration.ts"
           ],
           "regression": [
             "tests/integration/assets/asset-maintenance.test.ts",

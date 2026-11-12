@@ -2,7 +2,7 @@ import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createAsset,maintenanceDetail} from "@erpx/server-assets/public/asset-maintenance";
+import {maintenanceDetail} from "@erpx/server-assets/public/asset-maintenance";
 import {preventivePlanDetail,preventivePlanWork} from "@erpx/server-maintenance/public/maintenance-preventive";
 import {readSourceRecord} from "@erpx/server-records/public/source-record-policy";
 import {calendarData} from "@erpx/server-work_projection/public/calendar/index";
@@ -10,8 +10,18 @@ import {collaborationActionDetail,createActionCard,createRecordRelation,changeAc
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,assetId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
-beforeEach(async()=>{f=await expenseFixture();for(const a of [f.owner,f.head,f.tie,f.claimant])a.modules=['maintenance','assets'];assetId=String((await createAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:'Synthetic zero-cost safety station',category:'Inspection equipment',currency:'THB',costMinor:0,acquiredDate:'2026-01-01'},key())).id);});
+beforeEach(async()=>{f=await expenseFixture();for(const a of [f.owner,f.head,f.tie,f.claimant])a.modules=['maintenance','assets'];assetId=String((await seedAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:'Synthetic zero-cost safety station',category:'Inspection equipment',currency:'THB',costMinor:0,acquiredDate:'2026-01-01'})).id);});
 
+// Owner rows the native Assets register command persists; the TypeScript writer
+// is retired and the native Rust suites own command behavior.
+async function seedAsset(actor:{companyId:string;userId:string},input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){
+ const id=`asset-${key()}`,at=Date.now();
+ await db.batch([
+  db.prepare("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,warranty_end,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,input.branchId,input.departmentId??null,input.code,input.name,input.category,input.currency??'THB',input.costMinor??0,input.acquiredDate,input.warrantyEnd??null,actor.userId,at,at),
+  db.prepare("INSERT INTO operational_asset_events VALUES(?,?,1,'register',?,'Asset registered','good','registered',NULL,NULL,?)").bind(`asset-event-${key()}`,id,actor.userId,at),
+ ]);
+ return {id,version:1};
+}
 type Snapshot={status:string;next_due_local?:string;next_due_at?:number;title?:string;owner_id?:string};
 type Seed={status?:'draft'|'active'|'paused'|'cancelled';version?:number;title?:string;interval?:number;nextDueLocal?:string;nextDueAt?:number;timeZone?:string;owner?:string;assetId?:string;
  events?:{action:string;version:number;snapshot:'final'|Snapshot}[];
@@ -56,7 +66,7 @@ it('independently activates a recurring plan, creates each due work once and ret
  expect(first.occurrences).toHaveLength(1);
  expect(JSON.parse(String(first.occurrences[0].definition_json))).toMatchObject({title:'Daily safety inspection',priority:'normal',ownerId:f.head.userId});
  await expect(db.prepare('DELETE FROM maintenance_preventive_occurrences WHERE plan_id=?').bind(id).run()).rejects.toThrow('MAINTENANCE_PREVENTIVE_HISTORY_IMMUTABLE');
- const revisedAsset=String((await createAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:'Second synthetic safety station',category:'Inspection equipment',currency:'THB',costMinor:0,acquiredDate:'2026-01-01'},key())).id),revised=await seedPlan({status:'cancelled',version:5,title:'Weekly safety inspection',interval:7,nextDueLocal:'2026-03-14T09:00',nextDueAt:Date.parse('2026-03-14T02:00:00Z'),owner:f.head.userId,assetId:revisedAsset,
+ const revisedAsset=String((await seedAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:'Second synthetic safety station',category:'Inspection equipment',currency:'THB',costMinor:0,acquiredDate:'2026-01-01'})).id),revised=await seedPlan({status:'cancelled',version:5,title:'Weekly safety inspection',interval:7,nextDueLocal:'2026-03-14T09:00',nextDueAt:Date.parse('2026-03-14T02:00:00Z'),owner:f.head.userId,assetId:revisedAsset,
   events:[{action:'create',version:1,snapshot:{status:'draft'}},{action:'activate',version:2,snapshot:{status:'active',next_due_local:DUE_LOCAL,next_due_at:DUE_AT,title:'Daily safety inspection',owner_id:f.head.userId}},{action:'generate',version:3,snapshot:{status:'active',next_due_local:DUE_LOCAL,next_due_at:DUE_AT,title:'Daily safety inspection',owner_id:f.head.userId}},{action:'generate',version:4,snapshot:{status:'active',next_due_local:'2026-03-07T09:00',next_due_at:Date.parse('2026-03-07T02:00:00Z'),title:'Daily safety inspection',owner_id:f.head.userId}},{action:'cancel',version:5,snapshot:'final'}],
   occurrences:[{planVersion:2,dueLocal:DUE_LOCAL,dueAt:DUE_AT,workStatus:'completed',workTitle:'Daily safety inspection'},{planVersion:4,dueLocal:'2026-03-07T09:00',dueAt:Date.parse('2026-03-07T02:00:00Z'),workStatus:'scheduled',workTitle:'Daily safety inspection'}]});
  const detail=await preventivePlanDetail(f.owner,revised.id);

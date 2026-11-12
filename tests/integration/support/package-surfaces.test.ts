@@ -8,7 +8,6 @@ import { changeCRMIdentity } from "@erpx/server-crm/public/crm-identities";
 import { readExecutiveMetricProjection } from "@erpx/server-support/public/executive-metric-projections";
 import { executiveMainEvidenceSources as supportMetricEvidence } from "@erpx/server-support/public/executive-main-evidence-sources";
 import { metricCatalogFor, queryMetric } from "@erpx/server-runtime/public/executive/metrics";
-import { createAsset } from "@erpx/server-assets/public/asset-maintenance";
 import { pmsCommand, loadPms } from "@erpx/server-pms/public/pms";
 import { readablePmsSource, readablePmsSourceIds } from "@erpx/server-pms/public/pms/source";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
@@ -40,6 +39,16 @@ import { salesCustomersAccess, customerSummaries, customerWorkspaceProfile } fro
 import { calendarSupportSupportFacts } from "@erpx/server-support/public/calendar-support-facts";
 import { executiveMainEvidenceSources, type CustomerActivityTransport } from "@erpx/server-customer_360/public/executive-main-evidence-sources";
 
+// Owner rows the native Assets register command persists; the TypeScript writer
+// is retired and the native Rust suites own command behavior.
+async function seedAsset(actor:{companyId:string;userId:string},input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){
+ const id=`asset-${key()}`,at=Date.now();
+ await db.batch([
+  db.prepare("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,warranty_end,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,input.branchId,input.departmentId??null,input.code,input.name,input.category,input.currency??'THB',input.costMinor??0,input.acquiredDate,input.warrantyEnd??null,actor.userId,at,at),
+  db.prepare("INSERT INTO operational_asset_events VALUES(?,?,1,'register',?,'Asset registered','good','registered',NULL,NULL,?)").bind(`asset-event-${key()}`,id,actor.userId,at),
+ ]);
+ return {id,version:1};
+}
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: vi.fn(async () => ({ write: env.H001_DB, files: env.H001_FILES })), runtimeEnv: async () => env }));
 vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "Declared native fixture", definitionUpdatedAt: Date.now(), error: null }),
@@ -428,7 +437,7 @@ it("applies each Support metric capability and the incident record gate", async 
 it("removes source-linked asset tickets from metrics and evidence when the source workspace or current assignment is lost", async () => {
   f.owner.modules = ["support", "assets"];
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled");
-  const asset = await createAsset(f.owner, { branchId: f.branch, departmentId: f.department, code: key(), name: "Private source fixture", category: "Display", currency: "THB", costMinor: 0, acquiredDate: "2026-10-01" }, key());
+  const asset = await seedAsset(f.owner, { branchId: f.branch, departmentId: f.department, code: key(), name: "Private source fixture", category: "Display", currency: "THB", costMinor: 0, acquiredDate: "2026-10-01" });
   const ticket = await createSupportTicket(f.owner, { kind: "source", source: { kind: "asset", id: asset.id, version: 1 }, title: "Asset source authority fixture", issue: "Do not disclose this source after access changes" }, key());
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "enforced"); await grant("active");
   const read = () => readExecutiveMetricProjection(db, f.owner, "open-support-tickets", metricFilters, "status"), evidence = supportMetricEvidence(db);

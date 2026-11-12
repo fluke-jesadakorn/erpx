@@ -36,9 +36,7 @@
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./index": "./src/index.ts",
     "./application/assets": "./src/application/assets.ts",
-    "./application/registration": "./src/application/registration.ts",
-    "./domain/assets": "./src/domain/assets.ts",
-    "./domain/registration": "./src/domain/registration.ts"
+    "./domain/assets": "./src/domain/assets.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

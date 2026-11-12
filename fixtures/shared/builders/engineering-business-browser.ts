@@ -9,7 +9,6 @@ import {createAccount,createAccountSchema,createJournal,createJournalSchema,post
 import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
-import {createAsset} from "@erpx/server-assets/public/asset-maintenance";
 import {saveProductionResource,saveProductionResourceCalendar} from "@erpx/server-manufacturing/public/production-resources";
 import {createManufacturingAccountingProfile,reviewManufacturingAccountingProfile} from "@erpx/server-manufacturing/public/production-accounting";
 import {createChannel,createListing,createCart,addCartLine,changeEcommerce} from "@erpx/server-ecommerce/public/ecommerce";
@@ -32,6 +31,16 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
   return {...person,role:'holding_owner',assignmentId:assignment.id,holdingSlug:'simulation',branchId:null,departmentId:null,modules} satisfies WorkContext;
  }
  const source=await normalOwner(f.owner),reviewer=await normalOwner(f.payer);
+ // Operational assets are seeded as the owner rows the native register command
+ // persists; the TypeScript createAsset writer is retired.
+ async function operationalAsset(input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){
+  const id=`asset-${key()}`,at=Date.now();
+  await db.batch([
+   db.prepare("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,warranty_end,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,f.company,input.branchId,input.departmentId??null,input.code,input.name,input.category,input.currency??'THB',input.costMinor??0,input.acquiredDate,input.warrantyEnd??null,source.userId,at,at),
+   db.prepare("INSERT INTO operational_asset_events VALUES(?,?,1,'register',?,'Asset registered','good','registered',NULL,NULL,?)").bind(`asset-event-${key()}`,id,source.userId,at),
+  ]);
+  return {id,version:1};
+ }
  const settings=await db.prepare('SELECT inventory_account_id,cash_account_id FROM commerce_settings WHERE company_id=?').bind(f.company).first<{inventory_account_id:string;cash_account_id:string}>();
  if(!settings)throw new Error('BROWSER_COMMERCE_ACCOUNT_PROFILE_REQUIRED');
  let inventoryId=settings.inventory_account_id;
@@ -78,7 +87,7 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
   const cost={id:`project-cost-${key()}`};
   await db.prepare("INSERT INTO staff_project_cost_allocations(id,company_id,project_id,journal_line_id,amount_minor,state,version,created_by,approved_by,rejected_by,rejection_reason,created_at,updated_at) VALUES(?,?,?,?,7501,'approved',2,?,?,NULL,'',?,?)")
    .bind(cost.id,f.company,String(project.id),`${costJournal.id}-0`,source.userId,f.manager.userId,now,now).run();
-  const asset=await createAsset(source,{branchId:f.branch,code:`BROWSER-${viewport}-${run}`,name:`${label} zero-cost safety station`,category:'Engineering inspection fixture',currency:'THB',cost:'0.00',acquiredDate:today},key());
+  const asset=await operationalAsset({branchId:f.branch,code:`BROWSER-${viewport}-${run}`,name:`${label} zero-cost safety station`,category:'Engineering inspection fixture',currency:'THB',costMinor:0,acquiredDate:today});
   // The preventive plan definition is stored directly as the owner row the
  // native command unit would persist; the TypeScript writer was retired
  // (maintenance.rust-preventive-plan-command-postgres.integration covers the

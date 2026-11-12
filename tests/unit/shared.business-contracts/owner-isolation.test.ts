@@ -1,5 +1,4 @@
 import { expect, it } from "vitest";
-import { createAssetRegistration, type AssetRegistrationRepository } from "@erpx/server-assets/application/registration";
 import { createChannelApplication, type ChannelRepository } from "@erpx/server-ecommerce/application/channel";
 import { createEcommerceApplication, type EcommerceRepository } from "@erpx/server-ecommerce/application/commerce";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -53,24 +52,6 @@ it("E-commerce channel review enforces independence and Company scope before com
   const repository = ecommerceRepository({ replay: async () => null, reviewRecord: async () => ({ status: "draft", version: 1, created_by: "author" }) }), input = { action: "activate", expectedVersion: 1, reason: "Independent review" };
   await expect(ecommerce(repository).changeEcommerce("channel", "channel", input, "key")).rejects.toThrow("CONFLICT");
   await expect(ecommerce(repository, { actor: { ...ecommerceActor, userId: "reviewer", branchId: "branch" } }).changeEcommerce("channel", "channel", input, "key")).rejects.toThrow("COMPANY_ECOMMERCE_REQUIRED");
-});
-const assetInput = { branchId: "requested", departmentId: "requested-department", code: "A", name: "Lathe", category: "Machinery", currency: "THB", cost: "500", acquiredDate: "2026-10-01" };
-it("asset registration keeps scope, Finance recognition and replay under one injected repository", async () => {
-  const calls: string[] = []; let receipt: Record<string, unknown> | null = null;
-  const repository: AssetRegistrationRepository = {
-    replay: async () => receipt, currencyScale: async () => 2,
-    prepareAcquisitionCost: async () => { calls.push("recognition"); },
-    register: async (command, state) => { expect(state).toEqual({ branch: "scope-branch", department: "scope-department", costMinor: 50000, now: 100 }); calls.push("commit"); return receipt = { id: command.id, version: 1 }; },
-  };
-  const register = createAssetRegistration({ authorize: () => { calls.push("authorize"); }, authorizeFinanceLink: () => { calls.push("finance"); }, parse: () => ({ ...assetInput, financeAssetId: "finance-asset", financeAssetVersion: 2 }), scope: { branchId: "scope-branch", departmentId: "scope-department" }, repository: async () => repository, decimalUnits: () => 50000n, clock: { now: () => 100 }, error });
-  const first = await register(assetInput, "asset-key"), replay = await register(assetInput, "asset-key");
-  expect(replay).toEqual(first); expect(calls).toEqual(["authorize", "recognition", "finance", "commit", "authorize"]);
-});
-it("an acquisition overflow produces no recognition, receipt, or owner write", async () => {
-  const calls: string[] = [];
-  const register = createAssetRegistration({ authorize: () => {}, authorizeFinanceLink: () => {}, parse: () => assetInput, scope: { branchId: null, departmentId: null }, clock: { now: () => 100 }, decimalUnits: () => BigInt(Number.MAX_SAFE_INTEGER) + 1n, error,
-    repository: async () => ({ replay: async () => null, currencyScale: async () => 2, prepareAcquisitionCost: async () => { calls.push("money"); }, register: async () => { calls.push("write"); return {}; } }) });
-  await expect(register(assetInput, "overflow")).rejects.toThrow("MONEY_OVERFLOW"); expect(calls).toEqual([]);
 });
 function timeline(repository: CustomerTimelineRepository, overrides: Partial<Parameters<typeof createCustomerTimeline>[0]> = {}) {
   return createCustomerTimeline({ requireRead: () => {}, parseQuery: () => ({ limit: 1 }), decodeCursor: () => { throw new Error("bad cursor"); }, encodeCursor: cursor => JSON.stringify(cursor), repository: async () => repository, coverage: () => ["Sales quotations/orders"], error, ...overrides });

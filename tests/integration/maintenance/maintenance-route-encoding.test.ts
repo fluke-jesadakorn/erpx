@@ -3,7 +3,6 @@ import { isValidElement, type ReactElement } from "react";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { createAsset } from "@erpx/server-assets/public/asset-maintenance";
 import MaintenancePage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/maintenance/[id]/screen";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
@@ -18,11 +17,21 @@ vi.mock("@erpx/feature-assets/public/native-assets", async importOriginal => {
   return { ...actual, ownedMaintenanceDetail: (actor: WorkContext, _holdingSlug: string, id: string) => maintenanceDetail(actor, id) };
 });
 vi.mock("@erpx/server-work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
+// Owner rows the native Assets register command persists; the TypeScript writer
+// is retired and the native Rust suites own command behavior.
+async function seedAsset(actor:{companyId:string;userId:string},input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){
+ const id=`asset-${key()}`,at=Date.now();
+ await db.batch([
+  db.prepare("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,warranty_end,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,input.branchId,input.departmentId??null,input.code,input.name,input.category,input.currency??'THB',input.costMinor??0,input.acquiredDate,input.warrantyEnd??null,actor.userId,at,at),
+  db.prepare("INSERT INTO operational_asset_events VALUES(?,?,1,'register',?,'Asset registered','good','registered',NULL,NULL,?)").bind(`asset-event-${key()}`,id,actor.userId,at),
+ ]);
+ return {id,version:1};
+}
 let actor: WorkContext, f: Awaited<ReturnType<typeof expenseFixture>>, workId: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {
   f = await expenseFixture(); actor = { ...f.owner, modules: ["maintenance", "assets"] };
-  const asset = await createAsset(actor, { branchId: f.branch, code: key(), name: "Encoded native work source", category: "Inspection equipment", currency: "THB", costMinor: 0, acquiredDate: "2026-01-01" }, key());
+  const asset = await seedAsset(actor, { branchId: f.branch, code: key(), name: "Encoded native work source", category: "Inspection equipment", currency: "THB", costMinor: 0, acquiredDate: "2026-01-01" });
   // Owner rows for the retained reads. Preventive-plan and work commands are
   // native; this suite only needs the generated work the owner unit would store.
   const planId = `maintenance-${key()}`, dueAt = Date.now() - 86_400_000, now = Date.now();

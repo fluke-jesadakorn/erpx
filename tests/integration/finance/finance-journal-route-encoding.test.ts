@@ -3,7 +3,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { createAsset, maintenanceDetail } from "@erpx/server-assets/public/asset-maintenance";
+import { maintenanceDetail } from "@erpx/server-assets/public/asset-maintenance";
 import { prepareInventoryConsumption } from "@erpx/server-inventory/public/inventory-consumption";
 import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
@@ -13,13 +13,23 @@ vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "conso
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
 vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
 vi.mock("@erpx/server-work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
+// Owner rows the native Assets register command persists; the TypeScript writer
+// is retired and the native Rust suites own command behavior.
+async function seedAsset(actor:{companyId:string;userId:string},input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){
+ const id=`asset-${key()}`,at=Date.now();
+ await db.batch([
+  db.prepare("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,warranty_end,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,input.branchId,input.departmentId??null,input.code,input.name,input.category,input.currency??'THB',input.costMinor??0,input.acquiredDate,input.warrantyEnd??null,actor.userId,at,at),
+  db.prepare("INSERT INTO operational_asset_events VALUES(?,?,1,'register',?,'Asset registered','good','registered',NULL,NULL,?)").bind(`asset-event-${key()}`,id,actor.userId,at),
+ ]);
+ return {id,version:1};
+}
 let actor: WorkContext, f: Awaited<ReturnType<typeof expenseFixture>>, workId: string, journalId: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {
   f = await expenseFixture();
   f.owner.modules = ["finance", "assets", "maintenance", "inventory"];
   actor = f.manager;
-  const asset = await createAsset(f.owner, { branchId: f.branch, code: key(), name: "Encoded spare cost source", category: "Inspection equipment", currency: "THB", costMinor: 0, acquiredDate: "2026-01-01" }, key());
+  const asset = await seedAsset(f.owner, { branchId: f.branch, code: key(), name: "Encoded spare cost source", category: "Inspection equipment", currency: "THB", costMinor: 0, acquiredDate: "2026-01-01" });
   const warehouse = String((await saveMaster(f.owner, "warehouses", null, { branchId: f.branch, code: key(), name: "Controlled spare store" }, key())).id);
   const product = String((await saveMaster(f.owner, "products", null, { sku: key(), name: "Replacement fuse", unit: "each", price: "5" }, key())).id);
   // Declared opening stock; the actual Maintenance command retains its issue and journal.

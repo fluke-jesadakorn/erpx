@@ -6,12 +6,21 @@ import {createCustomerNote} from "@erpx/server-sales/public/customer-notes";
 import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork,supportWorkspace,supportDetail} from '@erpx/server-support/public/support';
 import {changeSupportIncident,createSupportIncident,incidentWorkspace} from '@erpx/server-support/public/support-incidents';
 import {supportSessionWorkspace} from "@erpx/server-support/public/support-sessions";
-import {createAsset} from "@erpx/server-assets/public/asset-maintenance";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
 beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();for(const [a,role] of [[f.head,'support_agent'],[f.manager,'support_manager']] as const){a.role=role;a.branchId=null;a.departmentId=null;a.assignmentId=await f.grant(a,role);}const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Support customer'},key()),w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Support warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'Support item',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
+// Owner rows the native Assets register command persists; the TypeScript writer
+// is retired and the native Rust suites own command behavior.
+async function seedAsset(actor:{companyId:string;userId:string},input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){
+ const id=`asset-${key()}`,at=Date.now();
+ await db.batch([
+  db.prepare("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,warranty_end,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,input.branchId,input.departmentId??null,input.code,input.name,input.category,input.currency??'THB',input.costMinor??0,input.acquiredDate,input.warrantyEnd??null,actor.userId,at,at),
+  db.prepare("INSERT INTO operational_asset_events VALUES(?,?,1,'register',?,'Asset registered','good','registered',NULL,NULL,?)").bind(`asset-event-${key()}`,id,actor.userId,at),
+ ]);
+ return {id,version:1};
+}
 const input=()=>({orderId:order,sourceVersion:1,title:'Installation assistance needed',issue:'Customer needs help confirming the setup procedure.',ownerId:f.head.userId,dueDate:'2026-09-24'});
 async function ticket(){return String((await createSupportTicket(f.owner,input(),key())).id);}
 // The native Rust Assets command owns change semantics. Retain the owner row and
@@ -123,7 +132,7 @@ it('lets employees create, correct, supplement and withdraw only their own repor
 });
 it('pins a real asset source, follows its current authority and hides unreadable ticket bodies and links',async()=>{
  for(const actor of [f.owner,f.claimant,f.head,f.manager])actor.modules=['assets','support'];
- const asset=await createAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:'Shared lobby display',category:'Display',currency:'THB',costMinor:0,acquiredDate:'2026-09-20'},key()),assetId=String(asset.id),body={kind:'source',source:{kind:'asset',id:assetId,version:1},title:'Asset display fault',issue:'The source-linked lobby display has lost its schedule.'};
+ const asset=await seedAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:'Shared lobby display',category:'Display',currency:'THB',costMinor:0,acquiredDate:'2026-09-20'}),assetId=String(asset.id),body={kind:'source',source:{kind:'asset',id:assetId,version:1},title:'Asset display fault',issue:'The source-linked lobby display has lost its schedule.'};
  await expect(createSupportTicket(f.claimant,{...body,source:{...body.source,version:2}},key())).rejects.toMatchObject({code:'SOURCE_RECORD_CHANGED'});
  const id=String((await createSupportTicket(f.claimant,body,key())).id),row=await getSupportTicket(f.claimant,id);
  expect(row).toMatchObject({source_kind:'asset',order_id:null,customer_id:null,status:'triage'});
