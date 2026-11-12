@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1096,
+    "revision": 1101,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -14625,8 +14625,15 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-s",
+          "agentId": "worker-commerce-goods",
+          "claimedAt": "2026-11-12T18:02:16.723Z",
+          "heartbeatAt": "2026-11-12T18:02:16.723Z",
+          "expiresAt": "2026-11-12T18:32:16.723Z",
+          "generation": 44
+        },
         "baseSha": "e6d13a645cffe9e6e1f36b0cede9f076b1ed39ed",
         "implementedCommit": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
         "lastPushedSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
@@ -14682,7 +14689,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Lead: dispatch native sales-order goods/mixed fulfillment in server-commerce (fulfillment.rs + order_http), then switch workplace route line 88 to native-only and delete the TS fulfillOrder goods branch plus the public export; purchase receipts are already native.",
         "handoff": {
           "runId": "run-20261112-s",
@@ -20877,22 +20884,96 @@
         "resources": [
           "owner:billing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-s",
-          "agentId": "worker-billing-actions",
-          "claimedAt": "2026-11-12T17:22:14.739Z",
-          "heartbeatAt": "2026-11-12T17:52:32.057Z",
-          "expiresAt": "2026-11-12T18:22:32.057Z",
-          "generation": 44
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "e495cb5820b7ffb38f02bad84c9e0fd646171b5b",
+        "lastPushedSha": "e495cb5820b7ffb38f02bad84c9e0fd646171b5b",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-billing/src",
+            "result": "passed",
+            "before": 82,
+            "after": 77,
+            "sourceSha": "e495cb5820b7ffb38f02bad84c9e0fd646171b5b",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-billing/src/adapters/billing.ts",
+                "writes": 36,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Retained enrollment/plan/customer/card/payment-mode/invoice/revise/assign/approve and target/retry actions need native owner command + HTTP mounts; target/retry additionally need the holding_owner vs platform_admin authority decision recorded."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing-jobs.ts",
+                "writes": 15,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Durable billing/Stripe job worker must move to the native worker runtime."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing-attachments.ts",
+                "writes": 13,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Billing evidence attachment lifecycle needs its native Files-backed owner command."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing-api.ts",
+                "writes": 7,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Billing evidence access-event repository moves with the native billing evidence port."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/beta-billing.ts",
+                "writes": 5,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Beta/Stripe retention compatibility adapter needs its native provider slice."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/beta-onboarding-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Beta onboarding effect moves with native onboarding/provisioning."
+              }
+            ],
+            "note": "Native cost/delete-cost/complete-costs are the sole authority (fail-closed 503, billingCommand 409); 29 dead repository members removed. Target/retry remain TS because native require_target_command authorizes holding_owner while the retained contract allows platform actors only; that inversion needs a product decision."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "e495cb5820b7ffb38f02bad84c9e0fd646171b5b",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:unit -- --suite=shared.billing.owner-services.unit",
+            "result": "passed",
+            "sourceSha": "e495cb5820b7ffb38f02bad84c9e0fd646171b5b",
+            "sourceKind": "committed",
+            "note": "2 files, 81/81"
+          },
+          {
+            "command": "bun run test:integration -- --suite=commercial.billing.integration --suite=commercial.target.integration",
+            "result": "passed",
+            "sourceSha": "e495cb5820b7ffb38f02bad84c9e0fd646171b5b",
+            "sourceKind": "committed",
+            "note": "2 files, 17/17 (10 + 7)"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "e495cb5820b7ffb38f02bad84c9e0fd646171b5b",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-server-billing --locked",
+            "result": "passed",
+            "sourceSha": "e495cb5820b7ffb38f02bad84c9e0fd646171b5b",
+            "sourceKind": "committed",
+            "note": "No Rust edits required."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Audit adapters/billing.ts + application/billing.ts against the mounted native billing cost/target/invoice/retry endpoints, then retire the native-covered action batch end-to-end: native client parity, route fail-closed authority (no TS fallback for those actions), delete the TS cases/repository writes, move/delete their oracles, remove barrels, and record the owner KPI pair.",
+        "nextAction": "Cost-review slice closed. Remaining 77 writes bound to retire.billing.residual-writers; target/retry wait for the authority decision.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -26414,6 +26495,51 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.billing.residual-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "billing",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S03",
+        "kind": "migration",
+        "title": "Retire the residual Billing TypeScript writers",
+        "scope": "Continue the Billing retirement after the native cost-review cutover. Residual 77 writes: adapters/billing.ts 36 (retained enrollment/plan/customer/card/payment-mode/invoice/revise/assign/approve plus target/retry pending the holding-owner vs platform-admin authority decision), billing-jobs 15, billing-attachments 13, billing-api 7, beta-billing 5, beta-onboarding-effects 1. Each batch needs a native owner command/route and an oracle move.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "packages/server-billing/Cargo.toml",
+          "packages/server-billing/package.json",
+          "packages/feature-billing/**",
+          "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/**",
+          "packages/feature-admin/src/routes/api/v1/platform/billing/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**",
+          "tests/integration/commercial/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 per-file native counterpart audit; start with target/retry only if the lead records an explicit authority decision, otherwise take billing-attachments/beta-onboarding with their owner ports.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -26422,21 +26548,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 124,
-      "migratedPackets": 59,
+      "totalPackets": 125,
+      "migratedPackets": 60,
       "statusCounts": {
-        "pending": 29,
+        "pending": 30,
         "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 59,
-        "blocked": 21,
+        "migrated": 60,
+        "blocked": 20,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T18:00:42.685Z",
+    "updatedAt": "2026-11-12T18:05:38.152Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
