@@ -181,3 +181,16 @@ describe('native People Payroll command transport',()=>{
   if(previous!==undefined)process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG=previous;
  });
 });
+
+describe('native People Payroll owned reads',()=>{
+ it('leaves the recorded payroll month detail native-only when the owner reader is unconfigured',async()=>{
+  const previous=process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;
+  delete process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;
+  const {ownedPeoplePayrollRuns,ownedPeoplePayrollSummary}=await import('../../../packages/feature-people_payroll/src/public/native-payroll-summary-owned');
+  // The Records payroll-month drawer and the Payroll history fallback raise
+  // NATIVE_PEOPLE_PAYROLL_UNAVAILABLE instead of consulting a TypeScript reader.
+  expect(await ownedPeoplePayrollSummary(actor as never,'acme','2026-10')).toBeUndefined();
+  expect(await ownedPeoplePayrollRuns(actor as never,'acme')).toBeUndefined();
+  if(previous!==undefined)process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG=previous;
+ });
+});

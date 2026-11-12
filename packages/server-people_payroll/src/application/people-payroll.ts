@@ -112,18 +112,6 @@ export interface PeoplePayrollRepository<Effect> {
     readPeopleSummaryPeopleactivecontractorsrunspending5(actor: WorkContext, value: 0 | 1, userId: string): Promise<{
         count: number;
     } | null>;
-    readPayrollSummaryEffect(companyId: string, value: string | null, value2: string | null): Promise<{
-        results: ({
-            pay_month: string;
-            currency: string;
-            run_count: number;
-            headcount: number;
-            gross_minor: number;
-            deductions_minor: number;
-            employer_cost_minor: number;
-            net_minor: number;
-        })[];
-    }>;
     stageCreatePersonEffect(personId: string, value: null, companyId: string, legalName: string, value2: string | null, value3: string | null, value4: string | null, countryCode: string, userId: string, now: number, now2: number): Effect;
     readCreateEngagementPerson(personId: string, companyId: string): Promise<Record<string, unknown> | null>;
     stageCreateEngagementEffect(engagementId: string, personId: string, companyId: string, value: string | null, value2: string | null, workerType: "employee" | "contractor", employmentType: "contractor" | "salaried" | "daily" | "hourly" | "shift", value3: "onboarding", startDate: string, value4: string | null, value5: string | null, jobTitle: string, currency: string, value6: string | null, userId: string, now: number, now2: number): Effect;
@@ -796,15 +784,6 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
             repository.readPeopleSummaryPeopleactivecontractorsrunspending5(actor, ports.canManagePeople(actor) ? 1 : 0, actor.userId),
         ]);
         return { people: people?.count ?? 0, active: active?.count ?? 0, contractors: contractors?.count ?? 0, payrollRuns: runs?.count ?? 0, pendingLeave: pending?.count ?? 0 };
-    }
-    async function payrollSummary(actor: WorkContext, payMonth?: string) {
-        actor = ports.authorize(actor, "payroll.read");
-        if (actor.branchId || actor.departmentId)
-            throw new BusinessRuleError(403, "COMPANY_PAYROLL_SCOPE_REQUIRED", "Use a Company payroll assignment for the payroll summary.");
-        if (payMonth && !/^\d{4}-(0[1-9]|1[0-2])$/.test(payMonth))
-            throw new BusinessRuleError(422, "INVALID_PAY_MONTH", "Use a calendar payroll month.");
-        await ports.prepare(actor.holdingId);
-        return (await repository.readPayrollSummaryEffect(actor.companyId, payMonth ?? null, payMonth ?? null)).results;
     }
     async function createPerson(actor: WorkContext, input: z.infer<typeof createPersonSchema>, id: string) {
         actor = ports.authorize(actor, "people.manage");
@@ -1959,5 +1938,5 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
         await ports.prepare(actor.holdingId);
         return ports.pagedRuns(actor.companyId,cursor);
     }
-    return { payrollRunsPage,payrollCostAssignments, verifyPayrollCostAssignment, listPeople, getPerson, peopleSummary, payrollSummary, createPerson, createEngagement, createCompensation, payrollOptions, assignPayGroup, transitionCompensation, transitionEngagement, createTimeEntry, updateTimeEntry, rejectTimeEntry, approveTimeEntry, createPayGroup, createCountryPack, listCountryPacks, transitionCountryPack, createPayrollRun, prepareFinalPay, requestPayrollAdvance, decidePayrollAdvance, payrollAdvancePage, payrollAdvanceAlertTarget, calculatePayrollRun, workPayrollRows, getPayrollRun, listPayrollRuns, payrollPostingOptions, savePayrollAccountMapping, approvePayrollAccountMapping, previewPayrollAccounting, postPayroll, approvePayrollRun, requestPayrollCorrection, decidePayrollCorrection, payrollCorrectionAlertTarget, exportPayrollReview, getPayrollReviewFile, createPaymentBatch, preparePaymentRetry, approvePaymentBatch, exportPaymentBatch, confirmPaymentBatch, importSyntheticPaymentResults, getPaymentFile, calculateItem };
+    return { payrollRunsPage,payrollCostAssignments, verifyPayrollCostAssignment, listPeople, getPerson, peopleSummary, createPerson, createEngagement, createCompensation, payrollOptions, assignPayGroup, transitionCompensation, transitionEngagement, createTimeEntry, updateTimeEntry, rejectTimeEntry, approveTimeEntry, createPayGroup, createCountryPack, listCountryPacks, transitionCountryPack, createPayrollRun, prepareFinalPay, requestPayrollAdvance, decidePayrollAdvance, payrollAdvancePage, payrollAdvanceAlertTarget, calculatePayrollRun, workPayrollRows, getPayrollRun, listPayrollRuns, payrollPostingOptions, savePayrollAccountMapping, approvePayrollAccountMapping, previewPayrollAccounting, postPayroll, approvePayrollRun, requestPayrollCorrection, decidePayrollCorrection, payrollCorrectionAlertTarget, exportPayrollReview, getPayrollReviewFile, createPaymentBatch, preparePaymentRetry, approvePaymentBatch, exportPaymentBatch, confirmPaymentBatch, importSyntheticPaymentResults, getPaymentFile, calculateItem };
 }

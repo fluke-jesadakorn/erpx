@@ -9,7 +9,7 @@ import {resolveFlow,assignFlowPrimary} from '@erpx/server-workflow/public/flow-r
 import { assertOwnedCashCannotMatchAgain } from "../../support/helpers/finance-bank-ownership";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
-import { payrollSummary, listPayrollRuns, workPayrollRows, listPeople } from "@erpx/server-people_payroll/public/people-payroll";
+import { listPayrollRuns, workPayrollRows, listPeople } from "@erpx/server-people_payroll/public/people-payroll";
 import { payrollPurchaseControls } from "@erpx/server-people_payroll/public/payroll-purchases";
 import {preparePayrollProjection,assertPayrollFinanceHistory} from "../../support/helpers/payroll-finance-history";
 import {createAttachmentSet,attachmentContent,bindRecordAttachmentSet} from "@erpx/server-files/public/attachments/service";
@@ -70,7 +70,7 @@ it("Payroll projection hides unpurchased notices before limits and preserves exa
 it("Payroll purchase denies legacy money and private readers without the add-on, keeps worker directory independent and shadows the original authority",async()=>{
   const directoryActor={...f.owner},input=await legacyPayrollGroup();vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","enforced");
   await expect(createPayrollRun(f.owner,input,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
-  for(const read of [()=>payrollSummary(f.owner),()=>listPayrollRuns(f.owner),()=>getPayrollRun(f.owner,"missing"),()=>getPayrollReviewFile(f.owner,"missing",1)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+  for(const read of [()=>listPayrollRuns(f.owner),()=>getPayrollRun(f.owner,"missing"),()=>getPayrollReviewFile(f.owner,"missing",1)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
   expect(await workPayrollRows(f.owner,db)).toEqual([]);await expect(listPeople(directoryActor)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
   const references=packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-worker-foundation'}),obligations:async()=>{throw Error('No foundation withdrawal witness');}});await references.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Projects-only worker reference',evidence:'test:included-worker-reference'}});const workers=await peopleReferenceRows(directoryActor,'worker',db);expect(workers.length).toBeGreaterThan(0);expect(workers.every(row=>!('phone' in row)&&!('email' in row)&&!('base_amount_minor' in row)&&!('payroll' in row))).toBe(true);
   const base=packageGrantStore(db,{authorize:async()=>({userId:"isolated-payroll-base-review"}),obligations:async()=>{throw Error("No People withdrawal witness");}});

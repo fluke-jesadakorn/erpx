@@ -9,7 +9,7 @@ import { thaiPayroll2026Pack } from "@erpx/feature-people_payroll/lib/thai-payro
 import { thai2026Reference,thai2026AdjustmentReference } from "../../support/helpers/thai-payroll-reference";
 import {createPayrollAdjustment,editPayrollAdjustment,payrollAdjustmentCreateSchema,payrollAdjustmentEditSchema} from "@erpx/server-people_payroll/public/payroll-adjustments";
 import { assertStatutoryRunReady,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema } from "@erpx/server-people_payroll/public/payroll-statutory";
-import { approvePaymentBatch,approvePayrollRun,approveTimeEntry,calculatePayrollRun,compensationSchema,confirmPaymentBatch,createCompensation,createCountryPack,createPaymentBatch,createPayrollRun,createTimeEntry,countryPackTransitionSchema,decidePayrollCorrection,exportPaymentBatch,exportPayrollReview,finalPayPreparationSchema,getPaymentFile,getPayrollReviewFile,getPayrollRun,payrollRunSchema,payrollSummary,postPayroll,payrollPostSchema,prepareFinalPay,requestPayrollCorrection,timeEntrySchema,transitionCompensation,transitionCountryPack } from "@erpx/server-people_payroll/public/people-payroll";
+import { approvePaymentBatch,approvePayrollRun,approveTimeEntry,calculatePayrollRun,compensationSchema,confirmPaymentBatch,createCompensation,createCountryPack,createPaymentBatch,createPayrollRun,createTimeEntry,countryPackTransitionSchema,decidePayrollCorrection,exportPaymentBatch,exportPayrollReview,finalPayPreparationSchema,getPaymentFile,getPayrollReviewFile,getPayrollRun,payrollRunSchema,postPayroll,payrollPostSchema,prepareFinalPay,requestPayrollCorrection,timeEntrySchema,transitionCompensation,transitionCountryPack } from "@erpx/server-people_payroll/public/people-payroll";
 import {getPayslip,getPayslipExport,listPayslips} from "@erpx/server-people_payroll/public/payroll-payslips";
 import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryAgreement,payrollRecoveryPage,payrollRecoveryRequestSchema,payrollRecoveryPolicy} from "@erpx/server-people_payroll/public/payroll-recoveries";
 import { cancelPayrollRun } from "@erpx/server-people_payroll/public/payroll-cancellation";
@@ -166,13 +166,6 @@ describe("source-dated Thai payroll owner workflow",()=>{
     expect(await db.prepare("SELECT amount_units,currency,currency_scale,fx_rate_id FROM money_transaction_snapshots WHERE source_type='payroll_run' AND source_id=?").bind(e.runId).first()).toMatchObject({amount_units:item!.net_minor,currency:"THB",currency_scale:2,fx_rate_id:`${f.company}-thb-rate`});
     await expect(assertStatutoryRunReady(db,e.runId)).resolves.toBeUndefined();
     expect(await db.prepare("SELECT COUNT(*) n FROM hr_payroll_postings WHERE run_id=?").bind(e.runId).first("n")).toBe(1);
-    expect(await payrollSummary(f.manager,"2026-10")).toEqual([{pay_month:"2026-10",currency:"THB",run_count:1,headcount:1,gross_minor:reference.grossMinor,deductions_minor:reference.grossMinor-reference.netMinor,employer_cost_minor:87_500,net_minor:reference.netMinor}]);
-    expect(await payrollSummary({...f.manager,companyId:"unrelated-company"},"2026-10")).toEqual([]);
-    expect(await payrollSummary(f.manager,"2026-09")).toEqual([]);
-    await expect(payrollSummary({...f.manager,departmentId:f.department},"2026-10")).rejects.toMatchObject({code:"COMPANY_PAYROLL_SCOPE_REQUIRED"});
-    await expect(payrollSummary(f.payer,"2026-10")).rejects.toMatchObject({code:"PERMISSION_REQUIRED"});
-    await expect(payrollSummary(f.claimant,"2026-10")).rejects.toMatchObject({code:"PERMISSION_REQUIRED"});
-    expect(JSON.stringify(await payrollSummary(f.manager))).not.toContain("statutory");
   });
 
   it("pays an independently reviewed posted-payroll delta without changing original bank slips exports GL or repeated YTD",async()=>{

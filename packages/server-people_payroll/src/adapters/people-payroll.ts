@@ -152,24 +152,6 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
                 count: number;
             }>();
         },
-        readPayrollSummaryEffect(companyId: string, value: string | null, value2: string | null) {
-            return database.prepare(`SELECT substring(r.pay_date FROM 1 FOR 7) pay_month,r.currency,
-    COUNT(DISTINCT r.id) run_count,COUNT(DISTINCT i.engagement_id) headcount,
-    SUM(i.gross_minor) gross_minor,SUM(i.deductions_minor) deductions_minor,SUM(i.employer_cost_minor) employer_cost_minor,SUM(i.net_minor) net_minor
-    FROM hr_payroll_runs r JOIN hr_payroll_items i ON i.run_id=r.id
-    WHERE r.company_id=? AND r.status='posted' AND (?::text IS NULL OR substring(r.pay_date FROM 1 FOR 7)=?)
-    GROUP BY substring(r.pay_date FROM 1 FOR 7),r.currency ORDER BY pay_month DESC,r.currency LIMIT 120`)
-                .bind(companyId, value, value2).all<{
-                pay_month: string;
-                currency: string;
-                run_count: number;
-                headcount: number;
-                gross_minor: number;
-                deductions_minor: number;
-                employer_cost_minor: number;
-                net_minor: number;
-            }>();
-        },
         stageCreatePersonEffect(personId: string, value: null, companyId: string, legalName: string, value2: string | null, value3: string | null, value4: string | null, countryCode: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_people(id,user_id,company_id,legal_name,preferred_name,email,phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(personId, value, companyId, legalName, value2, value3, value4, countryCode, userId, now, now2); },
         readCreateEngagementPerson(personId: string, companyId: string) { return database.prepare("SELECT id FROM hr_people WHERE id=? AND company_id=? AND status!='archived'").bind(personId, companyId).first(); },
         stageCreateEngagementEffect(engagementId: string, personId: string, companyId: string, value: string | null, value2: string | null, workerType: "employee" | "contractor", employmentType: "contractor" | "salaried" | "daily" | "hourly" | "shift", value3: "onboarding", startDate: string, value4: string | null, value5: string | null, jobTitle: string, currency: string, value6: string | null, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,end_date,manager_person_id,job_title,currency,pay_group_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(engagementId, personId, companyId, value, value2, workerType, employmentType, value3, startDate, value4, value5, jobTitle, currency, value6, userId, now, now2); },
@@ -713,7 +695,6 @@ export async function listPeople(actor: WorkContext, filters: {
 } = {}) { return withPeoplePurchasedRead(actor,"people.directory",(tx,current)=>invoke(()=>createPeoplePayrollApplication(context(tx)).listPeople(current,filters)),"people.manage"); }
 export async function getPerson(actor: WorkContext, personId: string, engagementId?: string) { return withPeoplePurchasedRead(actor,"people.directory",async(tx,current)=>{const data=await invoke(()=>createPeoplePayrollApplication(context(tx)).getPerson(current,personId,engagementId)),workforcePurchase=await workforcePurchaseControls(current,tx);return {...data,...(workforcePurchase?{workforcePurchase}:{})};}); }
 export async function peopleSummary(actor: WorkContext) { return withPeoplePurchasedRead(actor,"people.directory",async(tx,current)=>{const purchase=await peopleOverviewPurchases(tx,current);return invoke(()=>createPeoplePayrollApplication(context(tx)).peopleSummary(purchase["people.payroll"].history?current:{...current,iam:current.iam?{...current.iam,permissions:current.iam.permissions.filter(permission=>permission!=="payroll.read")}:current.iam}));}); }
-export async function payrollSummary(actor: WorkContext, payMonth?: string) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).payrollSummary(actor, payMonth))); }
 export async function createPerson(actor: WorkContext, input: z.infer<typeof createPersonSchema>, id: string) { return withPeoplePurchasedCommand(actor,{key:id,operation:"people.person.create",capability:"people.directory",purpose:"new-work",permission:"people.manage",resultKind:"person"},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).createPerson(actor, input, id))); }
 export async function createEngagement(actor: WorkContext, input: z.infer<typeof createEngagementSchema>, id: string) { return withPeoplePurchasedCommand(actor,{key:id,operation:"people.engagement.create",capability:"people.lifecycle",purpose:"new-work",permission:"people.manage",resultKind:"engagement",target:{kind:"person",id:input.personId}},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).createEngagement(actor, input, id))); }
 export async function createCompensation(actor: WorkContext, input: z.infer<typeof compensationSchema>, key: string) { return withPeoplePurchasedCommand(actor,{key,operation:"people.compensation.create",capability:"people.directory",purpose:"new-work",permission:"people.manage",resultKind:"compensation",target:{kind:"engagement",id:input.engagementId}},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).createCompensation(actor, input, key))); }
