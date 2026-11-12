@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 624,
+    "revision": 631,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-c",
+      "runId": "run-20261112-d",
       "agentId": "lead",
-      "startedAt": "2026-11-12T03:04:52.750Z",
-      "heartbeatAt": "2026-11-12T03:04:52.750Z",
-      "expiresAt": "2026-11-12T03:34:52.751Z",
-      "generation": 28,
-      "tokenHash": "34c8a7377d02e4b845d5fa5a8fb1b3af450ee07c634f1dc41cdda366a45e90ff"
+      "startedAt": "2026-11-12T03:43:43.823Z",
+      "heartbeatAt": "2026-11-12T03:43:43.823Z",
+      "expiresAt": "2026-11-12T04:13:43.825Z",
+      "generation": 29,
+      "tokenHash": "7a35f41181c9559b044c9420e436c2a02cd991e59e3cc524d77b2c9060731327"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -13784,12 +13784,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261112-c",
+          "runId": "run-20261112-d",
           "agentId": "worker-pms",
-          "claimedAt": "2026-11-12T03:04:57.858Z",
-          "heartbeatAt": "2026-11-12T03:04:57.858Z",
-          "expiresAt": "2026-11-12T03:34:57.858Z",
-          "generation": 28
+          "claimedAt": "2026-11-12T03:43:49.528Z",
+          "heartbeatAt": "2026-11-12T03:43:49.528Z",
+          "expiresAt": "2026-11-12T04:13:49.528Z",
+          "generation": 29
         },
         "baseSha": "944884f5468d50813c63b81acb5cf65566a80ade",
         "implementedCommit": null,
@@ -13960,12 +13960,12 @@
         "blocker": null,
         "nextAction": "Packet migrate.pms.stay_front_desk_commands COMPLETE and pushed 9f96ad765: stay assign/move, room save/dnd/observe, room_type.save, task create/assign/start/complete/inspect, maintenance open/close, block create/release with PG+HTTP+TS integration checks. Remaining pms packets: reservations/booking lifecycle, guest cashier/minibar-linen stock, night audit/reports/settings.",
         "handoff": {
-          "runId": "run-20261112-b",
+          "runId": "run-20261112-c",
           "agentId": "worker-pms",
-          "at": "2026-11-12T03:04:52.750Z",
+          "at": "2026-11-12T03:43:43.822Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
-          "nextAction": "Room/housekeeping commands pushed c41bc2a19 (remote verified): room.save/dnd/observe + task assign/start/complete/inspect, PG/http/router + composition mount, writer lock SHARE ROW EXCLUSIVE, stay unit-test parity fix included. Remaining pms packets: reservations/booking lifecycle, guest cashier/stock, night audit/reports/settings."
+          "reason": "Recovery: Previous coordinator lease expired with no heartbeat; WIP reviewed on disk and active worker claims restored",
+          "nextAction": "Packet migrate.pms.stay_front_desk_commands COMPLETE and pushed 9f96ad765: stay assign/move, room save/dnd/observe, room_type.save, task create/assign/start/complete/inspect, maintenance open/close, block create/release with PG+HTTP+TS integration checks. Remaining pms packets: reservations/booking lifecycle, guest cashier/minibar-linen stock, night audit/reports/settings."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pms",
@@ -14130,9 +14130,9 @@
         ],
         "status": "ready_for_integration",
         "claim": null,
-        "baseSha": "db63ab7a8f1afba439edefcff906b8a5d5fac5e8",
-        "implementedCommit": "d03a760ebc06ed80aaf586ec4b7f22f5a58e4710",
-        "lastPushedSha": "d03a760ebc06ed80aaf586ec4b7f22f5a58e4710",
+        "baseSha": "e6d13a645cffe9e6e1f36b0cede9f076b1ed39ed",
+        "implementedCommit": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
+        "lastPushedSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
         "checks": [
           {
             "command": "cargo check -p erpx-server-commerce --locked",
@@ -14161,18 +14161,39 @@
             "sourceSha": "d03a760ebc06ed80aaf586ec4b7f22f5a58e4710",
             "sourceKind": "committed",
             "note": "Repository layout passed; catalogue valid at 1161 suites."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
+            "sourceKind": "committed",
+            "note": "Composition mounts the receipt router with the shared Commerce backend and Finance goods journal."
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --locked --test receipt_http",
+            "result": "passed",
+            "sourceSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
+            "sourceKind": "committed",
+            "note": "4/4 receipt router cases pass."
+          },
+          {
+            "command": "bun run --filter '@erpx/feature-commerce' typecheck",
+            "result": "passed",
+            "sourceSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
+            "sourceKind": "committed",
+            "note": "Native goods-receipt client and serializers typecheck."
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Lead: mount the receipt router + Finance goods journal and switch the workplace fulfilment path.",
+        "nextAction": "Lead: enable native Commerce source, bind fulfillment attachments, retire TS fulfilOrder goods branch, smoke the goods receipt.",
         "handoff": {
-          "runId": "run-20261112-c",
-          "agentId": "worker-commerce",
-          "at": "2026-11-12T03:31:46.481Z",
+          "runId": "run-20261112-d",
+          "agentId": "lead",
+          "at": "2026-11-12T03:47:38.053Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Lead: mount the receipt router + Finance goods journal and switch the workplace fulfilment path."
+          "nextAction": "Lead: enable native Commerce source, bind fulfillment attachments, retire TS fulfilOrder goods branch, smoke the goods receipt."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commerce",
@@ -16409,16 +16430,16 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261112-c",
+          "runId": "run-20261112-d",
           "agentId": "worker-people",
-          "claimedAt": "2026-11-12T03:14:55.125Z",
-          "heartbeatAt": "2026-11-12T03:14:55.125Z",
-          "expiresAt": "2026-11-12T03:44:55.125Z",
-          "generation": 28
+          "claimedAt": "2026-11-12T03:43:49.553Z",
+          "heartbeatAt": "2026-11-12T03:43:49.553Z",
+          "expiresAt": "2026-11-12T04:13:49.553Z",
+          "generation": 29
         },
         "baseSha": null,
-        "implementedCommit": "5546be88aa059875ca74393b89986f1f95b37caa",
-        "lastPushedSha": "5546be88aa059875ca74393b89986f1f95b37caa",
+        "implementedCommit": "9e57921af0b706b01fec2584a3c28133fafc26ee",
+        "lastPushedSha": "9e57921af0b706b01fec2584a3c28133fafc26ee",
         "checks": [
           {
             "command": "cargo check -p erpx-server-people-payroll --all-targets",
@@ -16461,18 +16482,42 @@
             "result": "passed",
             "sourceSha": "5546be88aa059875ca74393b89986f1f95b37caa",
             "note": "9/9 workforce regression cases still pass."
+          },
+          {
+            "command": "cargo check -p erpx-server-people-payroll --all-targets",
+            "result": "passed",
+            "sourceSha": "9e57921af0b706b01fec2584a3c28133fafc26ee",
+            "note": "People/Payroll all targets compile with the native expense slice."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=people_payroll.rust-expense.unit",
+            "result": "passed",
+            "sourceSha": "9e57921af0b706b01fec2584a3c28133fafc26ee",
+            "note": "Registered suite path: 13/13 expense unit cases pass."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=people_payroll.rust-expense-postgres.integration",
+            "result": "passed",
+            "sourceSha": "9e57921af0b706b01fec2584a3c28133fafc26ee",
+            "note": "Registered suite path: 7/7 expense Postgres cases pass on a leased database."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --test leave",
+            "result": "passed",
+            "sourceSha": "9e57921af0b706b01fec2584a3c28133fafc26ee",
+            "note": "9/9 leave regression cases still pass."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "employees + leave-requests packets native and pushed (628b48a10, 5546be88a): workforce commands and full leave lifecycle incl. accrual drain; leave 9/9, leave PG 7/7, workforce 9/9. Remaining: expenses packet; composition ports (Organization placement, Identity account link, Finance money snapshot, Staff/Route/Approval/Evidence) before route switches.",
+        "nextAction": "employees, leave-requests and expenses packets native and pushed (628b48a10, 5546be88a, 9e57921af). Registered suites: workforce 9/9 + PG 6/6; leave 9/9 + PG 7/7; expense 13/13 + PG 7/7. Remaining: composition ports (Organization placement/spending route, Identity account link, Finance money snapshot/settlement, Files evidence, Workflow approvals) and workplace route switches.",
         "handoff": {
-          "runId": "run-20261112-b",
+          "runId": "run-20261112-c",
           "agentId": "worker-people",
-          "at": "2026-11-12T03:04:52.750Z",
+          "at": "2026-11-12T03:43:43.822Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
-          "nextAction": "employees packet native and pushed (628b48a10 in 786f6503d): save_person/record/status, engagement create+transition, compensation create+transition, person detail; registered suites 9/9 + 6/6. Mount blocked on three composition ports: Organization placement/history/roster, Identity account link/revocation, Finance money snapshot. Remaining packets: leave-requests, expenses."
+          "reason": "Recovery: Previous coordinator lease expired with no heartbeat; WIP reviewed on disk and active worker claims restored",
+          "nextAction": "employees + leave-requests packets native and pushed (628b48a10, 5546be88a): workforce commands and full leave lifecycle incl. accrual drain; leave 9/9, leave PG 7/7, workforce 9/9. Remaining: expenses packet; composition ports (Organization placement, Identity account link, Finance money snapshot, Staff/Route/Approval/Evidence) before route switches."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-people-payroll",
@@ -16653,8 +16698,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 28,
-    "updatedAt": "2026-11-12T03:31:46.482Z",
+    "lastCoordinatorGeneration": 29,
+    "updatedAt": "2026-11-12T03:47:38.054Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16697,10 +16742,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-b",
-      "runId": "run-20261112-c",
-      "at": "2026-11-12T03:04:52.751Z",
-      "reason": "run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
+      "previousRunId": "run-20261112-c",
+      "runId": "run-20261112-d",
+      "at": "2026-11-12T03:43:43.825Z",
+      "reason": "Previous coordinator lease expired with no heartbeat; WIP reviewed on disk and active worker claims restored",
       "wipReviewed": true,
       "previousRunStopped": true
     }
