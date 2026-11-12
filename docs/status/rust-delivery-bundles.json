@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 974,
+    "revision": 977,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -23776,22 +23776,134 @@
         "resources": [
           "owner:support"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-r",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T14:02:16.491Z",
-          "heartbeatAt": "2026-11-12T14:26:50.260Z",
-          "expiresAt": "2026-11-12T14:56:50.260Z",
-          "generation": 43
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "2929a49015a1ad56b04eab8673ec25c72669f538",
+        "lastPushedSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/service-teams.ts",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "before": 7,
+            "after": 0,
+            "note": "TS saveServiceTeam/previewServiceTeam, their application use cases and the adapters/service-teams barrel are deleted; the native Support service-teams router is the only create/update/preview authority."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "before": 2634,
+            "after": 2627,
+            "note": "Global write KPI moved by the seven retired service-team statements."
+          },
+          {
+            "command": "cargo check -p erpx-server-support",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "note": "Native options payload now carries the complete TS shape: category options, numeric active flag and inactive-team configuration coverage."
+          },
+          {
+            "command": "cargo test -p erpx-server-support --test service_teams",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "note": "4/4 native normalization/workspace rules."
+          },
+          {
+            "command": "cargo test -p erpx-server-support --test ticket_portal_rules",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "note": "6/6 incl. service-teams HTTP ingress target/origin/path contract."
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538"
+          },
+          {
+            "command": "bunx tsc -p packages/feature-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538"
+          },
+          {
+            "command": "bunx tsc --noEmit -p tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538"
+          },
+          {
+            "command": "vitest unit tests/unit/support/support-services.test.ts",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "note": "48/48; command-only service-team validation/preview cases removed with the deleted TS use cases."
+          },
+          {
+            "command": "vitest integration tests/integration/people_payroll/employee-services.test.ts",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "note": "25/25; service teams are seeded as owner rows; removed TS-only ambiguous/stale/owner-validation cases."
+          },
+          {
+            "command": "vitest integration tests/integration/procurement/purchase-to-payment.test.ts",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "note": "27/27 with the documented 180s allowance for this heavy suite."
+          },
+          {
+            "command": "vitest integration tests/integration/shared.work/work-card-preferences.test.ts tests/integration/shared.requests/request-experience.test.ts",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "note": "8/8 and 4/4; covered-team and coverage-preview reads now consume seeded owner rows."
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "note": "33 modules, 1184 suites."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2929a49015a1ad56b04eab8673ec25c72669f538",
+            "before": 19,
+            "after": 12,
+            "residual": [
+              {
+                "path": "packages/server-support/src/adapters/ticket-portal.ts",
+                "writes": 5,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Retire after the native customer ticket-portal read/proof path replaces the TS portal projection and its retained tests seed native owner rows."
+              },
+              {
+                "path": "packages/server-support/src/adapters/ticket-portal-customer.ts",
+                "writes": 5,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Retire after customer portal proof/session issuance is native-authoritative and the retained read tests stop calling the TS writer."
+              },
+              {
+                "path": "packages/server-support/src/adapters/support-evidence-planning.ts",
+                "writes": 1,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Retire after the native evidence planning event covers the remaining planner write and retained tests seed the event row."
+              },
+              {
+                "path": "packages/server-support/src/adapters/attachment-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Retire after the native attachment purchase guard owns the Support boundary and the fixture stops calling the TS guard."
+              }
+            ],
+            "note": "Support owner residual is exactly the four classified files above (12 writes), all bound to retire.support.residual-writers; none is a service-team writer."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Add native service-team client and switch routes, delete TS writers/use cases/barrels, seed owner rows, then record KPI and targeted suites.",
+        "nextAction": "Support service-team writers retired: native client/routes authoritative, TS writers/use cases/barrels deleted, tests seed service_team rows, KPI 7->0 (owner 19->12). Pushed 2929a4901.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -23805,20 +23917,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 115,
-      "migratedPackets": 49,
+      "migratedPackets": 50,
       "statusCounts": {
         "pending": 34,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 49,
+        "migrated": 50,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T14:27:04.833Z",
+    "updatedAt": "2026-11-12T14:28:07.608Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
