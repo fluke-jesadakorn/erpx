@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 861,
+    "revision": 866,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-q",
+      "runId": "run-20261112-r",
       "agentId": "lead",
-      "startedAt": "2026-11-12T11:54:51.734Z",
-      "heartbeatAt": "2026-11-12T11:54:51.734Z",
-      "expiresAt": "2026-11-12T12:24:51.736Z",
-      "generation": 42,
-      "tokenHash": "c236276d21fd703945fadd3e59133f66161434fa86d2b12c55a3c13d6bea4474"
+      "startedAt": "2026-11-12T12:26:25.188Z",
+      "heartbeatAt": "2026-11-12T12:26:25.188Z",
+      "expiresAt": "2026-11-12T12:56:25.189Z",
+      "generation": 43,
+      "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10117,14 +10117,7 @@
           "owner:organization"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261112-q",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T11:54:58.483Z",
-          "heartbeatAt": "2026-11-12T11:54:58.483Z",
-          "expiresAt": "2026-11-12T12:24:58.483Z",
-          "generation": 42
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10212,15 +10205,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
         "nextAction": "Access/position-move native-only; TS position-move writer plus its cross-owner support shims (workflow position-move events, people_payroll position-move holds) are deleted (organization KPI 70->64 at c3f3f3298; cross-owner support slice 11->0 at 612bb399d). Remaining: organization drafts/presentation TS, acceptance/beta onboarding effects, profile media/staff defaults writers.",
         "handoff": {
-          "runId": "run-20261112-p",
+          "runId": "run-20261112-q",
           "agentId": "lead",
-          "at": "2026-11-12T11:54:51.734Z",
+          "at": "2026-11-12T12:26:25.187Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after routine command mount; WIP reviewed",
-          "nextAction": "Access projection and position-move consumers are native-only: People catch-all list/preview/submit/cancel no longer falls back to TS (503 when unconfigured), Admin technology JSON API/screens use the native access read, production position-move supervisor drains scheduled moves, and the TS position-move adapter/public plus the People lifecycle TS drain are deleted (organization KPI 70->64, c3f3f3298). Remaining: organization drafts/presentation TS, acceptance/beta onboarding effects, profile media/staff defaults writers."
+          "reason": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
+          "nextAction": "Access/position-move native-only; TS position-move writer plus its cross-owner support shims (workflow position-move events, people_payroll position-move holds) are deleted (organization KPI 70->64 at c3f3f3298; cross-owner support slice 11->0 at 612bb399d). Remaining: organization drafts/presentation TS, acceptance/beta onboarding effects, profile media/staff defaults writers."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-organization",
@@ -20451,23 +20444,23 @@
         "resources": [
           "owner:files"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-q",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T12:16:20.938Z",
-          "heartbeatAt": "2026-11-12T12:16:20.938Z",
-          "expiresAt": "2026-11-12T12:46:20.938Z",
-          "generation": 42
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "BLOCKED ON CAPACITY: worker-files-retire died on OpenCode Go usage limit before any edit. Resume this lane (Step-0 native counterpart table for packages/server-files/src/**/*.ts, then six-point retirement and KPI pair) when subagent/model quota is restored.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-q",
+          "agentId": "lead",
+          "at": "2026-11-12T12:24:19.769Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED ON CAPACITY: worker-files-retire died on OpenCode Go usage limit before any edit. Resume this lane (Step-0 native counterpart table for packages/server-files/src/**/*.ts, then six-point retirement and KPI pair) when subagent/model quota is restored."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -20975,14 +20968,23 @@
           "packages/server-support/package.json",
           "packages/feature-support/**",
           "fixtures/**",
+          "tests/support/**",
           "tests/unit/support/**",
-          "tests/integration/support/**"
+          "tests/integration/support/**",
+          "tests/integration/customer_authority/**"
         ],
         "resources": [
           "owner:support"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-r",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T12:26:29.926Z",
+          "heartbeatAt": "2026-11-12T12:26:29.926Z",
+          "expiresAt": "2026-11-12T12:56:29.926Z",
+          "generation": 43
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -20990,7 +20992,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Step-0 native counterpart audit for adapters/support.ts, then six-point retirement with the owner KPI pair.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-q",
+          "agentId": "lead",
+          "at": "2026-11-12T12:26:25.187Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
+          "nextAction": "Step-0 native counterpart audit for adapters/support.ts, then six-point retirement with the owner KPI pair."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -21969,26 +21978,26 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
+        "status": "blocked",
         "nextAction": "Port opening/legacy-revenue/journal-review to native journal ports (seed tests inline, no fixtures path), switch the route, delete the three writers, measure retirement:ts-writes.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": {
-          "runId": "run-20261112-q",
-          "agentId": "worker-finance",
-          "claimedAt": "2026-11-12T12:19:29.503Z",
-          "heartbeatAt": "2026-11-12T12:19:29.503Z",
-          "expiresAt": "2026-11-12T12:49:29.503Z",
-          "generation": 42
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null
+        "blocker": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
+        "handoff": {
+          "runId": "run-20261112-q",
+          "agentId": "worker-finance",
+          "at": "2026-11-12T12:26:25.187Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
+          "nextAction": "Port opening/legacy-revenue/journal-review to native journal ports (seed tests inline, no fixtures path), switch the route, delete the three writers, measure retirement:ts-writes."
+        }
       }
     ],
     "migrationProgress": {
@@ -22000,18 +22009,18 @@
       "totalPackets": 98,
       "migratedPackets": 40,
       "statusCounts": {
-        "pending": 28,
-        "in_progress": 5,
+        "pending": 27,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 40,
-        "blocked": 15,
+        "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 42,
-    "updatedAt": "2026-11-12T12:19:39.039Z",
+    "lastCoordinatorGeneration": 43,
+    "updatedAt": "2026-11-12T12:26:29.926Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -22054,10 +22063,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-p",
-      "runId": "run-20261112-q",
-      "at": "2026-11-12T11:54:51.736Z",
-      "reason": "Lease expired after routine command mount; WIP reviewed",
+      "previousRunId": "run-20261112-q",
+      "runId": "run-20261112-r",
+      "at": "2026-11-12T12:26:25.189Z",
+      "reason": "run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
       "wipReviewed": true,
       "previousRunStopped": true
     }
