@@ -573,28 +573,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             fact12: string;
             note: string;
         }) => run(db, 'INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json,note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', facts.lid, facts.id, facts.fid, facts.productId, facts.name, facts.quantityMilli, facts.price, facts.tax_bps, facts.fact8, facts.discountMinor, facts.subtotal, facts.tax, facts.fact12, facts.note),
-        readFinanceParties2: facts => posCoreFinanceFacts(db).readFinanceParties2(facts),
-        writePosSales10: (facts: {
-            partyId: string | null;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET party_id=? WHERE id=?', facts.partyId, facts.id),
-        readPosLines6: (facts: {
-            lineId: string;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT l.*,f.state fulfillment_state,f.quantity_milli fulfillment_quantity FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.id=? AND l.sale_id=? FOR UPDATE OF l,f', facts.lineId, facts.id),
-        writePosFulfillments6: (facts: {
-            quantityMilli: number;
-            note: string;
-            fulfillment_id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_fulfillments SET quantity_milli=?,note=?,version=version+1 WHERE id=?', facts.quantityMilli, facts.note, facts.fulfillment_id),
-        writePosLines2: (facts: {
-            quantityMilli: number;
-            discount: number;
-            subtotal: number;
-            tax: number;
-            note: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET quantity_milli=?,discount_minor=?,subtotal_minor=?,tax_minor=?,note=? WHERE id=?', facts.quantityMilli, facts.discount, facts.subtotal, facts.tax, facts.note, facts.id),
         writePosSales11: (facts: {
             user: string;
             id: string | number | boolean | null;
@@ -613,88 +591,10 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             user: string;
             id: string | number | boolean | null;
         }) => run(db, 'UPDATE pos_sales SET discount_requested_by=? WHERE id=?', facts.user, facts.id),
-        readPosLines8: (facts: {
-            lineId: string;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT l.*,f.state fulfillment_state FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.id=? AND l.sale_id=? FOR UPDATE OF l,f', facts.lineId, facts.id),
-        writePosReservations3: (facts: {
-            fulfillment_id: string | number | boolean | null;
-        }) => run(db, 'DELETE FROM pos_reservations WHERE fulfillment_id=?', facts.fulfillment_id),
-        writePosLines4: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, 'DELETE FROM pos_lines WHERE id=?', facts.id),
         writePosSales13: (facts: {
             fact0: "held" | "open";
             id: string | number | boolean | null;
         }) => run(db, 'UPDATE pos_sales SET state=? WHERE id=?', facts.fact0, facts.id),
-        readPosTables3: (facts: {
-            tableId: string;
-            register_id: string | number | boolean | null;
-        }) => one(db, 'SELECT id FROM pos_tables WHERE id=? AND register_id=?', facts.tableId, facts.register_id),
-        writePosSales14: (facts: {
-            tableId: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET table_id=? WHERE id=?', facts.tableId, facts.id),
-        writePosLines5: (facts: {
-            id: string | number | boolean | null;
-            id2: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET sale_id=? WHERE sale_id=?', facts.id, facts.id2),
-        writePosSales15: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_sales SET state='merged',table_id=NULL WHERE id=?", facts.id),
-        readPosLines9: (facts: {
-            lineId: string;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_lines WHERE id=? AND sale_id=? FOR UPDATE', facts.lineId, facts.id),
-        readPosFulfillments3: (facts: {
-            fid: string;
-        }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.fid),
-        writePosSales16: (facts: {
-            target: `${string}-${string}-${string}-${string}-${string}`;
-            fact1: string;
-            user: string;
-            fact3: number;
-            fact4: number;
-            id: string | number | boolean | null;
-        }) => run(db, "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,party_id,guests,service_mode,created_by,created_at,updated_at,accounts_json) SELECT ?,company_id,branch_id,register_id,shift_id,?,currency,business_date,party_id,guests,service_mode,?,?,?,accounts_json FROM pos_sales WHERE id=?", facts.target, facts.fact1, facts.user, facts.fact3, facts.fact4, facts.id),
-        writePosLines6: (facts: {
-            target: `${string}-${string}-${string}-${string}-${string}`;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET sale_id=? WHERE id=?', facts.target, facts.id),
-        writePosFulfillments7: (facts: {
-            newFid: string;
-            quantityMilli: number;
-            fact2: number;
-            fid: string;
-        }) => run(db, 'INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,note,recipe_json,accounts_json,currency,business_date,created_at) SELECT ?,company_id,branch_id,warehouse_id,product_id,?,kind,station,note,recipe_json,accounts_json,currency,business_date,? FROM pos_fulfillments WHERE id=?', facts.newFid, facts.quantityMilli, facts.fact2, facts.fid),
-        writePosFulfillments8: (facts: {
-            quantityMilli: number;
-            fid: string;
-        }) => run(db, 'UPDATE pos_fulfillments SET quantity_milli=quantity_milli-?,version=version+1 WHERE id=?', facts.quantityMilli, facts.fid),
-        writePosLines7: (facts: {
-            fact0: `${string}-${string}-${string}-${string}-${string}`;
-            target: `${string}-${string}-${string}-${string}-${string}`;
-            newFid: string;
-            quantityMilli: number;
-            discount: number;
-            billDiscount: number;
-            amount: number;
-            tax: number;
-            id: string | number | boolean | null;
-        }) => run(db, 'INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,bill_discount_minor,subtotal_minor,tax_minor,modifiers_json,note) SELECT ?,?,?,product_id,name,?,price_minor,tax_bps,tax_inclusive,?,?,?,?,modifiers_json,note FROM pos_lines WHERE id=?', facts.fact0, facts.target, facts.newFid, facts.quantityMilli, facts.discount, facts.billDiscount, facts.amount, facts.tax, facts.id),
-        writePosLines8: (facts: {
-            quantityMilli: number;
-            amount: number;
-            tax: number;
-            discount: number;
-            billDiscount: number;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET quantity_milli=quantity_milli-?,subtotal_minor=subtotal_minor-?,tax_minor=tax_minor-?,discount_minor=discount_minor-?,bill_discount_minor=bill_discount_minor-? WHERE id=?', facts.quantityMilli, facts.amount, facts.tax, facts.discount, facts.billDiscount, facts.id),
-        writePosSales17: (facts: {
-            issuer_json: string | number | boolean | null;
-            user: string;
-            target: `${string}-${string}-${string}-${string}-${string}`;
-        }) => run(db, 'UPDATE pos_sales SET issuer_json=?,discount_requested_by=? WHERE id=?', facts.issuer_json, facts.user, facts.target),
         readPosFulfillments4: (facts: {
             id: string | number | boolean | null;
         }) => all(db, 'SELECT DISTINCT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?', facts.id),

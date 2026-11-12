@@ -1178,8 +1178,8 @@ fn sale_split_creates_the_target_and_halves_the_fulfillment() {
              ('sale-split','company','branch','register','shift','POS-S','THB','2027-01-15','open','cashier',0,0,'{}','retail',1,'{}');\
              INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,recipe_json,accounts_json,currency,business_date,created_at,state) VALUES\
              ('split-fulfilment','company','branch','warehouse','product',2000,'stock','Kitchen','[]','{}','THB','2027-01-15',0,'draft');\
-             INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json) VALUES\
-             ('split-line','sale-split','split-fulfilment','product','Product',2000,1000,700,false,0,2000,140,'[]');"
+             INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,bill_discount_minor,subtotal_minor,tax_minor,modifiers_json) VALUES\
+             ('split-line','sale-split','split-fulfilment','product','Product',2000,1000,700,false,31,21,2000,140,'[]');"
         )
         .execute(pool.raw())
         .await
@@ -1222,6 +1222,15 @@ fn sale_split_creates_the_target_and_halves_the_fulfillment() {
         .await
         .unwrap();
         assert_eq!(target_line, (1000, 1000, 70));
+        let discounts: (i64, i64) = sqlx::query_as(
+            "SELECT COALESCE(SUM(discount_minor),0)::bigint,COALESCE(SUM(bill_discount_minor),0)::bigint \
+             FROM pos_lines WHERE product_id='product' AND sale_id IN ('sale-split',$1)",
+        )
+        .bind(&target)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(discounts, (31, 21));
         let fulfilments: Vec<i64> = sqlx::query_scalar(
             "SELECT quantity_milli FROM pos_fulfillments WHERE product_id='product' AND company_id='company' ORDER BY quantity_milli",
         )

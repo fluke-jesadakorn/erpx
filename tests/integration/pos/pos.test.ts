@@ -804,12 +804,6 @@ describe('POS committed business flows',()=>{
   const sale=await createSale('restaurant');await add(sale,'latte');await kitchen(sale,'send');await kitchen(sale,'start');await kitchen(sale,'cancel');
   expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE product_id='milk'")).toEqual({quantity_milli:9800});expect(await one(db,"SELECT SUM(debit_minor-credit_minor) balance FROM finance_journal_lines WHERE account_id='waste'")).toEqual({balance:1000});
  });
- it('splits a dispatched recipe without creating another kitchen item or consuming twice',async()=>{
-  const sale=await createSale('restaurant');await add(sale,'latte',2000);await kitchen(sale,'send');const line=(await one(db,'SELECT * FROM pos_lines WHERE sale_id=?',sale))!;
-  const split=await change('sale.split',sale,{lineId:line.id,quantityMilli:1000});expect(await one(db,'SELECT COUNT(*) n FROM pos_fulfillments')).toEqual({n:1});
-  await kitchen(sale,'start');await kitchen(sale,'ready');await kitchen(sale,'deliver');await pay(sale,12840);await change('sale.complete',sale);await pay(String(split.id),12840);await change('sale.complete',String(split.id));
-  expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE product_id='milk'")).toEqual({quantity_milli:9600});expect(await one(db,'SELECT COUNT(*) n FROM pos_stock_moves')).toEqual({n:1});
- });
  it('partial returns require independent review, restore original cost, and cannot exceed original quantity',async()=>{
   const refundRateId=`pos-refund-rate-${++serial}`;
   await run(db,"INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)",refundRateId,'pos-company','THB',businessDate(),'36','manager',Date.now(),'refund quote');
@@ -1318,21 +1312,14 @@ it('checks the draft catalog version and price before changing the bill',async()
  expect(await one(db,'SELECT COUNT(*) n FROM pos_lines WHERE sale_id=?',sale)).toEqual({n:0});
 });
 
-it('preserves line and bill discounts exactly when a quantity is split',async()=>{
- const sale=await createSale();await add(sale,'tea',3000);await change('sale.discount',sale,{amountMinor:101});
- const line=(await one(db,'SELECT * FROM pos_lines WHERE sale_id=?',sale))!;
- const split=await change('sale.split',sale,{lineId:line.id,quantityMilli:1000});
- const portions=await all(db,'SELECT discount_minor,bill_discount_minor FROM pos_lines WHERE sale_id IN (?,?)',sale,split.id);
- expect(portions.reduce((sum,l)=>sum+Number(l.discount_minor),0)).toBe(101);expect(portions.reduce((sum,l)=>sum+Number(l.bill_discount_minor),0)).toBe(101);
- await change('sale.discount',String(split.id),{amountMinor:0});
- expect(await one(db,'SELECT discount_minor FROM pos_sales WHERE id=?',split.id)).toEqual({discount_minor:0});
-});
-
 it('shares CRM parties, refuses duplicate contact identities, and freezes receipt data',async()=>{
  const customer=await command('customer.create',{name:'Snapshot Customer',phone:'0801234567',email:'receipt@example.test'});
  await expect(command('customer.create',{name:'Different name',phone:'080-123-4567'})).rejects.toMatchObject({code:'POS_CUSTOMER_DUPLICATE'});
  expect((await posCustomers(db,actor,'receipt@example.test')).map(p=>p.id)).toContain(customer.id);
- const sale=await createSale();await change('sale.customer',sale,{partyId:customer.id});await add(sale);await pay(sale);await change('sale.complete',sale);
+ const sale=await createSale();
+ // sale.customer is native-owned; stage its settled party assignment directly.
+ await run(db,'UPDATE pos_sales SET party_id=? WHERE id=?',customer.id,sale);
+ await add(sale);await pay(sale);await change('sale.complete',sale);
  const before=(await one(db,'SELECT snapshot_json FROM pos_sale_documents WHERE sale_id=?',sale))!;
  const journalCount=await one(db,'SELECT COUNT(*) n FROM finance_journals');
  await run(db,'UPDATE finance_parties SET name=? WHERE id=?','Later changed name',customer.id);
