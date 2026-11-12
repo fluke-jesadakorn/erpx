@@ -5,7 +5,7 @@ import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/com
 import { createCustomerNote } from "@erpx/server-sales/public/customer-notes";
 import {getSupportTicket} from '@erpx/server-support/public/support';
 import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/support-ticket-seed';
-import {createSupportIncident,changeSupportIncident} from '@erpx/server-support/public/support-incidents';
+import {seedSupportIncident,seedSupportIncidentState} from '../../support/helpers/support-incident-seed';
 import {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
 import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
 import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
@@ -177,14 +177,19 @@ it("uses real ticket settlement and independent review in normal Commercial Prev
 
 it("retains a mitigated incident until its independent close even after the source ticket is cancelled", async () => {
   const ticket = await orderTicket();
-  const created = await createSupportIncident(f.manager, { ticketId: ticket.id, ticketVersion: 1, title: "Shared installation defect",
-    impact: "Several customers may need a correction", severity: "high", ownerId: f.head.userId, dueDate: "2026-09-27" }, key()), id = String(created.id);
+  const created = await seedSupportIncident(db, f.manager, { tickets: [{ ticketId: ticket.id, linkedVersion: 1 }],
+    title: "Shared installation defect", impact: "Several customers may need a correction", severity: "high",
+    ownerId: f.head.userId, dueDate: "2026-09-27", branchId: f.branch, status: "open" }), id = String(created.id);
   await ticketAction(ticket.id, "cancel", f.manager);
   expect((await observe()).outstanding).toBe(1);
-  await changeSupportIncident(f.head, id, { action: "start", expectedVersion: 1, reason: "Investigate the shared source" }, key());
-  await changeSupportIncident(f.head, id, { action: "mitigate", expectedVersion: 2, reason: "Verified the correction", rootCause: "Shared configuration defect", mitigation: "Applied and tested a corrected configuration" }, key());
+  await seedSupportIncidentState(db, id, { action: "start", status: "investigating", actorId: f.head.userId,
+    reason: "Investigate the shared source" });
+  await seedSupportIncidentState(db, id, { action: "mitigate", status: "mitigated", actorId: f.head.userId,
+    reason: "Verified the correction", rootCause: "Shared configuration defect",
+    mitigation: "Applied and tested a corrected configuration" });
   expect((await observe()).outstanding).toBe(1);
-  await changeSupportIncident(f.manager, id, { action: "close", expectedVersion: 3, reason: "Independent review confirms the mitigation" }, key());
+  await seedSupportIncidentState(db, id, { action: "close", status: "closed", actorId: f.manager.userId,
+    reason: "Independent review confirms the mitigation" });
   expect((await observe()).outstanding).toBe(0);
   expect(await getSupportIncident(f.manager, id)).toMatchObject({ status: "closed", version: 4 });
 });

@@ -1150,7 +1150,6 @@
             "tests/integration/support/support-sla.test.ts",
             "tests/integration/support/support-sessions.test.ts",
             "tests/integration/support/support-evidence.test.ts",
-            "tests/integration/support/support-incidents.test.ts",
             "tests/integration/people_payroll/employee-services.test.ts"
           ]
         }

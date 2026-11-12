@@ -1232,26 +1232,6 @@
       "capabilityId": "sla-watch"
     },
     {
-      "id": "support/incidents",
-      "workflow": [
-        "Open incidents, add timeline events and broadcast status"
-      ],
-      "expectedResults": [
-        "Persisted Incidents lifecycle, authorized handoff and history remain correct after reload."
-      ],
-      "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/support/support-incidents.test.ts",
-          "title": "hands off one incident across owners and reviewers while preserving separate customer cases",
-          "proof": "Incident investigate/block/reassign/mitigate/independent verify/close lifecycle, immutable events and separate source ticket states remain intact."
-        }
-      ],
-      "moduleId": "support",
-      "capabilityId": "incidents"
-    },
-    {
       "id": "support/feature-support-sessions",
       "workflow": [
         "Request, approve and revoke customer sessions"

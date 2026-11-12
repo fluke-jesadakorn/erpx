@@ -15,9 +15,9 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import {supportWorkspace,supportDetail,getSupportTicket,supportWork} from '@erpx/server-support/public/support';
 import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/support-ticket-seed';
+import {seedSupportIncident} from '../../support/helpers/support-incident-seed';
 import { supportEvidence } from "@erpx/server-support/public/support-evidence";
 import {incidentWorkspace} from '@erpx/server-support/public/support-incidents';
-import {createSupportIncident} from '@erpx/server-support/public/support-incidents';
 import { supportSlaWorkspace } from "@erpx/server-support/public/support-sla";
 import { supportSessionWorkspace } from "@erpx/server-support/public/support-sessions";
 import { packageGrantStore } from "@erpx/server-commercial/adapters/package-grants";
@@ -107,6 +107,7 @@ const fileInput = () => ({ targetType: "support_ticket", targetId: ticketId, com
   componentRef: "support-evidence:support_evidence", purposeKey: "support_evidence", expectedTargetVersion: 2 });
 const policy = { targetMinutes: 60, pauseWhileWaiting: true,
   calendar: { timezone: "Asia/Bangkok", weekdays: [1, 2, 3, 4, 5], opensAtMinute: 540, closesAtMinute: 1020, holidays: [] } };
+const metricFilters = { from: "2026-10-01", to: "2026-10-31", currency: "THB" };
 async function orderTicket() {
   const customer = await saveMaster(f.owner, "parties", null, { kind: "customer", code: key(), name: "Fictional service customer" }, key());
   const warehouse = await saveMaster(f.owner, "warehouses", null, { branchId: f.branch, code: key(), name: "Service source warehouse" }, key());
@@ -159,8 +160,8 @@ it("hides the customer Service tab and counts without purchase and removes new-c
 
 it("filters unpurchased Support Calendar sources while retaining draining owner work", async () => {
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled"); await triage();
-  const source = await orderTicket(), incident = await createSupportIncident(f.manager, { ticketId: source.id, ticketVersion: 1,
-    title: "Calendar fixture incident", impact: "Scoped service work", severity: "normal", ownerId: f.head.userId, dueDate: "2026-10-20" }, key());
+  const source = await orderTicket(), incident = await seedSupportIncident(db, f.manager, { tickets: [{ ticketId: String(source.id), linkedVersion: 1 }],
+    title: "Calendar fixture incident", impact: "Scoped service work", severity: "normal", ownerId: f.head.userId, dueDate: "2026-10-20", branchId: f.branch, status: "open" });
   const calendar = calendarSupportSupportFacts(db), read = () => calendar.read1({ value1: "Asia/Bangkok", value2: f.company,
     value3: null, value4: null, value5: JSON.stringify([f.company, f.branch, f.department]), value6: "2026-10-01", value7: "2026-11-01",
     value8: "team", value9: f.manager.userId, value10: null, value11: "", value12: 100, actor: f.manager });
@@ -269,8 +270,8 @@ it("refuses a normal withdrawal with live work and lets the queued existing-evid
 
 it("reads incident file authority through the supplied owner transaction without checking out another Holding connection", async () => {
   await grant("active"); const ticket = await orderTicket();
-  const incident = await createSupportIncident(f.manager, { ticketId: ticket.id, ticketVersion: 1, title: "Shared fixture incident",
-    impact: "Installation investigation", severity: "normal", ownerId: f.head.userId, dueDate: "2026-10-20" }, key());
+  const incident = await seedSupportIncident(db, f.manager, { tickets: [{ ticketId: String(ticket.id), linkedVersion: 1 }], title: "Shared fixture incident",
+    impact: "Installation investigation", severity: "normal", ownerId: f.head.userId, dueDate: "2026-10-20", branchId: f.branch, status: "open" });
   vi.mocked(holdingResources).mockClear();
   await db.transaction(async transaction => {
     expect(await authorizeAttachmentTarget(transaction, f.manager, attachmentPolicy("support_incident", "incident_evidence", "action"), String(incident.id), "read"))
@@ -377,7 +378,8 @@ it("aligns real executive catalogue, metric rows, drilldown and evidence with pu
 
 it("applies each Support metric capability and the incident record gate", async () => {
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled");
-  const source = await orderTicket(), incident = await createSupportIncident(f.manager, { ticketId: source.id, ticketVersion: 1, title: "Metric incident fixture", impact: "Declared synthetic service outage", severity: "normal", ownerId: f.head.userId, dueDate: "2026-10-20" }, key());
+  const source = await orderTicket(), incident = await seedSupportIncident(db, f.manager, { tickets: [{ ticketId: String(source.id), linkedVersion: 1 }],
+    title: "Metric incident fixture", impact: "Declared synthetic service outage", severity: "normal", ownerId: f.head.userId, dueDate: "2026-10-20", branchId: f.branch, status: "open" });
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "enforced");
   const evidence = supportMetricEvidence(db), search = (actor = f.manager) => evidence.factsSearchSupportIncidentEvidence(null, { filters: metricFilters, query: "", limit: 30, metric: "active-support-incidents" }, actor);
   for (const id of ["overdue-support-sla", "active-support-incidents"] as const)

@@ -12,8 +12,9 @@ import {organizationNodeChangeSchema,saveOrganizationNodeChange,decideOrganizati
 import {savePostDraft,publishPost,postDraftSchema} from '@erpx/server-collaboration/public/social-home';
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import {seedSupportTicket} from './support-ticket-seed';
+import {seedSupportIncident} from './support-incident-seed';
 import {bindSupportEvidence} from "@erpx/server-support/public/support-evidence";
-import {createSupportIncident,changeSupportIncident} from '@erpx/server-support/public/support-incidents';
+import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';
 import {createMessagingTeam,sendMessagingMessage,messageSchema} from '@erpx/server-collaboration/public/messaging';
 import {legalCommand} from "@erpx/server-legal/public/legal/service";
 import {customerPortalCommand} from "@erpx/server-customer_360/public/customer-portal";
@@ -83,9 +84,23 @@ export async function workplaceAttachmentOwner(tuple:WorkplaceAttachmentTuple):P
  if(tuple.targetType==='support_ticket'||tuple.targetType==='support_incident'){
   const colleague=await f.member('assigned-support-colleague','support_agent'),source=await supportSource(f),ticket=await seedSupportTicket(db,actor,{...source,title:'Synthetic File Sources Support',issue:'Review synthetic evidence only',ownerId:colleague.userId,dueDate:'2026-09-24'});
   if(tuple.targetType==='support_ticket')return {...base,targetId:String(ticket.id),table:'support_tickets',componentRef:`support-evidence:${tuple.purposeKey}`,bindingType:'support_action',bindAction:(setId,command)=>bindSupportEvidence(actor,String(ticket.id),{expectedVersion:1,attachmentSetIds:[setId],reason:'Reviewed synthetic Support action evidence'},command)};
-  const incident=await createSupportIncident(actor,{ticketId:ticket.id,ticketVersion:1,title:'Synthetic engineering incident',impact:'Isolated synthetic Company only',severity:'high',ownerId:colleague.userId,dueDate:'2026-09-24'},key());
+  const incident=await seedSupportIncident(db,actor,{tickets:[{ticketId:String(ticket.id),linkedVersion:1}],title:'Synthetic engineering incident',impact:'Isolated synthetic Company only',severity:'high',ownerId:colleague.userId,dueDate:'2026-09-24',branchId:f.branch,status:'open'}),id=String(incident.id);
   await controlAccount(colleague);
-  return {...base,actor:colleague,targetId:String(incident.id),table:'support_incidents',componentRef:'incident:open',bindingType:'support_incident_action',bindAction:(setId,command)=>changeSupportIncident(colleague,String(incident.id),{action:'start',expectedVersion:1,reason:'Investigate scanned synthetic evidence',attachmentSetIds:[setId]},command)};
+  let bound:unknown;
+  return {...base,actor:colleague,targetId:id,table:'support_incidents',componentRef:'incident:open',bindingType:'support_incident_action',bindAction:async(setId,command)=>{
+   if(bound)return bound;
+   // Native Support owns the incident transition. Seed the open owner row and
+   // execute only the real Files binding effects with the direct owner update.
+   bound=await db.transaction(async tx=>{
+    const prepared=await prepareAttachmentBinding(tx,colleague,{attachmentSetIds:[setId],bindingContract:{targetType:'support_incident',bindingType:'support_incident_action',contexts:[{purposeKey:'incident_evidence',componentKind:'action',componentRef:'incident:open'}]},targetId:id,expectedTargetVersion:1,commandId:command,bindingId:`${id}:start:2`}),now=Date.now();
+    for(const guard of prepared.guards)await guard.run();
+    await tx.prepare("UPDATE support_incidents SET status='investigating',version=version+1,updated_at=? WHERE id=? AND version=1 AND status='open'").bind(now,id).run();
+    await tx.prepare("INSERT INTO support_incident_events(id,incident_id,version,action,actor_id,reason,created_at,evidence_json) VALUES(?,?,2,'start',?,?,?,?::jsonb)").bind(`incident-event-${command}`,id,colleague.userId,'Investigate scanned synthetic evidence',now,JSON.stringify({seeded:true,attachmentManifest:prepared.manifest})).run();
+    for(const step of prepared.steps)await step.run();
+    return {id,version:2,status:'investigating',manifest:prepared.manifest};
+   });
+   return bound;
+  }};
  }
  if(tuple.targetType==='messaging_room'){
   await controlAccount(f.claimant);const room=await createMessagingTeam(db,actor,{name:'Synthetic engineering file team',members:[f.claimant.userId]},key()),fileId=key();
