@@ -14,6 +14,12 @@ use erpx_server_identity_access::public::{
 use erpx_server_pms::public::front_desk::{
     PgPmsFrontDeskRead, PmsFrontDeskSelection, lock_front_desk_sources, pms_front_desk,
 };
+use erpx_server_pms::public::guest_account::{
+    PgPmsGuestAccountRepository, PmsGuestAccountActor, PmsGuestAccountCommand,
+    PmsGuestAccountHttpBackend, PmsGuestAccountHttpCommandRequest, PmsGuestAccountHttpContext,
+    PmsGuestAccountHttpFuture, PmsGuestAccountHttpResponse, lock_guest_account_sources,
+    pms_guest_account,
+};
 use erpx_server_pms::public::pms_http::{
     PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest, PmsHttpResponse,
 };
@@ -88,6 +94,15 @@ struct PmsSources;
 impl HoldingWorkSourcePreparation for PmsSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move { lock_front_desk_sources(c).await })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PmsGuestAccountSources;
+
+impl HoldingWorkSourcePreparation for PmsGuestAccountSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move { lock_guest_account_sources(c).await })
     }
 }
 
@@ -806,6 +821,87 @@ impl<C: Clock + Send + Sync + 'static> PmsService<C> {
             )
             .await
     }
+    /// Apply one native guest-account/charge command over PMS-owned rows.
+    /// Journal posting, cash/card settlement, refunds and invoice issuance stay
+    /// with their owner/provider ports and fail closed inside the domain.
+    pub async fn guest_account(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        selected_context: PmsGuestAccountHttpContext,
+        key: CommandKey,
+        command: PmsGuestAccountCommand,
+    ) -> Result<PmsGuestAccountHttpResponse, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let permission = command.operation().permission();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                WorkAuthorizationRequest {
+                    permission: permission.into(),
+                    module: Some("pms".into()),
+                    destination: "pms".into(),
+                    api: true,
+                },
+                PmsGuestAccountSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let selected_context = selected_context.clone();
+                    let key = key.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(Error::from(scope()));
+                        }
+                        current.require_permission(permission)?;
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let assignment = selected.assignment();
+                        if selected_context.company_id != workspace.company_id.as_str()
+                            || selected_context.branch_slug.as_deref()
+                                != workspace.branch_slug.as_deref()
+                            || selected_context.department_slug.as_deref()
+                                != workspace.department_slug.as_deref()
+                            || selected_context.assignment_id != assignment.id.as_str()
+                            || selected_context.revision != selected.revision()
+                            || selected_context.assignment_version != assignment.version
+                        {
+                            return Err(Error::from(BusinessError::new(
+                                FailureKind::Conflict,
+                                "WORK_CONTEXT_CHANGED",
+                                "Your selected work context changed. Review the current workspace and role.",
+                            )));
+                        }
+                        let actor = PmsGuestAccountActor {
+                            board: pms_actor(current)?,
+                            assignment_id: assignment.id.as_str().to_owned(),
+                            role: assignment.role.clone(),
+                            revision: selected.revision(),
+                            assignment_version: assignment.version,
+                        };
+                        let mut repository = PgPmsGuestAccountRepository::new(connection);
+                        let now = clock.now().get();
+                        let result =
+                            pms_guest_account(&actor, &key, &command, &mut repository, now).await?;
+                        Ok(PmsGuestAccountHttpResponse {
+                            data: serde_json::to_value(result)
+                                .map_err(|_| Error::from(unavailable()))?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct PmsBackend<C> {
@@ -906,6 +1002,41 @@ impl<C: Clock + Send + Sync + 'static> PmsRoomCommandHttpBackend for PmsBackend<
             });
             self.service
                 .room_command(
+                    request.host,
+                    proof,
+                    selection,
+                    request.context,
+                    request.key,
+                    request.command,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PmsGuestAccountHttpBackend for PmsBackend<C> {
+    fn command<'a>(
+        &'a self,
+        request: PmsGuestAccountHttpCommandRequest<'a>,
+    ) -> PmsGuestAccountHttpFuture<'a, PmsGuestAccountHttpResponse> {
+        Box::pin(async move {
+            let (proof, mut selection) = self.context(request.headers)?;
+            selection.mutation = true;
+            selection.expected = Some(ExpectedWorkSelection {
+                revision: request.context.revision,
+                assignment_id: AssignmentId::new(request.context.assignment_id.clone())
+                    .map_err(|_| {
+                        BusinessError::new(
+                            FailureKind::Conflict,
+                            "WORK_CONTEXT_CHANGED",
+                            "Your selected work context changed. Review the current workspace and role.",
+                        )
+                    })?,
+                assignment_version: request.context.assignment_version,
+            });
+            self.service
+                .guest_account(
                     request.host,
                     proof,
                     selection,

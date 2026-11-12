@@ -92,3 +92,11 @@ path = "../../tests/unit/pms/rust-pms-report-projection.test.rs"
 [[test]]
 name = "pms_report_projection_postgres"
 path = "../../tests/integration/pms/rust-pms-report-projection-postgres.test.rs"
+
+[[test]]
+name = "pms_guest_accounts"
+path = "../../tests/unit/pms/rust-pms-guest-accounts.test.rs"
+
+[[test]]
+name = "pms_guest_accounts_postgres"
+path = "../../tests/integration/pms/rust-pms-guest-accounts-postgres.test.rs"

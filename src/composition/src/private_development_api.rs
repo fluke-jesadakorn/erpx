@@ -2885,6 +2885,7 @@ async fn assemble_checked(
         let mut pms_room_command_targets = Vec::new();
         let mut pms_report_targets = Vec::new();
         let mut pms_reservation_targets = Vec::new();
+        let mut pms_guest_account_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut maintenance_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3316,6 +3317,14 @@ async fn assemble_checked(
                 });
                 pms_reservation_targets.push(
                     erpx_server_pms::public::reservation::PmsReservationHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: pms_backend.clone(),
+                    },
+                );
+                pms_guest_account_targets.push(
+                    erpx_server_pms::public::guest_account::PmsGuestAccountHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -5446,6 +5455,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_pms::public::reservation::pms_reservation_router(
                     pms_reservation_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PMS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !pms_guest_account_targets.is_empty() {
+            router = router.merge(
+                erpx_server_pms::public::guest_account::pms_guest_account_router(
+                    pms_guest_account_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PMS_CONFIGURATION_INVALID")?,
             );
