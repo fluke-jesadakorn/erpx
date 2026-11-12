@@ -25,6 +25,7 @@ import {
   cashDueForecast,
 } from "@erpx/server-finance/public/finance-collections";
 import {createJournal,createJournalSchema,importBankStatement,postJournal,reconcileBankTransaction} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -67,21 +68,20 @@ beforeEach(async () => {
     .run();
 });
 async function receipt(amount: string) {
-  const j = await createJournal(
-    f.owner,
-    createJournalSchema.parse({
-      chartId: f.chart,
-      periodId: f.period,
-      entryDate: "2026-09-04",
-      currency: "THB",
-      lines: [
-        { accountId: f.accounts.cash, debit: amount, credit: "0" },
-        { accountId: f.accounts.revenue, debit: "0", credit: amount },
-      ],
-    }),
-    key(),
-  );
-  await postJournal(f.manager, String(j.id), key(), { expectedVersion: 1 });
+  const j = await seedFinanceJournal(db, {
+    companyId: f.company,
+    chartId: f.chart,
+    periodId: f.period,
+    entryDate: "2026-09-04",
+    currency: "THB",
+    key: key(),
+    createdBy: f.owner.userId,
+    status: "posted",
+    lines: [
+      { accountId: f.accounts.cash, debit: amount, credit: "0" },
+      { accountId: f.accounts.revenue, debit: "0", credit: amount },
+    ],
+  });
   return String(
     await db
       .prepare(

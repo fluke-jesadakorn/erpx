@@ -16,7 +16,8 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {createJournal,createJournalSchema,postJournal,reverseJournal,createPeriod} from '@erpx/server-finance/public/finance';
+import {reverseJournal,createPeriod} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 import {
   prepareGroupReportEdition,
   groupReportEditionWorkspace,
@@ -900,18 +901,17 @@ async function journal(
   rows: { accountId: string; debit: string; credit: string }[],
   currency = "THB",
 ) {
-  const j = await createJournal(
-    x.owner,
-    createJournalSchema.parse({
-      chartId: x.chart,
-      periodId: date.startsWith("2026-01") ? x.period : `${x.period}-feb`,
-      entryDate: date,
-      currency,
-      lines: rows,
-    }),
-    key(),
-  );
-  await postJournal(x.manager, String(j.id), key(), { expectedVersion: 1 });
+  const j = await seedFinanceJournal(db, {
+    companyId: x.company,
+    chartId: x.chart,
+    periodId: date.startsWith("2026-01") ? x.period : `${x.period}-feb`,
+    entryDate: date,
+    currency,
+    key: key(),
+    createdBy: x.owner.userId,
+    status: "posted",
+    lines: rows,
+  });
   return String(j.id);
 }
 async function activity(
