@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 662,
+    "revision": 667,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -16924,6 +16924,132 @@
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
         "aggregate": false
+      },
+      {
+        "id": "retire.manufacturing.ts-spec-oracle",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "manufacturing",
+        "workflowIds": [
+          "manufacturing/orders",
+          "manufacturing/material-readiness",
+          "manufacturing/quality-disposition",
+          "manufacturing/feature-specifications",
+          "manufacturing/feature-labor-output",
+          "manufacturing/feature-costs-genealogy"
+        ],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire the dead Manufacturing specification TS writer/test oracle",
+        "scope": "The native specification create/review command and Next production route are authoritative. Delete the unused TS createSpecification/reviewSpecification wrappers, their spec-only application/repository write paths and exports, and move/delete the TS-oracle tests. Record the manufacturing KPI before/after.",
+        "dependsOn": [
+          "migrate.manufacturing"
+        ],
+        "requiredPorts": [
+          "inventory",
+          "planning"
+        ],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "packages/server-manufacturing/Cargo.toml",
+          "packages/server-planning/src/index.ts",
+          "packages/feature-manufacturing/src/**",
+          "tests/unit/planning/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-g",
+          "agentId": "worker-manufacturing",
+          "claimedAt": "2026-11-12T05:26:38.703Z",
+          "heartbeatAt": "2026-11-12T05:26:38.703Z",
+          "expiresAt": "2026-11-12T05:56:38.703Z",
+          "generation": 32
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Retire dead TS specification wrappers/oracle; prove manufacturing KPI drop; run typecheck/affected suites",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-manufacturing",
+        "plannedPackage": "erpx-server-manufacturing",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false
+      },
+      {
+        "id": "retire.quality.workspace-detail-ts",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "quality",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the Quality TS workspace/detail authority",
+        "scope": "Cut over the Quality workspace and detail reads to the native owner: complete the Next client parity for every native workspace/detail field, make the supply quality route use the native payload as the sole authority, delete the TS qualityWorkspace/qualityDetail readers and their exports, move the affected oracles to native seeding, and record the owner retirement KPI before/after.",
+        "dependsOn": [
+          "inventory.quality",
+          "ports.trade"
+        ],
+        "requiredPorts": [
+          "inventory",
+          "finance",
+          "files",
+          "identity_access"
+        ],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "packages/feature-quality/src/**",
+          "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/**",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "status": "in_progress",
+        "nextAction": "Implement the Quality workspace/detail cutover end-to-end and report the KPI before/after.",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-quality",
+        "plannedPackage": "erpx-server-quality",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "claim": {
+          "runId": "run-20261112-g",
+          "agentId": "worker-quality",
+          "claimedAt": "2026-11-12T05:28:18.623Z",
+          "heartbeatAt": "2026-11-12T05:28:18.623Z",
+          "expiresAt": "2026-11-12T05:58:18.623Z",
+          "generation": 32
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "deliverables": [
+          "Native-quality workspace/detail client parity",
+          "Native-only route authority",
+          "Deleted TS readers and exports",
+          "Moved oracles and KPI delta"
+        ]
       }
     ],
     "migrationProgress": {
@@ -16932,11 +17058,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 55,
+      "totalPackets": 57,
       "migratedPackets": 24,
       "statusCounts": {
         "pending": 8,
-        "in_progress": 2,
+        "in_progress": 4,
         "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 24,
@@ -16946,7 +17072,7 @@
       }
     },
     "lastCoordinatorGeneration": 32,
-    "updatedAt": "2026-11-12T05:23:11.650Z",
+    "updatedAt": "2026-11-12T05:28:18.624Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
