@@ -48,6 +48,8 @@ pub mod private_development_api;
 
 #[cfg(feature = "existing-business")]
 pub mod approval_oversight;
+#[cfg(feature = "existing-business")]
+pub mod workflow_projection_worker;
 pub mod native_work_snapshot;
 mod work_card_preferences;
 mod asset_command_wire;

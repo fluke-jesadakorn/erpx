@@ -10302,6 +10302,74 @@ async fn run_position_move_supervisor(
     }
 }
 
+/// Native Workflow projection outbox worker entrypoint. Only the ported
+/// projection families are claimed; every other family stays with the retained
+/// TS supervisor through the static `owned` predicate.
+pub async fn run_workflow_projection_worker_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let config =
+        DevelopmentApiConfiguration::read_configuration_file(path, Profile::Development)?;
+    if config.holdings.is_empty() {
+        return Err("WORKFLOW_PROJECTION_TARGET_REQUIRED");
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let write_files = load_migrations(&root, MigrationTrack::HoldingWrite)
+        .await
+        .map_err(|_| "WORKFLOW_PROJECTION_SCHEMA_UNAVAILABLE")?;
+    let limits = PoolLimits {
+        max_connections: 3,
+        acquire_timeout: Duration::from_secs(5),
+    };
+    let control = config
+        .control
+        .connect(limits)
+        .await
+        .map_err(|_| "WORKFLOW_PROJECTION_DATABASE_UNAVAILABLE")?;
+    let run_id = uuid::Uuid::new_v4().simple().to_string();
+    let mut opened = vec![control.clone()];
+    let clock: Arc<dyn Clock + Send + Sync> = Arc::new(SystemAccountClock);
+    let result = async {
+        let mut holdings = Vec::with_capacity(config.holdings.len());
+        for holding in &config.holdings {
+            let id = holding.registration.holding_id.as_str();
+            let name = format!("erpx-workflow-projection-{run_id}-{id}");
+            let pool = holding
+                .database
+                .connect_named(limits, &name)
+                .await
+                .map_err(|_| "WORKFLOW_PROJECTION_DATABASE_UNAVAILABLE")?;
+            opened.push(pool.clone());
+            let proof = crate::workflow_projection_worker::attest_projection_holding(
+                &pool,
+                id,
+                holding.database.durable_identity().map(|(database, _)| database.as_str()),
+                &write_files,
+            )
+            .await?;
+            holdings.push((id.to_owned(), pool, proof));
+        }
+        crate::workflow_projection_worker::record_projection_attestation(
+            &control,
+            holdings.clone(),
+            clock.clone(),
+        )
+        .await?;
+        crate::workflow_projection_worker::run_workflow_projection_supervisor(
+            holdings,
+            clock,
+            shutdown,
+        )
+        .await
+    }
+    .await;
+    for pool in opened {
+        pool.close().await;
+    }
+    result
+}
+
 pub async fn run_production_workers_file(
     path: &Path,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
