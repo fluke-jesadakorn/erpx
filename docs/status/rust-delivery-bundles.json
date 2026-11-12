@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1054,
+    "revision": 1056,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -23780,23 +23780,68 @@
         "resources": [
           "owner:files"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
+        "lastPushedSha": "553e5754d3dd1011b6495c8d2dbc16e0a1da9160",
+        "checks": [
+          {
+            "command": "cargo test -p erpx-server-files --test attachment_read_http",
+            "result": "passed",
+            "sourceSha": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
+            "note": "7/7 router cases including the Portal withdraw origin/key/reason boundary and the distinct exact-holding requirement."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test attachment_scan_policy",
+            "result": "passed",
+            "sourceSha": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
+            "note": "7/7 including the new generic remove normalization/once-only and native-owner target refusal."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
+            "note": "Composition binds the Portal Files runtime and mounts the portal attachment router."
+          },
+          {
+            "command": "vitest integration tests/integration/shared.attachments/attachments-v2.test.ts",
+            "result": "passed",
+            "sourceSha": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
+            "note": "34/34; withdrawal fixtures now use the native-seeding oracle instead of the deleted TS writer."
+          },
+          {
+            "command": "bunx tsc -p packages/feature-files/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
+            "before": 118,
+            "after": 117,
+            "note": "The generic withdraw repository steps are deleted; the remaining 117 writes are other Files capabilities that stay with this packet."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
+            "before": 2598,
+            "after": 2597
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Next files slice: native create/reserve/complete/scan for non-field owners; classify the residual 55 service-repository writes with removalTaskId/removalCondition.",
+        "handoff": {
           "runId": "run-20261112-s",
           "agentId": "worker-files-withdraw",
-          "claimedAt": "2026-11-12T16:57:11.415Z",
-          "heartbeatAt": "2026-11-12T16:57:11.415Z",
-          "expiresAt": "2026-11-12T17:27:11.415Z",
-          "generation": 44
+          "at": "2026-11-12T16:57:57.646Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Next files slice: native create/reserve/complete/scan for non-field owners; classify the residual 55 service-repository writes with removalTaskId/removalCondition."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Native generic remove/withdraw is live: the TS withdraw writer and Portal withdraw branch are deleted, the external-customer route verifies the opaque product session before the native command, and oracles moved to the native-seeding helper. Remaining: native create/reserve/complete/scan for non-field owners and the residual 55 service-repository write statements.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -25519,17 +25564,17 @@
       "migratedPackets": 56,
       "statusCounts": {
         "pending": 29,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 56,
-        "blocked": 20,
+        "blocked": 21,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T16:57:11.416Z",
+    "updatedAt": "2026-11-12T16:57:57.646Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
