@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 909,
+    "revision": 915,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T13:08:17.565Z",
-      "expiresAt": "2026-11-12T13:38:17.565Z",
+      "heartbeatAt": "2026-11-12T13:15:43.198Z",
+      "expiresAt": "2026-11-12T13:45:43.198Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -22418,26 +22418,72 @@
         "resources": [
           "owner:support"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-r",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T13:08:17.647Z",
-          "heartbeatAt": "2026-11-12T13:08:17.647Z",
-          "expiresAt": "2026-11-12T13:38:17.647Z",
-          "generation": 43
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "ae5334a2e32bae8383a060bb76f818ef5c6987aa",
+        "lastPushedSha": "ae5334a2e32bae8383a060bb76f818ef5c6987aa",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/support-sla.ts",
+            "result": "passed",
+            "sourceSha": "ae5334a2e32bae8383a060bb76f818ef5c6987aa",
+            "before": 6,
+            "after": 0,
+            "note": "The TS SLA policy create/change and ticket clock-attachment writers and their application use cases are gone; the native /support/sla route is the only policy/clock command authority."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "ae5334a2e32bae8383a060bb76f818ef5c6987aa"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "ae5334a2e32bae8383a060bb76f818ef5c6987aa"
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "ae5334a2e32bae8383a060bb76f818ef5c6987aa"
+          },
+          {
+            "command": "bun run test:unit -- --suite=support.services.unit",
+            "result": "passed",
+            "sourceSha": "ae5334a2e32bae8383a060bb76f818ef5c6987aa",
+            "note": "60/60; policy command tests removed with the dead TS use cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.sla.integration",
+            "result": "passed",
+            "sourceSha": "ae5334a2e32bae8383a060bb76f818ef5c6987aa",
+            "note": "3/3; retained reads use seeded approved policy and attached clock owner rows."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.package-obligations.integration --suite=shared.workplace-journeys.engineering-workplace-workers.integration",
+            "result": "passed",
+            "sourceSha": "ae5334a2e32bae8383a060bb76f818ef5c6987aa",
+            "note": "21/21; SLA setup seeded through owner rows."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.package-surfaces.integration -t \"SLA\"",
+            "result": "passed",
+            "sourceSha": "ae5334a2e32bae8383a060bb76f818ef5c6987aa",
+            "note": "2/2 SLA cases passed; the unrelated native Field fixture case was excluded after its pre-existing 120s fixture-build timeout."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete the TS SLA policy/clock writers and use cases, seed approved policies and attached clocks in retained read tests, then record the file KPI pair.",
+        "nextAction": "Support SLA policy create/change and clock attachment are native-only: TS adapter/application/barrel writers deleted; retained tests seed approved policies and attached clocks; support-sla.ts 6->0 and owner 49->43. Pushed ae5334a2e.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "retire.finance.revenue-recognition-ts",
@@ -22475,8 +22521,8 @@
           "runId": "run-20261112-r",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T13:09:34.797Z",
-          "heartbeatAt": "2026-11-12T13:09:34.797Z",
-          "expiresAt": "2026-11-12T13:39:34.797Z",
+          "heartbeatAt": "2026-11-12T13:15:43.198Z",
+          "expiresAt": "2026-11-12T13:45:43.198Z",
           "generation": 43
         },
         "baseSha": null,
@@ -22495,20 +22541,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 103,
-      "migratedPackets": 43,
+      "migratedPackets": 44,
       "statusCounts": {
         "pending": 28,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 43,
+        "migrated": 44,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:09:34.797Z",
+    "updatedAt": "2026-11-12T13:15:43.286Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
