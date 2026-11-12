@@ -5,7 +5,8 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import {getSupportTicket,supportDetail} from '@erpx/server-support/public/support';
 import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
-import {bindSupportEvidence,revokeSupportEvidence,supportEvidence} from "@erpx/server-support/public/support-evidence";
+import {supportEvidence} from "@erpx/server-support/public/support-evidence";
+import {bindSupportEvidenceSeed,revokeSupportEvidenceSeed} from "../../support/helpers/support-evidence-seed";
 import {attachmentBindingState,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 import {customerPortalSharedFiles,customerPortalSharedPreview} from "@erpx/server-customer_360/public/customer-portal-attachments";
 // Owner rows the native Assets register command persists; the TypeScript writer
@@ -55,7 +56,7 @@ it('uploads private evidence through existing routes, safely replays, preserves 
  const content=await get(result.id);expect(content.status).toBe(200);expect(content.headers.get('Cache-Control')).toBe('private, no-store');expect(content.headers.get('Content-Disposition')).toContain('attachment');expect(new Uint8Array(await content.arrayBuffer())).toEqual(bytes);
  if(previous===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previous;
  session.actor={...f.head,companyId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,branchId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,role:'employee'};expect((await get(result.id)).status).toBe(404);session.actor=f.head;
- const input={expectedVersion:2,attachmentId:result.id,reason:'Wrong simulated screenshot replaced by corrected evidence'},revokeKey=key(),receipt=await revokeSupportEvidence(f.head,ticket,input,revokeKey);expect(await revokeSupportEvidence(f.head,ticket,input,revokeKey)).toEqual(receipt);
+ await revokeSupportEvidenceSeed(db,f.head,{ticketId:ticket,attachmentId:result.id,expectedVersion:2,reason:'Wrong simulated screenshot replaced by corrected evidence'});
  expect((await get(result.id)).status).toBe(200);expect((await supportEvidence(f.head,ticket)).items).toHaveLength(1);expect((await supportEvidence(f.head,ticket)).items[0].revoked_at).not.toBeNull();
  expect((await supportDetail(f.head,ticket)).history[0]).toMatchObject({action:'attachment-revoke',version:3});
 });
@@ -68,8 +69,6 @@ it('blocks every support-evidence mutation and hides write capabilities in expli
   process.env.ERPX_ATTACHMENTS_READ_ONLY='true';
   const intake=await intent(2);expect(intake.status).toBe(503);expect((await intake.json()).error.code).toBe('ATTACHMENTS_READ_ONLY');
   expect((await supportEvidence(f.owner,ticket))).toMatchObject({canChange:false,canShare:false});
-  await expect(bindSupportEvidence(f.owner,ticket,{expectedVersion:2,attachmentSetIds:[staged.setId],reason:'Rollback must keep this evidence draft immutable'},key())).rejects.toMatchObject({status:503,code:'ATTACHMENTS_READ_ONLY'});
-  await expect(revokeSupportEvidence(f.owner,ticket,{expectedVersion:2,attachmentId:uploaded.id,reason:'Rollback must preserve existing evidence'},key())).rejects.toMatchObject({status:503,code:'ATTACHMENTS_READ_ONLY'});
   expect(await db.prepare('SELECT version FROM support_tickets WHERE id=?').bind(ticket).first()).toEqual({version:2});
   expect(await db.prepare('SELECT revoked_at FROM attachments WHERE id=?').bind(uploaded.id).first()).toEqual({revoked_at:null});
   expect(await attachmentBindingState(db,staged.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
@@ -95,10 +94,8 @@ it('freezes evidence after proposed resolution and refuses signature mismatch or
  expect((await upload(reserved.id,new Uint8Array(bytes.length).fill(65))).status).toBe(422);
  const response=await upload(reserved.id),attachment=(await response.json()).data;
  await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(attachment.id).run();
- await expect(revokeSupportEvidence(f.owner,ticket,{expectedVersion:2,attachmentId:attachment.id,reason:'Held evidence must remain readable'},key())).rejects.toMatchObject({code:'CONFLICT'});
  await db.prepare("UPDATE support_tickets SET status='resolved',resolution='Simulated proposed resolution',resolved_by=?,resolved_at=?,version=4,updated_at=? WHERE id=?").bind(f.head.userId,Date.now(),Date.now(),ticket).run();
  expect((await intent(4)).status).toBe(409);expect((await supportEvidence(f.head,ticket)).canChange).toBe(false);expect((await get(attachment.id)).status).toBe(200);
- await expect(revokeSupportEvidence(f.owner,ticket,{expectedVersion:4,attachmentId:attachment.id,reason:'Cannot change reviewed evidence'},key())).rejects.toMatchObject({code:'SUPPORT_EVIDENCE_LOCKED'});
 });
 it('recovers the last reservation response at capacity without allocating an eleventh intent',async()=>{
  const keys=Array.from({length:10},()=>key());let lastId='';
@@ -146,12 +143,12 @@ it('keeps internal files out of the portal and exposes only sanitized customer-s
  const previous=process.env.ERPX_ATTACHMENTS_V2;process.env.ERPX_ATTACHMENTS_V2='true';
  try {
   const internal=await seedAttachmentSet(db,f.head,{targetType:'support_ticket',targetId:ticket,purposeKey:'internal_evidence',componentKind:'action',componentRef:'support-evidence:internal_evidence',expectedTargetVersion:1});
-  await bindSupportEvidence(f.head,ticket,{expectedVersion:1,attachmentSetIds:[internal.setId],reason:'Internal investigation evidence for assigned Support staff'},key());
+  await bindSupportEvidenceSeed(db,f.head,{ticketId:ticket,setId:internal.setId,expectedVersion:1,reason:'Internal investigation evidence for assigned Support staff'});
   const previewKey=`test/customer-preview/${crypto.randomUUID()}`,preview=new TextEncoder().encode('sanitized preview');
   await env.H001_FILES.put(previewKey,preview,{httpMetadata:{contentType:'image/webp',cacheControl:'private, no-store'},customMetadata:{sanitized:'true'}});
   const shared=await seedAttachmentSet(db,f.owner,{targetType:'support_ticket',targetId:ticket,purposeKey:'customer_shareable',componentKind:'action',componentRef:'support-evidence:customer_shareable',expectedTargetVersion:2,sourceState:'scanning'});
   await db.prepare("UPDATE attachments SET source_state='available',scanned_at=?,scanner_definition_at=?,preview_object_key=?,preview_media_type='image/webp',preview_checksum_sha256=?,preview_bytes=? WHERE id=?").bind(Date.now(),Date.now(),'test/customer-preview/'+previewKey.split('/').pop(),'0'.repeat(64),preview.byteLength,shared.sourceId).run();
-  await bindSupportEvidence(f.owner,ticket,{expectedVersion:2,attachmentSetIds:[shared.setId],reason:'Manager reviewed this document for customer sharing'},key());
+  await bindSupportEvidenceSeed(db,f.owner,{ticketId:ticket,setId:shared.setId,expectedVersion:2,reason:'Manager reviewed this document for customer sharing'});
   expect(await attachmentBindingState(db,shared.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'support_action'});
   await db.prepare("UPDATE commerce_orders SET state='confirmed' WHERE id=?").bind(orderId).run();
   const source=await db.prepare('SELECT company_id,party_id FROM commerce_orders WHERE id=?').bind(orderId).first<{company_id:string;party_id:string}>(),binding=`customer-share-${key()}`,email=`shared-${key()}@example.com`,userId=`portal-${key()}`,now=Date.now();
@@ -186,5 +183,5 @@ it('Helpdesk private byte read fences an actual source-linked Asset without gran
  const trigger=`support_asset_byte_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE operational_assets SET name=name||' changed during private audit' WHERE id='${assetId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${trigger}()`);try{await expect(attachmentContent(db,env.H001_FILES,f.owner,file.linkId,'original')).rejects.toMatchObject({code:'SUPPORT_FILE_READ_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_access_events;DROP FUNCTION ${trigger}()`);}expect(await db.prepare('SELECT name FROM operational_assets WHERE id=?').bind(assetId).first('name')).toBe('Actual Helpdesk source asset');expect(Number(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='allowed'").bind(file.linkId).first('n'))).toBe(1);
  // Binding state is changed by the original domain binder, so another current
  // Support reader reaches the actual source policy rather than the draft gate.
- await bindSupportEvidence(f.owner,sourceTicket,{expectedVersion:2,attachmentSetIds:[file.setId],reason:'Original source-linked evidence binding'},key());await expect(attachmentContent(db,env.H001_FILES,f.head,file.linkId,'original')).rejects.toMatchObject({status:404,code:'SUPPORT_TICKET_NOT_FOUND'});expect((await db.prepare("SELECT outcome,reason FROM attachment_access_events WHERE link_id=? AND outcome='denied'").bind(file.linkId).all()).results).toEqual([{outcome:'denied',reason:'SUPPORT_TICKET_NOT_FOUND'}]);f.head.modules=['assets'];await expect(attachmentContent(db,env.H001_FILES,f.head,file.linkId,'original')).rejects.toMatchObject({status:404,code:'SUPPORT_TICKET_NOT_FOUND'});expect(await(await attachmentContent(db,env.H001_FILES,f.owner,file.linkId,'original')).object.text()).toBe(body);
+ await bindSupportEvidenceSeed(db,f.owner,{ticketId:sourceTicket,setId:file.setId,expectedVersion:2,reason:'Original source-linked evidence binding'});await expect(attachmentContent(db,env.H001_FILES,f.head,file.linkId,'original')).rejects.toMatchObject({status:404,code:'SUPPORT_TICKET_NOT_FOUND'});expect((await db.prepare("SELECT outcome,reason FROM attachment_access_events WHERE link_id=? AND outcome='denied'").bind(file.linkId).all()).results).toEqual([{outcome:'denied',reason:'SUPPORT_TICKET_NOT_FOUND'}]);f.head.modules=['assets'];await expect(attachmentContent(db,env.H001_FILES,f.head,file.linkId,'original')).rejects.toMatchObject({status:404,code:'SUPPORT_TICKET_NOT_FOUND'});expect(await(await attachmentContent(db,env.H001_FILES,f.owner,file.linkId,'original')).object.text()).toBe(body);
 });

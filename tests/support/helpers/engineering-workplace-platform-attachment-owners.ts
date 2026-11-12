@@ -13,7 +13,7 @@ import {savePostDraft,publishPost,postDraftSchema} from '@erpx/server-collaborat
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import {seedSupportTicket} from './support-ticket-seed';
 import {seedSupportIncident} from './support-incident-seed';
-import {bindSupportEvidence} from "@erpx/server-support/public/support-evidence";
+import {bindSupportEvidenceSeed} from "./support-evidence-seed";
 import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';
 import {createMessagingTeam,sendMessagingMessage,messageSchema} from '@erpx/server-collaboration/public/messaging';
 import {legalCommand} from "@erpx/server-legal/public/legal/service";
@@ -83,7 +83,7 @@ export async function workplaceAttachmentOwner(tuple:WorkplaceAttachmentTuple):P
  }
  if(tuple.targetType==='support_ticket'||tuple.targetType==='support_incident'){
   const colleague=await f.member('assigned-support-colleague','support_agent'),source=await supportSource(f),ticket=await seedSupportTicket(db,actor,{...source,title:'Synthetic File Sources Support',issue:'Review synthetic evidence only',ownerId:colleague.userId,dueDate:'2026-09-24'});
-  if(tuple.targetType==='support_ticket')return {...base,targetId:String(ticket.id),table:'support_tickets',componentRef:`support-evidence:${tuple.purposeKey}`,bindingType:'support_action',bindAction:(setId,command)=>bindSupportEvidence(actor,String(ticket.id),{expectedVersion:1,attachmentSetIds:[setId],reason:'Reviewed synthetic Support action evidence'},command)};
+  if(tuple.targetType==='support_ticket')return {...base,targetId:String(ticket.id),table:'support_tickets',componentRef:`support-evidence:${tuple.purposeKey}`,bindingType:'support_action',bindAction:(setId,command)=>bindSupportEvidenceSeed(db,actor,{ticketId:String(ticket.id),setId,expectedVersion:1,reason:'Reviewed synthetic Support action evidence',commandId:command})};
   const incident=await seedSupportIncident(db,actor,{tickets:[{ticketId:String(ticket.id),linkedVersion:1}],title:'Synthetic engineering incident',impact:'Isolated synthetic Company only',severity:'high',ownerId:colleague.userId,dueDate:'2026-09-24',branchId:f.branch,status:'open'}),id=String(incident.id);
   await controlAccount(colleague);
   let bound:unknown;
