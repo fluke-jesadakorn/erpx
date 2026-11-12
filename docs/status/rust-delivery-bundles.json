@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 972,
+    "revision": 974,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T14:21:14.481Z",
-      "expiresAt": "2026-11-12T14:51:14.481Z",
+      "heartbeatAt": "2026-11-12T14:26:50.260Z",
+      "expiresAt": "2026-11-12T14:56:50.260Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -13960,8 +13960,8 @@
           "runId": "run-20261112-r",
           "agentId": "lead",
           "claimedAt": "2026-11-12T13:53:12.437Z",
-          "heartbeatAt": "2026-11-12T14:21:14.481Z",
-          "expiresAt": "2026-11-12T14:51:14.481Z",
+          "heartbeatAt": "2026-11-12T14:26:50.260Z",
+          "expiresAt": "2026-11-12T14:56:50.260Z",
           "generation": 43
         },
         "baseSha": null,
@@ -19973,8 +19973,8 @@
           "runId": "run-20261112-r",
           "agentId": "lead",
           "claimedAt": "2026-11-12T13:38:46.765Z",
-          "heartbeatAt": "2026-11-12T14:21:14.481Z",
-          "expiresAt": "2026-11-12T14:51:14.481Z",
+          "heartbeatAt": "2026-11-12T14:26:50.260Z",
+          "expiresAt": "2026-11-12T14:56:50.260Z",
           "generation": 43
         },
         "baseSha": null,
@@ -22275,7 +22275,7 @@
           "owner:finance"
         ],
         "status": "blocked",
-        "nextAction": "STEP 1 IN PROGRESS: 6 of 31 finance journal consumers migrated to tests/support/helpers/finance-journal-seed.ts (expansion, money-people, thai-payroll, attachments owner helper, projects cost-source helpers, executive Project-cost metric case). Evidence: finance.reporting 6/6, expansion-rehearsal 1/1, money-people attachments 46/46, executive project-cost case 1/1; projects project-structure 9/12 with 3 pre-existing work-role scope failures. Remaining: finance-opening-balances/manual-drafts/books oracles (need native HTTP porting), pms opening, commerce/payroll forged-source cases, remaining assets/inventory/sales/shared setup, scripts/local/browser-simulation.ts. Then route switch + delete createJournal/postJournal/reverseJournal (finance 381 -> 376).",
+        "nextAction": "STEP 1 IN PROGRESS: 8 of 31 finance journal consumers migrated to tests/support/helpers/finance-journal-seed.ts (all 3 fixture builders, attachments owner helper, projects cost-source helpers, executive Project-cost case, shared record-details supplement, finance operations attachments). Evidence: finance.reporting 6/6, expansion-rehearsal 1/1, money-people attachments 46/46, executive project-cost 1/1, record-details 6/6, finance.operations-attachments 8/8. Remaining: finance-opening-balances/manual-drafts/books/bank-automation/thai-foundation/planning/group-editions/close-fixture oracles need native HTTP porting, pms opening, commerce/payroll forged-source cases, remaining assets/inventory/sales/shared setup, scripts/local/browser-simulation.ts. Then route switch + delete createJournal/postJournal/reverseJournal (finance 381 -> 376).",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
@@ -23781,8 +23781,8 @@
           "runId": "run-20261112-r",
           "agentId": "lead",
           "claimedAt": "2026-11-12T14:02:16.491Z",
-          "heartbeatAt": "2026-11-12T14:21:14.481Z",
-          "expiresAt": "2026-11-12T14:51:14.481Z",
+          "heartbeatAt": "2026-11-12T14:26:50.260Z",
+          "expiresAt": "2026-11-12T14:56:50.260Z",
           "generation": 43
         },
         "baseSha": null,
@@ -23818,7 +23818,7 @@
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T14:24:25.168Z",
+    "updatedAt": "2026-11-12T14:27:04.833Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
