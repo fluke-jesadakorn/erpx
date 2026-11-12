@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 533,
+    "revision": 548,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g23",
+      "runId": "run-20261110-g24",
       "agentId": "lead",
-      "startedAt": "2026-11-12T00:10:32.772Z",
-      "heartbeatAt": "2026-11-12T00:10:32.772Z",
-      "expiresAt": "2026-11-12T00:40:32.773Z",
-      "generation": 24,
-      "tokenHash": "ed6e59c8cc890f889448e0023769e145942a4d855560718dbcac90d678a10462"
+      "startedAt": "2026-11-12T01:04:54.041Z",
+      "heartbeatAt": "2026-11-12T01:04:54.041Z",
+      "expiresAt": "2026-11-12T01:34:54.041Z",
+      "generation": 26,
+      "tokenHash": "83530d6d4d9a9787080b1c62f9cfeeb5b92ebc0f4b57ca88c7fa90d51920fab0"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9748,16 +9748,23 @@
         "resources": [
           "owner:brand"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
         "nextAction": "Implement the first inventoried brand packet (migrate.brand.presentation-reads), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-a",
+          "agentId": "worker-brand",
+          "at": "2026-11-12T01:04:54.041Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
+          "nextAction": "Implement the first inventoried brand packet (migrate.brand.presentation-reads), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-brand",
         "plannedPackage": "erpx-server-brand",
@@ -9940,28 +9947,21 @@
           "owner:identity_access"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g23",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T00:10:32.798Z",
-          "heartbeatAt": "2026-11-12T00:10:32.798Z",
-          "expiresAt": "2026-11-12T00:40:32.798Z",
-          "generation": 24
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous run run-20261110-g23 lease expired 2026-11-12T00:40Z; no live cargo/rust/next worker process and ledger idle for 45m; WIP reviewed: formatting-only dirty Rust/CSS diff plus already-pushed workflow projector commit f205ed3aa",
         "nextAction": "Holding IAM roles/reviews/access-reviews native+switched; Directory sign-in mounted opt-in (cd8eb75c7); platform IAM command ingress mounted and 5 POST paths switched (919bf93de): roles save, review decide, access-review create/item decide/cancel; Control receipts/audit, platform.iam.* permissions; all other platform IAM and every GET remain TS. Checks: platform IAM http 3/3, transport 4/4, PG 1/1, existing IAM 9/3/4, private-api 12/12, typecheck, catalogue 1135. Remaining: platform IAM read surface (overview/matrix/audit/assignments/users/connections/mappings/emergency), directory source-admin mount, principals/conflicts/emergency packet.",
         "handoff": {
-          "runId": "run-20261110-g17",
+          "runId": "run-20261110-g23",
           "agentId": "lead",
-          "at": "2026-11-11T19:52:13.369Z",
+          "at": "2026-11-12T00:56:37.365Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after commercial package-grant commit; WIP reviewed",
-          "nextAction": "Holding IAM roles/reviews/access-reviews native and switched; native Directory sign-in router mounted opt-in (cd8eb75c7) with directoryProfiles + directoryProvenanceKeys, boundary admission and absence fail-closed; 5/5 new HTTP cases + account/auth/directory suites pass. Remaining: platform/iam route still TS (platform namespace has no HTTP ingress), directory source-admin mount, principals/conflicts/emergency packet."
+          "reason": "Recovery: Previous run run-20261110-g23 lease expired 2026-11-12T00:40Z; no live cargo/rust/next worker process and ledger idle for 45m; WIP reviewed: formatting-only dirty Rust/CSS diff plus already-pushed workflow projector commit f205ed3aa",
+          "nextAction": "Holding IAM roles/reviews/access-reviews native+switched; Directory sign-in mounted opt-in (cd8eb75c7); platform IAM command ingress mounted and 5 POST paths switched (919bf93de): roles save, review decide, access-review create/item decide/cancel; Control receipts/audit, platform.iam.* permissions; all other platform IAM and every GET remain TS. Checks: platform IAM http 3/3, transport 4/4, PG 1/1, existing IAM 9/3/4, private-api 12/12, typecheck, catalogue 1135. Remaining: platform IAM read surface (overview/matrix/audit/assignments/users/connections/mappings/emergency), directory source-admin mount, principals/conflicts/emergency packet."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-identity-access",
@@ -10652,16 +10652,23 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the first inventoried finance packet (migrate.finance.goods-journal-port), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
-        "handoff": null,
+        "blocker": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
+        "nextAction": "Worker-finance ports commerce goods journal + FX valuation per migrate.finance.goods-journal-port; owner paths only",
+        "handoff": {
+          "runId": "run-20261112-a",
+          "agentId": "worker-finance",
+          "at": "2026-11-12T01:04:54.041Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
+          "nextAction": "Worker-finance ports commerce goods journal + FX valuation per migrate.finance.goods-journal-port; owner paths only"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-finance",
         "plannedPackage": "erpx-server-finance",
@@ -12275,16 +12282,23 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
         "nextAction": "Implement the first inventoried manufacturing packet (migrate.manufacturing.specification-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-a",
+          "agentId": "worker-manufacturing",
+          "at": "2026-11-12T01:04:54.041Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
+          "nextAction": "Implement the first inventoried manufacturing packet (migrate.manufacturing.specification-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-manufacturing",
         "plannedPackage": "erpx-server-manufacturing",
@@ -12613,16 +12627,23 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
         "nextAction": "Implement the first inventoried ecommerce packet (migrate.ecommerce.listing-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-a",
+          "agentId": "worker-ecommerce",
+          "at": "2026-11-12T01:04:54.041Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
+          "nextAction": "Implement the first inventoried ecommerce packet (migrate.ecommerce.listing-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-ecommerce",
         "plannedPackage": "erpx-server-ecommerce",
@@ -13988,16 +14009,30 @@
         "resources": [
           "owner:workflow"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "ready_for_integration",
+        "claim": {
+          "runId": "run-20261110-g24",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T01:04:54.069Z",
+          "heartbeatAt": "2026-11-12T01:04:54.069Z",
+          "expiresAt": "2026-11-12T01:34:54.069Z",
+          "generation": 26
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the native event projector and flow routing read from inventory.workflow, run cargo check -p erpx-server-workflow and registered command-ledger/approval suites, and report the projection commit contract to the lead.",
-        "handoff": null,
+        "nextAction": "Incremental native projector committed (f205ed3aa): task/routine, leave, overtime, payroll families with exact receipt/work_items/checkpoint statements, owner sources in Operations and People payroll, Unhandled zero-write for every other family; workflow unit 3/3 + PG 2/2, owner source PG 1/1 each. Composition worker + CLI entrypoint mounted (680895d2c) with an owned predicate limited to those families minus the Field/count quarantine, so other events stay with the retained TS supervisor. Remaining: port remaining projector side-effects (PMS events, sales customer notifications, Legal/Executive/Social/Expense/Finance/Request AI) before retiring the TS supervisor; production supervision of the new worker.",
+        "handoff": {
+          "runId": "run-20261112-a",
+          "agentId": "lead",
+          "at": "2026-11-12T01:04:54.041Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
+          "nextAction": "Verify committed f205ed3aa native workflow projector: cargo check plus registered unit/PG suites, then record migrated with pushed SHA"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-workflow",
         "plannedPackage": "erpx-server-workflow",
@@ -14223,14 +14258,21 @@
           "owner:runtime"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g24",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T01:04:54.096Z",
+          "heartbeatAt": "2026-11-12T01:04:54.096Z",
+          "expiresAt": "2026-11-12T01:34:54.096Z",
+          "generation": 26
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after platform IAM commit; WIP reviewed",
-        "nextAction": "Native OutboxSupervisor complete (59ba285c7): claim/renew/complete/fail, retry backoff min(60s,2^attempt), dead-letter at attempt 6, lease-lost handling, attestation rows, one heavy slot, per-Holding isolation, restart logs. Checks: supervisor unit 7/7 + PG 8/8, runtime TS 114/28, worker/outbox/workflow suites, erpx-service, catalogue 1132. Remaining to mount: composition needs a native general OutboxJobHandler (server-workflow job-projector is still TS) before the outbox-supervisor entrypoint can acknowledge generic events; then register the CLI/production supervisor.",
+        "blocker": null,
+        "nextAction": "Native OutboxSupervisor + Workflow projection OutboxJobHandler + workflow-projection-worker CLI mounted (59ba285c7, f205ed3aa, 680895d2c) with a family-scoped owned predicate; Field/count workers unchanged. Remaining: remaining projector families, production worker supervision/restart wiring, then retire the TS general supervisor.",
         "handoff": {
           "runId": "run-20261110-g22",
           "agentId": "lead",
@@ -15962,18 +16004,18 @@
       "totalPackets": 53,
       "migratedPackets": 20,
       "statusCounts": {
-        "pending": 21,
+        "pending": 16,
         "in_progress": 0,
-        "ready_for_integration": 8,
+        "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 20,
-        "blocked": 4,
+        "blocked": 8,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 24,
-    "updatedAt": "2026-11-12T00:10:32.822Z",
+    "lastCoordinatorGeneration": 26,
+    "updatedAt": "2026-11-12T01:05:14.435Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16016,10 +16058,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g22",
-      "runId": "run-20261110-g23",
-      "at": "2026-11-12T00:10:32.773Z",
-      "reason": "Lease expired after platform IAM commit; WIP reviewed",
+      "previousRunId": "run-20261112-a",
+      "runId": "run-20261110-g24",
+      "at": "2026-11-12T01:04:54.042Z",
+      "reason": "Coordinator lease lost after workflow projector commit; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
