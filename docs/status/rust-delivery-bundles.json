@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 713,
+    "revision": 716,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17569,8 +17569,8 @@
         "resources": [
           "owner:quality"
         ],
-        "status": "integrating",
-        "nextAction": "Lead: verify and mark migrated with cutover flags.",
+        "status": "migrated",
+        "nextAction": "Specification writers retired (KPI 33 -> 26 at d6165515f; 26 residual writes fully classified under retire.quality.writers-cross-owner).",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -17582,14 +17582,7 @@
           "Deleted TS readers and exports",
           "Moved oracles and KPI delta"
         ],
-        "claim": {
-          "runId": "run-20261112-i",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T06:49:54.619Z",
-          "heartbeatAt": "2026-11-12T06:49:54.619Z",
-          "expiresAt": "2026-11-12T07:19:54.619Z",
-          "generation": 34
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "d6165515fd1a4160894b96a1b9e41153b4ed601e",
         "lastPushedSha": "d6165515fd1a4160894b96a1b9e41153b4ed601e",
@@ -17644,6 +17637,52 @@
             "sourceSha": "d6165515fd1a4160894b96a1b9e41153b4ed601e",
             "sourceKind": "committed",
             "note": "Repository layout passed; catalogue 1179 suites."
+          },
+          {
+            "command": "retirement:ts-writes packages/server-quality/src",
+            "result": "passed",
+            "before": 33,
+            "after": 26,
+            "sourceSha": "d6165515fd1a4160894b96a1b9e41153b4ed601e",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-quality/src/adapters/quality.ts",
+                "writes": 12,
+                "removalTaskId": "retire.quality.writers-cross-owner",
+                "removalCondition": "Delete inspect/release/disposition/cancel writers after the five cross-owner oracle paths move to native seeding."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/inventory-count-effects.ts",
+                "writes": 5,
+                "removalTaskId": "retire.quality.writers-cross-owner",
+                "removalCondition": "Move Count quality effects to the native Count port, then delete the TS effect writers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.quality.writers-cross-owner",
+                "removalCondition": "Retire the TS purchase-boundary helpers once every Quality writer is native."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/alerts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.quality.writers-cross-owner",
+                "removalCondition": "Native alert acknowledge/drain port, then delete the TS alert writers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.quality.writers-cross-owner",
+                "removalCondition": "Files attachment purchase guards move to the native Files port, then delete."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/product-entry.ts",
+                "writes": 1,
+                "removalTaskId": "retire.quality.writers-cross-owner",
+                "removalCondition": "Product-entry writer moves to the native Commerce/Inventory port, then delete."
+              }
+            ]
           }
         ],
         "retainedLegacy": [],
@@ -17655,6 +17694,11 @@
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
           "nextAction": "Lead: verify and mark migrated with cutover flags."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
         }
       },
       {
@@ -17758,6 +17802,74 @@
         "nextAction": "Prove project target has no TS writer (guarded 503), delete residual TS exports/barrels, run files/projects suites, record KPI before/after, then link migrate.projects.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.writers-cross-owner",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "quality",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the remaining Quality TS writers blocked on cross-owner oracles",
+        "scope": "Move the five cross-owner oracle paths off the TS Quality writers (ecommerce, inventory-lot-serial, commerce-foreign-goods, commerce-returns, business-file-targets) to native seeding, then delete inspectQualityHold/releaseQualityHold/createQualityScrapDisposition/cancelQualityHold and the residual Quality adapters (quality.ts, inventory-count-effects, purchases, alerts, attachment-purchases, product-entry) as their native ports allow; record the owner KPI before/after and classify any residual under a further removal task.",
+        "dependsOn": [
+          "inventory.quality",
+          "ports.trade"
+        ],
+        "requiredPorts": [
+          "inventory",
+          "finance",
+          "files",
+          "identity_access"
+        ],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/integration/ecommerce/**",
+          "tests/integration/inventory/**",
+          "tests/integration/sales/**",
+          "tests/support/helpers/business-file-targets.ts",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**",
+          "fixtures/quality/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "status": "in_progress",
+        "nextAction": "Move the cross-owner oracles to native seeding, delete the remaining Quality TS writers, and measure retirement:ts-writes.",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-quality",
+        "plannedPackage": "erpx-server-quality",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "deliverables": [
+          "Native-quality workspace/detail client parity",
+          "Native-only route authority",
+          "Deleted TS readers and exports",
+          "Moved oracles and KPI delta"
+        ],
+        "claim": {
+          "runId": "run-20261112-i",
+          "agentId": "worker-quality",
+          "claimedAt": "2026-11-12T06:50:55.525Z",
+          "heartbeatAt": "2026-11-12T06:50:55.525Z",
+          "expiresAt": "2026-11-12T07:20:55.525Z",
+          "generation": 34
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -17766,21 +17878,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 61,
-      "migratedPackets": 27,
+      "totalPackets": 62,
+      "migratedPackets": 28,
       "statusCounts": {
         "pending": 9,
-        "in_progress": 2,
+        "in_progress": 3,
         "ready_for_integration": 10,
-        "integrating": 1,
-        "migrated": 27,
+        "integrating": 0,
+        "migrated": 28,
         "blocked": 12,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 34,
-    "updatedAt": "2026-11-12T06:50:25.375Z",
+    "updatedAt": "2026-11-12T06:50:55.525Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
