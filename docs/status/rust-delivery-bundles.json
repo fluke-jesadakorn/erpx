@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 941,
+    "revision": 949,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T13:45:42.329Z",
-      "expiresAt": "2026-11-12T14:15:42.329Z",
+      "heartbeatAt": "2026-11-12T13:50:50.821Z",
+      "expiresAt": "2026-11-12T14:20:50.821Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -19943,8 +19943,8 @@
           "runId": "run-20261112-r",
           "agentId": "lead",
           "claimedAt": "2026-11-12T13:38:46.765Z",
-          "heartbeatAt": "2026-11-12T13:45:42.329Z",
-          "expiresAt": "2026-11-12T14:15:42.329Z",
+          "heartbeatAt": "2026-11-12T13:50:50.821Z",
+          "expiresAt": "2026-11-12T14:20:50.821Z",
           "generation": 43
         },
         "baseSha": null,
@@ -22281,7 +22281,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Support TypeScript SQL writers",
-        "scope": "Classify the 35 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: support-sessions 14, service-teams 7, ticket-portal 5, ticket-portal-customer 5, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Classify the 21 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: service-teams 7, ticket-portal 5, ticket-portal-customer 5, support-evidence 2, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -22580,8 +22580,8 @@
           "runId": "run-20261112-r",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T13:09:34.797Z",
-          "heartbeatAt": "2026-11-12T13:45:42.329Z",
-          "expiresAt": "2026-11-12T14:15:42.329Z",
+          "heartbeatAt": "2026-11-12T13:50:50.821Z",
+          "expiresAt": "2026-11-12T14:20:50.821Z",
           "generation": 43
         },
         "baseSha": null,
@@ -23056,6 +23056,108 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.support.sessions",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/feature-support-sessions",
+          "support/feature-capabilities"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the Support session TS writers",
+        "scope": "The native Support session route already owns request/approve/reject/revoke and capability issue/revoke. Remove the TS requestSupportSession/changeSupportSession adapter/application/barrels, add native owner-row seeding for support_sessions/support_session_events/support_capabilities/support_capability_events, and migrate retained read tests. KPI support-sessions.ts 14 -> 0 and support owner 35 -> 21.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/feature-support/**",
+          "fixtures/**",
+          "tests/support/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "ac540339a818fd658d9abfa97994692124d9dbad",
+        "lastPushedSha": "ac540339a818fd658d9abfa97994692124d9dbad",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ac540339a818fd658d9abfa97994692124d9dbad",
+            "before": 35,
+            "after": 21,
+            "note": "The remaining 21 writes are service-teams/ticket-portal/evidence/planning/attachment-purchases, bound to retire.support.residual-writers."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "ac540339a818fd658d9abfa97994692124d9dbad",
+            "note": "33 modules, 1183 suites."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "ac540339a818fd658d9abfa97994692124d9dbad"
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "ac540339a818fd658d9abfa97994692124d9dbad"
+          },
+          {
+            "command": "bun run test:unit -- --suite=support.services.unit",
+            "result": "passed",
+            "sourceSha": "ac540339a818fd658d9abfa97994692124d9dbad",
+            "note": "54/54; session command tests removed with the dead TS use cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.sessions.integration",
+            "result": "passed",
+            "sourceSha": "ac540339a818fd658d9abfa97994692124d9dbad",
+            "note": "4/4; retained reads use seeded session/capability owner rows."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.package-obligations.integration",
+            "result": "passed",
+            "sourceSha": "ac540339a818fd658d9abfa97994692124d9dbad",
+            "note": "14/14; session obligation setup seeded as native owner rows."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.package-surfaces.integration -t \"rejection/revocation\"",
+            "result": "passed",
+            "sourceSha": "ac540339a818fd658d9abfa97994692124d9dbad",
+            "note": "1/1 session workspace case; the unrelated native Field fixture case remains the pre-existing 120s environment blocker."
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/support-sessions.ts",
+            "result": "passed",
+            "sourceSha": "ac540339a818fd658d9abfa97994692124d9dbad",
+            "before": 14,
+            "after": 0,
+            "note": "TS request/approve/reject/revoke and capability issue/revoke writers, use cases and barrel exports are gone; the native Support session route is the only command authority."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Support session/capability commands are native-only: TS writers/use cases/barrels deleted; tests seed owner rows; support-sessions.ts 14->0 and owner 35->21. Pushed ac540339a.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -23064,21 +23166,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 112,
-      "migratedPackets": 46,
+      "totalPackets": 113,
+      "migratedPackets": 47,
       "statusCounts": {
         "pending": 34,
         "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 46,
+        "migrated": 47,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:45:51.058Z",
+    "updatedAt": "2026-11-12T13:50:51.017Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
