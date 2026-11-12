@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1061,
+    "revision": 1068,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -14625,8 +14625,15 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261112-s",
+          "agentId": "worker-commerce-goods",
+          "claimedAt": "2026-11-12T17:09:40.357Z",
+          "heartbeatAt": "2026-11-12T17:09:40.357Z",
+          "expiresAt": "2026-11-12T17:39:40.357Z",
+          "generation": 44
+        },
         "baseSha": "e6d13a645cffe9e6e1f36b0cede9f076b1ed39ed",
         "implementedCommit": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
         "lastPushedSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
@@ -14682,7 +14689,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Lead: enable native Commerce source, bind fulfillment attachments, retire TS fulfilOrder goods branch, smoke the goods receipt.",
         "handoff": {
           "runId": "run-20261112-d",
@@ -17534,7 +17541,7 @@
           "owner:quality"
         ],
         "status": "ready_for_integration",
-        "nextAction": "Lead: rerun tests/integration/quality/quality.test.ts after the executive-connection suites are registered, then close this read slice; writer residual stays with retire.quality.residual-writers.",
+        "nextAction": "Lead: archive the direct-vitest 6/6 evidence at 1d3d00041, close the read slice, and keep the writer residual with retire.quality.residual-writers.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -17542,8 +17549,8 @@
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "12c96a8d4fe36ec863d3c2dffff48153de8e276b",
-        "lastPushedSha": "12c96a8d4fe36ec863d3c2dffff48153de8e276b",
+        "implementedCommit": "1d3d000411f8b2a5e0b2c302bf74aa4866f5d627",
+        "lastPushedSha": "1d3d000411f8b2a5e0b2c302bf74aa4866f5d627",
         "checks": [
           {
             "command": "cargo check -p erpx-server-quality --locked",
@@ -17591,17 +17598,220 @@
             "before": 190,
             "after": 143,
             "note": "Read-only cutover: qualityWorkspace/qualityDetail and their SELECT statements are gone and the supply route is native-only. The remaining 14 write statements are classified under retire.quality.residual-writers (receiptQualityHoldSteps, inventory-count-effects, purchase boundaries, alerts)."
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "before": 190,
+            "after": 143,
+            "sourceSha": "12c96a8d4fe36ec863d3c2dffff48153de8e276b",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-quality/src/adapters/alerts.ts",
+                "writes": 8,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/attachment-migration-owner.ts",
+                "writes": 1,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/attachment-purchases.ts",
+                "writes": 5,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/attachment-read-sources.ts",
+                "writes": 9,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/attachment-read.ts",
+                "writes": 2,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/attachments-operational-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/attachments-policy-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/attachments-service-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/calendar-quality-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/collaboration-notification-snapshot-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/ecommerce-package-sources.ts",
+                "writes": 10,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/executive-main-evidence-sources.ts",
+                "writes": 4,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/executive-metric-projections.ts",
+                "writes": 4,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/hospitality-owner-projection-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/inventory-count-effects.ts",
+                "writes": 5,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/inventory-executive-owner-projections.ts",
+                "writes": 1,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/inventory-hold-read-source.ts",
+                "writes": 1,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/inventory-quality-snapshot-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/manufacturing-package-obligations.ts",
+                "writes": 6,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/product-entry.ts",
+                "writes": 9,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/purchase-sources.ts",
+                "writes": 8,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/purchases.ts",
+                "writes": 10,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/quality.ts",
+                "writes": 6,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/record-purchases.ts",
+                "writes": 11,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/sales-package-sources.ts",
+                "writes": 9,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/supply-package-obligations.ts",
+                "writes": 16,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native Quality owner port replaces this module's remaining TypeScript statements; the workspace/detail read cutover already removed its own readers."
+              }
+            ],
+            "note": "Residual classification for the 143 remaining quality statements after the read-only workspace/detail cutover; all are bound to retire.quality.residual-writers."
+          },
+          {
+            "command": "cargo check -p erpx-server-quality --locked",
+            "result": "passed",
+            "sourceSha": "1d3d000411f8b2a5e0b2c302bf74aa4866f5d627",
+            "note": "Quality crate compiles with the deleted TS readers on the integrated source."
+          },
+          {
+            "command": "cargo test -p erpx-server-quality --test quality_hold --test quality_decisions",
+            "result": "passed",
+            "sourceSha": "1d3d000411f8b2a5e0b2c302bf74aa4866f5d627",
+            "note": "10/10 hold cases and 5/5 decision cases."
+          },
+          {
+            "command": "vitest integration tests/integration/quality/quality.test.ts",
+            "result": "passed",
+            "sourceSha": "1d3d000411f8b2a5e0b2c302bf74aa4866f5d627",
+            "note": "6/6 including the native workspace/detail reads, independent release, due-soon/overdue escalation and persisted acknowledgement. Recorded via direct vitest with ERPX_SELECTED_TEST_FILES because another live lane left two unregistered executive-connection suites in the catalogue; the quality paths are unmodified since this commit."
+          },
+          {
+            "command": "bunx tsc -p packages/feature-quality/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "1d3d000411f8b2a5e0b2c302bf74aa4866f5d627"
+          },
+          {
+            "command": "bun run --filter '@erpx/server-quality' typecheck",
+            "result": "passed",
+            "sourceSha": "1d3d000411f8b2a5e0b2c302bf74aa4866f5d627"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1d3d000411f8b2a5e0b2c302bf74aa4866f5d627",
+            "before": 190,
+            "after": 143,
+            "note": "Read-only cutover: qualityWorkspace/qualityDetail and their SELECT statements are gone and the supply quality route is native-only. The 14 remaining write statements are bound to retire.quality.residual-writers."
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
           "runId": "run-20261112-s",
-          "agentId": "worker-quality-retire",
-          "at": "2026-11-12T17:01:57.702Z",
+          "agentId": "worker-quality-verify",
+          "at": "2026-11-12T17:11:05.847Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Lead: rerun tests/integration/quality/quality.test.ts after the executive-connection suites are registered, then close this read slice; writer residual stays with retire.quality.residual-writers."
+          "nextAction": "Lead: archive the direct-vitest 6/6 evidence at 1d3d00041, close the read slice, and keep the writer residual with retire.quality.residual-writers."
         },
         "deliverables": [
           "Native-quality workspace/detail client parity",
@@ -25588,8 +25798,8 @@
       "statusCounts": {
         "pending": 29,
         "in_progress": 6,
-        "ready_for_integration": 11,
-        "integrating": 0,
+        "ready_for_integration": 10,
+        "integrating": 1,
         "migrated": 56,
         "blocked": 20,
         "deferred": 0,
@@ -25597,7 +25807,7 @@
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T17:01:57.703Z",
+    "updatedAt": "2026-11-12T17:11:05.848Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
