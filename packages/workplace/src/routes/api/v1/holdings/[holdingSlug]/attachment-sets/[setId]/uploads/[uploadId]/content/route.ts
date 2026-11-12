@@ -1,6 +1,6 @@
 import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import {nativeProjectAttachmentCompleteUpload,nativeProjectAttachmentConfigured} from "@erpx/feature-projects/public/native-project-attachment";
+import {nativeProjectAttachmentCompleteUpload} from "@erpx/feature-projects/public/native-project-attachment";
 import {nativeProjectsFailure,nativeProjectsPageContext} from "@erpx/feature-projects/public/native-project-wbs-page";
 import {projectAttachmentTarget} from "@erpx/server-files/public/project-attachment";
 import {readBoundedUploadBody} from "@erpx/server-files/public/attachments/upload";
@@ -20,7 +20,7 @@ export async function PUT(
     const { holdingSlug, setId, uploadId } = await context.params;
     const actor = await requireWorkContext(holdingSlug);
     const { write } = await holdingResources(actor.holdingId);
-    if (!nativeProjectAttachmentConfigured() || await projectAttachmentTarget(write, actor.companyId, setId) !== "project")
+    if (await projectAttachmentTarget(write, actor.companyId, setId) !== "project")
       throw new ApiError(404, "ATTACHMENT_UPLOAD_NOT_FOUND", "Upload intent not found.");
     const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
     const buffer = await readBoundedUploadBody(request, Number(request.headers.get("content-length")));

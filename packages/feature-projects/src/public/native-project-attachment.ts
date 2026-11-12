@@ -627,10 +627,6 @@ function requestCall(
     });
 }
 
-export function nativeProjectAttachmentConfigured(): boolean {
-  return process.env.ERPX_NATIVE_PROJECTS_CONFIG !== undefined;
-}
-
 export function createNativeProjectAttachmentClient(
   raw: NativeProjectsConfiguration,
   transport: NativeProjectAttachmentTransport = directHttpPost,

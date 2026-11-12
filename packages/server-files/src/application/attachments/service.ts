@@ -21,6 +21,12 @@ export function createAttachmentService<Effect>(ports:AttachmentServicePorts){
 const brandPublicationTargets = new Set(["holding_brand","branch_brand","company_storefront_brand","pms_property","pms_room_type"]);
 function isBrandPublicationTarget(targetType:string) { return brandPublicationTargets.has(targetType); }
 
+/** Project attachment authority is native. The generic Files service must
+ * never write, reserve, bind, read or withdraw a project target itself. */
+function requireGenericFileTarget(targetType:string){
+  if(targetType==="project")throw ports.error(503,"NATIVE_PROJECT_FILES_REQUIRED","Project files are served by the native project file service.");
+}
+
 async function atomic<Result>(db:AttachmentServiceUnit<Effect>,action:(unit:AttachmentServiceUnit<Effect>)=>Promise<Result>){return db.atomic(action);}
 
 function stableId(prefix: string, actor: WorkContext, key: string) {
@@ -164,6 +170,7 @@ async function setDto(db: AttachmentServiceUnit<Effect>, row: SetRow): Promise<A
 
 async function listAttachmentSets(db: AttachmentServiceUnit<Effect>, actor: WorkContext, input: {targetType:string;targetId:string;purposeKey?:string;componentKind?:AttachmentComponentKind;expectedTargetVersion?:number}) {
   requireAttachmentsV2Read();
+  requireGenericFileTarget(input.targetType);
   if (!input.targetType || !input.targetId) throw ports.error(422,"ATTACHMENT_TARGET_REQUIRED","Choose a record before listing files.");
   const readOnly=attachmentsV2ReadOnly(),leaveReview=input.targetType==="leave_request";
   const rows = (await db.readAttachmentSets7({actor:actor,input:input,readOnly:readOnly,leaveReview:leaveReview})).results;
@@ -174,6 +181,7 @@ async function listAttachmentSets(db: AttachmentServiceUnit<Effect>, actor: Work
 async function recordedAttachmentSet(db:AttachmentServiceUnit<Effect>,actor:WorkContext,id:string){return await db.readAttachmentSets9({id,companyId:actor.companyId})??await db.readAttachmentSetAlias({id,companyId:actor.companyId,userId:actor.userId});}
 
 async function createAttachmentSet(db: AttachmentServiceUnit<Effect>, actor: WorkContext, input: {targetType:string;targetId:string;componentKind:AttachmentComponentKind;componentRef?:string;purposeKey:string;expectedTargetVersion:number}, idempotencyKey: string, options:AttachmentServiceOptions={}) {
+  requireGenericFileTarget(input.targetType);
   requireAttachmentWrite(options);
   if(input.targetType==="field_service_visit")throw ports.error(503,"FIELD_FILES_NATIVE_REQUIRED","The native Field file service is required.");
   if(attachmentUploadsFrozen())throw ports.error(503,"ATTACHMENT_UPLOAD_FREEZE","File intake is briefly paused for storage reconciliation.");
@@ -226,9 +234,12 @@ async function createAttachmentSet(db: AttachmentServiceUnit<Effect>, actor: Wor
 }
 
 async function reserveAttachmentFile(db: AttachmentServiceUnit<Effect>, actor: WorkContext, setId: string, input: {filename:string;mediaType:string;bytes:number;caption?:string;supersedesLinkId?:string}, idempotencyKey: string, options:AttachmentServiceOptions={}) {
-  requireAttachmentWrite(options); await db.legacyWriterGuard("set",setId); await requireScannerReady(attachmentServiceEnvironment(options));
+  requireAttachmentWrite(options); await requireScannerReady(attachmentServiceEnvironment(options));
   if(attachmentUploadsFrozen())throw ports.error(503,"ATTACHMENT_UPLOAD_FREEZE","File intake is briefly paused for storage reconciliation.");
-  const set=await setRow(db,setId,actor.companyId),policy=attachmentPolicy(set.target_type,set.purpose_key,set.component_kind);
+  const set=await setRow(db,setId,actor.companyId);
+  requireGenericFileTarget(set.target_type);
+  await db.legacyWriterGuard("set",setId);
+  const policy=attachmentPolicy(set.target_type,set.purpose_key,set.component_kind);
   const token=stableId("attachment-upload",actor,idempotencyKey);
   const recorded=await db.readUploadIntents16({token,companyId:actor.companyId,userId:actor.userId});
   if(recorded){
@@ -301,13 +312,15 @@ async function completeAttachmentUpload(db: AttachmentServiceUnit<Effect>, files
   return completeAttachmentUploadInternal(db,files,actor,uploadIntentId,buffer,options,false);
 }
 async function completeAttachmentUploadInternal(db: AttachmentServiceUnit<Effect>, files: AttachmentByteStore<AttachmentServiceUnit<Effect>>, actor: WorkContext, uploadIntentId: string, buffer: ArrayBuffer, options:AttachmentServiceOptions, heldUploadUnit:boolean, onStored?:()=>void):Promise<{uploadIntentId:string;attachmentLinkId:string;sourceId:string;state:AttachmentSourceState;status:"scan_pending"}> {
-  requireAttachmentWrite(options); if(!heldUploadUnit)await db.legacyWriterGuard("upload",uploadIntentId); await requireScannerReady(attachmentServiceEnvironment(options));
+  requireAttachmentWrite(options); await requireScannerReady(attachmentServiceEnvironment(options));
   if(attachmentUploadsFrozen())throw ports.error(503,"ATTACHMENT_UPLOAD_FREEZE","File intake is briefly paused for storage reconciliation.");
   let intent:Record<string,unknown>|null;
   try {
     intent=await db.readUploadIntents25({uploadIntentId:uploadIntentId,userId:actor.userId,companyId:actor.companyId,arg4:ports.clock.now()});
   } catch(error) { logUploadOperationFailure(options,"load_intent",error); throw error; }
   if(!intent)throw ports.error(404,"UPLOAD_NOT_FOUND","Upload intent not found or expired.");
+  requireGenericFileTarget(String(intent.owner_type));
+  if(!heldUploadUnit)await db.legacyWriterGuard("upload",uploadIntentId);
   // Replays may follow a completed owner command, but still require the
   // caller's current read grant. New bytes require the original live revision.
   if(intent.owner_type!=='leave_request'){
@@ -435,6 +448,7 @@ async function attachmentLinkStatus(db: AttachmentServiceUnit<Effect>, actor: Wo
   requireAttachmentsV2Read();
   const row=await db.readAttachmentLinks39({linkId:linkId,companyId:actor.companyId});
   if(!row)throw ports.error(404,"ATTACHMENT_LINK_NOT_FOUND","File link not found.");
+  requireGenericFileTarget(String(row.target_type));
   if(attachmentsV2ReadOnly()&&(row.state!=="bound"||row.source_state!=="available"))throw ports.error(404,"ATTACHMENT_LINK_NOT_FOUND","File link not found.");
   if(row.state==="draft"&&row.created_by!==actor.userId&&row.target_type!=="leave_request")throw ports.error(404,"ATTACHMENT_LINK_NOT_FOUND","File link not found.");
   const policy=attachmentPolicy(String(row.target_type),String(row.purpose_key),row.component_kind as AttachmentComponentKind);
@@ -452,6 +466,7 @@ async function attachmentContent(db: AttachmentServiceUnit<Effect>, files: Attac
   requireAttachmentRead(options);
   const row=await db.readAttachmentLinks42({linkId:linkId,companyId:actor.companyId});
   if(!row)throw ports.error(404,"ATTACHMENT_LINK_NOT_FOUND","File link not found.");
+  requireGenericFileTarget(String(row.target_type));
   try {
     if(attachmentsV2ReadOnly()&&(row.link_state!=="bound"||row.source_state!=="available"))throw ports.error(404,"ATTACHMENT_LINK_NOT_FOUND","File link not found.");
     if(row.link_state==="draft"&&row.link_creator!==actor.userId&&row.target_type!=="leave_request")throw ports.error(404,"ATTACHMENT_LINK_NOT_FOUND","File link not found.");
@@ -470,9 +485,11 @@ async function attachmentContent(db: AttachmentServiceUnit<Effect>, files: Attac
 }
 
 async function withdrawAttachmentLink(db: AttachmentServiceUnit<Effect>, actor: WorkContext, linkId: string, reason: string, idempotencyKey: string,options:AttachmentServiceOptions={}) {
-  requireAttachmentWrite(options); await db.legacyWriterGuard("link",linkId); const text=reason.trim();if(text.length<3||text.length>1000)throw ports.error(422,"WITHDRAWAL_REASON_REQUIRED","Explain why this file is being withdrawn.");
+  requireAttachmentWrite(options); const text=reason.trim();if(text.length<3||text.length>1000)throw ports.error(422,"WITHDRAWAL_REASON_REQUIRED","Explain why this file is being withdrawn.");
   const row=await db.readAttachmentLinks45({linkId:linkId,companyId:actor.companyId});
   if(!row)throw ports.error(404,"ATTACHMENT_LINK_NOT_FOUND","File link not found.");
+  requireGenericFileTarget(String(row.target_type));
+  await db.legacyWriterGuard("link",linkId);
   if(row.state==="bound")throw ports.error(409,"BOUND_ATTACHMENT_IMMUTABLE","Bound evidence cannot be withdrawn. Add a correction instead.");
   if(row.created_by!==actor.userId)throw ports.error(403,"ATTACHMENT_WITHDRAW_FORBIDDEN","Only the person who staged this file may withdraw it.");
   await db.authorizeTarget(actor,attachmentPolicy(String(row.target_type),String(row.purpose_key),row.component_kind as AttachmentComponentKind),String(row.target_id),["marketing_asset","marketing_campaign","ecommerce_listing","messaging_room"].includes(String(row.target_type))?"withdraw":"write");
@@ -513,6 +530,7 @@ async function attestAttachmentSetSanitized(
 ) {
   requireAttachmentsV2();
   const set=await setRow(db,setId,actor.companyId);
+  requireGenericFileTarget(set.target_type);
   if(!requiresSanitizedEvidenceAttestation(set.target_type))throw ports.error(422,"ATTACHMENT_ATTESTATION_NOT_APPLICABLE","This file purpose does not use the sanitized-system-evidence review.");
   if(input.confirmed!==true)throw ports.error(422,"ATTACHMENT_ATTESTATION_REQUIRED","Confirm the sanitized-evidence checklist before continuing.");
   const note=input.note.trim();
@@ -551,7 +569,7 @@ async function attestAttachmentSetSanitized(
 }
 
 async function linkExistingAttachment(db: AttachmentServiceUnit<Effect>, actor: WorkContext, setId: string, input: {sourceLinkId:string;caption?:string}, idempotencyKey:string) {
-  requireAttachmentsV2();await db.legacyWriterGuard("set",setId);await db.legacyWriterGuard("link",input.sourceLinkId);const target=await setRow(db,setId,actor.companyId),targetPolicy=attachmentPolicy(target.target_type,target.purpose_key,target.component_kind);
+  requireAttachmentsV2();const target=await setRow(db,setId,actor.companyId);requireGenericFileTarget(target.target_type);await db.legacyWriterGuard("set",setId);await db.legacyWriterGuard("link",input.sourceLinkId);const targetPolicy=attachmentPolicy(target.target_type,target.purpose_key,target.component_kind);
   await db.authorizeTarget(actor,targetPolicy,target.target_id,"write");
   if(target.state!=="draft")throw ports.error(409,"ATTACHMENT_SET_LOCKED","The target file set is closed.");
   const source=await db.readAttachmentLinks55({sourceLinkId:input.sourceLinkId,companyId:actor.companyId});
@@ -628,14 +646,16 @@ async function attachmentBindingServiceOptions(db:AttachmentServiceUnit<Effect>,
 
 async function prepareAttachmentBinding(db: AttachmentServiceUnit<Effect>, actor: WorkContext, input: {attachmentSetIds:string[];bindingContract:AttachmentBindingContract;targetId:string;expectedTargetVersion:number;commandId:string;bindingId:string},options:AttachmentServiceOptions={}): Promise<PreparedAttachmentBinding<Effect>> {
   const ids=[...new Set(input.attachmentSetIds)];if(!ids.length||ids.length>20)throw ports.error(422,"ATTACHMENT_SETS_REQUIRED","Choose one to twenty file sets.");
+  requireGenericFileTarget(input.bindingContract.targetType);
   options=await attachmentBindingServiceOptions(db,actor,ids,options);requireAttachmentWrite(options);
   if(attachmentUploadsFrozen())throw ports.error(503,"ATTACHMENT_UPLOAD_FREEZE","File binding is briefly paused for storage reconciliation.");
   validateBindingContract(input.bindingContract);
   const {targetType,bindingType}=input.bindingContract;
   const manifest:AttachmentManifestItem[]=[],guards:Effect[]=[],steps:Effect[]=[],now=ports.clock.now();
   for(const [setIndex,id] of ids.entries()){
+    const set=await setRow(db,id,actor.companyId);requireGenericFileTarget(set.target_type);
     await db.legacyWriterGuard("set",id);guards.push(db.legacyWriterEffect("set",id));
-    const set=await setRow(db,id,actor.companyId);if(set.target_type!==targetType||set.target_id!==input.targetId)throw ports.error(422,"ATTACHMENT_SET_TARGET","A file set belongs to another record.");
+    if(set.target_type!==targetType||set.target_id!==input.targetId)throw ports.error(422,"ATTACHMENT_SET_TARGET","A file set belongs to another record.");
     if(!bindingContextMatches(input.bindingContract,set))throw ports.error(422,"ATTACHMENT_BINDING_CONTEXT","Choose only files prepared for this exact domain action and component.");
     if(set.state!=="draft")throw ports.error(409,"ATTACHMENT_SET_LOCKED","A file set was already bound or closed.");
     const historicalLeave=set.target_type==="leave_request";
@@ -672,8 +692,10 @@ async function prepareAttachmentBinding(db: AttachmentServiceUnit<Effect>, actor
 
 
 async function bindRecordAttachmentSet(db:AttachmentServiceUnit<Effect>,actor:WorkContext,setId:string,expectedTargetVersion:number,commandId:string,options:AttachmentServiceOptions={}){
-  requireAttachmentWrite(options);await db.legacyWriterGuard("set",setId);
-  const set=await setRow(db,setId,actor.companyId),brandSource=isBrandPublicationTarget(set.target_type)&&set.component_kind==="publication";
+  requireAttachmentWrite(options);
+  const set=await setRow(db,setId,actor.companyId);requireGenericFileTarget(set.target_type);
+  await db.legacyWriterGuard("set",setId);
+  const brandSource=isBrandPublicationTarget(set.target_type)&&set.component_kind==="publication";
   if(set.component_kind!=="record"&&!brandSource)throw ports.error(422,"ACTION_EVIDENCE_DOMAIN_BIND_REQUIRED","Action, line and event evidence must bind inside its domain command.");
   if(Number(set.expected_target_version)!==expectedTargetVersion)throw ports.error(409,"ATTACHMENT_SET_STALE","Create a record-document set for the current record version.");
   const operation=brandSource?"attachment.publication-source.bind":"attachment.record.bind",nextVersion=brandSource?expectedTargetVersion:expectedTargetVersion+1,prior=await db.replayCommand<{id:string;ownerVersion:number;attachmentSetId:string;attachmentLinkId:string;state:"available";publicationReviewRequired:boolean}>(actor,commandId,operation,set.target_id,{setId,expectedTargetVersion});if(prior)return atomic(db,async tx=>{await tx.legacyWriterGuard("set",setId);const current=await tx.replayCommand<typeof prior>(actor,commandId,operation,set.target_id,{setId,expectedTargetVersion});if(!current)throw ports.error(409,"ATTACHMENT_SET_CHANGED","The original file binding changed. Refresh before retrying.");await tx.authorizeTarget(actor,attachmentPolicy(set.target_type,set.purpose_key,set.component_kind),set.target_id,'read');return current;});
@@ -692,8 +714,10 @@ async function bindRecordAttachmentSet(db:AttachmentServiceUnit<Effect>,actor:Wo
  * as the owner mutation. New workflows must bind action evidence in their own
  * domain command instead. */
 async function bindCompatibilityAttachmentSet(db:AttachmentServiceUnit<Effect>,actor:WorkContext,setId:string,expectedTargetVersion:number,commandId:string,options:AttachmentServiceOptions={}){
-  requireAttachmentWrite(options);await db.legacyWriterGuard("set",setId);
-  const set=await setRow(db,setId,actor.companyId),brandSource=isBrandPublicationTarget(set.target_type)&&set.component_kind==="publication";
+  requireAttachmentWrite(options);
+  const set=await setRow(db,setId,actor.companyId);requireGenericFileTarget(set.target_type);
+  await db.legacyWriterGuard("set",setId);
+  const brandSource=isBrandPublicationTarget(set.target_type)&&set.component_kind==="publication";
   if(set.component_kind==="publication"&&!brandSource)throw ports.error(422,"PUBLICATION_SOURCE_UNSUPPORTED","This publication source requires an explicit domain binding workflow.");
   const operation=brandSource?"attachment.publication-source.compatibility-bind":"attachment.compatibility.bind",nextVersion=brandSource?expectedTargetVersion:expectedTargetVersion+1,prior=await db.replayCommand<{id:string;ownerVersion:number;attachmentSetId:string;attachmentLinkId:string;state:"available";publicationReviewRequired:boolean}>(actor,commandId,operation,set.target_id,{setId,expectedTargetVersion});if(prior)return atomic(db,async tx=>{await tx.legacyWriterGuard("set",setId);const current=await tx.replayCommand<typeof prior>(actor,commandId,operation,set.target_id,{setId,expectedTargetVersion});if(!current)throw ports.error(409,"ATTACHMENT_SET_CHANGED","The original file binding changed. Refresh before retrying.");await tx.authorizeTarget(actor,attachmentPolicy(set.target_type,set.purpose_key,set.component_kind),set.target_id,'read');return current;});
   await db.authorizeTarget(actor,attachmentPolicy(set.target_type,set.purpose_key,set.component_kind),set.target_id,"bind");

@@ -11,7 +11,6 @@ import {withSupportAttachmentContentRead} from "@erpx/server-support/public/atta
 import {withSupportIncidentAttachmentContentRead} from "@erpx/server-support/public/incident-attachment-read";
 import {isPeopleAttachmentReadTarget} from '@erpx/server-people_payroll/public/attachment-read-sources';
 import {withPeopleAttachmentContentRead} from '@erpx/server-people_payroll/public/attachment-read';
-import {isProjectAttachmentReadTarget,withProjectAttachmentContentRead} from '@erpx/server-projects/public/attachment-read';
 import {isLearningAttachmentReadTarget,withLearningAttachmentContentRead} from '@erpx/server-learning/public/attachment-read';
 import {isCRMAttachmentReadTarget,withCRMAttachmentContentRead} from '@erpx/server-crm/public/attachment-read';
 import {isMarketingAttachmentReadTarget,withMarketingAttachmentContentRead} from '@erpx/server-marketing/public/attachment-read';
@@ -434,7 +433,6 @@ export async function attachmentContent(db: SqlDatabase, files: FileStore, actor
     if(selected?.targetType==='support_ticket')return withSupportAttachmentContentRead(db,actor,linkId,selected,read,authorize);
     if(selected?.targetType==='field_service_visit')throw new ApiError(503,'FIELD_FILES_NATIVE_REQUIRED','The native Field file service is required.');
     if(selected&&isPeopleAttachmentReadTarget(selected.targetType))return withPeopleAttachmentContentRead(db,actor,linkId,selected,read,authorize);
-    if(selected&&isProjectAttachmentReadTarget(selected.targetType))return withProjectAttachmentContentRead(db,actor,linkId,selected,read,authorize);
     if(selected&&isLearningAttachmentReadTarget(selected.targetType))return withLearningAttachmentContentRead(db,actor,linkId,selected,read,authorize);
     if(selected&&isCRMAttachmentReadTarget(selected.targetType))return withCRMAttachmentContentRead(db,actor,linkId,selected,read,authorize);
     if(selected&&isMarketingAttachmentReadTarget(selected.targetType))return withMarketingAttachmentContentRead(db,actor,linkId,selected,read,authorize);
