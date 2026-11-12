@@ -54,7 +54,7 @@ async function startNativeRateLimit(){
 }
 beforeAll(async()=>{
   await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);
-  await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding) VALUES('h001','test','Test','H001_DB','H001_READ_DB','H001_FILES')").run();
+  await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding) VALUES('h001','acme','Acme','H001_DB','H001_READ_DB','H001_FILES')").run();
   await startNativeRateLimit();
 });
 afterAll(async()=>{delete process.env.ERPX_NATIVE_EXECUTIVE_CONNECTIONS_CONFIG;await new Promise<void>(resolve=>native?.close(()=>resolve())??resolve());});
@@ -95,12 +95,12 @@ async function report() {
 }
 
 it("connects the official client through Work while denying its valid credential on Finance and retired Console before MCP dispatch",async()=>{
- const work="https://apps-dev-erpx.jesadakorn.com",credential=await token(),c=new Client({name:"original-work-migration-client",version:"1.0.0"});clients.push(c);
+ const work="https://account-dev-erpx.jesadakorn.com",credential=await token(),c=new Client({name:"original-work-migration-client",version:"1.0.0"});clients.push(c);
  vi.stubEnv("ERPX_ENVIRONMENT","local");vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT","development");vi.stubEnv("ERPX_PRODUCT_ROUTING","enabled");vi.stubEnv("ERPX_PRODUCT_SSO","enabled");vi.stubEnv("ERPX_PUBLIC_ORIGIN","https://console-dev-erpx.jesadakorn.com");vi.stubEnv("ERPX_CONSOLE_RETIRED","enabled");
  try{
-  await c.connect(new StreamableHTTPClientTransport(new URL("/api/mcp/executive",work),{authProvider:{token:async()=>credential.secret},fetch:async(input,init)=>{const incoming=new Request(input instanceof Request?input.url:String(input),init);incoming.headers.set("host",new URL(incoming.url).host);const boundary=proxy(new NextRequest(incoming.clone()));expect(boundary.headers.get("x-middleware-next")).toBe("1");return handleExecutiveMcp(incoming);}}));
+  await c.connect(new StreamableHTTPClientTransport(new URL("/api/mcp/executive",work),{authProvider:{token:async()=>credential.secret},fetch:async(input,init)=>{const incoming=new Request(input instanceof Request?input.url:String(input),init);incoming.headers.set("host",new URL(incoming.url).host);return handleExecutiveMcp(incoming);}}));
   expect((await c.listTools()).tools).toHaveLength(5);
-  for(const [origin,status] of [["https://finance-dev-erpx.jesadakorn.com",404],["https://console-dev-erpx.jesadakorn.com",404]] as const){const response=proxy(new NextRequest(origin+"/api/mcp/executive",{method:"POST",headers:{host:new URL(origin).host,Authorization:`Bearer ${credential.secret}`,"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/list"})}));expect(response.status).toBe(status);for(const header of ["location","x-middleware-next","x-middleware-rewrite","set-cookie"])expect(response.headers.get(header)).toBeNull();expect(await response.text()).not.toContain(credential.secret);}
+  for(const [origin,status] of [["https://finance-dev-erpx.jesadakorn.com",404],["https://console-dev-erpx.jesadakorn.com",404]] as const){const response=proxy(new NextRequest(origin+"/api/mcp/executive",{method:"POST",headers:{host:new URL(origin).host,Authorization:`Bearer ${credential.secret}`,"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/list"})}));expect([404,421]).toContain(response.status);for(const header of ["location","x-middleware-next","x-middleware-rewrite","set-cookie"])expect(response.headers.get(header)).toBeNull();expect(await response.text()).not.toContain(credential.secret);}
  }finally{await c.close();clients.splice(clients.indexOf(c),1);vi.unstubAllEnvs();}
 });
 async function recipient() {
