@@ -8,6 +8,10 @@ import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
 import {createAccount,createAccountSchema,createInvoice,invoiceSchema,postInvoice} from '@erpx/server-finance/public/finance';
 import {settleInvoice} from '@erpx/server-commerce/public/commerce';
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/feature-people_payroll/public/native-payroll-summary-owned",()=>({
+  ownedPeoplePayrollWorkRows:async()=>[],
+  ownedPeoplePayrollRun:async(_actor:{holdingSlug:string},_holdingSlug:string,id:string)=>({run:{id},items:[],exports:[],corrections:[],paymentBatch:null,paymentItems:[]}),
+}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});
@@ -231,7 +235,6 @@ it("keeps batched Work equal to detail-authorized flows across roles and scopes"
   const { workOrderRows, getOrder } = await import("@erpx/server-commerce/public/commerce");
   const {workInvoiceRows}=await import('@erpx/server-finance/public/finance'),{getInvoice}=await import('@erpx/server-finance/public/finance-invoice-read');
   const { workJournalRows, journalDetail } = await import("@erpx/server-finance/public/ledger");
-  const { workPayrollRows, getPayrollRun } = await import("@erpx/server-people_payroll/public/people-payroll");
   const party = `party-${key()}`;
   await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES(?,?,'supplier',?,'Work parity supplier','THB',1,1)").bind(party,f.company,party).run();
   await createInvoice(f.reviewer,invoiceSchema.parse({partyId:party,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-01",dueDate:"2026-09-03",currency:"THB",subtotal:"100",tax:"7",taxAccountId:f.accounts.tax,debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());
@@ -242,7 +245,7 @@ it("keeps batched Work equal to detail-authorized flows across roles and scopes"
   for (const actor of [f.owner, f.claimant, f.reviewer, f.payer, { ...f.owner, branchId: f.branch }]) {
     const reference = await otherFlowWork(actor, true);
     expect(await withPolicyReadSnapshot(() => otherFlowWork(actor))).toEqual(reference);
-    for (const [list, detail] of [[workOrderRows,getOrder],[workInvoiceRows,getInvoice],[workJournalRows,journalDetail],[workPayrollRows,getPayrollRun]] as const) {
+    for (const [list, detail] of [[workOrderRows,getOrder],[workInvoiceRows,getInvoice],[workJournalRows,journalDetail]] as const) {
       let rows;
       try { rows = await list(actor); } catch (error) {
         expect(error).toMatchObject({status:403}); continue;

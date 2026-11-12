@@ -4,6 +4,7 @@ import type {
   NativePayrollRun,
   NativePayrollRunDetail,
   NativePayrollSummaryRow,
+  NativePayrollWorkRow,
   NativePeoplePayrollReadInput,
 } from '../../public/native-payroll-summary';
 
@@ -38,4 +39,15 @@ export function createNextNativePeoplePayrollDetailReader(
 ) {
   return async (input: NativePeoplePayrollReadInput, signal?: AbortSignal) =>
     detail(await headers(), input, signal);
+}
+
+export function createNextNativePeoplePayrollWorkRowsReader(
+  workRows: (
+    incoming: Pick<Headers, 'get'>,
+    input: NativePeoplePayrollReadInput,
+    signal?: AbortSignal,
+  ) => Promise<NativePayrollWorkRow[]>,
+) {
+  return async (input: NativePeoplePayrollReadInput, signal?: AbortSignal) =>
+    workRows(await headers(), input, signal);
 }

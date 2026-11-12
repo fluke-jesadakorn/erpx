@@ -8,10 +8,12 @@ import {
   nativePeoplePayrollFailure,
   nativePeoplePayrollRuns,
   nativePeoplePayrollSummary,
+  nativePeoplePayrollWorkRows,
   peoplePayrollPageContext,
   type NativePayrollRun,
   type NativePayrollRunDetail,
   type NativePayrollSummaryRow,
+  type NativePayrollWorkRow,
 } from './native-payroll-summary-page';
 
 function ownedFailure(error: unknown): never {
@@ -86,6 +88,27 @@ export async function ownedPeoplePayrollRun(
       peoplePayrollPageContext(actor),
       holdingSlug,
       runId,
+    );
+    if (!data) unavailable();
+    return data;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+/** Bounded Payroll Work payload rows for the retained Workflow Work selector.
+ * Retains the same Commercial history admission as the other owned readers and
+ * never falls back to a TypeScript payroll SQL reader. */
+export async function ownedPeoplePayrollWorkRows(
+  actor: WorkContext,
+  holdingSlug: string,
+): Promise<NativePayrollWorkRow[] | undefined> {
+  if (!nativePeoplePayrollAvailable()) return undefined;
+  await admission(actor);
+  try {
+    const data = await nativePeoplePayrollWorkRows(
+      peoplePayrollPageContext(actor),
+      holdingSlug,
     );
     if (!data) unavailable();
     return data;

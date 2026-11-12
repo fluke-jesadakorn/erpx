@@ -12,7 +12,7 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_people_payroll::public::payroll_summary::{
-    PayrollReadActor, PgPayrollRead, payroll_runs, payroll_summary,
+    PayrollReadActor, PayrollWorkRow, PgPayrollRead, payroll_runs, payroll_summary,
 };
 use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
 use erpx_server_commercial::public::purchase_command_boundary::{
@@ -29,7 +29,7 @@ use erpx_server_finance::public::{
 use erpx_server_people_payroll::public::payroll_run::{
     PayrollCommandActor, PayrollCommandFuture, PayrollJournalDraft, PayrollJournalPort,
     PayrollJournalRequest, PayrollPreparedJournal, calculate_payroll_run, cancel_payroll_run,
-    create_payroll_run, payroll_run_detail, post_payroll,
+    create_payroll_run, post_payroll,
 };
 use erpx_server_people_payroll::public::payroll_run::PgPayrollCommand;
 use erpx_server_people_payroll::public::payroll_run_http::{
@@ -43,7 +43,7 @@ use erpx_server_people_payroll::public::payroll_summary_http::{
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, UserId,
+    AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis, UserId,
 };
 use serde_json::Value;
 use sqlx::PgConnection;
@@ -113,6 +113,69 @@ fn payroll_actor(current: &AuthorizedWorkContext) -> Result<PayrollReadActor, Bu
         permissions: current.command_iam_metadata().permissions.clone(),
         expires_at: current.expires_at(),
     })
+}
+
+/// Typed in-process reads for the Workflow payroll flow adapters.
+///
+/// Workflow supplies the current selected Account/Holding context and these
+/// functions map it to the two owner actor facts. No SQL, Host proof or
+/// purchase receipt is invented at this boundary: the owner reads still enforce
+/// Company payroll scope, selected-context expiry, the payroll read permission
+/// split and the caller's serializable transaction before returning any row.
+pub mod payroll_flow_read {
+    use super::{
+        AuthorizedWorkContext, BusinessError, PgConnection, PayrollCommandActor, PayrollReadActor,
+        PayrollWorkRow, TimestampMillis, Value, payroll_actor, payroll_command_actor,
+    };
+
+    /// Owner command actor for one native payroll run detail read. Workflow
+    /// never supplies this actor directly; composition derives it from the
+    /// retained current work context.
+    pub fn run_detail_actor(
+        current: &AuthorizedWorkContext,
+    ) -> Result<PayrollCommandActor, BusinessError> {
+        payroll_command_actor(current)
+    }
+
+    /// Owner read actor for native payroll work rows. The row permission stays
+    /// `payroll.read`; payment-only readers are intentionally not admitted.
+    pub fn work_rows_actor(
+        current: &AuthorizedWorkContext,
+    ) -> Result<PayrollReadActor, BusinessError> {
+        payroll_actor(current)
+    }
+
+    /// Read one payroll run through the People Payroll owner. The caller owns a
+    /// serializable transaction and the owner rechecks scope, expiry and read
+    /// permission.
+    pub async fn read_payroll_run_detail(
+        connection: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        run_id: &str,
+        now: TimestampMillis,
+    ) -> Result<Value, BusinessError> {
+        let actor = run_detail_actor(current)?;
+        erpx_server_people_payroll::public::payroll_run::payroll_run_detail_on(
+            connection, &actor, run_id, now,
+        )
+        .await
+    }
+
+    /// Read the bounded Work payload rows through the People Payroll owner,
+    /// preserving owner `updated_at DESC, id ASC` recency order. The caller owns
+    /// a serializable transaction and the owner rechecks scope, expiry and the
+    /// `payroll.read` permission.
+    pub async fn read_payroll_work_rows(
+        connection: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        now: TimestampMillis,
+    ) -> Result<Vec<PayrollWorkRow>, BusinessError> {
+        let actor = work_rows_actor(current)?;
+        erpx_server_people_payroll::public::payroll_summary::payroll_work_rows_on(
+            connection, &actor, now,
+        )
+        .await
+    }
 }
 
 fn context(current: &AuthorizedWorkContext) -> Value {
@@ -278,6 +341,53 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                         let now = clock.now();
                         let mut repository = PgPayrollRead::new(connection);
                         let rows = payroll_runs(&actor, &mut repository, now).await?;
+                        let data = serde_json::to_value(rows).map_err(|_| unavailable())?;
+                        Ok(PayrollReadHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Bounded Workflow Work rows through the typed in-process payroll port.
+    pub async fn work_rows<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<PayrollReadHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                PeoplePayrollSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("payroll.read")?;
+                        let now = clock.now();
+                        let rows = payroll_flow_read::read_payroll_work_rows(
+                            connection, current, now,
+                        )
+                        .await?;
                         let data = serde_json::to_value(rows).map_err(|_| unavailable())?;
                         Ok(PayrollReadHttpResponse {
                             data,
@@ -801,11 +911,10 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                                     now,
                                 )
                                 .await?;
-                                let mut repository = PgPayrollCommand::new(&mut *connection, &actor);
-                                let data =
-                                    payroll_run_detail(&actor, &run_id, &mut repository, now)
-                                        .await?;
-                                drop(repository);
+                                let data = payroll_flow_read::read_payroll_run_detail(
+                                    connection, current, &run_id, now,
+                                )
+                                .await?;
                                 revalidate_payroll_witness(
                                     connection,
                                     &holding,
@@ -916,6 +1025,11 @@ impl<C: Clock + Send + Sync + 'static> PayrollReadHttpBackend for PeoplePayrollB
                 PayrollReadHttpKind::Runs => self
                     .service
                     .runs(request.host, proof, move || Ok(selection))
+                    .await
+                    .map_err(business),
+                PayrollReadHttpKind::WorkRows => self
+                    .service
+                    .work_rows(request.host, proof, move || Ok(selection))
                     .await
                     .map_err(business),
             }

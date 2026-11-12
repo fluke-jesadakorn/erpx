@@ -334,29 +334,6 @@ export interface PeoplePayrollRepository<Effect> {
     stageCalculatePayrollRunEffect(runId: string): Effect;
     stageCalculatePayrollRunEffect2(value: string, digest: string, now: number, runId: string): Effect;
     stageCalculatePayrollRunEffect3(value: string, runId: string, engagementId: string, workerType: string, value2: string, value3: string, gross: number, deductions: number, employer: number, net: number, currency: string, now: number): Effect;
-    readWorkPayrollRowsEffect(companyId: string): Promise<{
-        results: (Record<string, string | number | null>)[];
-    }>;
-    readGetPayrollRunRun(runId: string, companyId: string): Promise<Record<string, unknown> | null>;
-    readGetPayrollRunItemsexportscorrectionspaymentBatch(runId: string): Promise<{
-        results: (Record<string, unknown>)[];
-    }>;
-    readGetPayrollRunItemsexportscorrectionspaymentBatch2(runId: string): Promise<{
-        results: (Record<string, unknown>)[];
-    }>;
-    readGetPayrollRunItemsexportscorrectionspaymentBatch3(runId: string, companyId: string): Promise<{
-        results: (Record<string, unknown>)[];
-    }>;
-    readGetPayrollRunItemsexportscorrectionspaymentBatch4(companyId: string, runId: string): Promise<Record<string, unknown> | null>;
-    readGetPayrollRunPaymentItems(value: string): Promise<{
-        results: (Record<string, unknown>)[];
-    }>;
-    readListPayrollRunsEffect(companyId: string): Promise<{
-        results: (Record<string, unknown>)[];
-    }>;
-    readListPayrollRunsEffect2(companyId: string): Promise<{
-        results: (Record<string, unknown>)[];
-    }>;
     readPayrollPostingOptionsChartsperiodsmappingsgroups(companyId: string): Promise<{
         results: (Record<string, unknown>)[];
     }>;
@@ -1323,39 +1300,6 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
             ...items.map((i, index) => repository.stageCalculatePayrollRunEffect3(`payitem-${key}-${index}`, runId, i.engagementId, i.workerType, JSON.stringify(i.inputSnapshot), JSON.stringify(i.result), i.gross, i.deductions, i.employer, i.net, run.currency, now)),
         ]);
     }
-    async function workPayrollRows(actor: WorkContext) {
-        if (actor.branchId || actor.departmentId)
-            throw new BusinessRuleError(403, "COMPANY_PAYROLL_SCOPE_REQUIRED", "Company-wide payroll requires a holding-level assignment.");
-        actor = ports.authorize(actor, "payroll.read");
-        await ports.prepare(actor.holdingId);
-        return (await repository.readWorkPayrollRowsEffect(actor.companyId)).results;
-    }
-    async function getPayrollRun(actor: WorkContext, runId: string) {
-        if (actor.branchId || actor.departmentId)
-            throw new BusinessRuleError(403, "COMPANY_PAYROLL_SCOPE_REQUIRED", "Company-wide payroll requires a holding-level assignment.");
-        const canReadPayroll = hasPermission(actor, "payroll.read"), canReadPayment = hasPermission(actor, "payroll.payment.read");
-        if (!canReadPayroll && !canReadPayment)
-            ports.authorize(actor, "payroll.read");
-        const paymentOnly = !canReadPayroll;
-        await ports.prepare(actor.holdingId);
-        const run = await repository.readGetPayrollRunRun(runId, actor.companyId);
-        if (!run)
-            throw new BusinessRuleError(404, "PAYROLL_RUN_NOT_FOUND", "Payroll run not found.");
-        const [items, exports, corrections, paymentBatch] = await Promise.all([repository.readGetPayrollRunItemsexportscorrectionspaymentBatch(runId), repository.readGetPayrollRunItemsexportscorrectionspaymentBatch2(runId), repository.readGetPayrollRunItemsexportscorrectionspaymentBatch3(runId, actor.companyId), repository.readGetPayrollRunItemsexportscorrectionspaymentBatch4(actor.companyId, runId)]);
-        const paymentItems = paymentBatch ? (await repository.readGetPayrollRunPaymentItems(String(paymentBatch.id))).results : [];
-        return { run: paymentOnly ? { ...run, totals_json: "{}", input_digest: null, error_message: null } : run, items: paymentOnly ? [] : items.results, exports: paymentOnly ? [] : exports.results, corrections: paymentOnly ? [] : corrections.results, paymentBatch, paymentItems };
-    }
-    async function listPayrollRuns(actor: WorkContext) {
-        const canReadPayroll = hasPermission(actor, "payroll.read"), canReadPayment = hasPermission(actor, "payroll.payment.read");
-        if (!canReadPayroll && !canReadPayment)
-            ports.authorize(actor, "payroll.read");
-        if (actor.branchId || actor.departmentId)
-            throw new BusinessRuleError(403, "COMPANY_PAYROLL_SCOPE_REQUIRED", "Company-wide payroll requires a holding-level assignment.");
-        await ports.prepare(actor.holdingId);
-        if (!canReadPayroll)
-            return (await repository.readListPayrollRunsEffect(actor.companyId)).results;
-        return (await repository.readListPayrollRunsEffect2(actor.companyId)).results;
-    }
     async function payrollPostingOptions(actor: WorkContext) {
         actor = ports.authorize(actor, "finance.approve");
         if (actor.branchId || actor.departmentId)
@@ -1938,5 +1882,5 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
         await ports.prepare(actor.holdingId);
         return ports.pagedRuns(actor.companyId,cursor);
     }
-    return { payrollRunsPage,payrollCostAssignments, verifyPayrollCostAssignment, listPeople, getPerson, peopleSummary, createPerson, createEngagement, createCompensation, payrollOptions, assignPayGroup, transitionCompensation, transitionEngagement, createTimeEntry, updateTimeEntry, rejectTimeEntry, approveTimeEntry, createPayGroup, createCountryPack, listCountryPacks, transitionCountryPack, createPayrollRun, prepareFinalPay, requestPayrollAdvance, decidePayrollAdvance, payrollAdvancePage, payrollAdvanceAlertTarget, calculatePayrollRun, workPayrollRows, getPayrollRun, listPayrollRuns, payrollPostingOptions, savePayrollAccountMapping, approvePayrollAccountMapping, previewPayrollAccounting, postPayroll, approvePayrollRun, requestPayrollCorrection, decidePayrollCorrection, payrollCorrectionAlertTarget, exportPayrollReview, getPayrollReviewFile, createPaymentBatch, preparePaymentRetry, approvePaymentBatch, exportPaymentBatch, confirmPaymentBatch, importSyntheticPaymentResults, getPaymentFile, calculateItem };
+    return { payrollRunsPage,payrollCostAssignments, verifyPayrollCostAssignment, listPeople, getPerson, peopleSummary, createPerson, createEngagement, createCompensation, payrollOptions, assignPayGroup, transitionCompensation, transitionEngagement, createTimeEntry, updateTimeEntry, rejectTimeEntry, approveTimeEntry, createPayGroup, createCountryPack, listCountryPacks, transitionCountryPack, createPayrollRun, prepareFinalPay, requestPayrollAdvance, decidePayrollAdvance, payrollAdvancePage, payrollAdvanceAlertTarget, calculatePayrollRun, payrollPostingOptions, savePayrollAccountMapping, approvePayrollAccountMapping, previewPayrollAccounting, postPayroll, approvePayrollRun, requestPayrollCorrection, decidePayrollCorrection, payrollCorrectionAlertTarget, exportPayrollReview, getPayrollReviewFile, createPaymentBatch, preparePaymentRetry, approvePaymentBatch, exportPaymentBatch, confirmPaymentBatch, importSyntheticPaymentResults, getPaymentFile, calculateItem };
 }

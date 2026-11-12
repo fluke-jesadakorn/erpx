@@ -130,6 +130,36 @@ describe('native People Payroll summary transport',()=>{
     .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_REQUEST_INVALID'});
  });
 
+ it('reads bounded Work payload rows in owner recency order and rejects duplicate or regressing rows',async()=>{
+  const workRows=[
+   {id:'run-b',pay_group_id:'group',pay_date:'2026-10-31',status:'posted',mode:'production',created_by:'user',updated_at:200},
+   {id:'run-a',pay_group_id:'group',pay_date:'2026-10-31',status:'draft',mode:'preview',created_by:'other',updated_at:100},
+  ];
+  const transport=vi.fn().mockResolvedValue(ok({data:workRows,context}));
+  const client=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),transport);
+  const result=await client.workRows(incoming(),actor,input);
+  expect(result).toEqual(workRows);
+  const [method,url,headers]=transport.mock.calls[0];
+  expect(method).toBe('GET');
+  expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/people/payroll/work-rows');
+  expect(headers.get('idempotency-key')).toBeNull();
+  const duplicate=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),vi.fn().mockResolvedValue(
+   ok({data:[workRows[0],workRows[0]],context}),
+  ));
+  await expect(duplicate.workRows(incoming(),actor,input))
+   .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID'});
+  const regressing=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),vi.fn().mockResolvedValue(
+   ok({data:[workRows[1],workRows[0]],context}),
+  ));
+  await expect(regressing.workRows(incoming(),actor,input))
+   .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID'});
+  const extra=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),vi.fn().mockResolvedValue(
+   ok({data:[{...workRows[0],company_id:'company'}],context}),
+  ));
+  await expect(extra.workRows(incoming(),actor,input))
+   .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID'});
+ });
+
  it('surfaces a bounded owner error with its status, code and message',async()=>{
   const transport=vi.fn().mockResolvedValue(new Response(
     JSON.stringify({error:{code:'COMPANY_PAYROLL_SCOPE_REQUIRED',message:'Use a Company payroll assignment.'}}),

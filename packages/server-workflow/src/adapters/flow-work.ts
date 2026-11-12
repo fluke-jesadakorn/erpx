@@ -20,28 +20,32 @@ import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { policyRead } from '@erpx/server-identity_access/public/iam-read-snapshot';
 import { createFlowWorkApplication,reconcileFieldServiceWork } from '@erpx/server-workflow/application/flow-work';
 import { flowWorkActionKind, workFlowKind } from '@erpx/server-workflow/domain/flow-work';
-import { workflowReferenceRows as commerceReferences } from '@erpx/server-commerce/public/workflow-read-sources';
 import { workflowReferenceRows as financeReferences } from '@erpx/server-finance/public/workflow-document-sources';
-import { workflowReferenceRows as peopleReferences } from '@erpx/server-people_payroll/public/workflow-document-sources';
 import {financeFlowAccess,requireFinanceDocumentHistory} from '@erpx/server-finance/public/document-purchases';
-import { payrollPurchasedAccess, withPayrollPurchasedRead } from '@erpx/server-people_payroll/public/payroll-purchases';
+import { payrollPurchasedAccess } from '@erpx/server-people_payroll/public/payroll-purchases';
 import {commerceWorkAccess,commerceWorkReferenceRows} from '@erpx/server-commerce/public/record-purchases';
 import {countSourceAccess} from '@erpx/server-inventory/public/count-purchases';
 import {transferSourceAccess} from '@erpx/server-inventory/public/transfer-purchases';
 export { flowWorkActionKind, workFlowKind };
+async function payrollWorkRows(actor: WorkContext): Promise<Record<string, string | number | null>[]> {
+  const { ownedPeoplePayrollWorkRows } = await import('@erpx/feature-people_payroll/public/native-payroll-summary-owned');
+  const rows = await ownedPeoplePayrollWorkRows(actor, actor.holdingSlug);
+  if (rows === undefined) throw new ApiError(503, 'NATIVE_PEOPLE_PAYROLL_UNAVAILABLE', 'The native People Payroll reader is unavailable.');
+  return rows.map(row => ({ ...row }));
+}
 function application(provided?: SqlDatabase) {
     let write = provided!;
     return createFlowWorkApplication({ prepare: async (holding) => { if (!provided)
             write = (await holdingResources(holding)).write; }, policyRead: (key, read) => policyRead(write, key, read), resolveFlow: (actor, kind, id) => fromNative(() => resolveFlow(write, actor, kind, id)), requireFlowAccess: (actor, kind, id) => fromNative(async () => { await requireFlowAccess(actor, kind, id, write); }), workRows: (actor, kind, reference) => fromNative(async () => {
-            if (reference && kind === 'payroll') return withPayrollPurchasedRead(actor, async () => (await peopleReferences(write, kind, actor.companyId)).results, write);
+            if (reference && kind === 'payroll') return payrollWorkRows(actor);
             if (reference && kind === 'order') return commerceWorkReferenceRows(write,actor);
-            if (reference)
-                return (await (kind === 'order' ? commerceReferences(write, kind, actor.companyId) : kind === 'payroll' ? peopleReferences(write, kind, actor.companyId) : financeReferences(write, kind, actor.companyId))).results;
+            if (reference && (kind === 'invoice' || kind === 'journal'))
+                return (await financeReferences(write, kind, actor.companyId)).results;
             switch (kind) {
                 case 'order': return (await import('@erpx/server-commerce/public/commerce')).workOrderRows(actor, write);
                 case 'invoice': return (await import('@erpx/server-finance/public/finance')).workInvoiceRows(actor, write);
                 case 'journal': return (await import('@erpx/server-finance/public/ledger')).workJournalRows(actor, write);
-                case 'payroll': return (await import('@erpx/server-people_payroll/public/people-payroll')).workPayrollRows(actor, write);
+                case 'payroll': return payrollWorkRows(actor);
             }
         }) });
 }

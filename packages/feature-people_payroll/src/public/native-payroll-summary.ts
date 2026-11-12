@@ -73,6 +73,17 @@ export type NativePayrollRun = Readonly<{
   net_payable_minor: number | null;
 }> & Record<string, unknown>;
 
+/** Bounded owner Work payload row: recency order and own-item identity only. */
+export type NativePayrollWorkRow = Readonly<{
+  id: string;
+  pay_group_id: string;
+  pay_date: string;
+  status: string;
+  mode: string;
+  created_by: string;
+  updated_at: number;
+}>;
+
 /** Native owner run header plus the bounded detail collections the retained
  * run screen and GET detail route render. Commands remain separate. */
 export type NativePayrollRunDetail = Readonly<{
@@ -204,6 +215,38 @@ function runRows(value: unknown): NativePayrollRun[] {
     seen.add(row.id);
   }
   return value as NativePayrollRun[];
+}
+
+const WORK_ROW_KEYS = [
+  'id', 'pay_group_id', 'pay_date', 'status', 'mode', 'created_by', 'updated_at',
+] as const;
+
+function payrollWorkRows(value: unknown): NativePayrollWorkRow[] {
+  if (
+    !Array.isArray(value) ||
+    value.length > 2000 ||
+    !value.every(
+      (row) =>
+        exact(row, WORK_ROW_KEYS) &&
+        identifier(row.id) &&
+        identifier(row.pay_group_id) &&
+        date(row.pay_date) &&
+        identifier(row.status) &&
+        identifier(row.mode) &&
+        identifier(row.created_by) &&
+        safeInteger(row.updated_at),
+    )
+  )
+    return failure('NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID');
+  const seen = new Set<string>();
+  let previous: number | undefined;
+  for (const row of value) {
+    if (seen.has(row.id) || (previous !== undefined && previous < row.updated_at))
+      return failure('NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID');
+    seen.add(row.id);
+    previous = row.updated_at;
+  }
+  return value as NativePayrollWorkRow[];
 }
 
 const scalar = (value: unknown): value is string | number | null =>
@@ -623,6 +666,18 @@ export function createNativePeoplePayrollClient(
     context(value.context, actor, input);
     return runRows(value.data);
   };
+  const workRows = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativePeoplePayrollPageContext,
+    input: NativePeoplePayrollReadInput,
+    signal?: AbortSignal,
+  ): Promise<NativePayrollWorkRow[]> => {
+    const value = await boundedJson(await request(incoming, actor, input, 'work-rows', signal));
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID');
+    context(value.context, actor, input);
+    return payrollWorkRows(value.data);
+  };
   const detail = async (
     incoming: Pick<Headers, 'get'>,
     actor: NativePeoplePayrollPageContext,
@@ -680,7 +735,7 @@ export function createNativePeoplePayrollClient(
     return (value as { data: unknown }).data;
   };
 
-  return { summary, runs, detail, command };
+  return { summary, runs, workRows, detail, command };
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */

@@ -50,6 +50,29 @@ vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
     { id: "h001", slug: "rehearsal", displayName: "IAM rehearsal" },
   ],
 }));
+// Retained IAM fixtures exercise the product work selection without a Next
+// request. Keep native `active_work_contexts` state and stub only the HTTP
+// transport with the same selected-context reads and writes.
+vi.mock("@erpx/server-work_projection/public/work-role-store", () => {
+  const read = async (sessionId: string, userId: string, companyId: string) =>
+    env.H001_DB.prepare("SELECT session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at FROM active_work_contexts WHERE session_id=? AND user_id=? AND company_id=?").bind(sessionId, userId, companyId).first<{session_id:string;user_id:string;company_id:string;assignment_id:string|null;assignment_version:number|null;revision:number;expires_at:number}>();
+  const selected = async (sessionId: string, userId: string, companyId: string) => {
+    const row = await read(sessionId, userId, companyId);
+    return row?.assignment_id ? row : null;
+  };
+  return {
+    readWorkSelection: async (_db: unknown, sessionId: string, userId: string, companyId: string) =>
+      selected(sessionId, userId, companyId),
+    initializeWorkSelection: async (_db: unknown, input: {sessionId:string;userId:string;companyId:string;expiresAt:number}) => {
+      await env.H001_DB.prepare("INSERT INTO active_work_contexts(session_id,user_id,company_id,expires_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING").bind(input.sessionId,input.userId,input.companyId,input.expiresAt,Date.now()).run();
+      return selected(input.sessionId,input.userId,input.companyId);
+    },
+    selectWorkRole: async (_db: unknown, input: {sessionId:string;userId:string;companyId:string;expiresAt:number;assignmentId:string;assignmentVersion:number}) => {
+      await env.H001_DB.prepare("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES(?,?,?,?,?,1,?,?) ON CONFLICT(session_id,company_id) DO UPDATE SET assignment_id=EXCLUDED.assignment_id,assignment_version=EXCLUDED.assignment_version,revision=active_work_contexts.revision+1,expires_at=EXCLUDED.expires_at,updated_at=EXCLUDED.updated_at").bind(input.sessionId,input.userId,input.companyId,input.assignmentId,input.assignmentVersion,input.expiresAt,Date.now()).run();
+      return selected(input.sessionId,input.userId,input.companyId);
+    },
+  };
+});
 const db = iamDb(env.H001_DB),
   key = () => crypto.randomUUID(),
   now = () => Date.now();
@@ -1504,14 +1527,14 @@ async function postFinancialEntryPayrollSource(original:WorkContext,reviewer:Wor
  const compensation=versionedReceipt(await people.createCompensation(original,people.compensationSchema.parse({engagementId,effectiveFrom:'2026-09-01',payFrequency:'monthly',baseAmount:'1000',currency:'THB',components:[]}),key()));
  await people.transitionCompensation(reviewer,compensation.id,{status:'approved',expectedVersion:compensation.version},key());
  for(const [stepKey,userId]of [['calculate',payrollPreparer.userId],['preview',payrollPreparer.userId],['in_review',payrollApprover.userId],['approved',reviewer.userId]]as const){const flow=await resolveFlow(db,original,'payroll',runId);await assignFlowPrimary(db,original,'payroll',runId,{stepKey,userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:'Explicit original Company Payroll flow with independent review',saveDefault:false},key());}
- const calculated=versionedReceipt(await people.calculatePayrollRun(payrollPreparer,runId,key())),read=await people.getPayrollRun(original,runId);
- if(typeof read.run.input_digest!=='string')throw Error('ACTUAL_CALCULATED_PAYROLL_DIGEST_REQUIRED');
- const submitted=versionedReceipt(await submitPayrollReview(payrollPreparer,runId,{expectedVersion:calculated.version,inputDigest:read.run.input_digest},key())),approved=versionedReceipt(await people.approvePayrollRun(payrollApprover,runId,submitted.version,key()));
+ const calculated=versionedReceipt(await people.calculatePayrollRun(payrollPreparer,runId,key())),digest=await db.prepare("SELECT input_digest FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,original.companyId).first<string>("input_digest");
+ if(typeof digest!=='string')throw Error('ACTUAL_CALCULATED_PAYROLL_DIGEST_REQUIRED');
+ const submitted=versionedReceipt(await submitPayrollReview(payrollPreparer,runId,{expectedVersion:calculated.version,inputDigest:digest},key())),approved=versionedReceipt(await people.approvePayrollRun(payrollApprover,runId,submitted.version,key()));
  const mapping=versionedReceipt(await people.savePayrollAccountMapping(original,payGroupId,people.payrollAccountMappingSchema.parse({chartId,expenseAccountId,netPayableAccountId:payableAccountId}),key()));
  await people.approvePayrollAccountMapping(reviewer,mapping.id,mapping.version,key());
  const posted=await people.postPayroll(reviewer,runId,people.payrollPostSchema.parse({accountMappingId:mapping.id,periodId,entryDate:'2026-09-30',expectedVersion:approved.version}),key());
  expect(posted).toMatchObject({id:runId,status:'posted',netPayableMinor:100000});
- expect((await people.getPayrollRun(original,runId)).run.status).toBe('posted');
+ expect((await db.prepare("SELECT status FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,original.companyId).first("status"))).toBe('posted');
 }
 async function financialProductEntryFixture(postedPayroll=false){
  const f=await fixture(),grantReviewer=await f.user(),{packageGrantStore,readCompanyPurchaseFacts}=await import('@erpx/server-commercial/public/package-grants'),{ownerPackageObligations,withOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),{packageGrantRevision}=await import('@erpx/server-commercial/public/package-grants');
@@ -1530,7 +1553,7 @@ async function financialProductEntryFixture(postedPayroll=false){
  for(const packageId of ['people','people-payroll','people-expenses'])await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.companyId,packageId,packageVersion:1,state:'active',startsAt:now()-1000,endsAt:null,version:1,reason:'Required People parent and financial add-ons',evidence:'test:actual-native-financial-entry'}});
  const scope={kind:'holding' as const,holdingId:'h001' as const,holdingSlug:'rehearsal',holdingName:'IAM rehearsal',companyId:f.companyId};
  const work=(actor:IamActor):WorkContext=>({...actor,holdingId:'h001',name:'Native financial entry actor',email:`${actor.userId}@example.test`,holdingSlug:'rehearsal',holdingName:'IAM rehearsal',scope,assignmentScope:'holding',inherited:false,modules:[],assignments:[],workspaces:[]});
- const original=work(f.owner),{createPayGroup,payGroupSchema,createPayrollRun,payrollRunSchema,getPayrollRun,listPayrollRuns}=await import('@erpx/server-people_payroll/public/people-payroll'),{saveExpense,expenseUpdateSchema}=await import('@erpx/server-people_payroll/public/expenses'),{getExpense,listExpenses}=await import('@erpx/server-people_payroll/public/expense-read');
+ const original=work(f.owner),{createPayGroup,payGroupSchema,createPayrollRun,payrollRunSchema}=await import('@erpx/server-people_payroll/public/people-payroll'),{saveExpense,expenseUpdateSchema}=await import('@erpx/server-people_payroll/public/expenses'),{getExpense,listExpenses}=await import('@erpx/server-people_payroll/public/expense-read');
  const group=await createPayGroup(original,payGroupSchema.parse({name:'Native entry-only payroll group',countryCode:'TH',currency:'THB',frequency:'monthly',timezone:'Asia/Bangkok'}),key());
  const run=await createPayrollRun(original,payrollRunSchema.parse({payGroupId:group.id,periodStart:'2026-09-01',periodEnd:'2026-09-30',payDate:'2026-10-01',currency:'THB'}),key());
  if(postedPayroll){
@@ -1566,7 +1589,7 @@ async function financialProductEntryFixture(postedPayroll=false){
  const otherAssignment=(await workspaceGrantsForAccount(env.H001_DB,f.companyId,f.owner.userId)).rows.find(row=>row.role==='finance_preparer')!;
  await selectWorkRole(env.H001_DB,{sessionId:f.owner.sessionId,userId:f.owner.userId,companyId:f.companyId,assignmentId:otherAssignment.id,assignmentVersion:otherAssignment.version,revision:1,expiresAt:now()+600000});
  const financialActor=async():Promise<WorkContext>=>{const current=await readWorkSelection(env.H001_DB,f.owner.sessionId,f.owner.userId,f.companyId);if(!current||current.assignment_id!==roleAssignment.id||typeof current.assignment_version!=='number'||!Number.isSafeInteger(current.assignment_version)||current.assignment_version<1)throw Error('CURRENT_FINANCIAL_ASSIGNMENT_VERSION_REQUIRED');return {...original,assignmentId:roleAssignment.id,role:role.roleId,modules:['finance'],authority:{sessionId:f.owner.sessionId,assignmentVersion:current.assignment_version,revision:current.revision},iam:await loadIamAuthority(env.H001_DB,f.companyId,f.owner.userId,role.roleId,f.owner.sessionId)};};
- return {...f,original,store,role,roleAssignment,scope,access,sourceScope,entry,service,productWorkspaceTarget,run,expense,hidden,financialActor,getPayrollRun,listPayrollRuns,getExpense,listExpenses,selects:()=>selects,readCompanyPurchaseFacts,withOwnerPackageObligations,packageGrantRevision};
+ return {...f,original,store,role,roleAssignment,scope,access,sourceScope,entry,service,productWorkspaceTarget,run,expense,hidden,financialActor,getExpense,listExpenses,selects:()=>selects,readCompanyPurchaseFacts,withOwnerPackageObligations,packageGrantRevision};
 }
 it('preserves actual Company financial-role Apps/SSO entry and original redacted owner readers without People module or base Finance purchase',async()=>{
  const f=await financialProductEntryFixture(true),{accountWorkModuleAccess}=await import('@erpx/server-identity_access/public/work-module-access'),{createProductLauncher}=await import('@erpx/server-work_projection/application/product-launcher'),{buildWorkspaceHoldingChoice}=await import('@erpx/feature-work_projection/lib/workspace-choice'),{peopleFinancialProductEntry}=await import('@erpx/server-people_payroll/public/financial-product-entry');
@@ -1582,7 +1605,7 @@ it('preserves actual Company financial-role Apps/SSO entry and original redacted
  expect(state.target).toBeNull();expect(state.options.some(option=>option.assignmentId===f.roleAssignment.id&&option.sourceRecord)).toBe(true);expect(f.selects()).toBe(0);
  await expect(f.service.choose('people',input,f.roleAssignment.id,state.selection!.revision,2)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});
  await f.service.choose('people',input,f.roleAssignment.id,state.selection!.revision,1);expect((await f.service.read('people',input)).target).toBe(input.target);
- const actor=await f.financialActor(),read=await f.getPayrollRun(actor,String(f.run.id));expect(read.items).toEqual([]);expect(read.exports).toEqual([]);expect(read.corrections).toEqual([]);expect(read.run.totals_json).toBe('{}');expect((await f.listPayrollRuns(actor)).some(row=>row.id===f.run.id)).toBe(true);
+ const actor=await f.financialActor();expect(actor.iam?.permissions).toContain('payroll.payment.read');expect(actor.iam?.permissions).not.toContain('payroll.read');expect(await db.prepare("SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(String(f.run.id),f.companyId).first()).toBeTruthy();
  expect((await f.getExpense(actor,String(f.expense.id))).id).toBe(f.expense.id);expect((await f.listExpenses(actor)).some(row=>row.id===f.expense.id)).toBe(true);await expect(f.getExpense(actor,String(f.hidden.id))).rejects.toMatchObject({status:404});
  for(const [audience,path]of [['people','people-organization/people/directory'],['finance','finance/documents']]as const){const ordinary=f.productWorkspaceTarget(audience,f.companyId,'/holdings/rehearsal/'+path)!,current=await f.service.read(audience,ordinary).catch(()=>null);expect(current?.options.some(option=>option.assignmentId===f.roleAssignment.id)??false).toBe(false);}
  expect((await db.prepare('SELECT id,role,version,modules_json FROM assignments WHERE company_id=? ORDER BY id').bind(f.companyId).all()).results).toEqual(before);

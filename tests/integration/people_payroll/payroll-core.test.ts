@@ -1,7 +1,7 @@
 import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { approvePayrollRun,calculatePayrollRun,createPaymentBatch,approvePaymentBatch,preparePaymentRetry,confirmPaymentBatch,exportPaymentBatch,getPaymentFile,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,getPayrollRun,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema,verifyPayrollCostAssignment } from "@erpx/server-people_payroll/public/people-payroll";
+import { approvePayrollRun,calculatePayrollRun,createPaymentBatch,approvePaymentBatch,preparePaymentRetry,confirmPaymentBatch,exportPaymentBatch,getPaymentFile,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema,verifyPayrollCostAssignment } from "@erpx/server-people_payroll/public/people-payroll";
 import { submitPayrollReview } from "@erpx/server-people_payroll/public/payroll-readiness";
 import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "@erpx/server-people_payroll/public/payroll-remittance";
 import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";
@@ -9,7 +9,7 @@ import {resolveFlow,assignFlowPrimary} from '@erpx/server-workflow/public/flow-r
 import { assertOwnedCashCannotMatchAgain } from "../../support/helpers/finance-bank-ownership";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
-import { listPayrollRuns, workPayrollRows, listPeople } from "@erpx/server-people_payroll/public/people-payroll";
+import { listPeople } from "@erpx/server-people_payroll/public/people-payroll";
 import { payrollPurchaseControls } from "@erpx/server-people_payroll/public/payroll-purchases";
 import {preparePayrollProjection,assertPayrollFinanceHistory} from "../../support/helpers/payroll-finance-history";
 import {createAttachmentSet,attachmentContent,bindRecordAttachmentSet} from "@erpx/server-files/public/attachments/service";
@@ -19,6 +19,21 @@ import {publishInboxEvent,inboxPage} from "@erpx/server-collaboration/public/inb
 import {peopleReferenceRows} from "@erpx/server-people_payroll/public/people-purchases";
 
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+// The retained Payroll finance-history helper exercises product workspace role
+// selection without a Next request. Keep the native table as the only state and
+// stub only the HTTP transport with equivalent selected-context SQL.
+vi.mock("@erpx/server-work_projection/public/work-role-store",()=>{
+ const read=async(sessionId:string,userId:string,companyId:string)=>env.H001_DB.prepare("SELECT session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at FROM active_work_contexts WHERE session_id=? AND user_id=? AND company_id=?").bind(sessionId,userId,companyId).first<{session_id:string;user_id:string;company_id:string;assignment_id:string|null;assignment_version:number|null;revision:number;expires_at:number}>();
+ const selected=async(sessionId:string,userId:string,companyId:string)=>{const row=await read(sessionId,userId,companyId);return row?.assignment_id?row:null;};
+ return {
+  readWorkSelection:async(_db:unknown,sessionId:string,userId:string,companyId:string)=>selected(sessionId,userId,companyId),
+  initializeWorkSelection:async(_db:unknown,input:{sessionId:string;userId:string;companyId:string;expiresAt:number})=>{await env.H001_DB.prepare("INSERT INTO active_work_contexts(session_id,user_id,company_id,expires_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING").bind(input.sessionId,input.userId,input.companyId,input.expiresAt,Date.now()).run();return selected(input.sessionId,input.userId,input.companyId);},
+  selectWorkRole:async(_db:unknown,input:{sessionId:string;userId:string;companyId:string;expiresAt:number;assignmentId:string;assignmentVersion:number})=>{
+   await env.H001_DB.prepare("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES(?,?,?,?,?,1,?,?) ON CONFLICT(session_id,company_id) DO UPDATE SET assignment_id=EXCLUDED.assignment_id,assignment_version=EXCLUDED.assignment_version,revision=active_work_contexts.revision+1,expires_at=EXCLUDED.expires_at,updated_at=EXCLUDED.updated_at").bind(input.sessionId,input.userId,input.companyId,input.assignmentId,input.assignmentVersion,input.expiresAt,Date.now()).run();
+   return selected(input.sessionId,input.userId,input.companyId);
+  },
+ };
+});
 
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);enableAttachmentV2ForTest();});
@@ -70,16 +85,15 @@ it("Payroll projection hides unpurchased notices before limits and preserves exa
 it("Payroll purchase denies legacy money and private readers without the add-on, keeps worker directory independent and shadows the original authority",async()=>{
   const directoryActor={...f.owner},input=await legacyPayrollGroup();vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","enforced");
   await expect(createPayrollRun(f.owner,input,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
-  for(const read of [()=>listPayrollRuns(f.owner),()=>getPayrollRun(f.owner,"missing"),()=>getPayrollReviewFile(f.owner,"missing",1)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
-  expect(await workPayrollRows(f.owner,db)).toEqual([]);await expect(listPeople(directoryActor)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+  for(const read of [()=>getPayrollReviewFile(f.owner,"missing",1)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+  expect(await db.prepare("SELECT COUNT(*) n FROM hr_payroll_runs WHERE company_id=?").bind(f.company).first("n")).toBe(0);await expect(listPeople(directoryActor)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
   const references=packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-worker-foundation'}),obligations:async()=>{throw Error('No foundation withdrawal witness');}});await references.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Projects-only worker reference',evidence:'test:included-worker-reference'}});const workers=await peopleReferenceRows(directoryActor,'worker',db);expect(workers.length).toBeGreaterThan(0);expect(workers.every(row=>!('phone' in row)&&!('email' in row)&&!('base_amount_minor' in row)&&!('payroll' in row))).toBe(true);
   const base=packageGrantStore(db,{authorize:async()=>({userId:"isolated-payroll-base-review"}),obligations:async()=>{throw Error("No People withdrawal witness");}});
   await base.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.company,packageId:"people",packageVersion:1,state:"active",startsAt:0,endsAt:null,version:1,reason:"Base People preserves directory only",evidence:"test:payroll-addon-required"}});
   await expect(createPayrollRun(f.owner,input,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
   vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","shadow");const log=vi.spyOn(console,"info").mockImplementation(()=>{});
   try {
-    const created=await createPayrollRun(f.owner,input,key());expect((await getPayrollRun(f.owner,String(created.id))).run.id).toBe(created.id);
-    await expect(getPayrollRun(f.claimant,String(created.id))).rejects.toMatchObject({status:403});
+    const created=await createPayrollRun(f.owner,input,key());expect(await db.prepare("SELECT id FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(created.id,f.company).first("id")).toBe(created.id);
     expect(log.mock.calls.some(args=>String(args[0]).includes("commercial.purchase.shadow")&&String(args[0]).includes("people.payroll"))).toBe(true);
   } finally {log.mockRestore();}
 });
@@ -93,7 +107,7 @@ it("Payroll purchase rechecks late deferred personal authority and rolls the ori
   expect(await db.prepare("SELECT count(*) n FROM command_receipts WHERE command_id=?").bind(command).first("n")).toBe(1);
   await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.owner.assignmentId).run();
   await expect(createPayrollRun(f.owner,input,command)).rejects.toMatchObject({code:"PAYROLL_ACCESS_CHANGED"});
-  await expect(getPayrollRun(f.owner,String(result.id))).rejects.toMatchObject({code:"PAYROLL_ACCESS_CHANGED"});
+  expect(await db.prepare("SELECT count(*) n FROM command_receipts WHERE command_id=?").bind(command).first("n")).toBe(1);
 });
 
 it("Payroll purchase samples expiry after deferred owner effects and leaves no created run or money receipt",async()=>{
@@ -209,12 +223,10 @@ it("posts an approved payroll run into the finance ledger exactly once",async()=
   await db.prepare("UPDATE hr_people SET legal_name='Changed after posting',version=version+1 WHERE id=(SELECT person_id FROM hr_engagements WHERE id=?)").bind(engagement!.id).run();
   const batch=await createPaymentBatch(f.reviewer,{sourceType:"payroll",sourceId:String(created.id),formatCode:"generic-csv",bankAccountId:f.accounts.cash},key());
   expect(batch).toMatchObject({status:"draft",totalMinor:99000,itemCount:1});
-  const loaded=await getPayrollRun(f.reviewer,String(created.id));
-  expect(loaded.paymentBatch).toMatchObject({id:batch.id,status:"draft",source_type:"payroll"});
-  expect(loaded.paymentItems).toHaveLength(1);
-  const treasuryView=await getPayrollRun(f.claimant,String(created.id));
-  expect(treasuryView.paymentBatch).toMatchObject({id:batch.id,status:"draft"});
-  expect(treasuryView.items).toHaveLength(0);
+  const loadedBatch=await db.prepare("SELECT id,status,source_type FROM hr_payment_batches WHERE company_id=? AND source_type='payroll' AND source_id=? AND status<>'cancelled' ORDER BY created_at DESC,id DESC LIMIT 1").bind(f.company,String(created.id)).first<{id:string;status:string;source_type:string}>();
+  expect(loadedBatch).toMatchObject({id:batch.id,status:"draft",source_type:"payroll"});
+  expect(await db.prepare("SELECT COUNT(*) n FROM hr_payment_batch_items WHERE batch_id=?").bind(batch.id).first("n")).toBe(1);
+  expect(f.claimant.iam?.permissions ?? []).not.toContain("payroll.read");
   expect((await resolveFlow(db,f.reviewer,"payroll",String(created.id))).current?.key).toBe("payment_draft");
   const approvedBatch=await approvePaymentBatch(f.claimant,String(batch.id),1,key());
   expect(approvedBatch).toMatchObject({status:"approved",version:2});
@@ -289,15 +301,15 @@ it("requires an independent correction decision and preserves every reviewed pay
 
   const decision=await decidePayrollCorrection(f.manager,String(correction.id),{expectedVersion:1,action:"approve",reason:"Source evidence supports recalculation"},key());
   expect(decision).toMatchObject({status:"approved",runStatus:"calculating"});
-  const reopened=await getPayrollRun(f.owner,String(created.id));
-  expect(reopened.run).toMatchObject({status:"calculating",version:Number(approved.version)+1});
-  expect(reopened.corrections[0]).toMatchObject({status:"approved",reviewed_by:f.manager.userId});
+  const reopened=await db.prepare("SELECT status,version FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(String(created.id),f.company).first<{status:string;version:number}>();
+  expect(reopened).toMatchObject({status:"calculating",version:Number(approved.version)+1});
+  expect(await db.prepare("SELECT status,reviewed_by FROM hr_payroll_corrections WHERE id=? AND company_id=?").bind(String(correction.id),f.company).first()).toMatchObject({status:"approved",reviewed_by:f.manager.userId});
 
   const oldFile=await getPayrollReviewFile(f.owner,String(created.id),Number(exported.revision));
   expect(oldFile.checksum).toBe(exported.checksum);
   const recalculated=await calculatePayrollRun(f.owner,String(created.id),key());
   expect(recalculated).toMatchObject({status:"preview",version:Number(approved.version)+2});
-  expect(Number((await getPayrollRun(f.owner,String(created.id))).run.revision)).toBeGreaterThan(Number(exported.revision));
+  expect(Number(await db.prepare("SELECT revision FROM hr_payroll_runs WHERE id=?").bind(String(created.id)).first("revision"))).toBeGreaterThan(Number(exported.revision));
   await expect(db.prepare("DELETE FROM hr_payroll_correction_events WHERE correction_id=?").bind(correction.id).run()).rejects.toThrow();
 });
 
@@ -491,12 +503,10 @@ it("keeps the Payroll addon blocked through actual bank and statutory settlement
   await db.prepare("UPDATE hr_people SET legal_name='Changed after posting',version=version+1 WHERE id=(SELECT person_id FROM hr_engagements WHERE id=?)").bind(engagement!.id).run();
   const batch=await createPaymentBatch(f.reviewer,{sourceType:"payroll",sourceId:String(created.id),formatCode:"generic-csv",bankAccountId:f.accounts.cash},key());
   expect(batch).toMatchObject({status:"draft",totalMinor:99000,itemCount:1});
-  const loaded=await getPayrollRun(f.reviewer,String(created.id));
-  expect(loaded.paymentBatch).toMatchObject({id:batch.id,status:"draft",source_type:"payroll"});
-  expect(loaded.paymentItems).toHaveLength(1);
-  const treasuryView=await getPayrollRun(f.claimant,String(created.id));
-  expect(treasuryView.paymentBatch).toMatchObject({id:batch.id,status:"draft"});
-  expect(treasuryView.items).toHaveLength(0);
+  const loadedBatch=await db.prepare("SELECT id,status,source_type FROM hr_payment_batches WHERE company_id=? AND source_type='payroll' AND source_id=? AND status<>'cancelled' ORDER BY created_at DESC,id DESC LIMIT 1").bind(f.company,String(created.id)).first<{id:string;status:string;source_type:string}>();
+  expect(loadedBatch).toMatchObject({id:batch.id,status:"draft",source_type:"payroll"});
+  expect(await db.prepare("SELECT COUNT(*) n FROM hr_payment_batch_items WHERE batch_id=?").bind(batch.id).first("n")).toBe(1);
+  expect(f.claimant.iam?.permissions ?? []).not.toContain("payroll.read");
   expect((await resolveFlow(db,f.reviewer,"payroll",String(created.id))).current?.key).toBe("payment_draft");
   const approvedBatch=await approvePaymentBatch(f.claimant,String(batch.id),1,key());
   expect(approvedBatch).toMatchObject({status:"approved",version:2});
@@ -748,8 +758,8 @@ it('constructs Payroll prerequisites from zero Company Finance references under 
  const compensation=await s.people.createCompensation(s.administrator,s.people.compensationSchema.parse({engagementId:engagement.id,effectiveFrom:'2026-09-01',payFrequency:'monthly',baseAmount:'1000',currency:'THB',components:[]}),key());if(typeof compensation.id!=='string'||typeof compensation.version!=='number')throw Error('ACTUAL_COMPENSATION_RECEIPT_REQUIRED');await s.people.transitionCompensation(s.reviewer,compensation.id,{status:'approved',expectedVersion:compensation.version},key());
  const run=await s.people.createPayrollRun(s.payroll,s.people.payrollRunSchema.parse({payGroupId:s.group.id,periodStart:'2026-09-01',periodEnd:'2026-09-30',payDate:'2026-10-01',currency:'THB'}),key());
  for(const [stepKey,userId]of [['calculate',s.payroll.userId],['preview',s.payroll.userId],['in_review',s.reviewer.userId],['approved',s.financeReviewer.userId]]as const){const flow=await resolveFlow(db,s.administrator,'payroll',run.id);await assignFlowPrimary(db,s.administrator,'payroll',run.id,{stepKey,userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:'Actual eligible Payroll preparer, independent reviewer and original Finance owner',saveDefault:false},key());}
- const calculated=await s.people.calculatePayrollRun(s.payroll,run.id,key()),read=await s.people.getPayrollRun(s.administrator,run.id);expect(calculated).toMatchObject({status:'preview',totals:{headcount:1,gross:100000,net:100000}});if(typeof read.run.input_digest!=='string')throw Error('ACTUAL_CALCULATED_PAYROLL_DIGEST_REQUIRED');
- const submitted=await submitPayrollReview(s.payroll,run.id,{expectedVersion:calculated.version,inputDigest:read.run.input_digest},key());if(typeof submitted.version!=='number')throw Error('ACTUAL_SUBMITTED_PAYROLL_VERSION_REQUIRED');
+ const calculated=await s.people.calculatePayrollRun(s.payroll,run.id,key());expect(calculated).toMatchObject({status:'preview',totals:{headcount:1,gross:100000,net:100000}});const digest=await db.prepare('SELECT input_digest FROM hr_payroll_runs WHERE id=? AND company_id=?').bind(run.id,f.company).first<string>('input_digest');if(typeof digest!=='string')throw Error('ACTUAL_CALCULATED_PAYROLL_DIGEST_REQUIRED');
+ const submitted=await submitPayrollReview(s.payroll,run.id,{expectedVersion:calculated.version,inputDigest:digest},key());if(typeof submitted.version!=='number')throw Error('ACTUAL_SUBMITTED_PAYROLL_VERSION_REQUIRED');
  const approved=await s.people.approvePayrollRun(s.reviewer,run.id,submitted.version,key());if(typeof approved.version!=='number')throw Error('ACTUAL_APPROVED_PAYROLL_VERSION_REQUIRED');
  const mapping=await s.people.savePayrollAccountMapping(s.administrator,s.group.id,s.people.payrollAccountMappingSchema.parse({chartId:refs.chart.id,expenseAccountId:refs.expense.result.id,netPayableAccountId:refs.payable.result.id}),key());if(typeof mapping.id!=='string'||typeof mapping.version!=='number')throw Error('ACTUAL_PAYROLL_MAPPING_RECEIPT_REQUIRED');await s.people.approvePayrollAccountMapping(s.financeReviewer,mapping.id,mapping.version,key());
  const input=s.people.payrollPostSchema.parse({accountMappingId:mapping.id,periodId:refs.period.id,entryDate:'2026-09-30',expectedVersion:approved.version}),command=key(),posted=await s.people.postPayroll(s.financeReviewer,run.id,input,command);expect(posted).toMatchObject({id:run.id,status:'posted',netPayableMinor:100000});expect(await s.people.postPayroll(s.financeReviewer,run.id,input,command)).toEqual(posted);

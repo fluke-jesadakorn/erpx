@@ -1,4 +1,5 @@
-//! Owner-local HTTP ingress for native Payroll summaries and run lists.
+//! Owner-local HTTP ingress for native Payroll summaries, run lists and bounded
+//! Work payload rows.
 //!
 //! Transport facts only: registered Host/Holding target, optional pay month,
 //! bounded JSON and business-error mapping. Normal Account session resolution,
@@ -18,6 +19,8 @@ pub type PayrollReadHttpFuture<'a, T> =
 pub enum PayrollReadHttpKind {
     Summary { pay_month: Option<String> },
     Runs,
+    /// Bounded Work payload rows for the retained Workflow Work selector.
+    WorkRows,
 }
 
 pub struct PayrollReadHttpRequest<'a> {
@@ -172,6 +175,10 @@ pub fn people_payroll_router(targets: Vec<PayrollReadHttpTarget>) -> Result<Rout
             "/api/v1/holdings/{holding_slug}/people/payroll/runs",
             get(read_runs),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/people/payroll/work-rows",
+            get(read_work_rows),
+        )
         .with_state(Arc::new(PayrollReadHttpState {
             targets: configured,
         })))
@@ -263,6 +270,30 @@ async fn read_runs(
                 holding_slug: &target.holding_slug,
                 headers: request.headers(),
                 kind: PayrollReadHttpKind::Runs,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_work_rows(
+    State(state): State<Arc<PayrollReadHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        target
+            .backend
+            .read(PayrollReadHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: request.headers(),
+                kind: PayrollReadHttpKind::WorkRows,
             })
             .await
     }
@@ -409,6 +440,13 @@ mod tests {
         assert_eq!(body["error"]["code"], "PEOPLE_PAYROLL_REQUEST_INVALID");
         let (status, _) = http(addr, get("/api/v1/holdings/acme/people/payroll/runs")).await;
         assert_eq!(status, 200);
+        let (status, body) = http(
+            addr,
+            get("/api/v1/holdings/acme/people/payroll/work-rows"),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(body["data"], serde_json::json!([]));
         let (status, _) = http(addr, get("/api/v1/holdings/missing/people/payroll/summary")).await;
         assert_eq!(status, 404);
         let (status, body) = http(
@@ -428,6 +466,7 @@ mod tests {
                 .any(|value| value == "read:Summary { pay_month: Some(\"2026-10\") }")
         );
         assert!(seen.iter().any(|value| value == "read:Runs"));
+        assert!(seen.iter().any(|value| value == "read:WorkRows"));
         server.abort();
     }
 
