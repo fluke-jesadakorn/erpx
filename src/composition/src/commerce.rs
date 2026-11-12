@@ -12,6 +12,13 @@ use erpx_server_commerce::public::order::{
     fulfill_service_order, order_detail, save_order_outcome_native, transition_order_guarded,
 };
 use erpx_server_commerce::public::order_http::ServiceCompletionInput;
+use erpx_server_commerce::public::receipt::{
+    CommerceReceipt, PgCommerceReceipt, ReceiptCommand, receive_purchase_order,
+};
+use erpx_server_commerce::public::receipt_http::{
+    CommerceReceiptHttpBackend, CommerceReceiptHttpFuture, CommerceReceiptHttpRequest,
+    CommerceReceiptHttpResponse, CommerceReceiptHttpTarget,
+};
 use erpx_server_commerce::public::order_http::{
     CommerceOrderHttpBackend, CommerceOrderHttpCommand, CommerceOrderHttpFuture,
     CommerceOrderHttpRequest, CommerceOrderHttpResponse, CommerceOrderHttpTarget,
@@ -948,6 +955,69 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
             .await
     }
 
+    pub async fn receive_goods<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: ReceiptCommand,
+    ) -> Result<CommerceReceiptHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let companies = self.configuration.companies.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input, true),
+                Self::access(),
+                CommerceSources { money: true },
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let companies = companies.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || !companies
+                                .contains(&current.selection().workspace().company_id)
+                        {
+                            return Err(scope().into());
+                        }
+                        let actor = commerce_actor(current)?;
+                        let now = clock.now();
+                        let mut repository = PgCommerceReceipt;
+                        let mut stock = erpx_server_inventory::public::commerce_receipt::InventoryStockReceipt::production();
+                        let receipt = receive_purchase_order(
+                            &actor,
+                            &command,
+                            &mut repository,
+                            &mut stock,
+                            connection,
+                            now,
+                        )
+                        .await?;
+                        post_receipt_journal(connection, clock.as_ref(), current, &actor, &receipt, &command.date).await?;
+                        let data = receipt
+                            .to_result_json()
+                            .map_err(PgTransactionError::Business)
+                            .and_then(|json| {
+                                serde_json::from_str::<Value>(&json)
+                                    .map_err(|_| PgTransactionError::Business(unavailable()))
+                            })?;
+                        Ok(CommerceReceiptHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn save<Input>(
         &self,
@@ -1018,6 +1088,56 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
             )
             .await
     }
+}
+
+
+/// Post the Finance goods journal for a native purchase receipt on the same
+/// serializable unit. The journal identity is the deterministic fulfillment.
+async fn post_receipt_journal<C: Clock + Sync>(
+    connection: &mut PgConnection,
+    clock: &C,
+    current: &AuthorizedWorkContext,
+    actor: &CommerceOrderActor,
+    receipt: &CommerceReceipt,
+    date: &str,
+) -> Result<(), Error> {
+    let settings: Option<(String, String, String, String)> = sqlx::query_as(
+        "SELECT s.chart_id,s.inventory_account_id,s.clearing_account_id,c.base_currency \
+         FROM commerce_settings s JOIN finance_charts c ON c.id=s.chart_id \
+         AND c.company_id=s.company_id AND c.status='active' WHERE s.company_id=$1",
+    )
+    .bind(actor.company_id.as_str())
+    .fetch_optional(&mut *connection)
+    .await?;
+    let (chart_id, inventory_account_id, clearing_account_id, base_currency) =
+        settings.ok_or_else(|| PgTransactionError::Business(not_found()))?;
+    let assignment = current.selection().assignment();
+    let posting = erpx_server_finance::public::commerce_goods_journal::CommerceGoodsJournalPosting {
+        journal_id: format!("goods-receipt-{}", receipt.fulfillment_id),
+        actor: erpx_server_finance::public::FinanceActor {
+            user_id: current.user_id().clone(),
+            holding_id: current.holding_id().clone(),
+            company_id: actor.company_id.clone(),
+            assignment_id: assignment.id.clone(),
+        },
+        chart_id,
+        business_date: date.to_owned(),
+        fulfillment_id: receipt.fulfillment_id.clone(),
+        memo: "Purchase goods receipt".to_owned(),
+        inventory_account_id,
+        kind: erpx_server_finance::public::commerce_goods_journal::CommerceGoodsKind::Receipt {
+            clearing_account_id,
+        },
+        document_currency: base_currency.clone(),
+        document_subtotal_minor: receipt.total_value_minor,
+        stock_value_minor: receipt.total_value_minor,
+        fx_rate_micros: None,
+    };
+    erpx_server_finance::public::commerce_goods_journal::post_commerce_goods_journal(
+        connection, clock, &posting,
+    )
+    .await?;
+    Ok(())
 }
 
 pub struct CommerceBackend<C> {
@@ -1125,6 +1245,26 @@ impl<C: Clock + Send + Sync + 'static> CommerceOrderHttpBackend for CommerceBack
                     .await
                     .map_err(business),
             }
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> CommerceReceiptHttpBackend for CommerceBackend<C> {
+    fn receive<'a>(
+        &'a self,
+        request: CommerceReceiptHttpRequest<'a>,
+    ) -> CommerceReceiptHttpFuture<'a, CommerceReceiptHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .receive_goods(
+                    request.host,
+                    proof,
+                    move || selection?.resolve(),
+                    request.command,
+                )
+                .await
+                .map_err(business)
         })
     }
 }

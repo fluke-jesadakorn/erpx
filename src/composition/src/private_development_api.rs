@@ -2827,6 +2827,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut commerce_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut commerce_receipt_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut customer_360_targets = Vec::new();
         let mut customer_directory_targets = Vec::new();
         let mut customer_metric_targets = Vec::new();
@@ -2916,6 +2918,8 @@ async fn assemble_checked(
         let mut project_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut project_attachment_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut project_attachment_intake_targets = Vec::new();
         let mut project_attachment_read_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut project_structure_targets = Vec::new();
@@ -3716,8 +3720,14 @@ async fn assemble_checked(
                 #[cfg(feature = "existing-business")]
                 {
                     #[cfg(feature = "files-scan-worker")]
-                    let project_store = messaging_files_roots
+                    let project_root = messaging_files_roots
                         .get(&holding.registration.holding_id)
+                        .cloned();
+                    #[cfg(not(feature = "files-scan-worker"))]
+                    let project_root: Option<std::path::PathBuf> = None;
+                    #[cfg(feature = "files-scan-worker")]
+                    let project_store = project_root
+                        .as_ref()
                         .and_then(|root| {
                             erpx_server_files::public::canonical_original::LocalOriginalStore::open(
                                 root, 8,
@@ -3742,6 +3752,55 @@ async fn assemble_checked(
                             ),
                         },
                     );
+                    #[cfg(feature = "files-scan-worker")]
+                    let project_writer = project_root
+                        .as_ref()
+                        .and_then(|root| {
+                            erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter::open(
+                                root, 2,
+                            )
+                            .ok()
+                        })
+                        .map(Arc::new);
+                    #[cfg(not(feature = "files-scan-worker"))]
+                    let project_writer: Option<
+                        Arc<erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter>,
+                    > = None;
+                    #[cfg(feature = "files-scan-worker")]
+                    let project_availability =
+                        erpx_server_files::public::project_attachment_intake::ProjectAttachmentIntakeAvailability {
+                            uploads_frozen: config.field_files_policy.uploads_frozen,
+                            // The store root only exists when the reviewed Field
+                            // Files providers (ClamAV/preview) are configured. The
+                            // native scan receipt still gates bind and content.
+                            scanner_ready: project_root.is_some(),
+                            preview_ready: project_root.is_some(),
+                        };
+                    #[cfg(not(feature = "files-scan-worker"))]
+                    let project_availability =
+                        erpx_server_files::public::project_attachment_intake::ProjectAttachmentIntakeAvailability {
+                            uploads_frozen: true,
+                            scanner_ready: false,
+                            preview_ready: false,
+                        };
+                    if let Some(writer) = project_writer {
+                        project_attachment_intake_targets.push(
+                            erpx_server_projects::public::project_attachment_intake_http::ProjectAttachmentIntakeHttpTarget {
+                                host: holding.host.clone(),
+                                holding_slug: holding.registration.slug.clone(),
+                                origin: format!("https://{}", holding.host),
+                                backend: Arc::new(
+                                    crate::projects::ProjectAttachmentIntakeBackend::new(
+                                        config.policy.clone(),
+                                        Arc::new(FinanceJournalReadScopeHeaders),
+                                        projects_service.clone(),
+                                        Some(writer),
+                                        project_availability,
+                                    ),
+                                ),
+                            },
+                        );
+                    }
                 }
                 #[cfg(feature = "existing-business")]
                 {
@@ -5053,24 +5112,33 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
             );
             {
+                let commerce_backend = Arc::new(crate::commerce::CommerceBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::commerce::CommerceService::new(
+                        authorizer.clone(),
+                        crate::commerce::CommerceConfiguration::for_companies(
+                            holding.registration.holding_id.clone(),
+                            companies.iter().cloned().collect(),
+                        )
+                        .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
                 commerce_targets.push(
                     erpx_server_commerce::public::order_http::CommerceOrderHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::commerce::CommerceBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::commerce::CommerceService::new(
-                                authorizer.clone(),
-                                crate::commerce::CommerceConfiguration::for_companies(
-                                    holding.registration.holding_id.clone(),
-                                    companies.iter().cloned().collect(),
-                                )
-                                .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        backend: commerce_backend.clone(),
+                    },
+                );
+                commerce_receipt_targets.push(
+                    erpx_server_commerce::public::receipt_http::CommerceReceiptHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: commerce_backend,
                     },
                 );
             }
@@ -5087,6 +5155,21 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_commerce::public::order_http::commerce_order_http_router_with_origin_policy(
                     commerce_targets,
+                    origin_policy,
+                )
+                .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !commerce_receipt_targets.is_empty() {
+            let origin_policy = if config.environment == "development" {
+                erpx_server_commerce::public::receipt_http::CommerceOriginPolicy::NonProduction
+            } else {
+                erpx_server_commerce::public::receipt_http::CommerceOriginPolicy::Production
+            };
+            router = router.merge(
+                erpx_server_commerce::public::receipt_http::commerce_receipt_http_router_with_origin_policy(
+                    commerce_receipt_targets,
                     origin_policy,
                 )
                 .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
@@ -5543,6 +5626,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_projects::public::project_attachment_http::project_attachment_router(
                     project_attachment_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !project_attachment_intake_targets.is_empty() {
+            router = router.merge(
+                erpx_server_projects::public::project_attachment_intake_http::project_attachment_intake_router(
+                    project_attachment_intake_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
             );
