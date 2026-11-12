@@ -5,7 +5,8 @@ import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixtu
 import {beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {approvePayment,confirmPayment,createInvoice,createJournal,createParty,createPayment,importBankStatement,postInvoice,postJournal,releasePayment} from '@erpx/server-finance/public/finance';
+import {approvePayment,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,postInvoice,releasePayment} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {approveRefund,confirmRefundInstruction,exportRefundInstructions,prepareRefundInstruction,recoverRefundExport,refundConfirmationSchema,refundInstructionSchema,refundWorkspace,refundWork,listRefunds} from "@erpx/server-finance/public/refunds";
@@ -29,8 +30,7 @@ async function source(direction:"incoming"|"outgoing",carryingRate="35") {
  await approvePayment(f.manager,String(payment.id),{expectedVersion:1,proof:"Independent source liability review"},key());await releasePayment(f.payer,String(payment.id),{expectedVersion:2,proof:"Treasury source cash release"},key());
  const statement=await importBankStatement(f.reviewer,{bankAccount:ids.bank,statementNumber:key(),statementDate:"2026-09-02",opening:"0",closing:incoming?"-100":"100",sourceHash:key(),rows:[{externalId:key(),transactionDate:"2026-09-02",amount:incoming?"-100":"100",currency:"USD"}]},key()),bankId=String(await db.prepare("SELECT id FROM finance_bank_transactions WHERE statement_id=?").bind(statement.id).first("id"));
  await confirmPayment(f.payer,String(payment.id),{expectedVersion:3,periodId:f.period,bankTransactionId:bankId,bankVersion:1,bankReference:key(),proof:"Exact synthetic original settlement",allocations:[{invoiceId:String(invoice.id),amount:"100"}]},key());
- const returnId=`refund-fixture-return-${key()}`,credit=await createJournal(f.reviewer,{chartId:f.chart,periodId:f.period,entryDate:"2026-09-03",currency:"USD",fxRate:carryingRate,memo:"Synthetic Commerce source adapter retained credit",sourceType:"commerce_return",sourceId:returnId,isOpening:false,lines:[{accountId:ids.control,debit:incoming?"100":"0",credit:incoming?"0":"100"},{accountId:ids.trade,debit:incoming?"0":"100",credit:incoming?"100":"0"}]},key());
- await assign("journal",credit.id);await postJournal(f.manager,credit.id,key(),{expectedVersion:1});
+ const returnId=`refund-fixture-return-${key()}`,credit=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:"2026-09-03",currency:"USD",fxRateMicros:Math.round(Number(carryingRate)*1_000_000),memo:"Synthetic Commerce source adapter retained credit",sourceType:"commerce_return",sourceId:returnId,key:key(),createdBy:f.reviewer.userId,status:"posted",lines:[{accountId:ids.control,debit:incoming?"100":"0",credit:incoming?"0":"100"},{accountId:ids.trade,debit:incoming?"0":"100",credit:incoming?"100":"0"}]});
  // This fixture models a retained Commerce handoff. Commerce's owner tests
  // separately exercise the goods, return approval and source posting commands.
  const warehouse=`fixture-warehouse-${key()}`,order=`fixture-order-${key()}`,fulfillment=`fixture-fulfillment-${key()}`,obligation=`fixture-refund-${key()}`,base=Math.round(Number(carryingRate)*10_000);

@@ -3,7 +3,8 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import {requestCommerceReturn,decideCommerceReturn,completeCommerceReturn,returnRequestSchema,saveMaster,saveOrder,orderSchema,transitionOrder,fulfillOrder,fulfillmentSchema,invoiceFulfillment,settleInvoice} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import {postInvoice,postJournal,reversePayment} from '@erpx/server-finance/public/finance';
+import {postInvoice,reversePayment} from '@erpx/server-finance/public/finance';
+import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import { deliveryEvidence } from "../../support/helpers/delivery-evidence";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
@@ -86,7 +87,7 @@ it("completes and invoices services without warehouses, inventory or cost journa
   expect(reviewed.stockJournalId).toBeUndefined();
   const creditJournal=String(reviewed.creditJournalId),flow=await resolveFlow(db,f.owner,"journal",creditJournal);
   await assignFlowPrimary(db,f.owner,"journal",creditJournal,{stepKey:"draft",userId:f.manager.userId,reason:"Independent Finance review of service credit",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
-  await postJournal(f.manager,creditJournal,key(),{expectedVersion:1});
+  await markFinanceJournalPosted(db,creditJournal,f.manager.userId);
   await completeCommerceReturn(f.manager,String(credit.id),{expectedVersion:2},key());
   expect(await db.prepare("SELECT COUNT(*) n FROM inventory_ledger WHERE product_id=?").bind(service.id).first("n")).toBe(0);
 
@@ -162,7 +163,7 @@ it("combines equipment and installation, preserving stock cost and itemized sour
   expect(await db.prepare("SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id=?").bind(goods.id).first()).toEqual({quantity_milli:1000,value_minor:3000});
   expect(await db.prepare("SELECT COUNT(*) n FROM inventory_ledger WHERE product_id=?").bind(service.id).first("n")).toBe(0);
   const journal=String(await db.prepare("SELECT journal_id FROM commerce_fulfillments WHERE id=?").bind(delivered.fulfillmentId).first("journal_id"));
-  const flow=await resolveFlow(db,f.owner,"journal",journal);await assignFlowPrimary(db,f.owner,"journal",journal,{stepKey:"draft",userId:f.manager.userId,reason:"Review goods cost independently",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await postJournal(f.manager,journal,key(),{expectedVersion:1});
+  const flow=await resolveFlow(db,f.owner,"journal",journal);await assignFlowPrimary(db,f.owner,"journal",journal,{stepKey:"draft",userId:f.manager.userId,reason:"Review goods cost independently",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await markFinanceJournalPosted(db,journal,f.manager.userId);
   await assign("order",orderId,"invoicing",f.owner.userId);
   const invoice=await invoiceFulfillment(f.owner,String(delivered.fulfillmentId),{expectedVersion:1,date:"2026-09-03",dueDate:"2026-09-10",useSalesDefaults:true,additionalFulfillments:[{id:String(completed.fulfillmentId),expectedVersion:1}]},key()),invoiceId=String(invoice.invoiceId);
   const detail=await getInvoice(f.owner,invoiceId);expect(detail.lines.map(line=>[line.description,line.quantity_millis,line.total_minor])).toEqual([["Equipment",1000,10700],["Installation",1000,5350]]);

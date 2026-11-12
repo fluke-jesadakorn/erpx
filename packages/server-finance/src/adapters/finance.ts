@@ -3,7 +3,6 @@ import{confirmedFunctionalFx,prepareJournal,journalPreparation,journalStatements
 import{decimalToMinor}from '@erpx/server-finance/public/money-primitives';
 import {resources,financeReadService}from '@erpx/server-finance/adapters/finance-invoice-read';
 import {withSupplierReversalMoney,prepareSupplierReversalMoney} from '@erpx/server-finance/adapters/supplier-payment-money';
-import {withJournalReversalMoneyUnit,prepareJournalReversalMoney} from '@erpx/server-finance/adapters/journal-reversal-money';
 import {expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,type ExpensePostingChartResult,type ExpensePostingAccountResult,type ExpensePostingPeriodResult} from '@erpx/server-finance/domain/expense-posting-prerequisites';
 import {withExpensePostingPrerequisiteCommand} from '@erpx/server-finance/adapters/expense-posting-prerequisites';
 import {payrollPostingChartSchema,payrollPostingAccountSchema,payrollPostingPeriodSchema,type PayrollPostingChartResult,type PayrollPostingAccountResult,type PayrollPostingPeriodResult} from '@erpx/server-finance/domain/payroll-posting-prerequisites';
@@ -39,7 +38,6 @@ import { createJournalBatch } from '@erpx/server-finance/application/journal-bat
 
 import { createJournalReview, type JournalPostPlan } from '@erpx/server-finance/application/journal-review';
 import { createAccountImport } from '@erpx/server-finance/application/account-import';
-import { createJournalService } from '@erpx/server-finance/application/opening';
 
 import { createFinanceConfiguration } from '@erpx/server-finance/application/configuration';
 import {withSalesPostingCommand} from '@erpx/server-finance/adapters/sales-posting-setup';
@@ -139,7 +137,6 @@ export async function createPeriod(actor: WorkContext, input: z.infer<typeof cre
 export async function createSupplyPostingPeriod(actor:WorkContext,raw:unknown,key:string){const request=supplyPostingPeriodSchema.parse(raw);return withSupplyPostingPrerequisiteCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
 export async function createSalesPostingPeriod(actor:WorkContext,raw:unknown,key:string){const request=salesPostingPeriodSchema.parse(raw);return withSalesPostingCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
 
-export async function createJournal(actor: WorkContext, input: z.infer<typeof createJournalSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.journal.create",purpose:"new-work"},tx=>journalCreateService(tx).createJournal(actor,input,id)); }
 export async function listJournals(actor: WorkContext, query: {
     periodId?: string;
     status?: string;
@@ -167,18 +164,7 @@ export async function reversePayment(actor: WorkContext, paymentId: string, inpu
  const original=()=>withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.reverse"},tx=>paymentService(tx).reversePayment(actor,paymentId,input,id),()=>withLegacyPaymentCommand(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.reverse",purpose:"settle-existing"},tx=>paymentService(tx).reversePayment(actor,paymentId,input,id)));
  return withSalesReceiptReversal(actor,paymentId,id,tx=>paymentService(tx).reversePayment(actor,paymentId,input,id),()=>withSupplierReversalMoney(actor,paymentId,input,id,database=>withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.reverse"},()=>paymentService(database).reversePayment(actor,paymentId,input,id),original,database),original));
 }
-export async function postJournal(actor: WorkContext, journalId: string, id: string, input: {
-    expectedVersion: number;
-}) {
- await requireLegacyFinanceJournal((await resources(actor)).write,actor,journalId);
- return withFinanceDocumentPost(actor,"journal",journalId,{key:id,operation:"finance.journal.post"},tx=>journalReviewService(tx).postJournal(actor,journalId,id,input));
-}
 export async function postJournalBatch(actor: WorkContext, input: z.input<typeof journalBatchSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.batch.post",purpose:"settle-existing"},tx=>journalBatchService(tx)(actor,input,id)); }
-export async function reverseJournal(actor: WorkContext, journalId: string, id: string, input: {
-    periodId: string;
-    entryDate: string;
-    memo?: string;
-}) { await requireLegacyFinanceJournal((await resources(actor)).write,actor,journalId); return withJournalReversalMoneyUnit(actor,journalId,id,input.periodId,database=>withFinancePurchasedCommand(actor,{key:id,operation:"finance.journal.reverse",purpose:"settle-existing"},()=>journalReviewService(database).reverseJournal(actor,journalId,id,input),database)); }
 export async function trialBalance(actor: WorkContext, periodId?: string, chartId?: string, dates: ReportDates = {}, options: {
     excludeYearClose?: boolean;
 } = {}) { return purchasedFinanceRead(actor,db=>financeReadService(db).trialBalance(actor,periodId,chartId,dates,options)); }
@@ -351,21 +337,6 @@ function configurationService(provided?: SqlDatabase,boundRequest?:unknown) {
         commitCreateRevenueObligation: async (facts) => { const { obligationId, input, actor, id, output } = facts; const write = await db(actor); const pendingStatements: SqlStatement[] = []; pendingStatements.push(write.prepare("INSERT INTO finance_revenue_obligations(id,contract_id,description,allocated_minor,recognition_method,start_date,end_date,revenue_account_id,deferred_account_id) VALUES(?,?,?,?,?,?,?,?,?)").bind(obligationId, input.contractId, input.description, decimalToMinor(input.allocated), input.recognitionMethod, input.startDate, input.endDate ?? null, input.revenueAccountId, input.deferredAccountId)); return saveCommand(write, actor, id, "finance.revenue-obligation.create", input, output, pendingStatements); } });
 }
 
-function journalCreateService(provided?: SqlDatabase) {
-    let pending: Promise<SqlDatabase> | undefined;
-    const db = (actor: WorkContext) => pending ??= financeOwnedDatabase(actor, provided);
-    return createJournalService({
-        error: (...args) => new ApiError(...args),
-        authorize: requirePermission,
-        ready: async (actor) => { await db(actor); },
-        replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input),
-        prepare: async (actor, input, key) => journalPreparation(await db(actor))(actor, input, key),
-        commitJournal: async ({ actor, input, id, journalId, plan }) => {
-            const write = await db(actor), { steps, result } = journalStatements(write, actor, input, id, 'draft', plan);
-            return executeCommand(write, actor, id, 'finance.journal.create', input, journalId, 1, result, steps);
-        },
-    });
-}
 function accountImportService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
     const db = (actor: WorkContext) => pending ??= financeOwnedDatabase(actor, provided);
@@ -412,21 +383,7 @@ function journalReviewService(provided?: SqlDatabase) {
             amount: number;
         }>(), openingAllocated: async (actor, journalId) => !!await (await db(actor)).prepare("SELECT 1 FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE i.company_id=? AND i.source_type='opening_import' AND i.source_id=?").bind(actor.companyId, journalId).first(), commitPost: async ({ actor, journalId, id, input, journal, plan }) => { const write = await db(actor); return executeCommand(write, actor, id, 'finance.journal.post', input, journalId, input.expectedVersion + 1, { id: journalId, status: 'posted', version: input.expectedVersion + 1 }, await journalPostStatements(write, actor, journal, id, input, plan)); }, sourceOpening: async (id) => !!await (await pending!).prepare("SELECT 1 FROM finance_journals WHERE id=? AND source_type='opening_import'").bind(id).first(), reversalRoot: async (actor, journalId) => (await db(actor)).prepare("WITH RECURSIVE lineage AS (SELECT id,source_type,source_id,0 depth FROM finance_journals WHERE id=? AND company_id=? UNION ALL SELECT p.id,p.source_type,p.source_id,l.depth+1 FROM finance_journals p JOIN lineage l ON p.id=l.source_id AND l.source_type='reversal' WHERE p.company_id=? AND l.depth<100) SELECT source_type FROM lineage ORDER BY depth DESC LIMIT 1").bind(journalId, actor.companyId, actor.companyId).first<{
             source_type: string;
-        }>(), commitReverse: async ({ actor, journalId, id, input, journal, now, opening }) => {
-            const write = await db(actor);
-            const reversal = `reversal-${id}`;
-            const money = await prepareJournalReversalMoney(write, actor, {journalId,reversalId:reversal,key:id,periodId:input.periodId,entryDate:input.entryDate,memo:input.memo ?? `Reversal of ${journal.journal_number}`,at:now});
-            return executeCommand(write, actor, id, "finance.journal.reverse", input, journalId, Number(journal.version) + 1, { reversalJournalId: reversal, reversedJournalId: journalId }, [
-                assertion(write, id, "source", "EXISTS(SELECT 1 FROM finance_journals WHERE id=? AND version=? AND status='posted')", [journalId, journal.version]),
-                ...(opening ? [assertion(write, id, "opening-unsettled", "NOT EXISTS(SELECT 1 FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE i.company_id=? AND i.source_type='opening_import' AND i.source_id=?)", [actor.companyId, journalId])] : []),
-                assertion(write, id, "period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)", [input.periodId, actor.companyId, input.entryDate, input.entryDate]),
-                write.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,chart_id,?,?,?,currency,fx_rate_micros,'reversal',id,?,'posted',?,?,?,?,? FROM finance_journals WHERE id=?").bind(reversal, input.periodId, `REV-${id}`, input.entryDate, input.memo ?? `Reversal of ${journal.journal_number}`, actor.userId, actor.userId, now, now, now, journalId),
-                write.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?||'-'||ordinal,?,account_id,description,credit_minor,debit_minor,base_credit_minor,base_debit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=?").bind(reversal, reversal, journalId),
-                write.prepare("UPDATE finance_journals SET status='reversed',version=version+1,reversed_by=?,reversed_at=?,updated_at=? WHERE id=?").bind(actor.userId, now, now, journalId),
-                money,
-                ...(opening ? [write.prepare("UPDATE finance_invoices SET status='voided',outstanding_minor=0,base_outstanding_minor=0,version=version+1,updated_at=? WHERE company_id=? AND source_type='opening_import' AND source_id=?").bind(now, actor.companyId, journalId)] : []),
-            ]);
-        } });
+        }>(), commitReverse: async () => { throw new ApiError(409, "REVERSE_AT_SOURCE", "Journal reversal is owned by the native Finance command."); } });
 }
 
 function journalBatchService(provided?: SqlDatabase) {

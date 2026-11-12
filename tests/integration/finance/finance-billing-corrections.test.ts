@@ -22,7 +22,7 @@ import {
   decideBillingCorrection,
 } from "@erpx/server-finance/public/finance-billing-corrections";
 import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
-import {postInvoice,trialBalance,createPayment,approvePayment,releasePayment,confirmPayment,importBankStatement,reverseJournal,reversePayment} from '@erpx/server-finance/public/finance';
+import {postInvoice,trialBalance,createPayment,approvePayment,releasePayment,confirmPayment,importBankStatement,reversePayment} from '@erpx/server-finance/public/finance';
 import {
   approveRefund,
   prepareRefundInstruction,
@@ -519,12 +519,6 @@ it("credits a partly paid bill, reverses its recognition, posts the replacement 
       key(),
     ),
   ).rejects.toMatchObject({ code: "RECOGNITION_BILL_CREDITED" });
-  await expect(
-    reverseJournal(f.manager, String(result.creditJournalId), key(), {
-      periodId: f.period,
-      entryDate: "2026-09-30",
-    }),
-  ).rejects.toMatchObject({ code: "REVERSE_AT_SOURCE" });
   expect(
     (await vatWorkspace(f.manager, { filingMonth: "2026-09" })).reconciliation,
   ).toMatchObject({ ready: false, missing: 2 });

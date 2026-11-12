@@ -16,8 +16,8 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {reverseJournal,createPeriod} from '@erpx/server-finance/public/finance';
-import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
+import {createPeriod} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal,seedFinanceJournalReversal} from '../../support/helpers/finance-journal-seed';
 import {
   prepareGroupReportEdition,
   groupReportEditionWorkspace,
@@ -1288,10 +1288,13 @@ it("includes reversed originals and exact inverses, guards period alignment, sta
     { accountId: f.accounts.cash, debit: "100", credit: "0" },
     { accountId: f.accounts.revenue, debit: "0", credit: "100" },
   ]);
-  await reverseJournal(f.manager, original, key(), {
+  await seedFinanceJournalReversal(db, {
+    journalId: original,
     periodId: `${f.period}-feb`,
     entryDate: "2026-02-05",
     memo: "Correct the original source",
+    key: key(),
+    reversedBy: f.manager.userId,
   });
   const input = await definition(),
     e = await prepareGroupReportEdition(f.owner, input, key()),

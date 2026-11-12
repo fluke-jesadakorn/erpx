@@ -111,32 +111,3 @@ function validateNew(unit:Unit,after:Image){
  const receipt=after.receipt;
  if(!receipt||receipt.operation!=='finance.journal.reverse'||receipt.actor_id!==unit.actor.userId||receipt.record_id!==unit.journalId||!isDeepStrictEqual(JSON.parse(String(receipt.result_json)),{reversalJournalId:id,reversedJournalId:unit.journalId}))throw changed();
 }
-/** Rare manual/opening reversals hold a complete short unit. The strong
- * package/receipt fences precede sources/advisories, including disabled legacy
- * commands. This serializes unrelated Commercial writers; no perf claim follows. */
-export async function withJournalReversalMoneyUnit<Result>(actor:WorkContext,journalId:string,key:string,periodId:string,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
- const owner=(await holdingResources(actor.holdingId)).write;if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'JOURNAL_REVERSAL_TRANSACTION_REQUIRED','Finance reversal requires its original Holding transaction.');
- const mode=await financePackageEnforcementMode();
- try{return await owner.transaction(async database=>{
-  await lockPackageSettlementSources(database);
-  // Legacy disabled commands can lock their selected Work row BEFORE receipt.
-  // Exclude that RowShare phase before taking receipt SRE, without an early
-  // SELECT/snapshot or any change to generic Workflow/legacy command policy.
-  await database.prepare('LOCK TABLE active_work_contexts IN EXCLUSIVE MODE').run();
-  await database.prepare('LOCK TABLE command_receipts,finance_journals,finance_journal_lines,money_transaction_snapshots,finance_invoices,finance_allocations IN SHARE ROW EXCLUSIVE MODE').run();
-  await database.prepare('LOCK TABLE finance_periods IN SHARE MODE').run();
-  await lockQueuedCommandAuthority(database);
-  const current=await authority(database,actor),before=await image(database,actor,journalId,key,periodId),unit:Unit={actor,actorImage:JSON.stringify(actor),journalId,key,before};units.set(database,unit);
-  try{
-   const result=await run(database),after=await image(database,actor,journalId,key,periodId);
-   if(unit.plan)validateNew(unit,after);else if(!isDeepStrictEqual(before,after))throw changed();
-   // Original command + purchase-boundary assertion cleanup is complete. Flush
-   // all deferred work before the final READS, with no subsequent owner writes.
-   await flushFinanceDeferredEffects(database);
-   if(unit.actorImage!==JSON.stringify(actor)||!isDeepStrictEqual(after,await image(database,actor,journalId,key,periodId)))throw changed();
-   const final=await authority(database,actor);if(!isDeepStrictEqual(current,final))throw new ApiError(403,'FINANCE_ACCESS_CHANGED','The original Finance assignment or Work context changed.');
-   await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'finance.accounting',purpose:before.receipt?'history':'settle-existing'});
-   return result;
-  }finally{units.delete(database);}
- });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
-}

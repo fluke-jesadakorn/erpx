@@ -23,7 +23,6 @@
     "./adapters/finance-transactions": "./src/adapters/finance-transactions.ts",
     "./adapters/pms-hospitality-setup-facts": "./src/adapters/pms-hospitality-setup-facts.ts",
     "./adapters/inventory-consumption-sources": "./src/adapters/inventory-consumption-sources.ts",
-    "./adapters/journal-reversal-money": "./src/adapters/journal-reversal-money.ts",
     "./adapters/finance-planning": "./src/adapters/finance-planning.ts",
     "./adapters/assets-posting-prerequisites": "./src/adapters/assets-posting-prerequisites.ts",
     "./adapters/pms-command-facts": "./src/adapters/pms-command-facts.ts",

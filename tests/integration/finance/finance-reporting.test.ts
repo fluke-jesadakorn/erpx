@@ -8,7 +8,8 @@ import {mkdir,writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createAccount,createJournal,createJournalSchema,createPeriod,createParty,createInvoice,invoiceSchema,partySchema,postInvoice,calculateCloseReconciliations,postJournalBatch,statements,trialBalance} from '@erpx/server-finance/public/finance';
+import {createAccount,createPeriod,createParty,createInvoice,invoiceSchema,partySchema,postInvoice,calculateCloseReconciliations,postJournalBatch,statements,trialBalance} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-finance/public/accounting-profiles";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {decideStatementPackage,decideYearClosing,prepareStatementPackage,prepareYearClosing,reportingWorkspace,statementPackageDetail,statementPackageExport,statementSourceAccounts} from "@erpx/server-finance/public/finance-reporting";
@@ -28,7 +29,7 @@ beforeEach(async()=>{
  const profile=await prepareAccountingProfile(f.reviewer,{statutoryChartId:f.chart,standard:"TFRS for NPAEs",fiscalStartMonth:1,effectiveDate:"2025-01-01",eligibilityEvidence:"Independent review confirms this synthetic Company satisfies the NPAEs eligibility criteria.",policyEvidence:"Approved accrual, historical cost, moving-average inventory, straight-line depreciation and current tax policies.",taxBasis:"current_tax",inventoryPolicy:"moving_average",depreciationPolicy:"straight_line"},key());
  await decideAccountingProfile(f.manager,profile.id,"approve",{expectedVersion:1,reason:"Reviewed statutory ledger selection, eligibility and Company accounting policy evidence."},key());
 });
-async function post(periodId:string,date:string,debitAccount:string,creditAccount:string,value:string){const prepared=await createJournal(f.reviewer,createJournalSchema.parse({chartId:f.chart,periodId,entryDate:date,currency:"THB",memo:"Reviewed synthetic financial reporting source transaction",lines:[{accountId:debitAccount,debit:value,credit:"0"},{accountId:creditAccount,debit:"0",credit:value}]}),key()),flow=await resolveFlow(db,f.owner,"journal",prepared.id);
+async function post(periodId:string,date:string,debitAccount:string,creditAccount:string,value:string){const prepared=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId,entryDate:date,currency:"THB",memo:"Reviewed synthetic financial reporting source transaction",key:key(),createdBy:f.reviewer.userId,lines:[{accountId:debitAccount,debit:value,credit:"0"},{accountId:creditAccount,debit:"0",credit:value}]}),flow=await resolveFlow(db,f.owner,"journal",prepared.id);
  await assignFlowPrimary(db,f.owner,"journal",prepared.id,{stepKey:"draft",userId:f.manager.userId,reason:"Independent Finance reviewer for source transaction",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
  await postJournalBatch(f.manager,{journals:[{id:prepared.id,expectedVersion:1}],reason:"Checked actual source transaction and the balanced functional-currency journal."},key());return prepared.id;}
 async function close(periodId:string){
@@ -88,7 +89,6 @@ describe("NPAEs statement and fiscal closing lifecycle",()=>{
  });
 
  it("rejects stale reporting sources and preserves rejected or cancelled immutable drafts",async()=>{
-  const forged=key();await expect(createJournal(f.reviewer,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-12-31",currency:"THB",memo:"Forged fiscal close owner source",sourceType:"fiscal_close",lines:[{accountId:f.accounts.revenue,debit:"20",credit:"0"},{accountId:retained,debit:"0",credit:"20"}]}),forged)).rejects.toMatchObject({code:"FISCAL_CLOSING_OWNER_REQUIRED"});expect(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE id=?").bind(`journal-${forged}`).first("n")).toBe(0);
   await post(f.period,"2026-05-01",f.accounts.cash,f.accounts.revenue,"20");
   const prepared=await prepareStatementPackage(f.reviewer,input(),key());await post(f.period,"2026-05-02",f.accounts.expense,f.accounts.cash,"3");await expect(decideStatementPackage(f.manager,String(prepared.id),"issue",review,key())).rejects.toMatchObject({code:"REPORTING_SOURCE_CHANGED"});
   await expect(decideStatementPackage(f.manager,String(prepared.id),"cancel",{...review,expectedVersion:99},key())).rejects.toMatchObject({code:"VERSION_CONFLICT"});

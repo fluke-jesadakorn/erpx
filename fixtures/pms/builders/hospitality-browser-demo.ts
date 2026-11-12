@@ -255,12 +255,8 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   const openingEquityId=`${f.company}-hospitality-opening-equity`;
   await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'HOTEL-OPEN','Demo opening inventory equity','equity','THB',?,?)").bind(openingEquityId,f.chart,f.company,now,now).run();
   const openingValue=fixture.restaurant.openingStock.reduce((sum,item)=>sum+item.valueMinor,0);
-  const {createJournal,createJournalSchema,postJournal}=await import("@erpx/server-finance/public/finance");
-  const {resolveFlow,assignFlowPrimary}=await import("@erpx/server-workflow/public/flow-routing");
-  const opening=await createJournal(admin,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:date,currency:"THB",memo:"Fictional Riverside kitchen opening inventory",sourceType:"manual",isOpening:true,lines:[{accountId:pmsAccounts.inventory,debit:String(openingValue/100),credit:"0"},{accountId:openingEquityId,debit:"0",credit:String(openingValue/100)}]}),crypto.randomUUID());
-  const flow=await resolveFlow(db,admin,"journal",String(opening.id));
-  await assignFlowPrimary(db,admin,"journal",String(opening.id),{stepKey:"draft",userId:finance.userId,expectedVersion:flow.version,recordVersion:1,reason:"Independent review of fictional opening kitchen inventory",saveDefault:false},crypto.randomUUID());
-  await postJournal(finance,String(opening.id),crypto.randomUUID(),{expectedVersion:1});
+  const {seedFinanceJournal}=await import("../../../tests/support/helpers/finance-journal-seed");
+  const opening=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:date,currency:"THB",memo:"Fictional Riverside kitchen opening inventory",key:crypto.randomUUID(),createdBy:admin.userId,status:"posted",isOpening:true,lines:[{accountId:pmsAccounts.inventory,debit:String(openingValue/100),credit:"0"},{accountId:openingEquityId,debit:"0",credit:String(openingValue/100)}]});
   const pos=async(operation:string,details:unknown)=>posCommand(db,admin,operation,details,crypto.randomUUID());
   await pos("settings.save",{enabled:true,currency:"THB",timezone:"Asia/Bangkok",cashierDiscountBps:0,accounts:{chartId:f.chart,...posAccounts},expectedVersion:0});
   await posCommand(db,finance,"accounting.approve",{expectedVersion:1},crypto.randomUUID());

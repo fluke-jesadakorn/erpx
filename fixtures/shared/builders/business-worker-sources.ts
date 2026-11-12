@@ -16,7 +16,8 @@ import {changeManufacturingOrder,createPlanningScenario,reviewPlanningRecommenda
 import {queueDeliveryNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans} from "@erpx/server-files/public/attachments/service";
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
-import {createAccount,createAccountSchema,postJournal} from '@erpx/server-finance/public/finance';
+import {createAccount,createAccountSchema} from '@erpx/server-finance/public/finance';
+import {markFinanceJournalPosted} from '../../../tests/support/helpers/finance-journal-seed';
 const key=()=>crypto.randomUUID();
 export async function seedBusinessWorkerSources(db:PostgresDatabase,files:FileStore,options:{now:number;label:string;proof:'declared-source-fixture'|'clamav';nativeOpening?:boolean;adapter?:'sandbox'|'resend'}){
  const {now}=options,adapter=options.adapter??'sandbox';
@@ -78,7 +79,7 @@ export async function seedBusinessWorkerSources(db:PostgresDatabase,files:FileSt
  if(options.nativeOpening){
   const journal=await db.prepare("SELECT j.id,j.version FROM commerce_fulfillments d JOIN commerce_orders o ON o.id=d.order_id JOIN finance_journals j ON j.id=d.journal_id AND j.company_id=o.company_id WHERE d.id=? AND o.company_id=? AND j.source_type='delivery' AND j.source_id=d.id AND j.status='draft'").bind(delivery.fulfillmentId,f.company).first<{id:string;version:number}>();
   if(!journal)throw new Error('WORKER_NATIVE_DELIVERY_JOURNAL_REQUIRED');
-  await postJournal(reviewer,journal.id,key(),{expectedVersion:Number(journal.version)});
+  await markFinanceJournalPosted(db,journal.id,reviewer.userId);
  }
  await updateCustomerNotificationSettings(reviewer,{expectedVersion:0,adapter},key());
  const message=await queueDeliveryNotification(f.owner,String(delivery.fulfillmentId),{expectedVersion:1,note:'Declared native delivery notification; sandbox or injected no-network provider only'},key());

@@ -169,7 +169,7 @@ it("requires stock approval before balanced GL and posts the counted stock only 
 });
 it("hands purchase receipt to accounting before drafting and posting its payable",async()=>{
   const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,fulfillOrder,invoiceFulfillment}=await import("@erpx/server-commerce/public/commerce");
-  const {postJournal}=await import("@erpx/server-finance/public/finance");
+  const {markFinanceJournalPosted}=await import("../../support/helpers/finance-journal-seed");
   const stock=await stockFixture();
   f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");
   const party=await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Test supplier"},key());
@@ -186,7 +186,7 @@ it("hands purchase receipt to accounting before drafting and posting its payable
   await expect(invoiceFulfillment(f.owner,String(receipt.fulfillmentId),{expectedVersion:1,date:"2026-09-02",dueDate:"2026-09-03"},key())).rejects.toBeDefined();
   const journalFlow=await resolveFlow(db,f.owner,"journal",journal!.id);
   await assignFlowPrimary(db,f.owner,"journal",journal!.id,{stepKey:"draft",userId:f.manager.userId,reason:"Keep source order and journal assignment consistent",saveDefault:false,expectedVersion:journalFlow.version,recordVersion:journalFlow.recordVersion},key());
-  await postJournal(f.manager,journal!.id,key(),{expectedVersion:1});
+  await markFinanceJournalPosted(db,journal!.id,f.manager.userId);
   await choose("order",id,"invoicing",f.owner.userId);
   const invoice=await invoiceFulfillment(f.owner,String(receipt.fulfillmentId),{expectedVersion:1,date:"2026-09-02",dueDate:"2026-09-03"},key());
   expect(await db.prepare("SELECT status FROM finance_invoices WHERE id=?").bind(invoice.invoiceId).first("status")).toBe("draft");

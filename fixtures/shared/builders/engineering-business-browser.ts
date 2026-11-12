@@ -6,7 +6,8 @@ import {moduleRegistry} from "@erpx/catalogue/module-registry";
 import type {seedExpenseCompany} from "../../expenses/company";
 import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
 import {seedProjectFor} from '../../../tests/integration/projects/project-actual-fixtures';
-import {createAccount,createAccountSchema,createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
+import {createAccount,createAccountSchema} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../../tests/support/helpers/finance-journal-seed';
 import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
@@ -55,10 +56,8 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
  await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) SELECT ?,?,?,'5400','Declared browser stock count variance','expense','THB',?,? WHERE NOT EXISTS(SELECT 1 FROM finance_accounts WHERE chart_id=? AND company_id=? AND code='5400')").bind(`${f.company}-browser-count-variance`,f.chart,f.company,now,now,f.chart,f.company).run();
  const profile=await createManufacturingAccountingProfile(source,{chartId:f.chart,inventoryAccountId:accounting.inventory,wipAccountId:accounting.wip,laborAccountId:accounting.labor,overheadAccountId:accounting.overhead,scrapAccountId:f.accounts.expense},key());
  await reviewManufacturingAccountingProfile(f.manager,String(profile.id),{action:'approve',expectedVersion:1,reason:'Independent Finance review of the synthetic browser production adapter.'},key());
- async function routedJournal(input:Parameters<typeof createJournalSchema.parse>[0]){
-  const journal=await createJournal(source,createJournalSchema.parse(input),key()),flow=await resolveFlow(db,source,'journal',journal.id);
-  await assignFlowPrimary(db,source,'journal',journal.id,{stepKey:'draft',userId:f.manager.userId,expectedVersion:flow.version,recordVersion:1,reason:'Independent browser Finance journal review.',saveDefault:false},key());
-  await postJournal(f.manager,journal.id,key(),{expectedVersion:1});return journal;
+ async function routedJournal(input:{chartId:string;periodId:string;entryDate:string;currency:string;sourceType?:string;memo?:string;lines:{accountId:string;debit:string;credit:string}[]}){
+  return seedFinanceJournal(db,{companyId:f.company,chartId:input.chartId,periodId:input.periodId,entryDate:input.entryDate,currency:input.currency,memo:input.memo,key:key(),createdBy:source.userId,status:'posted',sourceType:input.sourceType,lines:input.lines});
  }
  async function openingStock(warehouseId:string,productId:string,quantity:string,unitCost:string){
   const count=await saveCount(source,null,countSchema.parse({warehouseId,countDate:today,reason:'Declared fictional opening stock counted through the native controlled inventory command.',lines:[{productId,countedQuantity:quantity,unitCost}]}),key());

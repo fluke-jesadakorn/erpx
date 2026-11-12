@@ -21,6 +21,8 @@ export type SeedFinanceJournalInput = Readonly<{
   memo?: string;
   key: string;
   createdBy: string;
+  /** Independent reviewer for posted journals that enforce same-person checks. */
+  postedBy?: string;
   status?: 'draft' | 'posted';
   /** Retained source label for fixtures that prove owner-only source authority. */
   sourceType?: string;
@@ -75,7 +77,7 @@ export async function seedFinanceJournal(
         input.isOpening ? 1 : 0,
         status,
         input.createdBy,
-        status === 'posted' ? input.createdBy : null,
+        status === 'posted' ? (input.postedBy ?? input.createdBy) : null,
         status === 'posted' ? now : null,
         now,
         now,
@@ -115,6 +117,12 @@ export async function markFinanceJournalPosted(
   await db
     .prepare(
       "UPDATE finance_journals SET status='posted',version=version+1,posted_by=?,posted_at=?,updated_at=? WHERE id=? AND status IN ('draft','in_review')",
+    )
+    .bind(postedBy, now, now, journalId)
+    .run();
+  await db
+    .prepare(
+      "UPDATE finance_invoices SET status='posted',approved_by=?,posted_at=?,version=version+1,updated_at=? WHERE source_type='opening_import' AND source_id=? AND status='draft'",
     )
     .bind(postedBy, now, now, journalId)
     .run();

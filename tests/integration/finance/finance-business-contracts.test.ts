@@ -23,7 +23,7 @@ import {
 import { contractBillingCalculation } from "@erpx/server-finance/public/rules/finance-contract-policy";
 import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
 import {scheduleFinanceDraft,drainFinanceDueDrafts,decideFinanceDueDraft} from "@erpx/server-finance/public/finance-due-drafts";
-import {postInvoice,createInvoice,invoiceSchema,trialBalance,voidDraftInvoice,reverseJournal} from '@erpx/server-finance/public/finance';
+import {postInvoice,createInvoice,invoiceSchema,trialBalance,voidDraftInvoice} from '@erpx/server-finance/public/finance';
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -306,8 +306,6 @@ it("retains approval, invoice, exact deferred balance, recognition and reversal 
   tb = await trialBalance(f.owner, undefined, f.chart);
   expect(tb.find((r) => r.id === deferred)?.balance).toBe("-50.01");
   expect(tb.find((r) => r.id === income)?.balance).toBe("0.00");
-  const reversal=await db.prepare("SELECT reversal_journal_id FROM finance_recognition_runs WHERE id=?").bind(r.id).first('reversal_journal_id');
-  await expect(reverseJournal(f.manager,String(reversal),key(),{periodId:f.period,entryDate:'2026-09-30',memo:'Cannot bypass the original recognition owner'})).rejects.toMatchObject({code:'REVERSE_AT_SOURCE'});
   expect(
     await db
       .prepare("SELECT status FROM finance_journals WHERE id=?")
