@@ -2887,6 +2887,8 @@ async fn assemble_checked(
         let mut planning_targets = Vec::new();
         let mut planning_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut specification_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut marketing_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut marketing_lead_targets = Vec::new();
@@ -3247,6 +3249,14 @@ async fn assemble_checked(
                     origin: format!("https://{}", holding.host),
                     backend: manufacturing_backend.clone(),
                 });
+                specification_targets.push(
+                    erpx_server_manufacturing::public::specification::SpecificationHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: manufacturing_backend.clone(),
+                    },
+                );
                 let pms_backend = Arc::new(crate::pms::PmsBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
@@ -5291,6 +5301,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_manufacturing::public::bom_http::bom_router(bom_targets)
                     .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !specification_targets.is_empty() {
+            router = router.merge(
+                erpx_server_manufacturing::public::specification::specification_router(
+                    specification_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

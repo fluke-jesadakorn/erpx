@@ -6,11 +6,9 @@ import {
   changeManufacturingOrder,
   createPlanningScenario,
   cancelPlanningScenario,
-  createSpecification,
   productionDetail,
   productionWorkspace,
   reviewPlanningRecommendation,
-  reviewSpecification,
 } from "@erpx/server-manufacturing/public/production";
 import { createManufacturingAccountingProfile, reviewManufacturingAccountingProfile } from "@erpx/server-manufacturing/public/production-accounting";
 import { saveProductionResource, saveProductionResourceCalendar } from "@erpx/server-manufacturing/public/production-resources";
@@ -89,17 +87,30 @@ export async function POST(r: Request, c: C) {
         throw new ApiError(503, "NATIVE_PLANNING_UNAVAILABLE", "The native Planning service is unavailable.");
       return Response.json(canonicalDestinationLinks({ data: result }), { headers });
     }
+    const nativeSpecification = i.entity === "specification";
+    if (nativeSpecification) {
+      const path =
+        typeof i.id === "string"
+          ? `/manufacturing/specifications/${encodeURIComponent(i.id)}`
+          : "/manufacturing/specifications";
+      const result = await nativePlanningCommand(
+        r.headers,
+        (await import("@erpx/feature-manufacturing/public/native-planning-workspace-page")).nativePlanningPageContext(a),
+        a.holdingSlug,
+        path,
+        i,
+        key,
+      );
+      if (result === undefined)
+        throw new ApiError(503, "NATIVE_MANUFACTURING_UNAVAILABLE", "The native Manufacturing service is unavailable.");
+      return Response.json(canonicalDestinationLinks({ data: result }), { headers });
+    }
     if (i.entity === "accounting")
       data = typeof i.id === "string" ? await reviewManufacturingAccountingProfile(a, i.id, i, key) : await createManufacturingAccountingProfile(a, i, key);
     else if (i.entity === "resource")
       data = await saveProductionResource(a, typeof i.id === "string" ? i.id : null, i, key);
     else if (i.entity === "resource-calendar")
       data = await saveProductionResourceCalendar(a, i.id, i, key);
-    else if (i.entity === "specification")
-      data =
-        typeof i.id === "string"
-          ? await reviewSpecification(a, i.id, i, key)
-          : await createSpecification(a, i, key);
     else if (i.entity === "scenario")
       data = typeof i.id === "string" ? await cancelPlanningScenario(a, i.id, i, key) : await createPlanningScenario(a, i, key);
     else if (i.entity === "recommendation")

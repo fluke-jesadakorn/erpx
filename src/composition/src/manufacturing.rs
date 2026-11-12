@@ -33,12 +33,22 @@ use erpx_server_planning::public::scenario::{
 use erpx_server_planning::public::resources::{
     CalendarRequest, PgPlanningResources, ResourceRequest, save_calendar, save_resource,
 };
+use erpx_server_manufacturing::public::specification::{
+    CreateRequest as SpecificationCreateRequest, PgSpecificationCommands,
+    ReviewAction, ReviewRequest as SpecificationReviewRequest, SpecificationHttpBackend,
+    SpecificationHttpCommand, SpecificationHttpFuture, SpecificationHttpRequest,
+    SpecificationHttpResponse, create_specification, review_specification,
+};
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    PurchaseWitness, current_package_catalogue,
+};
 use erpx_server_planning::public::planning_http::{
     PlanningHttpBackend, PlanningHttpFuture, PlanningHttpRequest, PlanningHttpResponse,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -189,6 +199,15 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
             permission: "records.read".into(),
             module: Some("planning".into()),
             destination: "planning".into(),
+            api: true,
+        }
+    }
+
+    fn specification_access() -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: "records.write".into(),
+            module: Some("manufacturing".into()),
+            destination: "manufacturing".into(),
             api: true,
         }
     }
@@ -427,8 +446,256 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
             )
             .await
     }
+
+    pub async fn specification_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: SpecificationHttpCommand,
+    ) -> Result<SpecificationHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                Self::specification_access(),
+                ManufacturingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let actor = bom_actor(current)?;
+                        let key = match &command {
+                            SpecificationHttpCommand::Create { idempotency_key, .. }
+                            | SpecificationHttpCommand::Review { idempotency_key, .. } => {
+                                erpx_server_shared::public::CommandKey::new(idempotency_key.clone())
+                                    .map_err(PgTransactionError::Business)?
+                            }
+                        };
+                        let now = clock.now();
+                        let data = match command {
+                            SpecificationHttpCommand::Create { body, .. } => {
+                                let request: SpecificationCreateRequest = decode_specification(body)?;
+                                let record_id = format!("mfg-spec-{}", key.as_str());
+                                let witness = admit_specification(
+                                    connection,
+                                    &holding,
+                                    &company,
+                                    &actor,
+                                    &key,
+                                    erpx_server_manufacturing::public::specification::CREATE_OPERATION,
+                                    &record_id,
+                                    CapabilityPurpose::NewWork,
+                                    now,
+                                )
+                                .await?;
+                                let data = {
+                                    let mut repository = PgSpecificationCommands::new(&mut *connection);
+                                    create_specification(&mut repository, &actor, &key, request, now)
+                                        .await?
+                                };
+                                if let Some(witness) = &witness {
+                                    revalidate_specification(
+                                        connection, &holding, &company, witness, now,
+                                    )
+                                    .await?;
+                                }
+                                Ok::<Value, PgTransactionError<BusinessError>>(data)
+                            }
+                            SpecificationHttpCommand::Review {
+                                specification_id,
+                                body,
+                                ..
+                            } => {
+                                let request: SpecificationReviewRequest = decode_specification(body)?;
+                                let action = request.action;
+                                let purpose = match action {
+                                    ReviewAction::Approve => CapabilityPurpose::NewWork,
+                                    ReviewAction::Reject | ReviewAction::Retire => {
+                                        CapabilityPurpose::SettleExisting
+                                    }
+                                };
+                                let witness = admit_specification(
+                                    connection,
+                                    &holding,
+                                    &company,
+                                    &actor,
+                                    &key,
+                                    action.operation(),
+                                    &specification_id,
+                                    purpose,
+                                    now,
+                                )
+                                .await?;
+                                let data = {
+                                    let mut repository = PgSpecificationCommands::new(&mut *connection);
+                                    review_specification(
+                                        &mut repository,
+                                        &actor,
+                                        &key,
+                                        &specification_id,
+                                        request,
+                                        now,
+                                    )
+                                    .await?
+                                };
+                                if let Some(witness) = &witness {
+                                    revalidate_specification(
+                                        connection, &holding, &company, witness, now,
+                                    )
+                                    .await?;
+                                }
+                                Ok::<Value, PgTransactionError<BusinessError>>(data)
+                            }
+                        }?;
+                        Ok(SpecificationHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
+/// The retained route sends its `entity` discriminator and review `id`; the
+/// extracted native bodies reject unknown fields, so remove only those two
+/// transport selectors before the typed decode.
+fn decode_specification<T: serde::de::DeserializeOwned>(body: Value) -> Result<T, BusinessError> {
+    let Value::Object(mut object) = body else {
+        return Err(BusinessError::invalid(
+            "MANUFACTURING_REQUEST_INVALID",
+            "Use one unambiguous Manufacturing specification command.",
+        ));
+    };
+    object.remove("entity");
+    object.remove("id");
+    serde_json::from_value(Value::Object(object)).map_err(|_| {
+        BusinessError::invalid(
+            "MANUFACTURING_REQUEST_INVALID",
+            "Use one unambiguous Manufacturing specification command.",
+        )
+    })
+}
+
+/// `ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT` mirrors the retained development
+/// rollout switch. Invalid values fail closed; non-local environments may not
+/// enable enforcement.
+fn manufacturing_purchase_mode() -> Result<PackageEnforcementMode, BusinessError> {
+    let raw = std::env::var("ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT")
+        .unwrap_or_else(|_| "disabled".to_owned());
+    let mode = match raw.as_str() {
+        "disabled" => PackageEnforcementMode::Disabled,
+        "shadow" => PackageEnforcementMode::Shadow,
+        "enforced" => PackageEnforcementMode::Enforced,
+        _ => {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "PACKAGE_ENFORCEMENT_CONFIGURATION",
+                "Package enforcement is unavailable.",
+            ));
+        }
+    };
+    if mode != PackageEnforcementMode::Disabled
+        && std::env::var("ERPX_ENVIRONMENT").as_deref() != Ok("local")
+    {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "PACKAGE_ENFORCEMENT_ENVIRONMENT",
+            "Package enforcement is unavailable in this environment.",
+        ));
+    }
+    Ok(mode)
+}
+
+/// Inspect the current Company purchase before the owner effect. A replay is
+/// admitted under `history`, matching the retained command boundary.
+#[allow(clippy::too_many_arguments)]
+async fn admit_specification(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    actor: &BomActor,
+    key: &erpx_server_shared::public::CommandKey,
+    operation: &str,
+    record_id: &str,
+    purpose: CapabilityPurpose,
+    now: TimestampMillis,
+) -> Result<Option<PurchaseWitness>, Error> {
+    let mode = manufacturing_purchase_mode()?;
+    if mode == PackageEnforcementMode::Disabled {
+        return Ok(None);
+    }
+    let replayed: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM command_receipts WHERE command_id=$1 AND operation=$2 \
+         AND record_id=$3 AND actor_id=$4 AND authority_json::jsonb->>'companyId'=$5)",
+    )
+    .bind(key.as_str())
+    .bind(operation)
+    .bind(record_id)
+    .bind(&actor.user_id)
+    .bind(actor.company_id.as_str())
+    .fetch_one(&mut *connection)
+    .await?;
+    let purpose = if replayed {
+        CapabilityPurpose::History
+    } else {
+        purpose
+    };
+    let catalogue = current_package_catalogue()?;
+    let mut reader =
+        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, &catalogue);
+    let inspection = reader
+        .inspect(
+            &PurchaseRequest {
+                capabilities: vec!["manufacturing.bom".to_owned()],
+                purpose,
+                mode,
+            },
+            now,
+        )
+        .await?;
+    Ok(Some(inspection.require_allowed()?.clone()))
+}
+
+/// Revalidate the admission witness before the owner unit commits.
+async fn revalidate_specification(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    witness: &PurchaseWitness,
+    now: TimestampMillis,
+) -> Result<(), Error> {
+    let catalogue = current_package_catalogue()?;
+    let mut reader =
+        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, &catalogue);
+    reader.revalidate(witness, now).await?;
+    Ok(())
+}
 
 struct PlanningReleasePortImpl<'a> {
     connection: &'a mut PgConnection,
@@ -548,6 +815,26 @@ impl<C: Clock + Send + Sync + 'static> BomHttpBackend for ManufacturingBackend<C
             let (proof, selection) = self.context(request.headers)?;
             self.service
                 .bom(request.host, proof, move || Ok(selection))
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> SpecificationHttpBackend for ManufacturingBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: SpecificationHttpRequest<'a>,
+    ) -> SpecificationHttpFuture<'a, SpecificationHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .specification_command(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.command,
+                )
                 .await
                 .map_err(business)
         })
