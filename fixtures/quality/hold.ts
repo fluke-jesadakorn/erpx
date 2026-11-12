@@ -7,6 +7,7 @@
  * inside one serializable transaction under the frozen stock-then-Quality lock
  * order. It never mints a command receipt.
  */
+import {createHash} from 'node:crypto';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {prepareQualityNotification} from '@erpx/server-collaboration/public/quality-notifications';
@@ -23,6 +24,65 @@ export type QualityHoldSeed = {
 };
 
 export type QualityHoldSeedReceipt = {id:string;status:'held';version:1};
+
+export type QualityReleaseSeed = {
+  companyId: string;
+  holdId: string;
+  releasedBy: string;
+  inspectorId: string;
+  reason: string;
+  releasedAt?: number;
+};
+
+export type QualityReleaseSeedReceipt = {id: string; status: 'released'; version: number};
+
+/** Declared isolated Quality release source for cross-owner oracles.
+ *
+ * Independent release is owned by the native `quality.hold.release` command.
+ * This fixture writes the same hold source row that command commits — a passing
+ * inspection snapshot, the independent inspector, the releasing manager, the
+ * released status/version and the release receipt witness — without running the
+ * command or its other audit/outbox effects. Owner suites that only need the
+ * quarantine cleared use this instead of re-testing Quality.
+ */
+export async function seedNativeQualityRelease(
+  db: SqlDatabase,
+  input: QualityReleaseSeed,
+): Promise<QualityReleaseSeedReceipt> {
+  if (!isTransactionalSqlDatabase(db))
+    throw new Error('NATIVE_QUALITY_RELEASE_SEED_REQUIRES_TRANSACTION');
+  const now = input.releasedAt ?? Date.now();
+  return db.transaction(async tx => {
+    const hold = await tx.prepare(
+      "SELECT id,version,spec_id,spec_version FROM inventory_quality_holds \
+       WHERE id=? AND company_id=? AND status='held' FOR UPDATE",
+    ).bind(input.holdId, input.companyId).first<{id: string; version: number; spec_id: string | null; spec_version: number | null}>();
+    if (!hold) throw new Error('NATIVE_QUALITY_RELEASE_HOLD_NOT_FOUND');
+    const version = Number(hold.version);
+    await tx.prepare(
+      'INSERT INTO inventory_quality_inspections(id,hold_id,reviewed_version,result,evidence,inspected_by,created_at,spec_id,spec_version) VALUES(?,?,?,?,?,?,?,?,?)',
+    ).bind(`inspection-${input.holdId}`, input.holdId, version, 'pass', input.reason, input.inspectorId, now, hold.spec_id, hold.spec_version).run();
+    await tx.prepare(
+      "UPDATE inventory_quality_holds SET status='released',last_result='pass',last_inspector=?,released_by=?,release_reason=?,released_at=?,version=version+1,updated_at=? WHERE id=?",
+    ).bind(input.inspectorId, input.releasedBy, input.reason, now, now, input.holdId).run();
+    // Package-obligation reads require the independent release receipt that the
+    // native command commits. Seed the same receipt identity, actor, version and
+    // company witness instead of leaving the hold looking unreleased.
+    await tx.prepare(
+      'INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(command_id) DO NOTHING',
+    ).bind(
+      `quality-release-${input.holdId}`,
+      'quality.hold.release',
+      input.releasedBy,
+      createHash('sha256').update(`quality.hold.release\0${input.holdId}\0${version}\0${input.releasedBy}`).digest('hex'),
+      input.holdId,
+      JSON.stringify({id: input.holdId, status: 'released', version: version + 1}),
+      now,
+      JSON.stringify({companyId: input.companyId, branchId: null, departmentId: null}),
+    ).run();
+    return {id: input.holdId, status: 'released' as const, version: version + 1};
+  });
+}
 
 export async function seedNativeQualityHold(
   db:SqlDatabase,

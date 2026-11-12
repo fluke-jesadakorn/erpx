@@ -14,6 +14,7 @@ import { captureSupplierBill, decideSupplierBill } from "@erpx/server-procuremen
 import { approveRefund, confirmRefundInstruction, exportRefundInstructions, prepareRefundInstruction, recoverRefundExport, refundConfirmationSchema, refundInstructionSchema, refundWorkspace } from "@erpx/server-finance/public/refunds";
 import { invoiceHistoryCte } from "@erpx/server-finance/public/finance-history";
 import { enableAttachmentV2ForTest } from "../../support/helpers/attachment-v2";
+import { seedNativeQualityRelease } from "../../../fixtures/quality/hold";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let f: Awaited<ReturnType<typeof expenseFixture>>;
@@ -202,14 +203,11 @@ describe("native foreign Commerce goods carrying", () => {
     expect(await db.prepare("SELECT quantity_milli,value_minor FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?").bind(source.lotId, source.warehouseId).first()).toEqual({ quantity_milli: 2000, value_minor: 351235 });
     expect(await balance(ids.inventory)).toBe(351235);
     expect(await db.prepare("SELECT inventory_quarantined_quantity(?,?) n").bind(source.warehouseId, source.productId).first("n")).toBe(2000);
-    const { inspectQualityHold, releaseQualityHold } = await import("@erpx/server-quality/public/quality");
     f.it.role = "quality_manager"; f.it.branchId = null; f.it.departmentId = null; f.it.assignmentId = await f.grant(f.it, "quality_manager");
     const holds = (await db.prepare("SELECT h.id FROM inventory_quality_holds h JOIN commerce_return_lot_allocations a ON a.id=h.source_id JOIN commerce_return_lines l ON l.id=a.return_line_id WHERE l.return_id IN (?,?)").bind(first.id, last.id).all<{ id: string }>()).results;
     expect(holds).toHaveLength(2);
-    for (const { id } of holds) {
-      await inspectQualityHold(f.owner, id, { expectedVersion: 1, result: "pass", evidence: "Actual returned lot condition measured against the product", measurements: [], attachmentIds: [], attachmentSetIds: [] }, key());
-      await releaseQualityHold(f.it, id, { expectedVersion: 2, reason: "Independent Quality review accepts this retained original lot" }, key());
-    }
+    for (const { id } of holds)
+      await seedNativeQualityRelease(db, { companyId: f.company, holdId: id, releasedBy: f.it.userId, inspectorId: f.owner.userId, reason: "Independent Quality review accepts this retained original lot" });
     expect(await db.prepare("SELECT inventory_quarantined_quantity(?,?) n").bind(source.warehouseId, source.productId).first("n")).toBe(0);
     const a = await refund(String(first.refundId), "50"), b = await refund(String(last.refundId), "100");
     expect(a).toMatchObject({ baseCarryingMinor: 180000, cashBaseMinor: 190000, realizedFxMinor: -10000 });

@@ -1,13 +1,2 @@
-import {z} from 'zod';
-const reason=z.string().trim().min(3).max(2000),version=z.number().int().positive();
-const measuredValue=z.string().regex(/^-?\d{1,12}(\.\d{1,6})?$/);
-export const qualityInspectionSchema=z.object({expectedVersion:version,result:z.enum(['pass','fail']).optional(),evidence:reason,measurements:z.array(z.object({metricId:z.string().min(1),value:measuredValue})).max(100).default([]),attachmentIds:z.array(z.string().min(1)).max(10).default([]),attachmentSetIds:z.array(z.string().min(1)).max(10).default([])});
-export const qualityCancellationSchema=z.object({expectedVersion:version,action:z.enum(['request','approve','reject']),reason});
-export const qualityReleaseSchema=z.object({expectedVersion:version,reason});
-export const qualityDispositionSchema=z.object({expectedVersion:version,attachmentSetIds:z.array(z.string().min(1)).max(10).default([]),dispositionDate:z.iso.date(),quantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/),reason:z.string().trim().min(5).max(2000)});
 export type QualityRow=Record<string,string|number|null>;
-export type QualityInspectionInput=z.infer<typeof qualityInspectionSchema>;
-export type QualityCancellationInput=z.infer<typeof qualityCancellationSchema>;
-export type QualityReleaseInput=z.infer<typeof qualityReleaseSchema>;
-export type QualityDispositionInput=z.infer<typeof qualityDispositionSchema>;
 export type ReceiptQualityHold={id:string;key:string;branchId:string;warehouseId:string;productId:string;lotId?:string;quantityMilli:number;reason:string;dueDate:string;sourceId:string;sourceType?:'goods_receipt'|'customer_return'};

@@ -12,6 +12,7 @@ import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from "../../support/helpers/attachment-v2";
 import {withFinanceFlowAssignment} from "@erpx/server-finance/public/document-purchases";
 import {prepareCommerceProjection,assertCommerceFinanceHistory,postIncludedCommerceJournal} from "../../support/helpers/commerce-finance-history";
+import {seedNativeQualityRelease} from "../../../fixtures/quality/hold";
 
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
@@ -122,10 +123,8 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0,returnDate=
     expect(await db.prepare('SELECT inventory_quarantined_quantity(?,?) quantity').bind(warehouse.id,product.id).first('quantity')).toBe(2000);
     await expect(db.prepare('UPDATE commerce_return_lines SET condition_note=? WHERE return_id=?').bind('Rewrite condition',requested.id).run()).rejects.toThrow('RETURN_QUALITY_EVIDENCE_IMMUTABLE');
     const holdId=String(await db.prepare("SELECT id FROM inventory_quality_holds WHERE source_type='customer_return' AND source_id=?").bind(`${requested.id}-0`).first('id'));
-    const {inspectQualityHold,releaseQualityHold}=await import("@erpx/server-quality/public/quality");
-    await inspectQualityHold(f.owner,holdId,{expectedVersion:1,result:'pass',evidence:'Packaging and functional check passed after customer return',measurements:[],attachmentIds:[],attachmentSetIds:[]},key());
     f.tie.role='quality_manager';f.tie.assignmentId=await f.grant(f.tie,'quality_manager');
-    await releaseQualityHold(f.tie,holdId,{expectedVersion:2,reason:'Independent review confirms the returned units are resalable'},key());
+    await seedNativeQualityRelease(db,{companyId:f.company,holdId,releasedBy:f.tie.userId,inspectorId:f.owner.userId,reason:'Independent review confirms the returned units are resalable'});
     expect(await db.prepare('SELECT inventory_quarantined_quantity(?,?) quantity').bind(warehouse.id,product.id).first('quantity')).toBe(0);
     expect((await getOrder(f.owner,orderId)).returnQualityHolds[0]).toMatchObject({id:holdId,status:'released',condition_code:'unknown'});
     const {customerTimeline}=await import("@erpx/server-customer_360/public/customer-timeline");

@@ -1,4 +1,3 @@
-import { qualityInspectionSchema } from "@erpx/server-quality/public/quality";
 import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import { transferActionSchema } from "@erpx/server-inventory/public/inventory-transfers";
 import {returnRequestSchema} from '@erpx/server-commerce/public/commerce';
@@ -10,9 +9,9 @@ import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
+import {seedNativeQualityRelease} from "../../../fixtures/quality/hold";
 import {decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import {inspectQualityHold,releaseQualityHold} from "@erpx/server-quality/public/quality";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {saveTransfer,transitionTransfer,transferDetail,transferSchema} from "@erpx/server-inventory/public/inventory-transfers";
 import {decideTransitLoss,dispatchTransit,getTransit,receiveTransit,requestTransitLoss,transitDetail} from "@erpx/server-inventory/public/inventory-transit";
@@ -185,8 +184,7 @@ it('reconciles lot balances to stock, quarantines one receipt lot, and releases 
   const sale=await approved('sales',customer,product,'1'),saleId=String(sale.order.id),saleLine=String(sale.lines[0].id);
   const proof=await deliveryEvidence(db,f.owner,saleId);
   await expect(fulfillOrder(f.owner,saleId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:lotB!.id,quantity:'1'}]}],...proof}),key())).rejects.toMatchObject({code:'LOT_UNAVAILABLE'});
-  await inspectQualityHold(f.reviewer,String(hold!.id),qualityInspectionSchema.parse({expectedVersion:1,result:'pass',evidence:'Package and contents inspected against supplier label'}),key());
-  await releaseQualityHold(f.manager,String(hold!.id),{expectedVersion:2,reason:'Independent review confirms this lot is usable'},key());
+  await seedNativeQualityRelease(db,{companyId:f.company,holdId:String(hold!.id),releasedBy:f.manager.userId,inspectorId:f.reviewer.userId,reason:'Independent review confirms this lot is usable'});
   const delivery=await fulfillOrder(f.owner,saleId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:lotB!.id,quantity:'1'}]}],...proof}),key());
   expect((await getOrder(f.owner,saleId)).lotAllocations).toMatchObject([{lot_code:'LOT-B',quantity_milli:1000,disposition:'available'}]);
   expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:2000,value_minor:2000});
