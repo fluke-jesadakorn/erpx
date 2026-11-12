@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1271,
+    "revision": 1281,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-c",
+      "runId": "run-20261113-d",
       "agentId": "lead",
-      "startedAt": "2026-11-12T21:18:48.018Z",
-      "heartbeatAt": "2026-11-12T22:04:53.074Z",
-      "expiresAt": "2026-11-12T22:34:53.074Z",
-      "generation": 47,
-      "tokenHash": "91a1002fa2a1a47f0b2fca58abc16158516e2acc4bf018d2c5fa1d969162a3a1"
+      "startedAt": "2026-11-12T22:41:12.042Z",
+      "heartbeatAt": "2026-11-12T22:41:12.042Z",
+      "expiresAt": "2026-11-12T23:11:12.044Z",
+      "generation": 48,
+      "tokenHash": "1f7a17ee7d79358815534149ce7d1d4afecd911229561391f728efb856d55c1a"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -21819,23 +21819,60 @@
           "packages/server-pms/Cargo.toml",
           "packages/server-pms/package.json",
           "packages/feature-pms/**",
-          "fixtures/**",
           "tests/unit/pms/**",
           "tests/integration/pms/**"
         ],
         "resources": [
           "owner:pms"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "a993150cd2d4676f907d25c111ba4e21469ac998",
+        "lastPushedSha": "a993150cd2d4676f907d25c111ba4e21469ac998",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a993150cd2d4676f907d25c111ba4e21469ac998",
+            "before": 113,
+            "after": 109,
+            "note": "Four dead unit-port members (identical SQL to live neighbours, zero call sites) deleted: pms-booking 27 -> 24, pms-stripe 26 -> 25. Public booking/payment has no native counterpart, so the remaining 109 stay with live route/job callers."
+          },
+          {
+            "command": "cargo test -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "a993150cd2d4676f907d25c111ba4e21469ac998",
+            "note": "192/192 across 21 binaries with pinned Bun/Node oracle env."
+          },
+          {
+            "command": "bunx tsc -p packages/server-pms/tsconfig.json --noEmit && bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "a993150cd2d4676f907d25c111ba4e21469ac998"
+          },
+          {
+            "command": "vitest integration tests/integration/pms/pms-booking.test.ts",
+            "result": "passed",
+            "sourceSha": "a993150cd2d4676f907d25c111ba4e21469ac998",
+            "note": "55/55; PMS application 134/134, provider fixture 7/7, native transport 11/11."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a993150cd2d4676f907d25c111ba4e21469ac998"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/pms-booking.ts, then six-point retirement with the owner KPI pair.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead: scope a native public booking/payment/refund/email port before removing the 109 residual PMS writers.",
+        "handoff": {
+          "runId": "run-20261113-d",
+          "agentId": "worker-pms-retire",
+          "at": "2026-11-12T22:41:12.144Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead: scope a native public booking/payment/refund/email port before removing the 109 residual PMS writers."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -22531,23 +22568,23 @@
         "resources": [
           "owner:workflow"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-c",
-          "agentId": "worker-workflow-retire",
-          "claimedAt": "2026-11-12T21:38:26.941Z",
-          "heartbeatAt": "2026-11-12T22:04:53.074Z",
-          "expiresAt": "2026-11-12T22:34:53.074Z",
-          "generation": 47
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Classify adapters/approval-planning.ts writers against the native workflow crate and delete only members whose native command owns the table and whose TS caller is native-only or dead; move oracles and record the owner KPI pair.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead: dispatch the cross-owner approval callers to native commands; this packet then deletes approval-planning.ts (18) and its exports.",
+        "handoff": {
+          "runId": "run-20261113-c",
+          "agentId": "worker-workflow-retire",
+          "at": "2026-11-12T22:24:12.005Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Lead: dispatch the cross-owner approval callers to native commands; this packet then deletes approval-planning.ts (18) and its exports."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -29446,28 +29483,21 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-c",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T21:18:59.466Z",
-          "heartbeatAt": "2026-11-12T22:04:53.074Z",
-          "expiresAt": "2026-11-12T22:34:53.074Z",
-          "generation": 47
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
         "handoff": {
-          "runId": "run-20261113-b",
+          "runId": "run-20261113-c",
           "agentId": "lead",
-          "at": "2026-11-12T21:18:48.018Z",
+          "at": "2026-11-12T22:41:12.042Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
-          "nextAction": "Implement the collaboration-side native draft/publish/edit/report/upload commands with Rust unit+PG tests, then hand off the three caller switches (operations caller waits for its active claim to release)."
+          "reason": "Recovery: Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
+          "nextAction": "Native ModeratePost pushed at 21acc72db. Remaining blockers: (1) can_hide_posts wiring in src/composition/src/collaboration.rs is blocked by the active retire.customer_authority.remaining-writers claim on src/composition/src/** (removalTaskId recorded); (2) the last TS social-home write caller is operations publishHandover, now tracked as migrate.operations.handover-publish (needs a native handover command with task/PMS facts, recipients, sources and receipt). After both land, switch the last callers and delete the TS social-home writer/barrels with Collaboration KPI before/after."
         },
         "nextAction": "Native ModeratePost pushed at 21acc72db. Remaining blockers: (1) can_hide_posts wiring in src/composition/src/collaboration.rs is blocked by the active retire.customer_authority.remaining-writers claim on src/composition/src/** (removalTaskId recorded); (2) the last TS social-home write caller is operations publishHandover, now tracked as migrate.operations.handover-publish (needs a native handover command with task/PMS facts, recipients, sources and receipt). After both land, switch the last callers and delete the TS social-home writer/barrels with Collaboration KPI before/after.",
         "scopeRefinementRequired": false
@@ -29733,16 +29763,23 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 per-file native counterpart audit; start with portal-support/portal-access, each with native port, route switch, oracle move and KPI pair.",
-        "handoff": null,
+        "blocker": "Recovery: Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
+        "nextAction": "Step-0 audit 18 residual files, then retire the highest-confidence native-backed batch (portal-support/portal-access or identity), with route/client switches, TS deletion, oracle migration and KPI pair.",
+        "handoff": {
+          "runId": "run-20261113-c",
+          "agentId": "worker-ca-tail",
+          "at": "2026-11-12T22:41:12.042Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
+          "nextAction": "Step-0 audit 18 residual files, then retire the highest-confidence native-backed batch (portal-support/portal-access or identity), with route/client switches, TS deletion, oracle migration and KPI pair."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -29757,18 +29794,18 @@
       "totalPackets": 143,
       "migratedPackets": 74,
       "statusCounts": {
-        "pending": 27,
-        "in_progress": 5,
+        "pending": 25,
+        "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 74,
-        "blocked": 27,
+        "blocked": 31,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 47,
-    "updatedAt": "2026-11-12T22:20:48.875Z",
+    "lastCoordinatorGeneration": 48,
+    "updatedAt": "2026-11-12T22:41:12.144Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -29811,10 +29848,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-b",
-      "runId": "run-20261113-c",
-      "at": "2026-11-12T21:18:48.018Z",
-      "reason": "Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
+      "previousRunId": "run-20261113-c",
+      "runId": "run-20261113-d",
+      "at": "2026-11-12T22:41:12.044Z",
+      "reason": "Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
       "wipReviewed": true,
       "previousRunStopped": true
     }
