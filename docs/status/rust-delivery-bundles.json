@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 769,
+    "revision": 771,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17897,8 +17897,15 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-l",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T08:48:47.224Z",
+          "heartbeatAt": "2026-11-12T08:48:47.224Z",
+          "expiresAt": "2026-11-12T09:18:47.224Z",
+          "generation": 37
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -17955,11 +17962,55 @@
             "sourceSha": "56dfd9372feea5587fe6d14e4e5646d330f8c4ca",
             "sourceKind": "committed",
             "note": "TEST_CATALOGUE_VALID: 1178 suites; project actual/milestone oracles now seed SQL directly."
+          },
+          {
+            "command": "retirement:ts-writes packages/server-projects project structure command",
+            "result": "passed",
+            "before": 15,
+            "after": 8,
+            "sourceSha": "35e816d067ac4e770273b837aecaf00f5f37723b",
+            "sourceKind": "committed",
+            "note": "Deleted the TS projectStructureCommand + command-only application/repository and the collaboration project-structure-sources writers; POST /projects/{id}/structure is native-only via native-project-structure.ts. Residual 8: staff-projects 4 (saveProject create/edit has no native port), purchases 2 / task-purchases 1 / scheduled-tasks 1 (command_assertions guard cleanup inside still-used Operations purchase helpers)."
+          },
+          {
+            "command": "cargo check -p erpx-server-projects -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "35e816d067ac4e770273b837aecaf00f5f37723b",
+            "sourceKind": "committed",
+            "note": "Native structure route remains the authority."
+          },
+          {
+            "command": "bun run test:unit -- --suite=projects.rust-project-structure.unit",
+            "result": "passed",
+            "sourceSha": "35e816d067ac4e770273b837aecaf00f5f37723b",
+            "sourceKind": "committed",
+            "note": "17/17 native structure cases."
+          },
+          {
+            "command": "bun run test:unit -- --suite=projects.semantic-services.unit",
+            "result": "passed",
+            "sourceSha": "35e816d067ac4e770273b837aecaf00f5f37723b",
+            "sourceKind": "committed",
+            "note": "115/115 after switching the TS test off the deleted command."
+          },
+          {
+            "command": "bun run test:unit -- --suite=projects.native-project-wbs-transport.unit",
+            "result": "passed",
+            "sourceSha": "35e816d067ac4e770273b837aecaf00f5f37723b",
+            "sourceKind": "committed",
+            "note": "18/18 including native structure transport."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "35e816d067ac4e770273b837aecaf00f5f37723b",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID:33 modules,1181 suites."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-k lease expired; assets change-writer retirement pushed c94bd9422; WIP reviewed",
-        "nextAction": "KPI 34->32 (attachment purchase/read) then 32->15 (actuals 9 + milestones 8 writers deleted; native command client, native-only POSTs, oracles seeded via SQL). Residual 15: project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1. Removal condition: switch structure/staff-project/purchase/scheduled-task writes to native routes and delete their TS statements/exports; keep in_progress until residual reaches 0.",
+        "blocker": null,
+        "nextAction": "KPI 34->32 ->15 ->8 (structure command + collaboration structure sources retired; native-only POST, 35e816d0). Residual 8 blocked on other owner ports: staff-projects 4 need a native project create/edit command route (owner:projects); purchases 2 / task-purchases 1 / scheduled-tasks 1 are command_assertions guard cleanup inside Operations purchase helpers still used by TS routines/staff-task commands, removable only after migrate.operations native commands. Keep in_progress until residual 0 or reassigned.",
         "handoff": {
           "runId": "run-20261112-k",
           "agentId": "lead",
@@ -18911,17 +18962,17 @@
       "migratedPackets": 34,
       "statusCounts": {
         "pending": 11,
-        "in_progress": 3,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 34,
-        "blocked": 14,
+        "blocked": 13,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 37,
-    "updatedAt": "2026-11-12T08:43:51.095Z",
+    "updatedAt": "2026-11-12T08:48:54.236Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
