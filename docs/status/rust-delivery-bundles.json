@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 561,
+    "revision": 565,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g24",
       "agentId": "lead",
       "startedAt": "2026-11-12T01:04:54.041Z",
-      "heartbeatAt": "2026-11-12T01:11:33.107Z",
-      "expiresAt": "2026-11-12T01:41:33.107Z",
+      "heartbeatAt": "2026-11-12T01:13:16.323Z",
+      "expiresAt": "2026-11-12T01:43:16.323Z",
       "generation": 26,
       "tokenHash": "83530d6d4d9a9787080b1c62f9cfeeb5b92ebc0f4b57ca88c7fa90d51920fab0"
     },
@@ -12352,8 +12352,8 @@
           "runId": "run-20261110-g24",
           "agentId": "worker-manufacturing",
           "claimedAt": "2026-11-12T01:09:08.870Z",
-          "heartbeatAt": "2026-11-12T01:11:33.107Z",
-          "expiresAt": "2026-11-12T01:41:33.107Z",
+          "heartbeatAt": "2026-11-12T01:13:16.323Z",
+          "expiresAt": "2026-11-12T01:43:16.323Z",
           "generation": 26
         },
         "baseSha": null,
@@ -12704,8 +12704,8 @@
           "runId": "run-20261110-g24",
           "agentId": "worker-ecommerce",
           "claimedAt": "2026-11-12T01:09:08.839Z",
-          "heartbeatAt": "2026-11-12T01:11:33.107Z",
-          "expiresAt": "2026-11-12T01:41:33.107Z",
+          "heartbeatAt": "2026-11-12T01:13:16.323Z",
+          "expiresAt": "2026-11-12T01:43:16.323Z",
           "generation": 26
         },
         "baseSha": null,
@@ -13211,8 +13211,15 @@
         "resources": [
           "owner:field_service"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g24",
+          "agentId": "worker-field",
+          "claimedAt": "2026-11-12T01:12:12.159Z",
+          "heartbeatAt": "2026-11-12T01:13:16.323Z",
+          "expiresAt": "2026-11-12T01:43:16.323Z",
+          "generation": 26
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -13585,8 +13592,8 @@
           "runId": "run-20261110-g24",
           "agentId": "worker-pms",
           "claimedAt": "2026-11-12T01:07:36.014Z",
-          "heartbeatAt": "2026-11-12T01:11:33.107Z",
-          "expiresAt": "2026-11-12T01:41:33.107Z",
+          "heartbeatAt": "2026-11-12T01:13:16.323Z",
+          "expiresAt": "2026-11-12T01:43:16.323Z",
           "generation": 26
         },
         "baseSha": null,
@@ -13595,7 +13602,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried pms packet (migrate.pms.stay_front_desk_commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
+        "nextAction": "worker-pms implementing stay_room_postgres/stay_room_http/public against existing domain/application; lead then adds catalogue registration + composition PmsService command mount, runs cargo/unit/PG checks and commits only pms paths",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pms",
@@ -14100,8 +14107,8 @@
           "runId": "run-20261110-g24",
           "agentId": "lead",
           "claimedAt": "2026-11-12T01:04:54.069Z",
-          "heartbeatAt": "2026-11-12T01:11:33.107Z",
-          "expiresAt": "2026-11-12T01:41:33.107Z",
+          "heartbeatAt": "2026-11-12T01:13:16.323Z",
+          "expiresAt": "2026-11-12T01:43:16.323Z",
           "generation": 26
         },
         "baseSha": null,
@@ -14187,23 +14194,23 @@
         "resources": [
           "owner:files"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g24",
-          "agentId": "worker-files",
-          "claimedAt": "2026-11-12T01:09:08.893Z",
-          "heartbeatAt": "2026-11-12T01:11:33.107Z",
-          "expiresAt": "2026-11-12T01:41:33.107Z",
-          "generation": 26
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "Implement native generic upload intake and scan-receipt authority from inventory.files; run cargo check -p erpx-server-files plus registered attachment-read/scan suites and report the transport contract to the lead.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g24",
+          "agentId": "worker-files",
+          "at": "2026-11-12T01:12:51.480Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Implement native generic upload intake and scan-receipt authority from inventory.files; run cargo check -p erpx-server-files plus registered attachment-read/scan suites and report the transport contract to the lead."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-files",
         "plannedPackage": "erpx-server-files",
@@ -14355,8 +14362,8 @@
           "runId": "run-20261110-g24",
           "agentId": "lead",
           "claimedAt": "2026-11-12T01:04:54.096Z",
-          "heartbeatAt": "2026-11-12T01:11:33.107Z",
-          "expiresAt": "2026-11-12T01:41:33.107Z",
+          "heartbeatAt": "2026-11-12T01:13:16.323Z",
+          "expiresAt": "2026-11-12T01:43:16.323Z",
           "generation": 26
         },
         "baseSha": null,
@@ -16097,18 +16104,18 @@
       "totalPackets": 53,
       "migratedPackets": 20,
       "statusCounts": {
-        "pending": 14,
+        "pending": 13,
         "in_progress": 4,
         "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 20,
-        "blocked": 4,
+        "blocked": 5,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 26,
-    "updatedAt": "2026-11-12T01:11:49.830Z",
+    "updatedAt": "2026-11-12T01:13:16.323Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
