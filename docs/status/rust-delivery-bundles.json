@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 834,
+    "revision": 839,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -18598,22 +18598,475 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "2102cf5dddb8be78e06ddcbbd119821307529868",
+        "lastPushedSha": "2102cf5dddb8be78e06ddcbbd119821307529868",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-finance/src",
+            "result": "passed",
+            "before": 387,
+            "after": 382,
+            "sourceSha": "2102cf5dddb8be78e06ddcbbd119821307529868",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-finance/src/adapters/finance.ts",
+                "writes": 55,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 55 TypeScript write statement(s) in packages/server-finance/src/adapters/finance.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-ai.ts",
+                "writes": 18,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 18 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-ai.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-payment-repository.ts",
+                "writes": 17,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 17 TypeScript write statement(s) in packages/server-finance/src/adapters/supplier-payment-repository.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-consolidation.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 13 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-consolidation.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-register.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 13 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-tax-register.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-accruals.ts",
+                "writes": 12,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 12 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-accruals.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-asset-policies.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 11 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-asset-policies.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-instruments.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 11 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-instruments.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-core-facts.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 11 TypeScript write statement(s) in packages/server-finance/src/adapters/pos-core-facts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-facts.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 10 TypeScript write statement(s) in packages/server-finance/src/adapters/commerce-facts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-assets.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 10 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-assets.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-ownership.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 10 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-group-ownership.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/refunds.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 10 TypeScript write statement(s) in packages/server-finance/src/adapters/refunds.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-bank-automation.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 9 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-bank-automation.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-business-contracts.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 9 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-business-contracts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding-remittance.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 9 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-withholding-remittance.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-billing-corrections.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 8 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-billing-corrections.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-reporting.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 8 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-reporting.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/company-money.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 7 TypeScript write statement(s) in packages/server-finance/src/adapters/company-money.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-books.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 7 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-books.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-thai-documents.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 7 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-thai-documents.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 7 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-withholding.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-command-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 7 TypeScript write statement(s) in packages/server-finance/src/adapters/pms-command-facts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/customer-authority-changes.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 6 TypeScript write statement(s) in packages/server-finance/src/adapters/customer-authority-changes.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-native-effects.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 6 TypeScript write statement(s) in packages/server-finance/src/adapters/expense-native-effects.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-collections.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 5 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-collections.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-engines.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 5 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-engines.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 5 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-intercompany.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-manual-drafts.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 5 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-manual-drafts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-starter.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 5 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-starter.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-due-drafts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 4 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-due-drafts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany-pairs.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 4 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-intercompany-pairs.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-identities.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 4 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-tax-identities.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 3 TypeScript write statement(s) in packages/server-finance/src/adapters/attachment-purchases.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-book-adjustments.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 3 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-book-adjustments.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-editions.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 3 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-group-editions.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-owned-reversal.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 3 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-owned-reversal.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-planning.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 3 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-planning.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 3 TypeScript write statement(s) in packages/server-finance/src/adapters/sales.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/accounting-profiles.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 2 TypeScript write statement(s) in packages/server-finance/src/adapters/accounting-profiles.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/hospitality-tax-documents.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 2 TypeScript write statement(s) in packages/server-finance/src/adapters/hospitality-tax-documents.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/journal-planning.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 2 TypeScript write statement(s) in packages/server-finance/src/adapters/journal-planning.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-owner-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 2 TypeScript write statement(s) in packages/server-finance/src/adapters/payroll-owner-facts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-import-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 2 TypeScript write statement(s) in packages/server-finance/src/adapters/pms-import-facts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/purchase-boundary.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 2 TypeScript write statement(s) in packages/server-finance/src/adapters/purchase-boundary.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/assets-financial-unit.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/assets-financial-unit.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/assets-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/assets-posting-prerequisites.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-return-accounting-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/commerce-return-accounting-facts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/customer-receipt-issue.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/customer-receipt-issue.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/document-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/document-purchases.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/expense-posting-prerequisites.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-company-tools.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-company-tools.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-expansion-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-expansion-evidence.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-invoice-lines.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/finance-invoice-lines.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/hospitality-accounting.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/hospitality-accounting.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/journal-reversal-money.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/journal-reversal-money.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/manufacturing-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/manufacturing-posting-prerequisites.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-other-bank-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/payroll-other-bank-evidence.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-other-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/payroll-other-remittance.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/payroll-posting-prerequisites.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-remittance-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/payroll-remittance-sources.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-daily-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/pos-daily-facts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-startup-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/pos-startup-prerequisites.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/refund-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/refund-purchases.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales-customer-receipts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/sales-customer-receipts.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/sales-posting-setup.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-bill-draft-void.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/supplier-bill-draft-void.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-payment-corrections.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/supplier-payment-corrections.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supply-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Move the remaining 1 TypeScript write statement(s) in packages/server-finance/src/adapters/supply-posting-prerequisites.ts to their native owner port, then delete the statements and package exports after no TypeScript caller remains."
+              }
+            ]
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --locked",
+            "result": "passed",
+            "sourceSha": "2102cf5dddb8be78e06ddcbbd119821307529868",
+            "sourceKind": "committed",
+            "note": "Finance crate compiles with the close writers removed."
+          },
+          {
+            "command": "bun run --filter '@erpx/server-finance' typecheck",
+            "result": "passed",
+            "sourceSha": "2102cf5dddb8be78e06ddcbbd119821307529868",
+            "sourceKind": "committed",
+            "note": "exit 0"
+          },
+          {
+            "command": "finance.rust-period-close-postgres.integration",
+            "result": "passed",
+            "sourceSha": "2102cf5dddb8be78e06ddcbbd119821307529868",
+            "sourceKind": "committed",
+            "note": "7/7 native period-close cases remain the behavior witness."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "2102cf5dddb8be78e06ddcbbd119821307529868",
+            "sourceKind": "committed",
+            "note": "Repository layout passed; catalogue 1185 suites."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Execute the recorded removal condition, then run the owner KPI and affected suites before reporting.",
+        "nextAction": "Period close/cancel writers retired; KPI 387 -> 382 at 2102cf5dd, 382 residual writes classified under retire.finance.finance.",
         "handoff": {
-          "runId": "run-20261112-n",
+          "runId": "run-20261112-o",
           "agentId": "worker-finance",
-          "at": "2026-11-12T10:50:40.110Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired after project save retirement; WIP reviewed",
-          "nextAction": "Execute the recorded removal condition, then run the owner KPI and affected suites before reporting."
+          "at": "2026-11-12T11:16:26.688Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: mark migrated (native close route is sole authority)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -21178,20 +21631,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 96,
-      "migratedPackets": 38,
+      "migratedPackets": 39,
       "statusCounts": {
         "pending": 30,
-        "in_progress": 3,
+        "in_progress": 2,
         "ready_for_integration": 10,
         "integrating": 1,
-        "migrated": 38,
+        "migrated": 39,
         "blocked": 14,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 40,
-    "updatedAt": "2026-11-12T11:11:45.052Z",
+    "updatedAt": "2026-11-12T11:16:26.758Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
