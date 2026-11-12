@@ -105,3 +105,6 @@ pub mod period_close;
 
 pub mod pos_sources;
 pub mod pos_journal;
+
+pub(crate) mod revenue_recognition;
+pub(crate) mod revenue_recognition_http;

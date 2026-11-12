@@ -141,3 +141,5 @@ pub mod period_close;
 
 pub mod pos_sources;
 pub mod pos_journal;
+
+pub mod revenue_recognition;

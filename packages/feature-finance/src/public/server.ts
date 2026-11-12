@@ -18,6 +18,7 @@ export {nativeChartAccounts,nativeFinanceSetupCommand,nativeFinanceSetupWorkspac
 export type {NativeChartAccounts,NativeFinanceSetup,NativeFinanceSetupCheck,NativeSetupRow} from '../adapters/server/native-finance-setup';
 export {nativeFinanceReport} from '../adapters/server/native-finance-report';
 export {nativeOpeningBalance} from '../adapters/server/native-opening-balance';
+export {nativeRevenueRecognition} from '../adapters/server/native-revenue-recognition';
 
 export {nativeServicePaymentWorkspace,nativeServicePaymentReadback} from '../adapters/server/native-service-payment';
 export {isNativeServicePaymentRequest,nativeServicePaymentCommand,nativeServiceInvoiceFlowCommand} from '../adapters/server/native-service-payment-command';

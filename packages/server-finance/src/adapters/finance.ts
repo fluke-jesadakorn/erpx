@@ -30,7 +30,6 @@ export type { FinanceRow } from "@erpx/server-finance/domain/finance";
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import {financeCloseCommerceSource} from "@erpx/server-commerce/public/finance-close-source";
 import { createFinancePrior } from '@erpx/server-finance/application/access';
-import { createLegacyRevenue } from '@erpx/server-finance/application/legacy-revenue';
 import { createFinanceCloseRead } from '@erpx/server-finance/application/close';
 import { createFxRevaluation } from '@erpx/server-finance/application/fx-revaluation';
 import { createFinanceBank } from '@erpx/server-finance/application/bank';
@@ -285,11 +284,6 @@ export async function createLease(actor: WorkContext, input: z.infer<typeof leas
 export async function createLoan(actor: WorkContext, input: z.infer<typeof loanSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.loan.create",purpose:"new-work",capability:"finance.advanced"},tx=>configurationService(tx).createLoan(actor,input,id)); }
 export async function createRevenueContract(actor: WorkContext, input: z.infer<typeof revenueContractSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.revenue-contract.create",purpose:"new-work"},tx=>configurationService(tx).createRevenueContract(actor,input,id)); }
 export async function createRevenueObligation(actor: WorkContext, input: z.infer<typeof revenueObligationSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.revenue-obligation.create",purpose:"new-work"},tx=>configurationService(tx).createRevenueObligation(actor,input,id)); }
-export async function recognizeRevenue(actor: WorkContext, obligationId: string, input: {
-    amount: string;
-    periodId: string;
-    entryDate: string;
-}, id: string) { return legacyRevenueService()(actor, obligationId, input, id); }
 export async function financeOverviewCounts(actor: WorkContext) { return purchasedFinanceRead(actor,db=>financeReadService(db).financeOverviewCounts(actor)); }
 export async function invoicesPage(actor: WorkContext, query: {
     q?: string;
@@ -735,13 +729,6 @@ function closeService(provided?: SqlDatabase) {
                 .bind(actor.companyId, period.end_date, account.base_currency, period.id, kind, sourceAccountId).first<FinanceRow>();
         },
         });
-}
-function legacyRevenueService() {
-    let pending: Promise<SqlDatabase> | undefined;
-    const db = (actor: WorkContext) => pending ??= resources(actor).then(r => r.write);
-    return createLegacyRevenue({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, prior: async (actor, key, operation, input) => priorCommand(await db(actor), actor, key, operation, input), obligation: async (actor, obligationId) => (await db(actor)).prepare('SELECT o.*,c.company_id,c.currency FROM finance_revenue_obligations o JOIN finance_revenue_contracts c ON c.id=o.contract_id WHERE o.id=? AND c.company_id=?').bind(obligationId, actor.companyId).first<FinanceRow>(), account: async (actor, id) => (await db(actor)).prepare('SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?').bind(id, actor.companyId).first<{
-            chart_id: string;
-        }>(), createJournal, postJournal, commit: async ({ actor, obligationId, input, id, amount, output }) => { const write = await db(actor), pendingStatements: SqlStatement[] = []; pendingStatements.push(write.prepare("UPDATE finance_revenue_obligations SET recognized_minor=recognized_minor+?,status=CASE WHEN recognized_minor+?=allocated_minor THEN 'complete' ELSE 'active' END WHERE id=?").bind(amount, amount, obligationId)); return saveCommand(write, actor, id, 'finance.revenue.recognize', input, output, pendingStatements); } });
 }
 
 export async function createManufacturingPostingChart(actor:WorkContext,raw:unknown,key:string){const request=manufacturingPostingChartSchema.parse(raw);return withManufacturingPostingPrerequisiteCommand(actor,'chart',request,key,tx=>configurationService(tx,request).createChart(actor,request.input,key));}

@@ -2757,3 +2757,76 @@ fn serialization() -> PgTransactionError<BusinessError> {
     )
     .into()
 }
+
+
+/// Composition backend for the native revenue-obligation recognition command.
+pub struct RevenueRecognitionBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<FinanceJournalDetailService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> RevenueRecognitionBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<FinanceJournalDetailService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
+        match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => BusinessError::new(
+                FailureKind::Unavailable,
+                "FINANCE_REVENUE_UNAVAILABLE",
+                "The Finance revenue recognition service is unavailable.",
+            ),
+        }
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> erpx_server_finance::public::revenue_recognition::RevenueRecognitionHttpBackend
+    for RevenueRecognitionBackend<C>
+{
+    fn command<'a>(
+        &'a self,
+        request: erpx_server_finance::public::revenue_recognition::RevenueRecognitionHttpCommandRequest<'a>,
+    ) -> erpx_server_finance::public::revenue_recognition::RevenueRecognitionHttpFuture<
+        'a,
+        erpx_server_finance::public::revenue_recognition::RevenueRecognitionResponse,
+    > {
+        Box::pin(async move {
+            let inbound = parse_inbound_account_request(&self.policy, request.headers)?;
+            if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+                return Err(missing());
+            }
+            let (branch, department) = self.scopes.slugs(request.headers)?;
+            let selection = erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest {
+                company_id: self.service.company_id().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: true,
+            };
+            let data = self
+                .service
+                .recognize_revenue(
+                    request.host,
+                    inbound.into_proof(),
+                    move || Ok(selection),
+                    request.key.clone(),
+                    request.obligation_id.to_owned(),
+                    request.input,
+                )
+                .await
+                .map_err(Self::business)?;
+            Ok(erpx_server_finance::public::revenue_recognition::RevenueRecognitionResponse { data })
+        })
+    }
+}

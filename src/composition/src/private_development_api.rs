@@ -2794,6 +2794,7 @@ async fn assemble_checked(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
         let mut targets = Vec::new();
+        let mut revenue_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut brand_targets = Vec::new();
         let mut branding_targets = Vec::new();
@@ -4868,15 +4869,30 @@ async fn assemble_checked(
                         clock: Arc::new(SharedClock(clock.clone())),
                     });
                 }
+                let journal_service = Arc::new(FinanceJournalDetailService::new(
+                    authorizer.clone(),
+                    configuration.clone(),
+                    Arc::new(SharedClock(clock.clone())),
+                ));
                 targets.push(FinanceJournalReadTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
-                    service: Arc::new(FinanceJournalDetailService::new(
-                        authorizer,
-                        configuration,
-                        Arc::new(SharedClock(clock.clone())),
-                    )),
+                    service: journal_service.clone(),
                 });
+                revenue_targets.push(
+                    erpx_server_finance::public::revenue_recognition::RevenueRecognitionHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::finance_journal_detail_http::RevenueRecognitionBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                journal_service,
+                            ),
+                        ),
+                    },
+                );
             }
         }
         #[cfg(feature = "finance-field-write")]
@@ -4948,6 +4964,14 @@ async fn assemble_checked(
             )
             .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
+        if !revenue_targets.is_empty() {
+            router = router.merge(
+                erpx_server_finance::public::revenue_recognition::revenue_recognition_router(
+                    revenue_targets,
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
+        }
         if !generic_payment_targets.is_empty() {
             router = router.merge(
                 crate::finance_generic_payment_http::finance_generic_payment_router(

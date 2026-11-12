@@ -13,6 +13,7 @@ use erpx_server_finance::public::{
     FinanceActor, finance_invoice_read::*, finance_opening::*, finance_reports::*,
     finance_setup::*, journal_detail::*, journal_list::*, journal_workspace::*, period_close::*,
     sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*,
+    revenue_recognition::{RevenueRecognitionInput, RevenueRecognitionResult, recognize_revenue},
     sales_receipts::*, supplier_bill::*,
 };
 use erpx_server_finance::public::{
@@ -1324,6 +1325,13 @@ impl HoldingWorkSourcePreparation for FieldFinanceWorkSources {
         })
     }
 }
+#[derive(Clone, Copy)]
+struct RevenueRecognitionSources;
+impl HoldingWorkSourcePreparation for RevenueRecognitionSources {
+    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async { Ok(()) })
+    }
+}
 impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
     #[cfg(feature = "finance-field-write")]
     pub async fn read_field_work<Input>(
@@ -1707,6 +1715,73 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         .await?
         .require_allowed()?;
         Ok(())
+    }
+
+    pub async fn recognize_revenue<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        obligation_id: String,
+        body: RevenueRecognitionInput,
+    ) -> Result<RevenueRecognitionResult, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/revenue-obligations".into(),
+                    api: true,
+                },
+                RevenueRecognitionSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let obligation_id = obligation_id.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        let actor = command_actor(current).map_err(PgTransactionError::Business)?;
+                        let finance = finance_actor(current);
+                        let result = recognize_revenue(
+                            c,
+                            &actor,
+                            &finance,
+                            clock.as_ref(),
+                            &command,
+                            &obligation_id,
+                            &body,
+                        )
+                        .await?;
+                        Ok(result)
+                    })
+                },
+            )
+            .await
     }
 
     pub async fn opening_balance_preview<Input>(

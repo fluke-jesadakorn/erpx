@@ -485,7 +485,6 @@
     "./application/withholding-month-source": "./src/application/withholding-month-source.ts",
     "./application/opening": "./src/application/opening.ts",
     "./application/due-drafts": "./src/application/due-drafts.ts",
-    "./application/legacy-revenue": "./src/application/legacy-revenue.ts",
     "./application/ai-source": "./src/application/ai-source.ts",
     "./application/ai": "./src/application/ai.ts",
     "./application/manual-drafts": "./src/application/manual-drafts.ts",
