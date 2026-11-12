@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 807,
+    "revision": 812,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -20232,6 +20232,625 @@
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null
+      },
+      {
+        "id": "retire.identity.account-session-security",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "identity_access/assignments",
+          "identity_access/access-reviews",
+          "identity_access/feature-people-principals",
+          "identity_access/feature-roles-permissions",
+          "identity_access/feature-directory-connectors",
+          "identity_access/feature-identity-conflicts"
+        ],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Delete the dead Identity account-session-security TS module",
+        "scope": "accountSessionSecurity has no import/call references after the native session cutover; delete the dead adapter, package export, generated turbo inputs and catalogue verification inputs, and record the Identity KPI drop.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "workflow"
+        ],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/server-identity_access/package.json",
+          "apps/account/turbo.json",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "ac313e988cf539bf30ba43b74e71363ed8d1c406",
+        "lastPushedSha": "ac313e988cf539bf30ba43b74e71363ed8d1c406",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ac313e988cf539bf30ba43b74e71363ed8d1c406",
+            "before": 243,
+            "after": 240,
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/account-access.ts:INSERT INTO",
+                "writes": 7,
+                "removalTaskId": "migrate.identity_access.account-access:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-access.ts:UPDATE account_invitation_delivery_jobs SET",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.account-access:UPDATE account_invitation_delivery_jobs SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-access.ts:UPDATE account_invitations SET",
+                "writes": 4,
+                "removalTaskId": "migrate.identity_access.account-access:UPDATE account_invitations SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-preferences.ts:INSERT INTO",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.account-preferences:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-preferences.ts:UPDATE account_preferences SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.account-preferences:UPDATE account_preferences SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-recovery.ts:DELETE FROM",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.account-recovery:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-recovery.ts:INSERT INTO",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.account-recovery:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-recovery.ts:UPDATE account_recovery_delivery_jobs SET",
+                "writes": 7,
+                "removalTaskId": "migrate.identity_access.account-recovery:UPDATE account_recovery_delivery_jobs SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-time-preference.ts:INSERT INTO",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.account-time-preference:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/auth.ts:DELETE FROM",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.auth:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-invitation-sources.ts:INSERT INTO",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.beta-invitation-sources:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-management-facts.ts:UPDATE assignments SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.beta-management-facts:UPDATE assignments SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-onboarding-effects.ts:INSERT INTO",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.beta-onboarding-effects:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-operations.ts:DELETE FROM",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.directory-operations:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-operations.ts:INSERT INTO",
+                "writes": 5,
+                "removalTaskId": "migrate.identity_access.directory-operations:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-operations.ts:UPDATE iam_reviews SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.directory-operations:UPDATE iam_reviews SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-operations.ts:UPDATE people_directory_operations SET",
+                "writes": 7,
+                "removalTaskId": "migrate.identity_access.directory-operations:UPDATE people_directory_operations SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-operations.ts:UPDATE people_directory_state SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.directory-operations:UPDATE people_directory_state SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-synchronization.ts:UPDATE iam_connections SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.directory-synchronization:UPDATE iam_connections SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-synchronization.ts:UPDATE iam_identities SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.directory-synchronization:UPDATE iam_identities SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-transaction.ts:DELETE FROM",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.directory-transaction:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-transaction.ts:INSERT INTO",
+                "writes": 8,
+                "removalTaskId": "migrate.identity_access.directory-transaction:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-transaction.ts:UPDATE active_work_contexts SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.directory-transaction:UPDATE active_work_contexts SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-transaction.ts:UPDATE iam_connections SET",
+                "writes": 5,
+                "removalTaskId": "migrate.identity_access.directory-transaction:UPDATE iam_connections SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-transaction.ts:UPDATE iam_identities SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.directory-transaction:UPDATE iam_identities SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-transaction.ts:UPDATE iam_members SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.directory-transaction:UPDATE iam_members SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/gpo-rules.ts:DELETE FROM",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.gpo-rules:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/gpo-rules.ts:INSERT INTO",
+                "writes": 4,
+                "removalTaskId": "migrate.identity_access.gpo-rules:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/gpo-rules.ts:UPDATE organization_gpo_rules SET",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.gpo-rules:UPDATE organization_gpo_rules SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/gpo-rules.ts:UPDATE position_gpo_policies SET",
+                "writes": 3,
+                "removalTaskId": "migrate.identity_access.gpo-rules:UPDATE position_gpo_policies SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/gpo-rules.ts:UPDATE position_gpo_tasks SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.gpo-rules:UPDATE position_gpo_tasks SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-api.ts:DELETE FROM",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-api:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-api.ts:INSERT INTO",
+                "writes": 5,
+                "removalTaskId": "migrate.identity_access.iam-api:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-api.ts:UPDATE active_work_contexts SET",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.iam-api:UPDATE active_work_contexts SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-api.ts:UPDATE iam_mappings SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-api:UPDATE iam_mappings SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-api.ts:UPDATE iam_members SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-api:UPDATE iam_members SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-auth.ts:INSERT INTO",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-auth:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-directories.ts:INSERT INTO",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-directories:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-directories.ts:UPDATE iam_connections SET",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.iam-directories:UPDATE iam_connections SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-directories.ts:UPDATE iam_identities SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-directories:UPDATE iam_identities SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-directories.ts:UPDATE iam_sync_jobs SET",
+                "writes": 3,
+                "removalTaskId": "migrate.identity_access.iam-directories:UPDATE iam_sync_jobs SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-grant-transaction.ts:INSERT INTO",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.iam-grant-transaction:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-mfa.ts:INSERT INTO",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.iam-mfa:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-mfa.ts:UPDATE iam_mfa SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-mfa:UPDATE iam_mfa SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-migrations.ts:INSERT INTO",
+                "writes": 7,
+                "removalTaskId": "migrate.identity_access.iam-migrations:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-migrations.ts:UPDATE active_work_contexts SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-migrations:UPDATE active_work_contexts SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-migrations.ts:UPDATE assignments SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-migrations:UPDATE assignments SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-migrations.ts:UPDATE iam_identities SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-migrations:UPDATE iam_identities SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-migrations.ts:UPDATE iam_migrations SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-migrations:UPDATE iam_migrations SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-recovery.ts:DELETE FROM",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-recovery:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-recovery.ts:INSERT INTO",
+                "writes": 3,
+                "removalTaskId": "migrate.identity_access.iam-recovery:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts:INSERT INTO",
+                "writes": 9,
+                "removalTaskId": "migrate.identity_access.iam-service:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts:UPDATE active_work_contexts SET",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.iam-service:UPDATE active_work_contexts SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts:UPDATE iam_access_review_campaigns SET",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.iam-service:UPDATE iam_access_review_campaigns SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts:UPDATE iam_access_review_items SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-service:UPDATE iam_access_review_items SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts:UPDATE iam_reviews SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-service:UPDATE iam_reviews SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts:UPDATE iam_roles SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.iam-service:UPDATE iam_roles SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-transactions.ts:INSERT INTO",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.iam-transactions:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/invitation-delivery.ts:UPDATE account_invitation_delivery_jobs SET",
+                "writes": 7,
+                "removalTaskId": "migrate.identity_access.invitation-delivery:UPDATE account_invitation_delivery_jobs SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/organization-department-relocation.ts:UPDATE assignments SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.organization-department-relocation:UPDATE assignments SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/payroll-owner-facts.ts:UPDATE assignments SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.payroll-owner-facts:UPDATE assignments SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-access.ts:INSERT INTO",
+                "writes": 13,
+                "removalTaskId": "migrate.identity_access.people-access:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-access.ts:UPDATE assignments SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.people-access:UPDATE assignments SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-access.ts:UPDATE iam_access_invitations SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.people-access:UPDATE iam_access_invitations SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-access.ts:UPDATE iam_access_subjects SET",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.people-access:UPDATE iam_access_subjects SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-access.ts:UPDATE iam_roles SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.people-access:UPDATE iam_roles SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-directory-facts.ts:UPDATE assignments SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.people-directory-facts:UPDATE assignments SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-facts.ts:UPDATE assignments SET",
+                "writes": 4,
+                "removalTaskId": "migrate.identity_access.people-lifecycle-facts:UPDATE assignments SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-facts.ts:UPDATE iam_reviews SET",
+                "writes": 3,
+                "removalTaskId": "migrate.identity_access.people-lifecycle-facts:UPDATE iam_reviews SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-worker-effects.ts:INSERT INTO",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.people-lifecycle-worker-effects:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-worker-effects.ts:UPDATE active_work_contexts SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.people-lifecycle-worker-effects:UPDATE active_work_contexts SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-worker-effects.ts:UPDATE assignments SET",
+                "writes": 3,
+                "removalTaskId": "migrate.identity_access.people-lifecycle-worker-effects:UPDATE assignments SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-template-attributes.ts:INSERT INTO",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.people-template-attributes:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/position-gpo.ts:DELETE FROM",
+                "writes": 4,
+                "removalTaskId": "migrate.identity_access.position-gpo:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/position-gpo.ts:INSERT INTO",
+                "writes": 9,
+                "removalTaskId": "migrate.identity_access.position-gpo:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/position-gpo.ts:UPDATE organization_gpo_rules SET",
+                "writes": 2,
+                "removalTaskId": "migrate.identity_access.position-gpo:UPDATE organization_gpo_rules SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/position-gpo.ts:UPDATE position_gpo_config_ownership SET",
+                "writes": 6,
+                "removalTaskId": "migrate.identity_access.position-gpo:UPDATE position_gpo_config_ownership SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/position-gpo.ts:UPDATE position_gpo_jobs SET",
+                "writes": 8,
+                "removalTaskId": "migrate.identity_access.position-gpo:UPDATE position_gpo_jobs SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/position-gpo.ts:UPDATE position_gpo_policies SET",
+                "writes": 4,
+                "removalTaskId": "migrate.identity_access.position-gpo:UPDATE position_gpo_policies SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-session-revocation.ts:DELETE FROM",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.product-session-revocation:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-sso-store.ts:INSERT INTO",
+                "writes": 5,
+                "removalTaskId": "migrate.identity_access.product-sso-store:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-sso-store.ts:UPDATE sso_authorization_grants SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.product-sso-store:UPDATE sso_authorization_grants SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-sso-store.ts:UPDATE sso_browser_transactions SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.product-sso-store:UPDATE sso_browser_transactions SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/provider-context-store.ts:INSERT INTO",
+                "writes": 4,
+                "removalTaskId": "migrate.identity_access.provider-context-store:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/provider-context-store.ts:UPDATE admin_provider_contexts SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.provider-context-store:UPDATE admin_provider_contexts SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/technology.ts:DELETE FROM",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.technology:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/technology.ts:INSERT INTO",
+                "writes": 4,
+                "removalTaskId": "migrate.identity_access.technology:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/technology.ts:UPDATE assignments SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.technology:UPDATE assignments SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/throttle.ts:INSERT INTO",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.throttle:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/user-management.ts:DELETE FROM",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.user-management:DELETE FROM",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/user-management.ts:INSERT INTO",
+                "writes": 10,
+                "removalTaskId": "migrate.identity_access.user-management:INSERT INTO",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/user-management.ts:UPDATE um_candidates SET",
+                "writes": 1,
+                "removalTaskId": "migrate.identity_access.user-management:UPDATE um_candidates SET",
+                "removalCondition": "Native Identity owner command/port replaces this adapter writer; delete the TS writer and its exports with the owning slice."
+              }
+            ]
+          },
+          {
+            "command": "bunx tsc --noEmit -p packages/server-identity_access/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "ac313e988cf539bf30ba43b74e71363ed8d1c406"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Deleted dead account-session-security module/export/turbo inputs; Identity KPI 243->240 with 240 classified residuals; pushed ac313e988.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-identity-access",
+        "plannedPackage": "erpx-server-identity-access",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -20240,21 +20859,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 94,
-      "migratedPackets": 36,
+      "totalPackets": 95,
+      "migratedPackets": 37,
       "statusCounts": {
         "pending": 31,
         "in_progress": 2,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 36,
+        "migrated": 37,
         "blocked": 15,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 39,
-    "updatedAt": "2026-11-12T10:14:43.694Z",
+    "updatedAt": "2026-11-12T10:19:17.522Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
