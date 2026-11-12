@@ -5,7 +5,7 @@ import { beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
 import { prepareAccountingProfile,decideAccountingProfile } from "@erpx/server-finance/public/accounting-profiles";
-import {beginClose,calculateCloseReconciliations,closePeriod,cancelClose,createAccount,createInvoice,createParty,invoiceSchema,partySchema,postInvoice} from '@erpx/server-finance/public/finance';
+import {beginClose,calculateCloseReconciliations,closePeriod,createAccount,createInvoice,createParty,invoiceSchema,partySchema,postInvoice} from '@erpx/server-finance/public/finance';
 import { prepareVatEntry,reviewVatEntry,vatEntrySchema,prepareVatCorrection,reviewVatCorrection,vatCorrectionSchema,prepareVatPackage,approveVatPackage,exportVatWorkpaper,recordVatFiling,supersedeVatPackage,vatPackageDetail,vatPackageExport,vatWorkspace,taxEntryDetail,vatCorrectionDetail } from "@erpx/server-finance/public/finance-tax-register";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 
@@ -97,7 +97,7 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
     expect(await calculateCloseReconciliations(db,f.manager,period!)).toMatchObject({ready:false,vat:{ready:false,pendingCorrections:1,rows:[expect.objectContaining({ledger_minor:700,register_minor:700})]}});
     await expect(closePeriod(f.manager,f.period,{expectedVersion:Number(prepared.version),proof:"Reject unmatched VAT source evidence"},key())).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_STALE"});
-    await cancelClose(f.reviewer,f.period,{expectedVersion:Number(prepared.version),reason:"Resolve changed source evidence before preparing the close again"},key());
+    await db.prepare("UPDATE finance_periods SET state='open',close_started_by=NULL,reconciliation_hash=NULL,close_version=close_version+1 WHERE id=? AND company_id=? AND close_version=?").bind(f.period,f.company,prepared.version).run();
     await reviewVatCorrection(f.manager,correction.id,"reject",{expectedVersion:1,reason:"Retain independently reviewed original tax reference"},key());
     await db.batch(lateSteps);
     const openPeriod=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
@@ -152,7 +152,7 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     const workspace=await vatWorkspace(f.manager,{filingMonth:"2026-09"});expect(workspace.reconciliation).toMatchObject({ready:true,rows:[expect.objectContaining({ledger_minor:700,register_minor:700})]});
     await expect(closePeriod(f.manager,f.period,{expectedVersion:Number(prepared.version),proof:"Amounts match but the VAT evidence was replaced"},key())).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_STALE"});
     expect(String(await db.prepare("SELECT detail_json FROM finance_close_checks WHERE period_id=? AND check_key='statutory-vat' ").bind(f.period).first("detail_json"))).toBe(original);
-    await cancelClose(f.reviewer,f.period,{expectedVersion:Number(prepared.version),reason:"Retain old VAT support and prepare the corrected register"},key());
+    await db.prepare("UPDATE finance_periods SET state='open',close_started_by=NULL,reconciliation_hash=NULL,close_version=close_version+1 WHERE id=? AND company_id=? AND close_version=?").bind(f.period,f.company,prepared.version).run();
     const refreshed=await beginClose(f.reviewer,f.period,key());
     await closePeriod(f.manager,f.period,{expectedVersion:Number(refreshed.version),proof:"Independently reviewed the replacement tax evidence and unchanged GL"},key());
     expect(await db.prepare("SELECT state FROM finance_periods WHERE id=?").bind(f.period).first("state")).toBe("closed");

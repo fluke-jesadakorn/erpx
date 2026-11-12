@@ -1,11 +1,9 @@
 import { z } from 'zod';
-import { cancelCloseSchema, closeProofSchema, type FinanceRow, type CloseReconciliation } from '@erpx/server-finance/domain/finance';
+import { closeProofSchema, type FinanceRow, type CloseReconciliation } from '@erpx/server-finance/domain/finance';
 import type { VatCloseEvidence } from '@erpx/server-finance/domain/close';
 import { createFinancePolicy } from '@erpx/server-finance/domain/finance-policy';
-import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { FinanceError } from '@erpx/server-finance/domain/invoice-line-revision';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
-export type CancelCloseInput = z.infer<typeof cancelCloseSchema>;
 export type CloseInput = z.infer<typeof closeProofSchema>;
 export type CloseReadiness = {
     draftJournals: number;
@@ -135,31 +133,10 @@ export interface FinanceClosePorts {
         checkSource: string;
         checkedAt: number;
     }): Promise<Record<string,unknown>>;
-    cancelledPeriod(facts: {
-        periodId: string;
-        actor: WorkContext;
-    }): Promise<FinanceRow | null>;
-    commitCancel(facts: {
-        actor: WorkContext;
-        id: string;
-        input: CancelCloseInput;
-        periodId: string;
-    }): Promise<Record<string,unknown>>;
     closedPeriod(facts: {
         periodId: string;
         actor: WorkContext;
     }): Promise<FinanceRow | null>;
-    reopenedPeriod(facts: {
-        periodId: string;
-        actor: WorkContext;
-    }): Promise<FinanceRow | null>;
-    commitReopen(facts: {
-        actor: WorkContext;
-        id: string;
-        input: CloseInput;
-        periodId: string;
-        version: number;
-    }): Promise<Record<string,unknown>>;
 }
 export function createFinanceClose(ports: FinanceClosePorts) {
     const { requireFinanceRole } = createFinancePolicy(ports.error);
@@ -232,23 +209,6 @@ export function createFinanceClose(ports: FinanceClosePorts) {
         const nextVersion = Number(period.close_version) + 1, checkSource = await ports.digest({ periodId, closeVersion: period.close_version, readiness, reconciliation: reconciliation.reconciliationHash }), checkedAt = ports.now();
         return ports.commitBegin({ actor, id, periodId, nextVersion, reconciliation, period, readiness, checkSource, checkedAt });
     }
-    async function cancelClose(actor: WorkContext, periodId: string, input: z.infer<typeof cancelCloseSchema>, id: string) {
-        actor = ports.authorize(actor, "finance.write");
-        await ports.ready(actor);
-        const previous = await ports.replay(actor, id, "finance.period.cancel-close", periodId, input);
-        if (previous)
-            return previous;
-        const period = await ports.cancelledPeriod({ periodId, actor });
-        if (!period)
-            throw ports.error(404, "PERIOD_NOT_FOUND", "Accounting period not found.");
-        if (period.state !== "closing")
-            throw ports.error(409, "PERIOD_NOT_CLOSING", "Only a prepared close can be cancelled.");
-        if (period.close_started_by !== actor.userId && !hasPermission(actor, "finance.approve"))
-            throw ports.error(403, "CLOSE_CANCELLATION_FORBIDDEN", "The preparer or a Finance approver must cancel the preparation.");
-        if (Number(period.close_version) !== input.expectedVersion)
-            throw ports.error(409, "VERSION_CONFLICT", "The close changed. Refresh and review again.");
-        return ports.commitCancel({ actor, id, input, periodId });
-    }
     async function closePeriod(actor: WorkContext, periodId: string, raw: z.input<typeof closeProofSchema>, id: string) {
         const input = { ...raw, attachmentSetIds: raw.attachmentSetIds ?? [] };
         actor = ports.authorize(actor, "finance.write");
@@ -272,24 +232,6 @@ export function createFinanceClose(ports: FinanceClosePorts) {
         const now = ports.now(), version = Number(period.close_version);
         return ports.commitClose({ actor, periodId, input, id, period, reconciliation, version, now });
     }
-    async function reopenPeriod(actor: WorkContext, periodId: string, raw: z.input<typeof closeProofSchema>, id: string) {
-        const input = { ...raw, attachmentSetIds: raw.attachmentSetIds ?? [] };
-        actor = ports.authorize(actor, "finance.write");
-        requireFinanceRole(actor, true);
-        await ports.ready(actor);
-        const previous = await ports.replay(actor, id, "finance.period.reopen", periodId, input);
-        if (previous)
-            return previous;
-        if (input.attachmentSetIds.length)
-            throw ports.error(422, "ATTACHMENT_ACTION_UNSUPPORTED", "Close workpapers bind only to the close approval, not to reopening a period.");
-        const period = await ports.reopenedPeriod({ periodId, actor });
-        if (!period)
-            throw ports.error(404, "PERIOD_NOT_CLOSED", "Closed period not found.");
-        if (period.closed_by === actor.userId)
-            throw ports.error(409, "CLOSE_APPROVAL_SEPARATION", "A different approver must reopen this period.");
-        const version = input.expectedVersion ?? Number(period.close_version);
-        return ports.commitReopen({ actor, id, input, periodId, version });
-    }
-    return { calculateCloseReconciliations, beginClose, cancelClose, closePeriod, reopenPeriod };
+    return { calculateCloseReconciliations, beginClose, closePeriod };
 }
 

@@ -50,8 +50,8 @@ import {salesPostingChartSchema,salesPostingAccountSchema,salesPostingPeriodSche
 import {withSupplyPostingPrerequisiteCommand} from '@erpx/server-finance/adapters/supply-posting-prerequisites';
 import {supplyPostingChartSchema,supplyPostingAccountSchema,supplyPostingPeriodSchema} from '@erpx/server-finance/domain/supply-posting-prerequisites';
 
-import { createJournalSchema, openingTrialBalanceSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, closeProofSchema, reversePaymentSchema, journalBatchSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, cancelCloseSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema, type ReportDates, type CloseReconciliation, type FinanceRow } from '@erpx/server-finance/domain/finance';
-export { moneySchema, createJournalSchema, openingTrialBalanceSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, closeProofSchema, reversePaymentSchema, journalBatchSchema, reportDateSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, cancelCloseSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema } from '@erpx/server-finance/domain/finance';
+import { createJournalSchema, openingTrialBalanceSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, closeProofSchema, reversePaymentSchema, journalBatchSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema, type ReportDates, type CloseReconciliation, type FinanceRow } from '@erpx/server-finance/domain/finance';
+export { moneySchema, createJournalSchema, openingTrialBalanceSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, closeProofSchema, reversePaymentSchema, journalBatchSchema, reportDateSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema } from '@erpx/server-finance/domain/finance';
 export type { JournalLineInput, ReportDates, CloseReconciliation } from '@erpx/server-finance/domain/finance';
 
 import { prepareFlowCommand } from "@erpx/server-workflow/public/flow-command-planning";
@@ -225,9 +225,7 @@ function refundCloseGuards(write: SqlDatabase, actor: WorkContext, period: Finan
     ];
 }
 export async function beginClose(actor: WorkContext, periodId: string, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.period.begin-close",purpose:"settle-existing",capability:"finance.close"},tx=>closeService(tx).beginClose(actor,periodId,id)); }
-export async function cancelClose(actor: WorkContext, periodId: string, input: z.infer<typeof cancelCloseSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.period.cancel-close",purpose:"settle-existing",capability:"finance.close"},tx=>closeService(tx).cancelClose(actor,periodId,input,id)); }
 export async function closePeriod(actor: WorkContext, periodId: string, input: z.input<typeof closeProofSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.period.close",purpose:"settle-existing",capability:"finance.close"},tx=>closeService(tx).closePeriod(actor,periodId,input,id)); }
-export async function reopenPeriod(actor: WorkContext, periodId: string, input: z.input<typeof closeProofSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.period.reopen",purpose:"settle-existing",capability:"finance.close"},tx=>closeService(tx).reopenPeriod(actor,periodId,input,id)); }
 export async function createParty(actor: WorkContext, input: z.infer<typeof partySchema>, id: string) { return withFinanceConfigurationCommand(actor,{key:id,operation:"finance.party.create",purpose:"new-work"},tx=>configurationService(tx).createParty(actor,input,id)); }
 export async function createInvoice(actor: WorkContext, input: z.input<typeof invoiceSchema>, id: string, existingId?: string, ownedTransaction?: SqlDatabase) { return ownedTransaction ? invoiceService(ownedTransaction).createInvoice(actor,input,id,existingId) : withFinancePurchasedCommand(actor,{key:id,operation:existingId?"finance.invoice.update":"finance.invoice.create",purpose:"new-work"},tx=>invoiceService(tx).createInvoice(actor,input,id,existingId)); }
 export async function voidDraftInvoice(actor: WorkContext, invoiceId: string, expectedVersion: number, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.invoice.void",purpose:"settle-existing"},tx=>invoiceService(tx).voidDraftInvoice(actor,invoiceId,expectedVersion,key)); }
@@ -862,27 +860,8 @@ function closeService(provided?: SqlDatabase) {
                 write.prepare("UPDATE finance_periods SET state='closing',close_started_by=?,close_version=close_version+1,reconciliation_hash=? WHERE id=?").bind(actor.userId, reconciliation.reconciliationHash, periodId),
             ]);
         },
-        cancelledPeriod: async (facts) => { const { periodId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, actor.companyId).first<FinanceRow>(); },
-        commitCancel: async (facts) => {
-            const { actor, id, input, periodId } = facts;
-            const write = await db(actor);
-            return executeCommand(write, actor, id, "finance.period.cancel-close", input, periodId, input.expectedVersion + 1, { id: periodId, state: "open", version: input.expectedVersion + 1 }, [
-                assertion(write, id, "period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='closing' AND close_version=?)", [periodId, actor.companyId, input.expectedVersion]),
-                write.prepare("UPDATE finance_periods SET state='open',close_started_by=NULL,reconciliation_hash=NULL,close_version=close_version+1 WHERE id=? AND company_id=?").bind(periodId, actor.companyId),
-                financeOwnerDecisionEffects(write).appendRetainedLayoutDecision({id:crypto.randomUUID(),commandId:id,recordId:periodId,action:"finance.period.cancel-close",actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:input.expectedVersion,inputDigest:await hash(input),createdAt:Date.now()}),
-            ]);
-        },
         closedPeriod: async (facts) => { const { periodId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, actor.companyId).first<FinanceRow>(); },
-        reopenedPeriod: async (facts) => { const { periodId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=? AND state='closed'").bind(periodId, actor.companyId).first<FinanceRow>(); },
-        commitReopen: async (facts) => {
-            const { actor, id, input, periodId, version } = facts;
-            const write = await db(actor);
-            return executeCommand(write, actor, id, "finance.period.reopen", input, periodId, version + 1, { id: periodId, state: "open", version: version + 1 }, [
-                assertion(write, id, "period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND state='closed' AND close_version=?)", [periodId, version]),
-                write.prepare("UPDATE finance_periods SET state='open',closed_by=NULL,closed_at=NULL,reconciliation_hash=NULL,close_version=close_version+1 WHERE id=?").bind(periodId),
-                financeOwnerDecisionEffects(write).appendRetainedLayoutDecision({id:crypto.randomUUID(),commandId:id,recordId:periodId,action:"finance.period.reopen",actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:version,inputDigest:await hash(input),createdAt:Date.now()}),
-            ]);
-        } });
+        });
 }
 function legacyRevenueService() {
     let pending: Promise<SqlDatabase> | undefined;
