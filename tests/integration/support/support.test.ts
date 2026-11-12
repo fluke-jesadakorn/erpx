@@ -2,7 +2,7 @@ import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import {createCustomerNote} from '@erpx/server-sales/public/customer-notes';
+import {seedCustomerNote} from '../../support/helpers/customer-note-seed';
 import {getSupportTicket,supportWork,supportWorkspace,supportDetail} from '@erpx/server-support/public/support';
 import {seedSupportTicket} from "../../support/helpers/support-ticket-seed";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
@@ -16,7 +16,8 @@ it('hands off to Support and keeps proposed resolution, independent confirmation
  expect((await supportWork(f.head)).find(x=>x.id===id)).toMatchObject({canAct:true,queue:'todo'});
  const {calendarData}=await import("@erpx/server-work_projection/public/calendar/index");
  expect((await calendarData(db,f.head,{date:'2026-09-24',view:'day',layers:'support',mode:'mine'})).items.some(x=>x.sourceId===id)).toBe(true);
- const note=await createCustomerNote(f.owner,{orderId:order,expectedVersion:1,channel:'phone',occurredAt:Date.now(),body:'Customer confirmed the corrected installation'},key());
+ const noteParty=await db.prepare('SELECT party_id FROM commerce_orders WHERE id=?').bind(order).first<string>('party_id');if(!noteParty)throw Error('SUPPORT_NOTE_SOURCE_REQUIRED');
+ const note=await seedCustomerNote(db,{companyId:f.company,customerId:noteParty,orderId:order,channel:'phone',occurredAt:Date.now(),body:'Customer confirmed the corrected installation',createdBy:f.owner.userId});
  const closed=await orderTicket({status:'closed',version:7,resolution:'Resolved by the assigned agent',resolvedBy:f.head.userId,confirmedBy:f.manager.userId,confirmationReason:'Independently recorded customer acceptance',confirmationNoteId:note.id,confirmationNoteVersion:1,events:[
   {action:'report',status:'triage',ownerId:null,dueDate:null},
   {action:'triage'},{action:'start'},{action:'wait-customer',status:'waiting_customer'},{action:'resume'},{action:'resolve',status:'resolved'},{action:'confirm',status:'closed'},

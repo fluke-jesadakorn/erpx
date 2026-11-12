@@ -4,7 +4,7 @@ import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import {createCRMLead,changeCRMLead,getCRMLead} from "@erpx/server-crm/public/crm";
 import {changeCRMIdentity} from "@erpx/server-crm/public/crm-identities";
-import {createCustomerNote,changeCustomerNote} from "@erpx/server-sales/public/customer-notes";
+import {seedCustomerNote,seedCustomerNoteChange} from "../../support/helpers/customer-note-seed";
 import {customerDirectory,customerTimeline,customerTimelineEvents} from "@erpx/server-customer_360/public/customer-timeline";
 import {withNativeFieldFixture} from '../../support/files/field-files-native-parity';
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
@@ -18,9 +18,10 @@ it('federates actual CRM, notes and follow-up source events without copying priv
  const lead=String((await createCRMLead(f.owner,{branchId:f.branch,title:'Timeline inquiry',contactName:'Private simulated contact',contactDetail:'PRIVATE_CONTACT',source:'Phone',brief:'PRIVATE_BRIEF',dueDate:'2026-09-23'},key())).id);
  f.head.role='sales_manager';f.head.assignmentId=await f.grant(f.head,'sales_manager');const leadRow=await getCRMLead(f.owner,lead);await changeCRMIdentity(f.head,{action:'link-finance',accountId:leadRow.account_id,customerId:customer,expectedVersion:1,evidence:'Reviewed customer identity in Finance'},key());
  await changeCRMLead(f.owner,lead,{action:'qualify',expectedVersion:1,customerId:customer,expectedValue:'10',closeDate:'2026-09-25',reason:'PRIVATE_CRM_REASON'},key());
- const note=await createCustomerNote(f.owner,{orderId:order,expectedVersion:1,channel:'phone',occurredAt:Date.now(),body:'PRIVATE_NOTE_CONTENT'},key());
- await changeCustomerNote(f.owner,String(note.id),{action:'correct',expectedVersion:1,body:'CORRECTED_PRIVATE_NOTE',reason:'PRIVATE_CORRECTION'},key());
- await changeCustomerNote(f.owner,String(note.id),{action:'archive',expectedVersion:2,reason:'PRIVATE_ARCHIVE_REASON'},key());
+ // Note commands are native-owned; seed the exact immutable owner rows they persist.
+ const note=await seedCustomerNote(db,{companyId:f.company,customerId:customer,orderId:order,channel:'phone',occurredAt:Date.now(),body:'PRIVATE_NOTE_CONTENT',createdBy:f.owner.userId});
+ await seedCustomerNoteChange(db,{noteId:note.id,action:'correct',expectedVersion:1,body:'CORRECTED_PRIVATE_NOTE',reason:'PRIVATE_CORRECTION',actorId:f.owner.userId});
+ await seedCustomerNoteChange(db,{noteId:note.id,action:'archive',expectedVersion:2,reason:'PRIVATE_ARCHIVE_REASON',actorId:f.owner.userId});
  // Follow-up commands are native-only; the timeline oracle seeds the exact
  // owner rows (follow-up, immutable events and notification) those commands persist.
  const follow={id:`followup-${key()}`},followNow=Date.now();
@@ -47,7 +48,7 @@ it('hides customer identity, entries and counts outside company/branch/departmen
  await expect(customerTimeline({...f.owner,role:'employee'},customer)).rejects.toMatchObject({status:403});
 });
 it('paginates source events deterministically without duplicates and rejects malformed cursors',async()=>{
- for(let i=0;i<4;i++)await createCustomerNote(f.owner,{orderId:order,expectedVersion:1,channel:'phone',occurredAt:Date.now(),body:`Contact ${i}`},key());
+ for(let i=0;i<4;i++)await seedCustomerNote(db,{companyId:f.company,customerId:customer,orderId:order,channel:'phone',occurredAt:Date.now(),body:`Contact ${i}`,createdBy:f.owner.userId});
  const all=await customerTimeline(f.owner,customer),seen:string[]=[];let cursor:string|undefined;
  do{const page=await customerTimeline(f.owner,customer,{limit:2,cursor});seen.push(...page.items.map(x=>x.id));cursor=page.nextCursor??undefined;}while(cursor);
  expect(seen).toEqual(all.items.map(x=>x.id));expect(new Set(seen).size).toBe(5);

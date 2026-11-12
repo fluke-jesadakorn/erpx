@@ -941,12 +941,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/sales/customer-notes.test.ts",
-          "title": "protects standalone notes with customer version and workspace visibility checks",
-          "proof": "await expect(createCustomerNote(f.owner,{customerId,expectedVersion:99,channel:'phone',occurredAt:Date.now()-1000,body:'Stale customer source'},key())).rejects.toMatchObject({code:'CUSTOMER_SOURCE_CHANGED'});\nawait expect(customerNotesForCustomer({...f.owner,branchId:'other'},customerId)).rejects.toMatchObject({status:404});\nawait expect(changeCustomerNote({...f.owner,branchId:f.branch,departmentId:null},String(n.id),{action:'archive',expectedVersion:1,reason:'Branch cannot change standalone note'},key())).rejects.toMatchObject({status:404});"
-        }
       ],
       "moduleId": "customer_360",
       "capabilityId": "feature-customer-profile"

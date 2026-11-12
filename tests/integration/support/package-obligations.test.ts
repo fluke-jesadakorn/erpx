@@ -2,7 +2,7 @@ import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import { createCustomerNote } from "@erpx/server-sales/public/customer-notes";
+import { seedCustomerNote } from "../../support/helpers/customer-note-seed";
 import {getSupportTicket} from '@erpx/server-support/public/support';
 import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/support-ticket-seed';
 import {seedSupportIncident,seedSupportIncidentState} from '../../support/helpers/support-incident-seed';
@@ -71,7 +71,9 @@ async function orderTicket() {
   return { id: String(ticket.id), orderId: String(order.id) };
 }
 async function confirm(id: string, orderId: string) {
-  const note = await createCustomerNote(f.owner, { orderId, expectedVersion: 1, channel: "phone", occurredAt: Date.now(), body: "Customer verified the corrected installation" }, key());
+  const customerId = await db.prepare("SELECT party_id FROM commerce_orders WHERE id=?").bind(orderId).first<string>("party_id");
+  if (!customerId) throw new Error("SUPPORT_NOTE_SOURCE_REQUIRED");
+  const note = await seedCustomerNote(db, { companyId: f.company, customerId, orderId, channel: "phone", occurredAt: Date.now(), body: "Customer verified the corrected installation", createdBy: f.owner.userId });
   await ticketAction(id, "confirm", f.manager, { noteId: note.id, noteVersion: 1 });
 }
 

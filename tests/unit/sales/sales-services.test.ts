@@ -1,7 +1,6 @@
 import {afterEach,describe,expect,test} from 'vitest';
 import {createPriceListApplication,type PriceListRepository,type PriceListMutation} from "@erpx/server-sales/application/price-lists";
 import {createFollowupApplication,type FollowupRepository} from "@erpx/server-sales/application/followups";
-import {createCustomerNoteApplication,type CustomerNoteRepository} from "@erpx/server-sales/application/notes";
 import {createSalesCustomerApplication,type SalesCustomerRepository} from "@erpx/server-sales/application/customers";
 import {createCustomerNotificationApplication,type CustomerNotificationRepository,type CustomerNotificationMutation} from "@erpx/server-sales/application/notifications";
 import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
@@ -39,16 +38,6 @@ describe('Sales follow-up and note semantics',()=>{
  test('revoked recipient facts make work wait for reassignment',async()=>{
   const f=followupFixture({async rows(){return [{id:'followup',owner_id:'manager',owner_eligible:0,status:'open',due_date:'2026-10-06',updated_at:42}];}});
   expect(await f.app.work()).toEqual([expect.objectContaining({canAct:false,queue:'waiting',blocker:'Assigned owner is no longer eligible; a sales manager must reassign with a reason'})]);
- });
- test('a future contact time is rejected before receipt lookup or source access',async()=>{
-  const repository:CustomerNoteRepository={async order(){throw new Error('source unavailable');},async customer(){return null;},async notes(){return [];},async history(){return [];},async note(){return null;},async replay(){throw new Error('must not replay');},async commit(){throw new Error('must not commit');}};
-  const app=createCustomerNoteApplication({canSell:true,canManage:false,branchId:null,departmentId:null,authorize(){},isSamePerson:()=>false,clock:{now:()=>42},async repository(){return repository;}});
-  await expect(app.create({orderId:'order',expectedVersion:1,channel:'phone',occurredAt:60043,body:'Discussed the delivery'},'key')).rejects.toMatchObject({code:'CONTACT_TIME_INVALID'});
- });
- test('standalone customer notes stay hidden from Branch and Department actors',async()=>{
-  const repository:CustomerNoteRepository={async order(){return {};},async customer(){return null;},async notes(){return [];},async history(){return [];},async note(){return {order_id:null,customer_id:'customer',created_by:'author',body:'Contact record'};},async replay(){return null;},async commit(){throw new Error('must not commit');}};
-  const app=createCustomerNoteApplication({canSell:true,canManage:true,branchId:'branch',departmentId:null,authorize(){},isSamePerson:()=>true,clock:{now:()=>42},async repository(){return repository;}});
-  await expect(app.change('note',{action:'archive',expectedVersion:1,reason:'Recorded separately'},'key')).rejects.toMatchObject({status:404,code:'CUSTOMER_NOTE_NOT_FOUND'});
  });
 });
 function hubFixture(overrides:Partial<SalesCustomerRepository>={}){
