@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 880,
+    "revision": 892,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T12:48:10.099Z",
-      "expiresAt": "2026-11-12T13:18:10.099Z",
+      "heartbeatAt": "2026-11-12T12:56:41.916Z",
+      "expiresAt": "2026-11-12T13:26:41.916Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -20222,26 +20222,108 @@
           "packages/server-agent/Cargo.toml",
           "packages/server-agent/package.json",
           "packages/feature-agent/**",
+          "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/**",
           "fixtures/**",
           "tests/unit/agent/**",
-          "tests/integration/agent/**"
+          "tests/integration/agent/**",
+          "tests/integration/shared.requests/**"
         ],
         "resources": [
           "owner:agent"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "a9c12ba6de78531aa82bab1eef1a6482a9424f05",
+        "lastPushedSha": "a9c12ba6de78531aa82bab1eef1a6482a9424f05",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- packages/server-agent/src/adapters/agent-governance.ts",
+            "result": "passed",
+            "sourceSha": "a9c12ba6de78531aa82bab1eef1a6482a9424f05",
+            "before": 16,
+            "after": 3,
+            "note": "The Agent catalogue/version/pool/assignment/session command writer and its TS application use cases are gone; native Rust governance commands are the only command authority."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-agent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a9c12ba6de78531aa82bab1eef1a6482a9424f05",
+            "before": 46,
+            "after": 33,
+            "residual": [
+              {
+                "path": "packages/server-agent/src/adapters/agent-governance.ts",
+                "writes": 3,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Move retained assistant private-session and invocation evidence writes behind the native evidence port, then delete the TS adapter writes."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/ai-providers.ts",
+                "writes": 12,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Native AI provider configuration and credential receipts own the writer; delete the TS provider writer and move its oracle to native seeding."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/ai-gateway.ts",
+                "writes": 8,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Native AI gateway reservation and cost receipt own the writer; delete the TS gateway writer and move its unit oracle to native seeding."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/workspace-assistant.ts",
+                "writes": 7,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Native workspace assistant completion and evidence receipt own the writer; delete the TS completion writer after the assistant suite is native-seeded."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/operations-guided-intake-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Move guided-intake usage/evidence facts to the native Agent evidence port; delete the TS facts writer."
+              }
+            ]
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "a9c12ba6de78531aa82bab1eef1a6482a9424f05"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a9c12ba6de78531aa82bab1eef1a6482a9424f05"
+          },
+          {
+            "command": "bunx tsc -p packages/server-agent/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "a9c12ba6de78531aa82bab1eef1a6482a9424f05"
+          },
+          {
+            "command": "bun run test:unit -- --suite=agent.semantic-services.unit",
+            "result": "passed",
+            "sourceSha": "a9c12ba6de78531aa82bab1eef1a6482a9424f05",
+            "note": "23/23; command-only tests removed with the dead TS governance use cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.requests.guided-intake.integration --suite=agent.workspace-assistant.integration",
+            "result": "passed",
+            "sourceSha": "a9c12ba6de78531aa82bab1eef1a6482a9424f05",
+            "note": "18/18; Agent/version/assignment rows are seeded as native owner rows, then the retained assistant and guided-intake paths are exercised."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/agent-governance.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Agent governance commands are native-only: TS command writer/use cases/barrels deleted; route calls the native command and fails closed; retained assistant reads and guided-intake seed owner rows; owned KPI 46->33 (agent-governance.ts 16->3) with residual bound to retire.agent.residual-writers. Pushed a9c12ba6d.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "retire.billing.billing",
@@ -22169,6 +22251,54 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.agent.residual-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "agent",
+        "workflowIds": [
+          "agent/agent-catalog",
+          "agent/versions",
+          "agent/assignments",
+          "agent/feature-pools-routing",
+          "agent/feature-private-sessions",
+          "agent/feature-invocation-evidence",
+          "agent/feature-field-suggestions"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the remaining Agent TypeScript SQL writers",
+        "scope": "Classify the 33 remaining Agent owner writes against packages/server-agent/src/**/*.rs and retire them batch by batch: agent-governance assistant session/evidence 3, ai-providers 12, ai-gateway 8, workspace-assistant 7, operations-guided-intake-facts 3. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "packages/server-agent/Cargo.toml",
+          "packages/server-agent/package.json",
+          "packages/feature-agent/**",
+          "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/**",
+          "fixtures/**",
+          "tests/unit/agent/**",
+          "tests/integration/agent/**",
+          "tests/integration/shared.requests/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for the remaining Agent writer files, then retire the smallest complete native-backed file first and record the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -22177,21 +22307,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 99,
-      "migratedPackets": 41,
+      "totalPackets": 100,
+      "migratedPackets": 42,
       "statusCounts": {
         "pending": 28,
         "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 41,
+        "migrated": 42,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T12:49:33.428Z",
+    "updatedAt": "2026-11-12T12:56:48.888Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
