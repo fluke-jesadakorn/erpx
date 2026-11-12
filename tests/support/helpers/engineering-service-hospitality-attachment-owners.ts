@@ -18,7 +18,7 @@ import {createExpensePayment,confirmExpensePayment,expensePaymentSchema} from '@
 import {createParty,partySchema,createInvoice,invoiceSchema,postInvoice} from '@erpx/server-finance/public/finance';
 import {settleInvoice,settlementSchema} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {posCommand} from '@erpx/server-pos/public/pos-core';
+import {posSeedCommand} from './pos-native-seed';
 import {accountKeys} from "@erpx/server-pos/public/rules/pos";
 import {pmsCommand,loadPms} from "../../../packages/server-pms/src/public/pms";
 import {pmsAccountKeys,records,record,type Config} from "@erpx/server-pms/public/rules/pms";
@@ -99,7 +99,7 @@ async function posOwner(f:Fixture,tuple:AttachmentOwnerTuple):Promise<Attachment
  }
  await db.prepare("INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode) VALUES(?,?,?,?,?,'retail')").bind(register,f.company,f.branch,warehouse,"Synthetic till").run();
  await db.prepare("INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor) VALUES(?,?,?,?,?,1,10000)").bind(shift,register,f.company,f.branch,cashier.userId).run();
- const cmd=(actor:WorkContext,op:string,input:unknown,command=key())=>posCommand(db,actor,op,input,command);
+ const pos=posSeedCommand(db),cmd=(actor:WorkContext,op:string,input:unknown,command=key())=>pos(actor,op,input,command);
  await cmd(f.owner,"settings.save",{enabled:true,currency:"THB",timezone:"Asia/Bangkok",cashierDiscountBps:0,accounts,expectedVersion:0});
  await cmd(f.manager,"accounting.approve",{expectedVersion:1});
  await cmd(f.owner,"catalog.save",{productId:product,barcode:key(),category:"Retail",kind:"stock",station:"Shop",recipe:[],modifiers:[],taxInclusive:false,registerIds:[register],expectedVersion:0});

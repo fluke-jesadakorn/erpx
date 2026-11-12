@@ -13,7 +13,7 @@ mock.module('next/navigation',()=>({forbidden:()=>{throw new Error('CLI_PAGE_FOR
 const {pmsAccountCategory,pmsAccountCode}=await import("@erpx/server-finance/public/hospitality-accounting");
 import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 const { pmsCommand, loadPms, drainPms }=await import("../../packages/server-pms/src/public/pms");
-const {posCommand}=await import("@erpx/server-pos/public/pos-core");
+const {posSeedCommand}=await import("../../tests/support/helpers/pos-native-seed");
 const {one}=await import("@erpx/server-runtime/public/runtime/sql");
 const { saveMaster }=await import("@erpx/server-commerce/public/commerce");
 const { countSchema, saveCount, transitionCount }=await import("@erpx/server-inventory/public/inventory-counts");
@@ -31,6 +31,7 @@ assertHospitalityDevelopmentTarget(jobsManifest,process.env.ERPX_ENVIRONMENT??pr
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
 const {getRuntime,closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
 const env=getRuntime(),db=new PostgresDatabase({connectionString:jobsManifest.databases.H001_DB,max:2}),control=env.CONTROL_DB;
+const seedPos=posSeedCommand(db);
 
 const namespace='hospitality-demo-v1',directory=resolve('.scratch/dev/hospitality');
 await mkdir(directory,{recursive:true,mode:0o700});
@@ -125,7 +126,7 @@ try {
           }
           const count=(await step(`${prefix}:opening-count`,countSchema.parse({warehouseId:warehouse,countDate:clean?date:plusDays(date,-1),reason:'Fictional independently counted opening ingredient stock',lines:fixture.restaurant.openingStock.map(s=>({productId:products[s.sku],countedQuantity:String(s.quantityMilli/1000),unitCost:(s.valueMinor/s.quantityMilli*10).toFixed(2)}))}),(input,key)=>saveCount(admin,null,countSchema.parse(input),key))).id;
           for(const [action,version] of [['submit',1],['approve',2],['post',3]] as const)await step(`${prefix}:count-${action}`,{expectedVersion:version,attachmentSetIds:[],reason:'Independent fictional opening stock review'},(input,key)=>transitionCount(action==='submit'?admin:finance,count,action,input as {expectedVersion:number;attachmentSetIds:string[];reason:string},key));
-          const pos=async(label:string,op:string,input:unknown,actor=admin)=>step(`${prefix}:${label}`,input,(body,key)=>posCommand(db,actor,op,body,key));
+          const pos=async(label:string,op:string,input:unknown,actor=admin)=>step(`${prefix}:${label}`,input,(body,key)=>seedPos(actor,op,body,key));
           let register:string;
           if(clean)register=String((await pos('bootstrap-pos','settings.bootstrap',{mode:'restaurant',registerName:'Rehearsal kitchen',warehouseId:warehouse})).registerId);
           else register=(await pos('register','register.save',{name:'Scenario kitchen',warehouseId:warehouse,mode:'restaurant'})).id;
