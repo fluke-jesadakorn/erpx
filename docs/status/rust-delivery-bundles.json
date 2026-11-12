@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 857,
+    "revision": 861,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21922,7 +21922,7 @@
           "owner:finance"
         ],
         "status": "blocked",
-        "nextAction": "Retire the journal TS writers and their route fallbacks; measure retirement:ts-writes.",
+        "nextAction": "BLOCKED as a standalone deletion: createJournal/postJournal/reverseJournal still serve live TS flows (application/opening.ts, legacy-revenue.ts, journal-review.ts) besides the route fallback; route-only switch gives no KPI delta. Continued in retire.finance.opening-revenue-journal-ports (native ports + route switch + deletion). No writer deleted; finance KPI unchanged at 382.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
@@ -21941,6 +21941,54 @@
           "reason": "Recovery: Lease expired after routine command mount; WIP reviewed",
           "nextAction": "Retire the journal TS writers and their route fallbacks; measure retirement:ts-writes."
         }
+      },
+      {
+        "id": "retire.finance.opening-revenue-journal-ports",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Port opening-balance, legacy-revenue and journal-review writers to native journal ports",
+        "scope": "createJournal/postJournal/reverseJournal are still used by application/opening.ts (opening balances), application/legacy-revenue.ts and application/journal-review.ts. Port those flows onto the native journal create/post/reverse ports (same serializable unit and receipts), switch the workplace journal POST branches to native-only with 503 NATIVE_FINANCE_UNAVAILABLE, then delete the three TS writers and their application/adapters/public/index/package exports, move oracles to native/SQL seeding, and record the finance KPI before/after with a classified residual.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/feature-finance/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "in_progress",
+        "nextAction": "Port opening/legacy-revenue/journal-review to native journal ports (seed tests inline, no fixtures path), switch the route, delete the three writers, measure retirement:ts-writes.",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "claim": {
+          "runId": "run-20261112-q",
+          "agentId": "worker-finance",
+          "claimedAt": "2026-11-12T12:19:29.503Z",
+          "heartbeatAt": "2026-11-12T12:19:29.503Z",
+          "expiresAt": "2026-11-12T12:49:29.503Z",
+          "generation": 42
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -21949,11 +21997,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 97,
+      "totalPackets": 98,
       "migratedPackets": 40,
       "statusCounts": {
         "pending": 28,
-        "in_progress": 4,
+        "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 40,
@@ -21963,7 +22011,7 @@
       }
     },
     "lastCoordinatorGeneration": 42,
-    "updatedAt": "2026-11-12T12:16:57.862Z",
+    "updatedAt": "2026-11-12T12:19:39.039Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
