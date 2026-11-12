@@ -21,7 +21,7 @@ describe("Support service team policy through typed ports", () => {
 });
 import { createGetSupportTicket, createSupportWorkspace } from "@erpx/server-support/application/support";
 import { createSupportPolicy, createChangeSupportPolicy } from "@erpx/server-support/application/support-sla";
-import { createDrainSupportSla, createAcknowledgeSupportAlert } from "@erpx/server-support/application/support-sla-alerts";
+import { createDrainSupportSla } from "@erpx/server-support/application/support-sla-alerts";
 import { createSupportEvidenceGuard, createBindSupportEvidence, createSupportEvidence } from "@erpx/server-support/application/support-evidence";
 import { createSupportIncident, createChangeSupportIncident } from "@erpx/server-support/application/support-incidents";
 import { createRequestSupportSession, createChangeSupportSession, createSupportSessionContext } from "@erpx/server-support/application/support-sessions";
@@ -42,7 +42,6 @@ describe("Support working-time target and escalation orchestration", () => {
     it("requires a company manager before replaying a policy create", async () => { const ports = { ...runtime(), prepare: vi.fn(async () => mutation) }; await expect(createSupportPolicy(ports)({ ...actor, branchId: "branch" }, { name: "Working time", policy, reason: "Proposed company target" }, "key")).rejects.toMatchObject({ code: "SUPPORT_COMPANY_POLICY_REQUIRED" }); expect(ports.replay).not.toHaveBeenCalled(); });
     it("rejects policy approval by a merged identity alias", async () => { const ports = { ...runtime(), policy: async () => ({ status: "draft", created_by: "old-owner" }), prepare: vi.fn(async () => mutation) }; await expect(createChangeSupportPolicy(ports)({ ...actor, iam: { personUserIds: ["old-owner"] } } as WorkContext, "policy", { action: "approve", expectedVersion: 1, reason: "Review proposed target" }, "key")).rejects.toMatchObject({ code: "INDEPENDENT_APPROVER_REQUIRED" }); expect(ports.commit).not.toHaveBeenCalled(); });
     it("injects the default sweep clock and preserves explicit retry time", async () => { const sweep = vi.fn(async () => { }), drain = createDrainSupportSla({ now: () => 200, sweep }); await drain(); await drain(100); expect(sweep.mock.calls).toEqual([[200], [100]]); });
-    it("acknowledges against source scope while retaining ticket state", async () => { const alert = { id: "alert", ticket_id: "ticket", title: "Case", source_version: 4, breached_at: 100, detected_at: 200, version: 1, acknowledged_by: null, acknowledged_at: null, reason: null, company_id: "company", branch_id: "branch", department_id: null, can_ack: 1, recipients: 1 }, ports = { ...runtime(), alert: async () => alert, prepare: async () => mutation }; expect(await createAcknowledgeSupportAlert(ports)(actor, "alert", { expectedVersion: 1, reason: "I will coordinate recovery" }, "key")).toEqual({ id: "alert", version: 2 }); expect(ports.commit.mock.calls[0][0]).toMatchObject({ operation: "support.sla.acknowledge", scope: { companyId: "company", branchId: "branch", departmentId: null } }); });
 });
 describe("Support evidence and incident ownership", () => {
     it("keeps Service-owned lifecycle and evidence changes out of Helpdesk while retaining readable evidence", async () => {

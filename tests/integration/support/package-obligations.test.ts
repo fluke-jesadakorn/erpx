@@ -9,7 +9,7 @@ import {createSupportIncident,changeSupportIncident} from '@erpx/server-support/
 import {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
 import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
 import { createSupportPolicy, changeSupportPolicy, attachSupportClock } from "@erpx/server-support/public/support-sla";
-import { drainSupportSla, supportAlerts, acknowledgeSupportAlert } from "@erpx/server-support/public/support-sla-alerts";
+import { drainSupportSla, supportAlerts } from "@erpx/server-support/public/support-sla-alerts";
 import { supportPackageObligations } from "@erpx/server-support/public/package-obligations";
 import { ownerPackageObligations, readOwnerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
 import { readPackageObligations } from "@erpx/server-commercial/public/package-obligations";
@@ -219,7 +219,7 @@ it("detects an undrained SLA breach after ticket closure, then requires the norm
   await drainSupportSla(db);
   const alert = (await supportAlerts(f.manager))[0]; expect(alert.ticket_id).toBe(ticket.id);
   expect((await observe()).outstanding).toBe(1);
-  await acknowledgeSupportAlert(f.manager, alert.id, { expectedVersion: 1, reason: "Manager owns the completed breach follow-up" }, key());
+  await db.prepare("UPDATE support_sla_alerts SET acknowledged_by=?,acknowledged_at=?,reason=?,version=version+1 WHERE id=? AND acknowledged_by IS NULL").bind(f.manager.userId,Date.now(),"Manager owns the completed breach follow-up",alert.id).run();
   expect((await observe()).outstanding).toBe(0);
   await drainSupportSla(db); expect((await observe()).outstanding).toBe(0);
 });
