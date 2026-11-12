@@ -24,7 +24,7 @@ import {
   collectionWorkspace,
   cashDueForecast,
 } from "@erpx/server-finance/public/finance-collections";
-import {createJournal,createJournalSchema,importBankStatement,postJournal,reconcileBankTransaction} from '@erpx/server-finance/public/finance';
+import {importBankStatement,reconcileBankTransaction} from '@erpx/server-finance/public/finance';
 import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
@@ -486,27 +486,24 @@ it("prevents cross Company matches and stale approvals from consuming the same m
 it("pages every bank movement, cash line and group without treating a hidden duplicate as a unique suggestion", async () => {
   const original = await receipt("100.00"),
     s = await statement();
-  const background = await createJournal(
-    f.owner,
-    createJournalSchema.parse({
-      chartId: f.chart,
-      periodId: f.period,
-      entryDate: "2026-09-05",
-      currency: "THB",
-      lines: [
-        ...Array.from({ length: 201 }, (_, index) => ({
-          accountId: f.accounts.cash,
-          debit: "1.00",
-          credit: "0",
-          description: `Paged cash ${index}`,
-        })),
-        { accountId: f.accounts.revenue, debit: "0", credit: "201.00" },
-      ],
-    }),
-    key(),
-  );
-  await postJournal(f.manager, String(background.id), key(), {
-    expectedVersion: 1,
+  await seedFinanceJournal(db, {
+    companyId: f.company,
+    chartId: f.chart,
+    periodId: f.period,
+    entryDate: "2026-09-05",
+    currency: "THB",
+    key: key(),
+    createdBy: f.owner.userId,
+    status: "posted",
+    lines: [
+      ...Array.from({ length: 201 }, (_, index) => ({
+        accountId: f.accounts.cash,
+        debit: "1.00",
+        credit: "0",
+        description: `Paged cash ${index}`,
+      })),
+      { accountId: f.accounts.revenue, debit: "0", credit: "201.00" },
+    ],
   });
   let view = await bankAutomationWorkspace(f.owner);
   expect(view.targets).toHaveLength(30);
@@ -621,21 +618,20 @@ async function obligation() {
     )
     .bind(party, f.company, party)
     .run();
-  const j = await createJournal(
-    f.owner,
-    createJournalSchema.parse({
-      chartId: f.chart,
-      periodId: f.period,
-      entryDate: "2026-09-02",
-      currency: "THB",
-      lines: [
-        { accountId: receivable, debit: "100.01", credit: "0" },
-        { accountId: f.accounts.revenue, debit: "0", credit: "100.01" },
-      ],
-    }),
-    key(),
-  );
-  await postJournal(f.manager, String(j.id), key(), { expectedVersion: 1 });
+  const j = await seedFinanceJournal(db, {
+    companyId: f.company,
+    chartId: f.chart,
+    periodId: f.period,
+    entryDate: "2026-09-02",
+    currency: "THB",
+    key: key(),
+    createdBy: f.owner.userId,
+    status: "posted",
+    lines: [
+      { accountId: receivable, debit: "100.01", credit: "0" },
+      { accountId: f.accounts.revenue, debit: "0", credit: "100.01" },
+    ],
+  });
   await db
     .prepare(
       "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,total_minor,outstanding_minor,base_total_minor,base_outstanding_minor,debit_account_id,credit_account_id,journal_id,status,created_by,created_at,updated_at) VALUES(?,?,?,'receivable',?,'2026-09-02','2026-09-03','THB',10001,10001,10001,10001,10001,?,?,?,'posted',?,1,1)",
