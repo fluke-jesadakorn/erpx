@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 841,
+    "revision": 844,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-o",
+      "runId": "run-20261112-p",
       "agentId": "lead",
-      "startedAt": "2026-11-12T10:50:40.110Z",
-      "heartbeatAt": "2026-11-12T10:50:40.110Z",
-      "expiresAt": "2026-11-12T11:20:40.111Z",
-      "generation": 40,
-      "tokenHash": "c8d1fcba66cb67bc7282ca5344a4a58a035284e42000913ff49927f3f245429c"
+      "startedAt": "2026-11-12T11:24:35.753Z",
+      "heartbeatAt": "2026-11-12T11:24:35.753Z",
+      "expiresAt": "2026-11-12T11:54:35.754Z",
+      "generation": 41,
+      "tokenHash": "52860a70c33cb48cb0641056253743a9029002b954889552a917fe9e766afc67"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10117,14 +10117,80 @@
           "owner:organization"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261112-p",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T11:25:01.253Z",
+          "heartbeatAt": "2026-11-12T11:25:01.253Z",
+          "expiresAt": "2026-11-12T11:55:01.253Z",
+          "generation": 41
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-organization position-move writer",
+            "result": "passed",
+            "before": 70,
+            "after": 64,
+            "sourceSha": "c3f3f32982807b1811ecdc43f980d83daaf8efad",
+            "sourceKind": "committed",
+            "note": "Deleted the TS position-move adapter/public writer plus the People lifecycle TS drain; the People catch-all position-move list/preview/submit/cancel branches are now native-only (503 when unconfigured) and scheduled moves are drained only by the native position-move worker/supervisor. Organization KPI 70->64; native Rust unit+PG position-move tests own the oracle."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization -p erpx-server-people-payroll --locked --all-targets",
+            "result": "passed",
+            "sourceSha": "c3f3f32982807b1811ecdc43f980d83daaf8efad",
+            "sourceKind": "committed",
+            "note": "Native crates and tests compile."
+          },
+          {
+            "command": "bun run test:unit -- --suite=organization.rust-position-moves.unit",
+            "result": "passed",
+            "sourceSha": "c3f3f32982807b1811ecdc43f980d83daaf8efad",
+            "sourceKind": "committed",
+            "note": "10/10 native position-move cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=organization.rust-position-moves-postgres.integration",
+            "result": "passed",
+            "sourceSha": "c3f3f32982807b1811ecdc43f980d83daaf8efad",
+            "sourceKind": "committed",
+            "note": "5/5 native PostgreSQL position-move cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=organization.access.integration",
+            "result": "passed",
+            "sourceSha": "c3f3f32982807b1811ecdc43f980d83daaf8efad",
+            "sourceKind": "committed",
+            "note": "6/6 access cases remain green."
+          },
+          {
+            "command": "bun run test:unit -- --suite=people_payroll.organization-consumers.unit",
+            "result": "passed",
+            "sourceSha": "c3f3f32982807b1811ecdc43f980d83daaf8efad",
+            "sourceKind": "committed",
+            "note": "5/5 after removing the retired lifecycle drain selector."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "c3f3f32982807b1811ecdc43f980d83daaf8efad",
+            "sourceKind": "committed",
+            "note": "0 errors."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "c3f3f32982807b1811ecdc43f980d83daaf8efad",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID:33 modules,1185 suites (registered a concurrently added routines route suite)."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after commercial package-grant commit; WIP reviewed",
-        "nextAction": "Access projection and position-move consumers prefer native: People catch-all position-move read/commands, Admin technology JSON API (lazy retained fallback, 02e99cf87), technology/organization screens; production position-move drain supervised (9532fd57e). Remaining: people_payroll workspace/move adapters, organization drafts/presentation queries, TS lifecycle drain retirement, then remove the TS access adapters.",
+        "blocker": null,
+        "nextAction": "Access projection and position-move consumers are native-only: People catch-all list/preview/submit/cancel no longer falls back to TS (503 when unconfigured), Admin technology JSON API/screens use the native access read, production position-move supervisor drains scheduled moves, and the TS position-move adapter/public plus the People lifecycle TS drain are deleted (organization KPI 70->64, c3f3f3298). Remaining: organization drafts/presentation TS, acceptance/beta onboarding effects, profile media/staff defaults writers.",
         "handoff": {
           "runId": "run-20261110-g17",
           "agentId": "lead",
@@ -13874,14 +13940,7 @@
           "owner:collaboration"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261112-o",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T11:06:32.700Z",
-          "heartbeatAt": "2026-11-12T11:06:32.700Z",
-          "expiresAt": "2026-11-12T11:36:32.700Z",
-          "generation": 40
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -13951,12 +14010,12 @@
         "blocker": null,
         "nextAction": "Messaging history/file content native; attachments bind/content fail-closed. Retired two dead TS shims (field-service notification 219->218 a1049ac1f; orphan operations-exception notifications 218->216 c36c1060a). Remaining: native messaging upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain, and the live support-notification/commercial-effect writers.",
         "handoff": {
-          "runId": "run-20261110-g10",
+          "runId": "run-20261112-o",
           "agentId": "lead",
-          "at": "2026-11-11T12:18:27.956Z",
+          "at": "2026-11-12T11:24:35.752Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
-          "nextAction": "Messaging history (1435f0cf6) and file content (03e632750) are native and switched; attachments bind/content port wired at ec0472b44 with fail-closed absence. Remaining: native messaging upload/discard intake does not exist in Rust (stays TS), inbox notifications need owner visibility port, feed subpaths/CSV/mention drain."
+          "reason": "Recovery: Lease expired after organization position-move retirement; WIP reviewed",
+          "nextAction": "Messaging history/file content native; attachments bind/content fail-closed. Retired two dead TS shims (field-service notification 219->218 a1049ac1f; orphan operations-exception notifications 218->216 c36c1060a). Remaining: native messaging upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain, and the live support-notification/commercial-effect writers."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -17965,14 +18024,7 @@
           "owner:projects"
         ],
         "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-o",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T10:50:50.143Z",
-          "heartbeatAt": "2026-11-12T10:50:50.143Z",
-          "expiresAt": "2026-11-12T11:20:50.143Z",
-          "generation": 40
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -18158,12 +18210,12 @@
         "blocker": null,
         "nextAction": "KPI 34->32->15->8->4. Native project create/edit live; TS saveProject deleted; residual 4 = Operations purchase-helper command_assertions guards, removable after migrate.operations native commands. Blocked by retire.operations.staff-transitions claim overlap on tests/integration/projects/**, not by missing native work.",
         "handoff": {
-          "runId": "run-20261112-n",
+          "runId": "run-20261112-o",
           "agentId": "lead",
-          "at": "2026-11-12T10:50:40.110Z",
+          "at": "2026-11-12T11:24:35.752Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired after project save retirement; WIP reviewed",
-          "nextAction": "KPI 34->32->15->8->4. Native project.create/project.update owner command, HTTP routes, composition purchase/staff admission and client are live; TS saveProject, writer-only repository/barrels and writer oracles are deleted. Residual 4 = command_assertions guard cleanup inside Operations purchase helpers (purchases 2, task-purchases 1, scheduled-tasks 1), still used by retained TS routines/staff-task commands; remove after migrate.operations native commands."
+          "reason": "Recovery: Lease expired after organization position-move retirement; WIP reviewed",
+          "nextAction": "KPI 34->32->15->8->4. Native project create/edit live; TS saveProject deleted; residual 4 = Operations purchase-helper command_assertions guards, removable after migrate.operations native commands. Blocked by retire.operations.staff-transitions claim overlap on tests/integration/projects/**, not by missing native work."
         },
         "scopeRefinementRequired": false
       },
@@ -19917,14 +19969,7 @@
           "owner:operations"
         ],
         "status": "integrating",
-        "claim": {
-          "runId": "run-20261112-o",
-          "agentId": "worker-operations",
-          "claimedAt": "2026-11-12T11:11:42.860Z",
-          "heartbeatAt": "2026-11-12T11:11:42.860Z",
-          "expiresAt": "2026-11-12T11:41:42.860Z",
-          "generation": 40
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -19933,11 +19978,11 @@
         "blocker": null,
         "nextAction": "Native routine command module is tested (11/11) but unmounted; next: composition RoutineHttpBackend + Identity/People/Projects/Workflow delegates, fail-closed route switch, delete TS stubs/fences, KPI 29->12.",
         "handoff": {
-          "runId": "run-20261112-n",
+          "runId": "run-20261112-o",
           "agentId": "worker-operations",
-          "at": "2026-11-12T10:22:44.187Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
+          "at": "2026-11-12T11:24:35.752Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Lease expired after organization position-move retirement; WIP reviewed",
           "nextAction": "Native routine command module is tested (11/11) but unmounted; next: composition RoutineHttpBackend + Identity/People/Projects/Workflow delegates, fail-closed route switch, delete TS stubs/fences, KPI 29->12."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -20240,14 +20285,7 @@
           "owner:finance"
         ],
         "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-o",
-          "agentId": "worker-finance",
-          "claimedAt": "2026-11-12T11:17:40.572Z",
-          "heartbeatAt": "2026-11-12T11:17:40.572Z",
-          "expiresAt": "2026-11-12T11:47:40.572Z",
-          "generation": 40
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -20255,7 +20293,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Worker retiring the first finance writer batch (AI/due-drafts, supplier payments, tax/consolidation/accruals, instruments/asset-policies/refunds) with native-authority proof per file; KPI 382 baseline, residual must be re-classified to the new after value.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-o",
+          "agentId": "worker-finance",
+          "at": "2026-11-12T11:24:35.752Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired after organization position-move retirement; WIP reviewed",
+          "nextAction": "Worker retiring the first finance writer batch (AI/due-drafts, supplier payments, tax/consolidation/accruals, instruments/asset-policies/refunds) with native-authority proof per file; KPI 382 baseline, residual must be re-classified to the new after value."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -21650,8 +21695,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 40,
-    "updatedAt": "2026-11-12T11:18:11.136Z",
+    "lastCoordinatorGeneration": 41,
+    "updatedAt": "2026-11-12T11:25:10.390Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -21694,10 +21739,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-n",
-      "runId": "run-20261112-o",
-      "at": "2026-11-12T10:50:40.111Z",
-      "reason": "Lease expired after project save retirement; WIP reviewed",
+      "previousRunId": "run-20261112-o",
+      "runId": "run-20261112-p",
+      "at": "2026-11-12T11:24:35.754Z",
+      "reason": "Lease expired after organization position-move retirement; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
