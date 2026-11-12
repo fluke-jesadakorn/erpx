@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1086,
+    "revision": 1088,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-s",
       "agentId": "lead",
       "startedAt": "2026-11-12T16:09:25.074Z",
-      "heartbeatAt": "2026-11-12T17:16:24.778Z",
-      "expiresAt": "2026-11-12T17:46:24.778Z",
+      "heartbeatAt": "2026-11-12T17:43:43.783Z",
+      "expiresAt": "2026-11-12T18:13:43.783Z",
       "generation": 44,
       "tokenHash": "0eabcfe48eaa2e019bd9ff44fd08efe3a2603848f1f8ad8c4b5c16915521bdc5"
     },
@@ -20882,8 +20882,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-billing-actions",
           "claimedAt": "2026-11-12T17:22:14.739Z",
-          "heartbeatAt": "2026-11-12T17:22:14.739Z",
-          "expiresAt": "2026-11-12T17:52:14.739Z",
+          "heartbeatAt": "2026-11-12T17:43:43.783Z",
+          "expiresAt": "2026-11-12T18:13:43.783Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21289,8 +21289,8 @@
           "runId": "run-20261112-s",
           "agentId": "lead",
           "claimedAt": "2026-11-12T16:31:39.034Z",
-          "heartbeatAt": "2026-11-12T17:16:24.778Z",
-          "expiresAt": "2026-11-12T17:46:24.778Z",
+          "heartbeatAt": "2026-11-12T17:43:43.783Z",
+          "expiresAt": "2026-11-12T18:13:43.783Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21661,8 +21661,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-runtime-connections",
           "claimedAt": "2026-11-12T16:19:50.652Z",
-          "heartbeatAt": "2026-11-12T17:16:24.778Z",
-          "expiresAt": "2026-11-12T17:46:24.778Z",
+          "heartbeatAt": "2026-11-12T17:43:43.783Z",
+          "expiresAt": "2026-11-12T18:13:43.783Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21671,7 +21671,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Audit the TS executive connection adapter/route and native runtime composition; implement the native token/audit/rate-limit producer and route/client, switch the feature-apps route, delete the TS writers/exports, move tests to native oracle, and record KPI.",
+        "nextAction": "Lead: slice is verified green on the working tree — cargo check -p erpx-service --features private-development-api Finished; cargo test -p erpx-server-runtime --test executive_connections 8/8; --test executive_connections_postgres 2/2; bun scripts/testing/test.ts --check TEST_CATALOGUE_VALID 33/1189. Commit the native runtime modules, feature-apps executive/connections route, both rust-executive-connections test files and the two runtime.rust-executive-connections* catalogue entries, push, then record checks + the runtime KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -25554,8 +25554,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T16:12:35.696Z",
-          "heartbeatAt": "2026-11-12T17:16:24.778Z",
-          "expiresAt": "2026-11-12T17:46:24.778Z",
+          "heartbeatAt": "2026-11-12T17:43:43.783Z",
+          "expiresAt": "2026-11-12T18:13:43.783Z",
           "generation": 44
         },
         "baseSha": null,
@@ -26284,7 +26284,7 @@
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T17:41:26.954Z",
+    "updatedAt": "2026-11-12T17:49:23.537Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
