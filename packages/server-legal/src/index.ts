@@ -25,7 +25,7 @@ export {stagePortalAttachment, portalAttachmentBytes} from "@erpx/server-legal/p
 export type {PortalAttachment} from "@erpx/server-legal/public/legal/portal-attachments";
 export {portalContext, portalList, portalDetail, portalDownload, portalCommand, portalUpload} from "@erpx/server-legal/public/legal/portal";
 export type {PortalActor} from "@erpx/server-legal/public/legal/portal";
-export {queueInspection, processingStatus, drainLegalProcessing} from "@erpx/server-legal/public/legal/processing";
+export {queueInspection, processingStatus} from "@erpx/server-legal/public/legal/processing";
 export {legalReferences, addLegalReference} from "@erpx/server-legal/public/legal/references";
 export {legalReports} from "@erpx/server-legal/public/legal/reports";
 export {retentionView, retentionCommand, drainLegalDestruction} from "@erpx/server-legal/public/legal/retention";

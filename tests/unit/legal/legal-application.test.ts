@@ -2,7 +2,6 @@ import type {ExecutedCopyRepository} from "@erpx/server-legal/application/execut
 import type {LegalDestructionRepository} from "@erpx/server-legal/application/destruction-sources";
 import type {LegalDocumentRepository,DocumentStorage,DocumentIntake,DocumentProvider} from "@erpx/server-legal/application/documents";
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
-type LegalProcessingRepository=Parameters<typeof import("@erpx/server-legal/application/processing").createLegalProcessingApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { createLegalAccessApplication, type LegalAccessRepository } from "@erpx/server-legal/application/access";
@@ -140,11 +139,10 @@ it("references conceal inaccessible target existence and labels while keeping ac
  const application=createLegalReferencesApplication({access:async()=>item,requirePeople:()=>{throw new Error("denied");},target:async(kind,id)=>{if(id==="private")throw new Error("private");return{order_number:"Visible order",version:2};},repository:repository<LegalReferenceRepository>({list:async()=>[{target_module:"person",target_id:"person"},{target_module:"commerce_order",target_id:"private"},{target_module:"commerce_order",target_id:"visible"}]}),clock:{now:()=>0},identifiers:{next:()=>"event"}});
  expect(await application.legalReferences("item")).toEqual([{kind:"commerce_order",id:"visible",label:"Visible order",version:2,path:"commerce/orders/visible"}]);
 });
-it("a processing worker refuses a withdrawn assignment before refreshing authority or reading document bytes",async()=>{
- const {createLegalProcessingApplication}=await import("@erpx/server-legal/application/processing");
- let failure="";const application=createLegalProcessingApplication({actor:()=>actor,clock:{now:()=>100},identifiers:{next:()=>"lease"},error,access:async()=>{throw new Error("unexpected access");},documents:{access:async()=>{throw new Error("unexpected document");},inspect:async()=>{throw new Error("unexpected provider");}},companyReady:async()=>true,assignmentCurrent:async()=>false,refreshAuthority:async()=>{throw new Error("unexpected authority");},repository:repository<LegalProcessingRepository>({recover:async()=>{},claim:async()=>({id:"job",item_id:"item",document_id:"document",kind:"ocr",checksum:"digest",actor_json:JSON.stringify(actor)}),failed:async(_id,_token,code)=>{failure=code;}})});
- await application.drainLegalProcessing();expect(failure).toBe("LEGAL_INVALID");
-});
+// The TypeScript processing drain was retired with the native Legal document
+// worker; the equivalent withdrawn-assignment ordering invariant is covered by
+// tests/integration/legal/rust-processing-postgres.test.rs
+// (`denial_committed_while_owner_lock_waits_is_seen_before_the_first_snapshot`).
 it("destruction refuses a shared canonical source before any ledger retirement",async()=>{
  const {createLegalDestructionApplication}=await import("@erpx/server-legal/application/destruction-sources");
  const application=createLegalDestructionApplication({clock:{now:()=>0},repository:repository<LegalDestructionRepository>({lockedSource:async()=>({object_key:"original",checksum_sha256:"digest",source_state:"available",legal_hold:0}),linkCurrent:async()=>({}),sourceShared:async()=>({}),})});
