@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 732,
+    "revision": 740,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-j",
+      "runId": "run-20261112-k",
       "agentId": "lead",
-      "startedAt": "2026-11-12T07:22:45.171Z",
-      "heartbeatAt": "2026-11-12T07:22:45.171Z",
-      "expiresAt": "2026-11-12T07:52:45.171Z",
-      "generation": 35,
-      "tokenHash": "85d7c0b6435f33c5911cd102203ecaba1f15673c1238e6e02d3ccec36b0dd7ed"
+      "startedAt": "2026-11-12T08:00:24.266Z",
+      "heartbeatAt": "2026-11-12T08:00:24.266Z",
+      "expiresAt": "2026-11-12T08:30:24.267Z",
+      "generation": 36,
+      "tokenHash": "d19614bc54d9920899418a4e5f4ab006f8e79a2f90f85554509589ce285de35f"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -17897,15 +17897,8 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-j",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T07:23:57.393Z",
-          "heartbeatAt": "2026-11-12T07:23:57.393Z",
-          "expiresAt": "2026-11-12T07:53:57.393Z",
-          "generation": 35
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -17935,9 +17928,16 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-j lease expired; benefits retirement pushed a605d7203; WIP reviewed",
         "nextAction": "Attachment purchase/read TS modules retired (fae453f08): projects owner KPI 34->32; no imports/exports remain. Residual 32 writes are the still-retained command writers: actuals 9, milestones 8, project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1. Removal condition: native command/read route authoritative + oracles moved, then delete statement/export; keep in_progress until residual 0 or formally reassigned.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-j",
+          "agentId": "lead",
+          "at": "2026-11-12T08:00:24.265Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-j lease expired; benefits retirement pushed a605d7203; WIP reviewed",
+          "nextAction": "Attachment purchase/read TS modules retired (fae453f08): projects owner KPI 34->32; no imports/exports remain. Residual 32 writes are the still-retained command writers: actuals 9, milestones 8, project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1. Removal condition: native command/read route authoritative + oracles moved, then delete statement/export; keep in_progress until residual 0 or formally reassigned."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -18189,29 +18189,217 @@
         "resources": [
           "owner:benefits"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "a605d720376542eff03643b05d126eec51aa37ab",
+        "lastPushedSha": "a605d720376542eff03643b05d126eec51aa37ab",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a605d720376542eff03643b05d126eec51aa37ab",
+            "before": 15,
+            "after": 4,
+            "residual": [
+              {
+                "path": "packages/server-benefits/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.benefits.attachments",
+                "removalCondition": "Native Files benefit-evidence boundary replaces the TS attachment purchase guards; delete the adapter."
+              },
+              {
+                "path": "packages/server-benefits/src/adapters/executive-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.benefits.executive-evidence",
+                "removalCondition": "Native executive evidence access-audit port replaces the TS evidence writer."
+              },
+              {
+                "path": "packages/server-benefits/src/adapters/purchases.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.benefits.purchase-boundary",
+                "removalCondition": "Native purchased-command boundary replaces the TS assertion cleanup."
+              }
+            ]
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "a605d720376542eff03643b05d126eec51aa37ab"
+          },
+          {
+            "command": "cargo test -p erpx-server-benefits --test benefits_command --test benefits_command_http --test benefits_command_postgres --test benefits_workspace --test benefits_workspace_http --test benefits_workspace_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "a605d720376542eff03643b05d126eec51aa37ab"
+          },
+          {
+            "command": "bun run test:integration -- --suite=benefits.benefits.integration",
+            "result": "passed",
+            "sourceSha": "a605d720376542eff03643b05d126eec51aa37ab"
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.money-people-journeys.engineering-finance-people-attachments.integration",
+            "result": "passed",
+            "sourceSha": "a605d720376542eff03643b05d126eec51aa37ab"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "a605d720376542eff03643b05d126eec51aa37ab",
+            "note": "Catalogue passed at the implementation commit; the current worktree is briefly blocked by an unregistered peer project test file."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a605d720376542eff03643b05d126eec51aa37ab",
+            "note": "Passed at implementation; current worktree blocker is the same peer project test inventory."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Benefits command route fails closed on native absence; TS command/plan writers and barrels deleted; oracle moved to retained reads; KPI 15->4 with residual classification; pushed a605d7203.",
+        "handoff": {
           "runId": "run-20261112-j",
           "agentId": "worker-benefits",
-          "claimedAt": "2026-11-12T07:26:13.900Z",
-          "heartbeatAt": "2026-11-12T07:26:13.900Z",
-          "expiresAt": "2026-11-12T07:56:13.900Z",
-          "generation": 35
+          "at": "2026-11-12T08:00:24.265Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-j lease expired; benefits retirement pushed a605d7203; WIP reviewed",
+          "nextAction": "Fail closed on the native Benefits command, delete the TS command writers/application/plan paths/exports, delete or migrate the TS oracle to native coverage, prove KPI drop and no references, run typecheck/catalogue/native+affected suites, push."
         },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-benefits",
+        "plannedPackage": "erpx-server-benefits",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "retire.finance.period-close-ts",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire remaining TS finance period-close writers",
+        "scope": "Delete beginClose/closePeriod TS writers and FinanceClosePorts commit ports after the out-of-scope registered oracles move to native close seeding/HTTP: tests/integration/procurement/{supplier-bill-matching,supplier-payments}.test.ts, tests/integration/sales/commerce-returns.test.ts, tests/integration/shared.money-people-journeys/engineering-finance-close-fixture.test.ts, tests/support/helpers/engineering-finance-people-attachment-owners.ts. Removal condition: native cancel/close/reopen route remains sole authority and no TS close port writes finance_periods.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/feature-finance/**",
+          "tests/integration/procurement/**",
+          "tests/integration/sales/**",
+          "tests/integration/shared.money-people-journeys/**",
+          "tests/support/helpers/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "pending",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Fail closed on the native Benefits command, delete the TS command writers/application/plan paths/exports, delete or migrate the TS oracle to native coverage, prove KPI drop and no references, run typecheck/catalogue/native+affected suites, push.",
+        "nextAction": "Execute the recorded removal condition, then run the owner KPI and affected suites before reporting.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "registeredPackage": "erpx-server-benefits",
-        "plannedPackage": "erpx-server-benefits",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "aggregate": false
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.identity_access.sso-device-adoption",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire residual TS SSO device-adoption writer",
+        "scope": "ensureDeviceSessionBinding still writes account_device_* via product-sso-store.ts:81 for SSO adoption of pre-migration signed parents. Move adoption into native account_auth SSO authorize, then delete the TS transaction and its barrel. Removal condition: native SSO authorize adopts the unbound signed parent and no TS SSO transaction writes account_device_*.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-account/**",
+          "fixtures/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Execute the recorded removal condition, then run the owner KPI and affected suites before reporting.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.collaboration.maintenance-oracle-generator",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the maintenance notification oracle generator script",
+        "scope": "scripts/testing/fixtures/generate-collaboration-notifications-oracle.ts still imports the deleted TS writer. Rewrite it as a native-corpus check (or delete it) and drop its path from packages/server-collaboration/Cargo.toml verification-roots. Removal condition: generator no longer imports any deleted TS module and cargo-suite verification roots build.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/testing/fixtures/generate-collaboration-notifications-oracle.ts",
+          "packages/server-collaboration/Cargo.toml",
+          "fixtures/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Execute the recorded removal condition, then run the owner KPI and affected suites before reporting.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -18220,21 +18408,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 64,
-      "migratedPackets": 30,
+      "totalPackets": 67,
+      "migratedPackets": 31,
       "statusCounts": {
-        "pending": 8,
-        "in_progress": 3,
+        "pending": 11,
+        "in_progress": 1,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 30,
-        "blocked": 13,
+        "migrated": 31,
+        "blocked": 14,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 35,
-    "updatedAt": "2026-11-12T07:26:13.900Z",
+    "lastCoordinatorGeneration": 36,
+    "updatedAt": "2026-11-12T08:00:33.592Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -18277,10 +18465,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-i",
-      "runId": "run-20261112-j",
-      "at": "2026-11-12T07:22:45.172Z",
-      "reason": "run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
+      "previousRunId": "run-20261112-j",
+      "runId": "run-20261112-k",
+      "at": "2026-11-12T08:00:24.267Z",
+      "reason": "run-20261112-j lease expired; benefits retirement pushed a605d7203; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
