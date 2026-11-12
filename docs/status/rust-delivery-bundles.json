@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 618,
+    "revision": 622,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -11052,23 +11052,23 @@
         "resources": [
           "owner:assets"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-c",
-          "agentId": "worker-assets",
-          "claimedAt": "2026-11-12T03:05:41.689Z",
-          "heartbeatAt": "2026-11-12T03:05:41.689Z",
-          "expiresAt": "2026-11-12T03:35:41.689Z",
-          "generation": 28
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the first inventoried assets packet (migrate.assets.retire-legacy-writers), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead: move the 10 cross-owner asset oracle/fixture consumers to native seeding, then re-run retire-legacy-writers.",
+        "handoff": {
+          "runId": "run-20261112-c",
+          "agentId": "worker-assets",
+          "at": "2026-11-12T03:29:06.716Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Lead: move the 10 cross-owner asset oracle/fixture consumers to native seeding, then re-run retire-legacy-writers."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-assets",
         "plannedPackage": "erpx-server-assets",
@@ -16378,11 +16378,18 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-c",
+          "agentId": "worker-people",
+          "claimedAt": "2026-11-12T03:14:55.125Z",
+          "heartbeatAt": "2026-11-12T03:14:55.125Z",
+          "expiresAt": "2026-11-12T03:44:55.125Z",
+          "generation": 28
+        },
         "baseSha": null,
-        "implementedCommit": "628b48a1087fbccd9936608693aa3dc76031cc97",
-        "lastPushedSha": "786f6503d984dce5214f042d2e0e82724b3cee61",
+        "implementedCommit": "5546be88aa059875ca74393b89986f1f95b37caa",
+        "lastPushedSha": "5546be88aa059875ca74393b89986f1f95b37caa",
         "checks": [
           {
             "command": "cargo check -p erpx-server-people-payroll --all-targets",
@@ -16401,11 +16408,35 @@
             "result": "passed",
             "sourceSha": "628b48a1087fbccd9936608693aa3dc76031cc97",
             "note": "Registered suite path: 6/6 workforce Postgres cases pass (receipt/audit/outbox, CAS, isolation, fail-closed ports)."
+          },
+          {
+            "command": "cargo check -p erpx-server-people-payroll --all-targets",
+            "result": "passed",
+            "sourceSha": "5546be88aa059875ca74393b89986f1f95b37caa",
+            "note": "People/Payroll all targets compile with the native leave slice."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --test leave",
+            "result": "passed",
+            "sourceSha": "5546be88aa059875ca74393b89986f1f95b37caa",
+            "note": "9/9 leave unit cases pass."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --test leave_postgres",
+            "result": "passed",
+            "sourceSha": "5546be88aa059875ca74393b89986f1f95b37caa",
+            "note": "7/7 leave Postgres cases pass on a leased database."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --test workforce",
+            "result": "passed",
+            "sourceSha": "5546be88aa059875ca74393b89986f1f95b37caa",
+            "note": "9/9 workforce regression cases still pass."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
-        "nextAction": "employees packet native and pushed (628b48a10 in 786f6503d): save_person/record/status, engagement create+transition, compensation create+transition, person detail; registered suites 9/9 + 6/6. Mount blocked on three composition ports: Organization placement/history/roster, Identity account link/revocation, Finance money snapshot. Remaining packets: leave-requests, expenses.",
+        "blocker": null,
+        "nextAction": "employees + leave-requests packets native and pushed (628b48a10, 5546be88a): workforce commands and full leave lifecycle incl. accrual drain; leave 9/9, leave PG 7/7, workforce 9/9. Remaining: expenses packet; composition ports (Organization placement, Identity account link, Finance money snapshot, Staff/Route/Approval/Evidence) before route switches.",
         "handoff": {
           "runId": "run-20261112-b",
           "agentId": "worker-people",
@@ -16594,7 +16625,7 @@
       }
     },
     "lastCoordinatorGeneration": 28,
-    "updatedAt": "2026-11-12T03:05:41.713Z",
+    "updatedAt": "2026-11-12T03:29:06.717Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
