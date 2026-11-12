@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1006,
+    "revision": 1010,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -24145,26 +24145,477 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "nextAction": "Complete the opening-balance cutover and retire the TS writers; measure retirement:ts-writes.",
+        "status": "migrated",
+        "nextAction": "Opening preview/import is native-only with the TS writers deleted; finance KPI 381 -> 380 at b263b1494; 380 residual writes classified under retire.finance.finance.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": {
-          "runId": "run-20261112-r",
-          "agentId": "worker-finance",
-          "claimedAt": "2026-11-12T14:37:28.760Z",
-          "heartbeatAt": "2026-11-12T15:20:26.606Z",
-          "expiresAt": "2026-11-12T15:50:26.606Z",
-          "generation": 43
-        },
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "b263b1494a73cb9d8673028f3db054a525889bb1",
+        "lastPushedSha": "b263b1494a73cb9d8673028f3db054a525889bb1",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-finance/src",
+            "result": "passed",
+            "before": 381,
+            "after": 380,
+            "sourceSha": "b263b1494a73cb9d8673028f3db054a525889bb1",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-finance/src/adapters/accounting-profiles.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/assets-financial-unit.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/assets-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-facts.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-return-accounting-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/company-money.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/customer-authority-changes.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/customer-receipt-issue.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/document-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-native-effects.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-accruals.ts",
+                "writes": 12,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-ai.ts",
+                "writes": 18,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-asset-policies.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-assets.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-bank-automation.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-billing-corrections.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-book-adjustments.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-books.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-business-contracts.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-collections.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-company-tools.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-consolidation.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-due-drafts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-engines.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-expansion-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-editions.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-ownership.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-instruments.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany-pairs.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-invoice-lines.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-manual-drafts.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-owned-reversal.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-planning.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-reporting.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-starter.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-identities.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-register.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-thai-documents.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding-remittance.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance.ts",
+                "writes": 53,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/hospitality-accounting.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/hospitality-tax-documents.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/journal-planning.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/journal-reversal-money.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/manufacturing-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-other-bank-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-other-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-owner-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-remittance-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-command-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-import-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-core-facts.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-daily-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-startup-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/purchase-boundary.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/refund-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/refunds.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales-customer-receipts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-bill-draft-void.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-payment-corrections.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-payment-repository.ts",
+                "writes": 17,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supply-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Retire with the owning Finance capability's native writer and last TS consumer cutover."
+              }
+            ]
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.rust-finance-opening-postgres.integration",
+            "result": "passed",
+            "sourceSha": "b263b1494a73cb9d8673028f3db054a525889bb1",
+            "sourceKind": "committed",
+            "note": "7/7 native scenarios including concurrent single import, subledger post/void with independent approval, settlement-blocked reversal, stale preview/reused key and HTTP."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --locked",
+            "result": "passed",
+            "sourceSha": "b263b1494a73cb9d8673028f3db054a525889bb1",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles after removing the opening writers."
+          },
+          {
+            "command": "bun run --filter '@erpx/server-finance' typecheck",
+            "result": "passed",
+            "sourceSha": "b263b1494a73cb9d8673028f3db054a525889bb1",
+            "sourceKind": "committed",
+            "note": "exit 0"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "handoff": null
+        "handoff": {
+          "runId": "run-20261112-r",
+          "agentId": "worker-finance",
+          "at": "2026-11-12T15:24:54.996Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: mark migrated with cutover flags."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "retire.support.ticket-portal-customer",
@@ -24324,20 +24775,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 119,
-      "migratedPackets": 52,
+      "migratedPackets": 53,
       "statusCounts": {
         "pending": 32,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 52,
+        "migrated": 53,
         "blocked": 18,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T15:23:02.092Z",
+    "updatedAt": "2026-11-12T15:24:55.055Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
