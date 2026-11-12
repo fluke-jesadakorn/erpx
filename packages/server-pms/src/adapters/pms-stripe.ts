@@ -119,9 +119,6 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsCounterPay
         readPmsStripePayments8: () => db.prepare("SELECT id FROM pms_stripe_payments WHERE refund_state IN ('approved','processing','requires_action') ORDER BY updated_at LIMIT 20").bind().all<{
             id: string;
         }>(),
-        updatePmsStripePayments10: (facts: {
-            id: string;
-        }) => db.prepare('UPDATE pms_stripe_payments SET last_error=NULL WHERE id=?').bind(facts.id).run(),
         updatePmsStripePayments11: (facts: {
             fact0: string;
             id: string;

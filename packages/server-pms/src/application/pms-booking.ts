@@ -198,20 +198,6 @@ export type PmsBookingUnit<Effect extends PmsBookingEffect> = {
         now: number;
         id: string;
     }): Promise<PmsBookingRows<Record<string, unknown>>>;
-    writePmsBookingPayments10(facts: {
-        now: number;
-        id: string;
-    }): Promise<PmsBookingRows<Record<string, unknown>>>;
-    writePmsBookingPayments11(facts: {
-        fact0: string;
-        now: number;
-        id: string;
-    }): Promise<PmsBookingRows<Record<string, unknown>>>;
-    writePmsBookingRefundRequests3(facts: {
-        fact0: string;
-        now: number;
-        id: string;
-    }): Promise<PmsBookingRows<Record<string, unknown>>>;
     readPmsBookingTokens1(facts: {
         fact0: string;
         now: number;
