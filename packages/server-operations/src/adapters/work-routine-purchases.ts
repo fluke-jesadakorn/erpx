@@ -12,7 +12,7 @@ import {finalRootOwnerProjectionSources as people} from '@erpx/server-people_pay
 import {projectsPackageEnforcementMode} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
-import {iamMutationGuards,loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
+import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {workTaskApprovalSourceLocks,workApprovalSettlementSources as journals} from '@erpx/server-workflow/public/work-package-obligation-sources';
@@ -24,7 +24,7 @@ import {appsPackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesse
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 
-type Command={key:string;operations:readonly string[];templateId:string;scheduleId?:string;projectId?:string|null;configure?:boolean;purpose:CapabilityPurpose;capture?:'create'|'update'|'resume';taskId?:string;cloneId?:string;retire?:{title:string;description:string;assigneeUserId:string;projectId:string|null;startApprovers:string[];completionApprovers:string[];published:boolean}};
+type Command={key:string;operations:readonly string[];templateId:string;scheduleId?:string;projectId?:string|null;configure?:boolean;purpose:CapabilityPurpose;taskId?:string;cloneId?:string;retire?:{title:string;description:string;assigneeUserId:string;projectId:string|null;startApprovers:string[];completionApprovers:string[];published:boolean}};
 const hash=(image:string)=>createHash('sha256').update(image).digest('hex');
 const template=(database:SqlDatabase,companyId:string,id:string)=>database.prepare('SELECT * FROM routine_templates WHERE id=? AND company_id=?').bind(id,companyId).first<TemplateRow>();
 const schedule=(database:SqlDatabase,companyId:string,id:string)=>database.prepare('SELECT * FROM routine_schedules WHERE id=? AND company_id=?').bind(id,companyId).first<ScheduleRow>();
@@ -43,12 +43,6 @@ async function purchasedFences(database:SqlDatabase,actor:StaffActor,purpose:Cap
  const mode=await appsPackageEnforcementMode(),fences=ordinary?codes.map((capability,index)=>({key:`${key}:${index}`,scope:{companyId:actor.companyId,capability,purpose},boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,{companyId:actor.companyId,capability,purpose})!})):[];
  for(const fence of fences)await checkPurchasedCapability(database,mode,fence.scope);await database.batch(fences.flatMap(fence=>fence.boundary.before));return fences;
 }
-async function actorSnapshot(database:SqlDatabase,actor:StaffActor,version:number):Promise<StaffActor>{const iam=actor.iam??await loadIamAuthority(database,actor.companyId,actor.userId,actor.role,actor.authority?.sessionId);return {userId:actor.userId,assignmentId:actor.assignmentId,role:actor.role,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,authority:actor.authority,iam:{...iam,queuedAssignmentVersion:version}};}
-async function capture(database:SqlDatabase,actor:StaffActor,command:Command){
- if(!command.capture||!command.scheduleId)return;const row=await schedule(database,actor.companyId,command.scheduleId),source=await template(database,actor.companyId,command.templateId),image=await configuration(database,actor.companyId,command.templateId,command.scheduleId),version=await database.prepare('SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?').bind(actor.assignmentId,actor.userId,actor.companyId,actor.role).first<number>('version');
- if(!row||!source||!image||!version||row.template_id!==source.id)throw new ApiError(409,'WORK_ROUTINE_SOURCE_CHANGED','The exact original routine source is unavailable.');
- await database.prepare('INSERT INTO work_routine_execution_authorizations(command_id,schedule_id,template_id,company_id,kind,actor_id,assignment_id,authority_json,source_hash,template_version,schedule_version,initial_occurrence_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(command.key,row.id,source.id,actor.companyId,command.capture,actor.userId,actor.assignmentId,JSON.stringify(await actorSnapshot(database,actor,version)),hash(image),source.version,row.version,row.next_occurrence_at,Date.now()).run();
-}
 export async function withWorkRoutineCommand<Result>(owner:SqlDatabase,actor:StaffActor,command:Command,run:(database:SqlDatabase)=>Promise<Result>){
  const mode=await appsPackageEnforcementMode();if(mode==='disabled')return run(owner);
  return withOperationsTaskPurchaseUnit(owner,actor,database=>sourceLocks(database,actor.companyId),async database=>{
@@ -56,7 +50,7 @@ export async function withWorkRoutineCommand<Result>(owner:SqlDatabase,actor:Sta
   if(beforeSchedule&&beforeSchedule.template_id!==command.templateId)throw new ApiError(409,'WORK_ROUTINE_SOURCE_CHANGED','The original schedule template changed.');
   await current(database,actor,key);const fences=await purchasedFences(database,actor,purpose,ordinary,key),projects=[...new Set([before?.project_id,clone?.project_id,projectId].filter((id):id is string=>!!id))];
   const invoke=async(index:number):Promise<Result>=>index===projects.length?run(database):withProjectPurchasedCommand(database,actor,{key:command.key,operations:command.operations,projectId:projects[index],capability:'projects.tasks',purpose,existing:true,permission:'records.read'},()=>invoke(index+1));
-  const result=await invoke(0);if(!replay)await capture(database,actor,command);const completed=await fullImage(database,actor.companyId,command.templateId,command.scheduleId,command.taskId);
+  const result=await invoke(0);const completed=await fullImage(database,actor.companyId,command.templateId,command.scheduleId,command.taskId);
   deferOperationsTaskPurchaseCheck(database,actor,async()=>{
    const after=await template(database,actor.companyId,command.templateId),cloneAfter=command.cloneId?await template(database,actor.companyId,command.cloneId):null;
    if(JSON.stringify(clone)!==JSON.stringify(cloneAfter)||!after||after.project_id!==projectId||before&&(['id','company_id','branch_id','department_id','creator_user_id'] as const).some(field=>before[field]!==after[field])||completed!==await fullImage(database,actor.companyId,command.templateId,command.scheduleId,command.taskId))throw new ApiError(409,'WORK_ROUTINE_SOURCE_CHANGED','The completed original routine source changed during deferred effects.');

@@ -3,7 +3,8 @@ import {applyMigrations,env} from '../../support/runtime-env';
 import {expenseDb as db,expenseFixture,key} from '../../support/helpers/expense-fixture';
 import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
-import {saveTemplate,templateSchema,runTemplate} from '@erpx/server-operations/public/routines';
+import {runTemplate} from '@erpx/server-operations/public/routines';
+import {seedRoutineFor,seedRoutineTemplate} from './routine-fixtures';
 import {recordsPage,getRecord,searchReferences} from '@erpx/server-records/public/records';
 import {publishInboxEvent,inboxPage} from '@erpx/server-collaboration/public/inbox';
 import {listStaffNotifications,notificationsPage} from '@erpx/server-collaboration/public/staff-notifications';
@@ -41,7 +42,7 @@ it('applies actual ordinary Task history and participant policy before Records s
  expect((await listStaffNotifications(db,captured)).some(row=>row.record_id===valid)).toBe(true);await db.prepare('UPDATE active_work_contexts SET revision=revision+1 WHERE session_id=?').bind(session).run();expect((await listStaffNotifications(db,captured)).filter(row=>row.record_type==='task')).toEqual([]);expect((await inboxPage(db,captured,{view:'all'})).items.filter(row=>row.sourceType==='task')).toEqual([]);await expect(getRecord(captured,'operations',valid)).rejects.toMatchObject({status:404});
 });
 it('keeps actual routine addon identity out of generic records until purchased and preserves draining history',async()=>{
- const template=await saveTemplate(db,f.claimant,null,templateSchema.parse({title:'Original routine projection',assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[f.manager.userId]}),key()),run=await runTemplate(db,f.claimant,String(template.id),Date.now()+60000,key()),id=String(run.id);await record(id);vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');await purchase();
+ const {template}=await seedRoutineFor(db,f.claimant,{title:'Original routine projection',assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[f.manager.userId]}),run=await runTemplate(db,f.claimant,template.id,Date.now()+60000,key()),id=String(run.id);await record(id);vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');await purchase();
  expect((await recordsPage(f.head,'operations','exceptions',{})).items).toEqual([]);await expect(getRecord(f.head,'operations',id)).rejects.toMatchObject({status:404});await purchase('work-routines');await purchase('work-routines','draining');await purchase('work','draining');expect((await recordsPage(f.head,'operations','exceptions',{})).items.map(row=>row.id)).toEqual([id]);expect((await getRecord(f.head,'operations',id)).id).toBe(id);
 });
 it('keeps Projects-only Task metric and evidence foundations without Work or People and rechecks captured drilldown after original IAM revocation',async()=>{
@@ -66,7 +67,7 @@ it('rechecks a captured Work task item and removes unavailable draft actions whi
 it('counts only actual licensed ordinary or Project routine templates and retains original unpublished visibility',async()=>{
  const project=await seedProjectFor(db,f.claimant,null,projectSchema.parse({title:'Original Project routine metric',memberUserIds:[f.head.userId]}),key());
  const base={assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[f.manager.userId]};
- await saveTemplate(db,f.claimant,null,templateSchema.parse({...base,title:'Original ordinary published routine'}),key());await saveTemplate(db,f.tie,null,templateSchema.parse({...base,title:'Original private unpublished routine',published:false}),key());await saveTemplate(db,f.claimant,null,templateSchema.parse({...base,title:'Original Project published routine',projectId:String(project.id)}),key());
+ await seedRoutineTemplate(db,{companyId:f.company,branchId:f.claimant.branchId,departmentId:f.claimant.departmentId,creatorUserId:f.claimant.userId,title:'Original ordinary published routine',...base});await seedRoutineTemplate(db,{companyId:f.company,branchId:f.tie.branchId,departmentId:f.tie.departmentId,creatorUserId:f.tie.userId,title:'Original private unpublished routine',published:false,...base});await seedRoutineTemplate(db,{companyId:f.company,branchId:f.claimant.branchId,departmentId:f.claimant.departmentId,creatorUserId:f.claimant.userId,title:'Original Project published routine',projectId:String(project.id),...base});
  await purchase('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');
  expect((await metricCatalogFor(db,f.head)).find(row=>row.id==='routines')?.available).toBe(true);expect((await readExecutiveMetricProjection(db,f.head,'routines',filters(),'default')).raw).toEqual([{label:'Published',value:'1'}]);await purchase();expect((await readExecutiveMetricProjection(db,f.head,'routines',filters(),'default')).raw).toEqual([{label:'Published',value:'1'}]);await purchase('work-routines');await purchase('work-routines','draining');await purchase('work','draining');const projection=await readExecutiveMetricProjection(db,f.head,'routines',filters(),'default');expect(projection.raw).toEqual([{label:'Published',value:'2'}]);expect((await projection.source({label:'Published',page:1},'2')).rows).toHaveLength(2);
 });

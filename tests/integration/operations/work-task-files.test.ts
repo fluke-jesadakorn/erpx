@@ -4,7 +4,8 @@ import {expenseDb as db,expenseFixture,key} from '../../support/helpers/expense-
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from '../../support/helpers/attachment-v2';
 import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
-import {saveTemplate,templateSchema,runTemplate} from '@erpx/server-operations/public/routines';
+import {runTemplate} from '@erpx/server-operations/public/routines';
+import {seedRoutineFor} from './routine-fixtures';
 import {createAttachmentSet,reserveAttachmentFile,listAttachmentSets,attachmentContent,withdrawAttachmentLink} from '@erpx/server-files/public/attachments/service';
 import {packageGrantStore,readCompanyPackageGrants,packageGrantRevision} from '@erpx/server-commercial/public/package-grants';
 import {withOwnerPackageObligations,ownerPackageObligations} from '@erpx/server-commercial/public/owner-package-obligations';
@@ -52,7 +53,7 @@ it('keeps actual ordinary task evidence through active draining and normal inact
  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.head.assignmentId).run();await expect(attachmentContent(db,env.H001_FILES,f.head,files.linkId,'original')).rejects.toMatchObject({status:404});
 });
 it('uses actual routine task identity for its evidence addon and keeps active-only draft intake separate from existing settlement',async()=>{
- const template=await saveTemplate(db,f.claimant,null,templateSchema.parse({title:'Original recurring Work evidence',assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[f.manager.userId]}),key()),run=await runTemplate(db,f.claimant,String(template.id),Date.now()+86_400_000,key()),id=String(run.id);const retained=await seedAttachmentSet(db,f.head,input(id,1));vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');await purchased();
+ const {template}=await seedRoutineFor(db,f.claimant,{title:'Original recurring Work evidence',assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[f.manager.userId]}),run=await runTemplate(db,f.claimant,template.id,Date.now()+86_400_000,key()),id=String(run.id);const retained=await seedAttachmentSet(db,f.head,input(id,1));vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');await purchased();
  await expect(listAttachmentSets(db,f.head,{targetType:'staff_task',targetId:id})).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await purchased('work-routines');expect((await listAttachmentSets(db,f.head,{targetType:'staff_task',targetId:id})).map(row=>row.id)).toEqual([retained.setId]);await purchased('work-routines','draining');await act(id,'start');const files=await seedAttachmentSet(db,f.head,input(id,2,'in_progress'));await act(id,'save-progress',[files.setId]);expect(await attachmentBindingState(db,files.setId)).toMatchObject({set_state:'bound',link_state:'bound'});
  const draft=await saveTask(db,f.claimant,null,taskSchema.parse({title:'Original unsent Work draft',dueAt:new Date(Date.now()+86_400_000).toISOString(),assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[f.manager.userId]}),key()),draftId=String(draft.id);await purchased('work','draining');await expect(createAttachmentSet(db,f.claimant,input(draftId,1,'draft'),key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
 });
