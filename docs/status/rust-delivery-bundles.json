@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1095,
+    "revision": 1096,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -26370,6 +26370,50 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.runtime.residual-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "runtime",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the residual Runtime TypeScript writers (31)",
+        "scope": "Classify and retire the remaining 31 Runtime owner write statements outside the executive external-connection capability against packages/server-runtime/src/**/*.rs: start with the executive MCP/credential and runtime job/lease writers whose native ports exist, delete each replaced TS writer plus barrels, move oracles to native seeding, and record the owner KPI pair. Removal condition: the owner KPI command returns 0.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "packages/server-runtime/Cargo.toml",
+          "packages/server-runtime/package.json",
+          "packages/feature-runtime/**",
+          "tests/unit/runtime/**",
+          "tests/unit/shared.runtime/**",
+          "tests/integration/runtime/**",
+          "tests/integration/shared.executive/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart table for the remaining 31 packages/server-runtime/src/**/*.ts write statements, then retire each native-backed file and record the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -26378,10 +26422,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 123,
+      "totalPackets": 124,
       "migratedPackets": 59,
       "statusCounts": {
-        "pending": 28,
+        "pending": 29,
         "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
@@ -26392,7 +26436,7 @@
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T17:57:49.282Z",
+    "updatedAt": "2026-11-12T18:00:42.685Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
