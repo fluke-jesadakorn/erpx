@@ -100,6 +100,32 @@ impl CommerceOrderActor {
         Ok(())
     }
 
+    /// Native sales goods delivery is a Commerce-owned command that consumes
+    /// Inventory stock. Goods delivery requires the Inventory preparation
+    /// permission; a mixed goods/service delivery additionally requires the
+    /// Sales preparation permission. Department-scoped assignments cannot carry
+    /// `inventory.prepare`, so they cannot deliver goods.
+    pub fn require_sales_delivery(
+        &self,
+        now: TimestampMillis,
+        mixed: bool,
+    ) -> Result<(), BusinessError> {
+        if !(self.has_named_module("sales") || self.has_named_module("inventory")) {
+            return Err(module_forbidden());
+        }
+        if now.get() >= self.expires_at {
+            return Err(work_context_changed());
+        }
+        if self.department_id.is_some()
+            || !self.has("inventory.prepare")
+            || !self.has("commerce.read")
+            || (mixed && !self.has("commerce.sales"))
+        {
+            return Err(delivery_permission_required());
+        }
+        Ok(())
+    }
+
     pub fn require_approve(&self) -> Result<(), BusinessError> {
         if !self.has("commerce.approve") {
             return Err(approval_required());
@@ -376,6 +402,14 @@ pub fn receipt_permission_required() -> BusinessError {
         FailureKind::Forbidden,
         "COMMERCE_RECEIPT_PERMISSION_REQUIRED",
         "Your selected role does not grant the Inventory preparation permission for goods receipt.",
+    )
+}
+
+pub fn delivery_permission_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "COMMERCE_DELIVERY_PERMISSION_REQUIRED",
+        "Your selected role does not grant the Inventory and Sales preparation permissions for goods delivery.",
     )
 }
 

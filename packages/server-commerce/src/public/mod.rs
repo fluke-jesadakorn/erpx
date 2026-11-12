@@ -24,3 +24,4 @@ pub mod receipt;
 pub mod pos_catalog;
 
 pub mod finance_payable_source;
+pub mod sales_delivery;

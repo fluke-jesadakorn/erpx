@@ -6,21 +6,31 @@
 //! normal Account session, current Company/branch/department authority,
 //! feature/package admission and serializable owner unit remain composition
 //! responsibilities supplied through the backend trait.
+use crate::adapters::receipt_http::{allowed, optional_date, optional_text, parse_milli};
 use crate::domain::fulfillment::ServiceCompletionLineInput;
 use crate::domain::order::{
     LINES_LIMIT, OrderAction, OrderKind, SAVE_LINES_LIMIT, SaveOrderInput, SaveOrderLineInput,
-    request_invalid, source_invalid,
+    request_invalid, source_invalid, valid_date,
+};
+use crate::domain::receipt::MAX_SAFE;
+use crate::domain::sales_delivery::{
+    SalesDeliveryAllocationCommand, SalesDeliveryCommand, SalesDeliveryDisposition,
+    SalesDeliveryLineCommand, SalesDeliveryMode,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State, StatusCode,
     body::to_bytes, get, header, post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin, sync::Arc};
 
 const BODY_LIMIT: usize = 8 * 1024;
+const DELIVERY_BODY_LIMIT: usize = 256 * 1024;
+const DELIVERY_LINES_LIMIT: usize = 20;
+const DELIVERY_ALLOCATIONS_LIMIT: usize = 200;
+const DELIVERY_REASON_LIMIT: usize = 1_000;
 
 pub type CommerceOrderHttpFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -126,8 +136,39 @@ pub struct CommerceOrderHttpTarget {
     pub backend: Arc<dyn CommerceOrderHttpBackend>,
 }
 
+/// Exact decoded goods/mixed delivery request. The command is built from the
+/// bounded body plus the request's Idempotency-Key and order path; the
+/// duplicated identifiers let composition retain transport provenance.
+pub struct CommerceSalesDeliveryHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub order_id: String,
+    pub idempotency_key: String,
+    pub command: SalesDeliveryCommand,
+}
+
+/// Composition-owned Account session, scope and owner-unit adapter for the
+/// native sales delivery. The router never mints a session, actor, Company
+/// scope, permission or feature admission.
+pub trait CommerceSalesDeliveryHttpBackend: Send + Sync {
+    fn deliver<'a>(
+        &'a self,
+        request: CommerceSalesDeliveryHttpRequest<'a>,
+    ) -> CommerceOrderHttpFuture<'a, CommerceOrderHttpResponse>;
+}
+
+pub struct CommerceSalesDeliveryHttpTarget {
+    pub host: String,
+    pub holding_slug: String,
+    pub origin: String,
+    pub backend: Arc<dyn CommerceSalesDeliveryHttpBackend>,
+}
+
 pub struct CommerceOrderHttpState {
     targets: BTreeMap<(String, String), CommerceOrderHttpTarget>,
+    delivery: BTreeMap<(String, String), CommerceSalesDeliveryHttpTarget>,
+    policy: CommerceOriginPolicy,
 }
 
 struct ParsedTarget<'a> {
@@ -230,7 +271,50 @@ impl CommerceOrderHttpState {
         }
         Ok(Self {
             targets: configured,
+            delivery: BTreeMap::new(),
+            policy,
         })
+    }
+
+    /// Mount the native sales goods/mixed delivery backend on the existing
+    /// fulfill route. Existing callers keep the service-completion path; a
+    /// goods request fails closed until this backend is provided.
+    pub fn with_sales_delivery(
+        mut self,
+        targets: Vec<CommerceSalesDeliveryHttpTarget>,
+    ) -> Result<Self, BusinessError> {
+        let mut configured = BTreeMap::new();
+        for target in targets {
+            if target.host.is_empty()
+                || target.holding_slug.is_empty()
+                || target.holding_slug.len() > 128
+                || !target.holding_slug.bytes().all(|byte| {
+                    byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || matches!(byte, b'_' | b'-')
+                })
+                || !valid_origin(&target.origin, &target.host, self.policy)
+                || configured
+                    .insert((target.host.clone(), target.holding_slug.clone()), target)
+                    .is_some()
+            {
+                return Err(BusinessError::invalid(
+                    "COMMERCE_DELIVERY_HTTP_CONFIGURATION_INVALID",
+                    "Use exact distinct registered Holding delivery targets.",
+                ));
+            }
+        }
+        self.delivery = configured;
+        Ok(self)
+    }
+
+    fn delivery_target<'a>(
+        &'a self,
+        host: &str,
+        holding_slug: &str,
+    ) -> Option<&'a CommerceSalesDeliveryHttpTarget> {
+        self.delivery
+            .get(&(host.to_owned(), holding_slug.to_owned()))
     }
 
     fn target<'a>(
@@ -474,22 +558,57 @@ impl CommerceOrderHttpState {
         Self::content_type(headers)?;
         let key = Self::command_key(headers)?;
         let order_id = Self::order_id(order_id)?;
-        if body.len() > BODY_LIMIT {
+        if body.len() > DELIVERY_BODY_LIMIT {
             return Err(request_invalid());
         }
-        let input = parse_service_completion(body)?;
-        let response = target
-            .target
+        let value: Value = serde_json::from_slice(body).map_err(|_| request_invalid())?;
+        let mode = value
+            .get("completionMode")
+            .and_then(Value::as_str)
+            .unwrap_or("goods");
+        if mode == "service" {
+            if body.len() > BODY_LIMIT {
+                return Err(request_invalid());
+            }
+            let input = parse_service_completion(&value)?;
+            let response = target
+                .target
+                .backend
+                .execute(CommerceOrderHttpRequest {
+                    host: target.host,
+                    holding_slug: &target.target.holding_slug,
+                    headers,
+                    command: CommerceOrderHttpCommand::Fulfill {
+                        order_id,
+                        idempotency_key: key.as_str().to_owned(),
+                        input,
+                    },
+                })
+                .await?;
+            if !valid_fulfillment_receipt(&response.data) || !response.context.is_object() {
+                return Err(source_invalid());
+            }
+            return Ok(response.value());
+        }
+        let command = parse_sales_delivery(
+            &value,
+            key,
+            RecordId::new(&order_id).map_err(|_| request_invalid())?,
+        )?;
+        let order_id = command.order_id.as_str().to_owned();
+        let idempotency_key = command.key.as_str().to_owned();
+        let Some(delivery) = self.delivery_target(target.host, &target.target.holding_slug) else {
+            return Err(sales_delivery_unmounted());
+        };
+        let response = delivery
             .backend
-            .execute(CommerceOrderHttpRequest {
+            .deliver(CommerceSalesDeliveryHttpRequest {
                 host: target.host,
-                holding_slug: &target.target.holding_slug,
+                holding_slug: &delivery.holding_slug,
                 headers,
-                command: CommerceOrderHttpCommand::Fulfill {
-                    order_id,
-                    idempotency_key: key.as_str().to_owned(),
-                    input,
-                },
+                order_id,
+                idempotency_key,
+                command,
             })
             .await?;
         if !valid_fulfillment_receipt(&response.data) || !response.context.is_object() {
@@ -598,8 +717,7 @@ fn valid_save_receipt(value: &Value) -> bool {
     })
 }
 
-fn parse_service_completion(body: &[u8]) -> Result<ServiceCompletionInput, BusinessError> {
-    let value: Value = serde_json::from_slice(body).map_err(|_| request_invalid())?;
+fn parse_service_completion(value: &Value) -> Result<ServiceCompletionInput, BusinessError> {
     let Some(object) = value.as_object() else {
         return Err(request_invalid());
     };
@@ -666,21 +784,188 @@ fn parse_service_completion(body: &[u8]) -> Result<ServiceCompletionInput, Busin
     })
 }
 
+fn delivery_quantity(object: &Map<String, Value>) -> Result<i64, BusinessError> {
+    object
+        .get("quantity")
+        .and_then(Value::as_str)
+        .and_then(parse_milli)
+        .ok_or_else(request_invalid)
+}
+
+fn parse_delivery_disposition(
+    value: Option<&Value>,
+) -> Result<SalesDeliveryDisposition, BusinessError> {
+    match value {
+        None => Ok(SalesDeliveryDisposition::Available),
+        Some(Value::String(value)) => {
+            SalesDeliveryDisposition::parse(value).ok_or_else(request_invalid)
+        }
+        _ => Err(request_invalid()),
+    }
+}
+
+fn parse_delivery_allocation(
+    value: &Value,
+) -> Result<SalesDeliveryAllocationCommand, BusinessError> {
+    let Some(object) = value.as_object() else {
+        return Err(request_invalid());
+    };
+    if !allowed(
+        object,
+        &[
+            "lotId",
+            "lotCode",
+            "serialNumber",
+            "quantity",
+            "disposition",
+            "quarantineReason",
+            "quarantineDueDate",
+        ],
+    ) {
+        return Err(request_invalid());
+    }
+    Ok(SalesDeliveryAllocationCommand {
+        lot_id: optional_text(object, "lotId")?,
+        lot_code: optional_text(object, "lotCode")?,
+        serial_number: optional_text(object, "serialNumber")?,
+        quantity_milli: delivery_quantity(object)?,
+        disposition: parse_delivery_disposition(object.get("disposition"))?,
+        quarantine_reason: optional_text(object, "quarantineReason")?,
+        quarantine_due_date: optional_date(object, "quarantineDueDate")?,
+    })
+}
+
+fn parse_delivery_line(value: &Value) -> Result<SalesDeliveryLineCommand, BusinessError> {
+    let Some(object) = value.as_object() else {
+        return Err(request_invalid());
+    };
+    if !allowed(object, &["lineId", "quantity", "allocations"]) {
+        return Err(request_invalid());
+    }
+    let line_id = object
+        .get("lineId")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(request_invalid)?
+        .to_owned();
+    let allocations = match object.get("allocations") {
+        None => Vec::new(),
+        Some(Value::Array(values)) if values.len() <= DELIVERY_ALLOCATIONS_LIMIT => values
+            .iter()
+            .map(parse_delivery_allocation)
+            .collect::<Result<Vec<_>, _>>()?,
+        _ => return Err(request_invalid()),
+    };
+    Ok(SalesDeliveryLineCommand {
+        line_id,
+        quantity_milli: delivery_quantity(object)?,
+        allocations,
+    })
+}
+
+/// Decode the retained fulfill body for a goods or mixed delivery. Service
+/// completions keep their own parser and backend path.
+fn parse_sales_delivery(
+    value: &Value,
+    key: CommandKey,
+    order_id: RecordId,
+) -> Result<SalesDeliveryCommand, BusinessError> {
+    let Some(object) = value.as_object() else {
+        return Err(request_invalid());
+    };
+    if !allowed(
+        object,
+        &[
+            "completionMode",
+            "expectedVersion",
+            "date",
+            "reason",
+            "lines",
+        ],
+    ) {
+        return Err(request_invalid());
+    }
+    let mode = match object.get("completionMode") {
+        None => SalesDeliveryMode::Goods,
+        Some(Value::String(value)) => {
+            SalesDeliveryMode::parse(value).ok_or_else(request_invalid)?
+        }
+        _ => return Err(request_invalid()),
+    };
+    let expected_version = object
+        .get("expectedVersion")
+        .and_then(Value::as_i64)
+        .filter(|value| (1..=MAX_SAFE).contains(value))
+        .ok_or_else(request_invalid)?;
+    let date = object
+        .get("date")
+        .and_then(Value::as_str)
+        .filter(|value| valid_date(value))
+        .ok_or_else(request_invalid)?
+        .to_owned();
+    let reason = optional_text(object, "reason")?;
+    if reason
+        .as_deref()
+        .is_some_and(|value| value.chars().count() > DELIVERY_REASON_LIMIT)
+    {
+        return Err(request_invalid());
+    }
+    let Some(lines) = object.get("lines").and_then(Value::as_array) else {
+        return Err(request_invalid());
+    };
+    if lines.is_empty() || lines.len() > DELIVERY_LINES_LIMIT {
+        return Err(request_invalid());
+    }
+    let lines = lines
+        .iter()
+        .map(parse_delivery_line)
+        .collect::<Result<Vec<_>, _>>()?;
+    let command = SalesDeliveryCommand {
+        key,
+        order_id,
+        mode,
+        expected_version,
+        date,
+        reason,
+        lines,
+    };
+    command.validate()?;
+    Ok(command)
+}
+
+fn sales_delivery_unmounted() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "SALES_DELIVERY_NOT_ENABLED",
+        "Native sales goods delivery is not mounted for this Holding.",
+    )
+}
+
 fn valid_fulfillment_receipt(value: &Value) -> bool {
     value.as_object().is_some_and(|object| {
-        object.len() == 4
+        let core = ["id", "fulfillmentId", "version", "state"];
+        let extra = ["totalValueMinor", "lines"];
+        object
+            .keys()
+            .all(|key| core.contains(&key.as_str()) || extra.contains(&key.as_str()))
             && object
                 .get("id")
                 .and_then(Value::as_str)
-                .is_some_and(|v| !v.is_empty())
+                .is_some_and(|v| !v.is_empty() && v.len() <= 200)
             && object
                 .get("fulfillmentId")
                 .and_then(Value::as_str)
-                .is_some_and(|v| !v.is_empty())
+                .is_some_and(|v| !v.is_empty() && v.len() <= 200)
             && object
                 .get("version")
                 .and_then(Value::as_i64)
-                .is_some_and(|v| (1..=9_007_199_254_740_991).contains(&v))
+                .is_some_and(|v| (1..=MAX_SAFE).contains(&v))
+            && object
+                .get("totalValueMinor")
+                .is_none_or(|value| value.as_i64().is_some_and(|v| (0..=MAX_SAFE).contains(&v)))
+            && object
+                .get("lines")
+                .is_none_or(|value| value.as_array().is_some_and(|rows| !rows.is_empty()))
             && matches!(
                 object.get("state").and_then(Value::as_str),
                 Some("partially_fulfilled" | "fulfilled")
@@ -863,6 +1148,29 @@ pub fn commerce_order_http_router_with_origin_policy(
     targets: Vec<CommerceOrderHttpTarget>,
     policy: CommerceOriginPolicy,
 ) -> Result<Router, BusinessError> {
+    commerce_order_http_router_with_origin_policy_and_sales_delivery(targets, policy, Vec::new())
+}
+
+/// Mount the existing Commerce order routes together with the native sales
+/// goods/mixed delivery backend on `/commerce/orders/{order_id}/fulfill`.
+pub fn commerce_order_http_router_with_sales_delivery(
+    targets: Vec<CommerceOrderHttpTarget>,
+    delivery: Vec<CommerceSalesDeliveryHttpTarget>,
+) -> Result<Router, BusinessError> {
+    commerce_order_http_router_with_origin_policy_and_sales_delivery(
+        targets,
+        CommerceOriginPolicy::Production,
+        delivery,
+    )
+}
+
+pub fn commerce_order_http_router_with_origin_policy_and_sales_delivery(
+    targets: Vec<CommerceOrderHttpTarget>,
+    policy: CommerceOriginPolicy,
+    delivery: Vec<CommerceSalesDeliveryHttpTarget>,
+) -> Result<Router, BusinessError> {
+    let state = CommerceOrderHttpState::new_with_origin_policy(targets, policy)?
+        .with_sales_delivery(delivery)?;
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/commerce/orders",
@@ -880,9 +1188,7 @@ pub fn commerce_order_http_router_with_origin_policy(
             "/api/v1/holdings/{holding_slug}/commerce/orders/{order_id}/fulfill",
             post(fulfill_handler),
         )
-        .with_state(Arc::new(CommerceOrderHttpState::new_with_origin_policy(
-            targets, policy,
-        )?)))
+        .with_state(Arc::new(state)))
 }
 
 async fn detail_handler(
@@ -938,7 +1244,7 @@ async fn fulfill_handler(
     request: Request,
 ) -> Response {
     let (parts, body) = request.into_parts();
-    let body = match to_bytes(body, BODY_LIMIT + 1).await {
+    let body = match to_bytes(body, DELIVERY_BODY_LIMIT + 1).await {
         Ok(body) => body,
         Err(_) => return error_response(request_invalid()),
     };

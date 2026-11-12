@@ -41,6 +41,10 @@ name = "receipt_http"
 path = "../../tests/unit/commerce/rust-commerce-receipt-http.test.rs"
 
 [[test]]
+name = "sales_delivery"
+path = "../../tests/unit/commerce/rust-sales-delivery.test.rs"
+
+[[test]]
 name = "record_source"
 path = "../../tests/unit/commerce/rust-commerce-record-source.test.rs"
 
@@ -51,6 +55,10 @@ path = "../../tests/integration/commerce/rust-commerce-record-source-postgres.te
 [[test]]
 name = "order_postgres"
 path = "../../tests/integration/commerce/rust-commerce-order-postgres.test.rs"
+
+[[test]]
+name = "sales_delivery_postgres"
+path = "../../tests/integration/commerce/rust-sales-delivery-postgres.test.rs"
 
 [[test]]
 name = "consumption_postgres"

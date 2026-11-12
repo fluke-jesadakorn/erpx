@@ -234,11 +234,14 @@ fn valid_receipt(value: &Value) -> bool {
         .is_some_and(|text| CommerceReceipt::from_result_json(&text).is_ok())
 }
 
-fn allowed(object: &Map<String, Value>, keys: &[&str]) -> bool {
+pub(crate) fn allowed(object: &Map<String, Value>, keys: &[&str]) -> bool {
     object.keys().all(|key| keys.contains(&key.as_str()))
 }
 
-fn optional_text(object: &Map<String, Value>, key: &str) -> Result<Option<String>, BusinessError> {
+pub(crate) fn optional_text(
+    object: &Map<String, Value>,
+    key: &str,
+) -> Result<Option<String>, BusinessError> {
     match object.get(key) {
         None => Ok(None),
         Some(Value::String(value)) => {
@@ -249,7 +252,10 @@ fn optional_text(object: &Map<String, Value>, key: &str) -> Result<Option<String
     }
 }
 
-fn optional_date(object: &Map<String, Value>, key: &str) -> Result<Option<String>, BusinessError> {
+pub(crate) fn optional_date(
+    object: &Map<String, Value>,
+    key: &str,
+) -> Result<Option<String>, BusinessError> {
     match object.get(key) {
         None => Ok(None),
         Some(Value::String(value)) if value.is_empty() => Ok(None),
@@ -260,7 +266,7 @@ fn optional_date(object: &Map<String, Value>, key: &str) -> Result<Option<String
 
 /// Retained receipt quantity notation: an unsigned decimal string with at most
 /// three fraction digits, converted to integer milli-units.
-fn parse_milli(value: &str) -> Option<i64> {
+pub(crate) fn parse_milli(value: &str) -> Option<i64> {
     let (whole, fraction) = value
         .split_once('.')
         .map_or((value, None), |(whole, fraction)| (whole, Some(fraction)));
@@ -375,7 +381,11 @@ fn parse_line(value: &Value) -> Result<ReceiptLineCommand, BusinessError> {
 /// Decode the retained goods-receipt command body. `completionMode` is optional
 /// and may only be `goods`; delivery evidence identifiers are composition
 /// attachment steps and are deliberately not accepted here.
-fn parse_receipt(body: &[u8], key: CommandKey, order_id: RecordId) -> Result<ReceiptCommand, BusinessError> {
+fn parse_receipt(
+    body: &[u8],
+    key: CommandKey,
+    order_id: RecordId,
+) -> Result<ReceiptCommand, BusinessError> {
     let value: Value = serde_json::from_slice(body).map_err(|_| request_invalid())?;
     let Some(object) = value.as_object() else {
         return Err(request_invalid());
@@ -455,12 +465,6 @@ async fn receive_handler(
         Err(_) => return error_response(request_invalid()),
     };
     state
-        .receive(
-            &parts.headers,
-            &slug,
-            &order_id,
-            parts.uri.query(),
-            &body,
-        )
+        .receive(&parts.headers, &slug, &order_id, parts.uri.query(), &body)
         .await
 }
