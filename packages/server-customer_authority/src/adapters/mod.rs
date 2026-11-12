@@ -5,3 +5,6 @@ pub mod duplicates_http;
 pub mod identity_http;
 pub mod identity_postgres;
 pub mod portal_session;
+pub mod portal_invitation_delivery;
+pub mod portal_invitation_email;
+pub mod portal_invitation_token;

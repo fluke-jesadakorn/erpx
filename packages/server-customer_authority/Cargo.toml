@@ -13,9 +13,17 @@ path = "src/lib.rs"
 [dependencies]
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
+erpx-server-commercial.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+webpki-roots.workspace = true
+ring.workspace = true
+sha2.workspace = true
+base64.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
@@ -48,6 +56,14 @@ path = "../../tests/unit/customer_authority/rust-portal-session.test.rs"
 [[test]]
 name = "portal_session_postgres"
 path = "../../tests/integration/customer_authority/rust-portal-session-postgres.test.rs"
+
+[[test]]
+name = "portal_invitation_delivery"
+path = "../../tests/unit/customer_authority/rust-portal-invitation-delivery.test.rs"
+
+[[test]]
+name = "portal_invitation_delivery_postgres"
+path = "../../tests/integration/customer_authority/rust-portal-invitation-delivery-postgres.test.rs"
 
 [lints]
 workspace = true

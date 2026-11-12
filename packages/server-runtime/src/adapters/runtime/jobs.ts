@@ -217,9 +217,28 @@ export async function customerNotificationWork(env:JobEnv) {
  for(const slot of await activeSlots(env)) {
   try{await runNativeSalesNotificationWorker(slot.id);}
   catch(error){console.error(JSON.stringify({event:"sales_customer_notification_delivery_unavailable",holdingId:slot.id,code:String((error as {code?:string}).code??(error instanceof Error?error.name:"DeliveryError")).slice(0,64)}));}
-  try{await (await import("@erpx/server-customer_authority/public/portal-invitation-delivery")).drainCustomerPortalInvitations(registeredResources(env,slot.id).write,env)();}
-  catch(error){console.error(JSON.stringify({event:"customer_portal_invitation_delivery_failed",holdingId:slot.id,code:error instanceof Error?error.name:"DeliveryError"}));}
+  try{await runNativeCustomerPortalInvitationWorker(slot.id);}
+  catch(error){console.error(JSON.stringify({event:"customer_portal_invitation_delivery_unavailable",holdingId:slot.id,code:String((error as {code?:string}).code??(error instanceof Error?error.name:"DeliveryError")).slice(0,64)}));}
  }
+}
+
+/**
+ * Runs one bounded native Customer Portal invitation cycle for one exact
+ * Holding. The native worker owns recovery, lease, source/token checks and the
+ * terminal commit; this transport only supplies the reviewed manifest path.
+ * A missing native worker is a hard failure, never a TypeScript delivery.
+ */
+async function runNativeCustomerPortalInvitationWorker(holdingId:string):Promise<void>{
+ const binary=process.env.ERPX_NATIVE_SERVER_BIN,manifest=process.env.ERPX_DATABASE_MANIFEST;
+ if(!binary||!manifest)throw Object.assign(new Error("The native Customer Portal invitation worker is not configured."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_REQUIRED"});
+ let stdout:string;
+ try{({stdout}=await exec(binary,["customer-portal-invitation-worker","--once","--database-manifest",manifest,"--holding",holdingId],{timeout:120_000,maxBuffer:2*1024*1024,env:process.env,windowsHide:true}));}
+ catch{throw Object.assign(new Error("The native Customer Portal invitation worker did not complete."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_FAILED"});}
+ let outcome:unknown;
+ try{outcome=JSON.parse(stdout);}
+ catch{throw Object.assign(new Error("The native Customer Portal invitation worker response is invalid."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_RESPONSE_INVALID"});}
+ const holdings=outcome&&typeof outcome==="object"&&!Array.isArray(outcome)?(outcome as {holdings?:unknown}).holdings:undefined;
+ if(!Array.isArray(holdings)||holdings.length!==1||!holdings[0]||typeof holdings[0]!=="object"||(holdings[0] as {holdingId?:unknown}).holdingId!==holdingId)throw Object.assign(new Error("The native Customer Portal invitation worker target is invalid."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_TARGET_MISMATCH"});
 }
 
 /**

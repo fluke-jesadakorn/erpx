@@ -1417,16 +1417,6 @@
     {
       "runner": "vitest",
       "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "revokes queued invitations after their source order is canceled"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "revokes sent invitations after their source order is canceled"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
       "title": "revokes queued invitations when their customer binding is revoked"
     },
     {

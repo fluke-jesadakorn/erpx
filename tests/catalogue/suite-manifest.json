@@ -95704,6 +95704,89 @@
       "packages": [
         "@erpx/server-collaboration"
       ]
+    },
+    {
+      "id": "customer_authority.rust-portal-invitation-delivery.unit",
+      "lane": "unit",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/unit/customer_authority/rust-portal-invitation-delivery.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer Portal invitation delivery retains the retained token/link encoding, bounded retry, safe delivery codes and the leased claim/terminal rules."
+      },
+      "apps": [
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_invitation_delivery"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_authority.rust-portal-invitation-delivery-postgres.integration",
+      "lane": "integration",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/integration/customer_authority/rust-portal-invitation-delivery-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer Portal invitation delivery retains the retained token/link encoding, bounded retry, safe delivery codes and the leased claim/terminal rules."
+      },
+      "apps": [
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_invitation_delivery_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

@@ -5,3 +5,4 @@ pub mod duplicates_http;
 pub mod identity;
 pub mod portal_session;
 pub mod identity_http;
+pub mod portal_invitation_delivery;
