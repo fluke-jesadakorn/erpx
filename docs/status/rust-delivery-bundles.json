@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1117,
+    "revision": 1129,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-a",
       "agentId": "lead",
       "startedAt": "2026-11-12T18:22:56.884Z",
-      "heartbeatAt": "2026-11-12T18:22:56.884Z",
-      "expiresAt": "2026-11-12T18:52:56.885Z",
+      "heartbeatAt": "2026-11-12T18:28:33.393Z",
+      "expiresAt": "2026-11-12T18:58:33.393Z",
       "generation": 45,
       "tokenHash": "01987380ea47a5bf01d44d35646397fdf3229687e8b239e208cad2e332c2f456"
     },
@@ -20870,6 +20870,8 @@
           "packages/feature-billing/**",
           "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/**",
           "packages/feature-admin/src/routes/api/v1/platform/billing/**",
+          "src/composition/src/billing.rs",
+          "src/composition/src/lib.rs",
           "tests/unit/billing/**",
           "tests/integration/billing/**",
           "tests/integration/commercial/**"
@@ -20966,7 +20968,7 @@
         ],
         "retainedLegacy": [],
         "blocker": "Native billing transport non-conformant: the owner returns a 15-key context without \"platform\" (src/composition/src/billing.rs context()), while createNativeBillingClient requires exactly 6 keys {userId,holdingId,platform,role,assignmentId,expiresAt}; expiresAt equality is unsatisfiable from WorkContext/PlatformContext; and the client binds the target Holding to the Host header, which the cross-Holding platform route cannot satisfy. The cost-review cutover was reverted at f0aa0dfcd.",
-        "nextAction": "transport-conformance first: return BillingActor::context(target) (6 keys) from the seven billing routers, decide the expiresAt validation rule, and decide the platform cross-Holding target binding. Add a captured-fixture cross-language conformance test. Then redo the cost/delete/complete cutover and record the KPI pair.",
+        "nextAction": "Transport conformance first: return BillingActor::context(target) (6 camelCase keys incl. platform/expiresAt) from all billing router responses, settle the client expiresAt rule and platform cross-Holding target binding, add a captured-fixture TS/Rust conformance test, then redo the cost/delete/complete cutover and record the KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -21363,8 +21365,8 @@
           "runId": "run-20261113-a",
           "agentId": "worker-operations",
           "claimedAt": "2026-11-12T18:23:13.159Z",
-          "heartbeatAt": "2026-11-12T18:23:13.159Z",
-          "expiresAt": "2026-11-12T18:53:13.159Z",
+          "heartbeatAt": "2026-11-12T18:28:33.393Z",
+          "expiresAt": "2026-11-12T18:58:33.393Z",
           "generation": 45
         },
         "baseSha": null,
@@ -21887,22 +21889,29 @@
           "scripts/local/**",
           "tests/integration/sales/**",
           "tests/integration/manufacturing/**",
-          "tests/unit/sales/**",
           "tests/support/helpers/**",
+          "tests/unit/sales/**",
           "tests/catalogue/suite-manifest.json"
         ],
         "resources": [
           "owner:sales"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-a",
+          "agentId": "worker-sales-native",
+          "claimedAt": "2026-11-12T18:24:11.923Z",
+          "heartbeatAt": "2026-11-12T18:28:33.393Z",
+          "expiresAt": "2026-11-12T18:58:33.393Z",
+          "generation": 45
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "BLOCKED BY ACTIVE CLAIMS (2026-11-12): retire.finance.journal-consumers holds tests/integration/sales/**, tests/support/helpers/**, fixtures/** and the catalogue; retire.runtime.connections holds src/composition/**. This native worker needs both the sales oracle paths and a composition mount, so it cannot be claimed without path overlap. Do not start until both claims are handed off. Audit remains in the previous nextAction; then implement the native repository + EmailDispatchPort + worker and retire the 7 writes (sales KPI 36->29, residual 3 reconciliation).",
+        "nextAction": "STEP 0 AUDIT (HEAD 0344be06e): sales owner KPI 36; adapters/notification-execution.ts = 7 writes (deliver/claim/terminal/insert/recover). The job needs a sales-owned Rust repository over commerce_customer_notifications + sales_notification_execution_attempts, the source/authority checks currently in notification-purchases.ts (source joins, queued-command authority, purchase capability sales.orders, receipts, locks), a composition-bound EmailDispatchPort (Resend, fail-closed without credentials), worker registration, native-only runtime jobs switch, deletion of notification-execution.ts + barrel/export, and migration of the execution oracle. Reconciliation (3 writes) stays live under its own removal task. Do not reuse identity Access account-mail tables; do not weaken source/lease/idempotency semantics. Record sales KPI 36 -> 29 with residual 3.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -26976,8 +26985,8 @@
           "runId": "run-20261113-a",
           "agentId": "worker-billing-invoice",
           "claimedAt": "2026-11-12T18:23:13.128Z",
-          "heartbeatAt": "2026-11-12T18:23:13.128Z",
-          "expiresAt": "2026-11-12T18:53:13.128Z",
+          "heartbeatAt": "2026-11-12T18:28:33.393Z",
+          "expiresAt": "2026-11-12T18:58:33.393Z",
           "generation": 45
         },
         "baseSha": null,
@@ -27165,6 +27174,190 @@
         "plannedPackage": "erpx-server-commerce",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "retire.organization.setup-commands",
+        "title": "Retire the TypeScript staff-level and template setup commands",
+        "scope": "Native Organization setup already owns install-levels/save-template/apply-template. Delete the TS writers, exports and application methods, fail closed on the People route, and seed staff levels in fixtures. The sales/manufacturing fixture import updates are already committed at 88d60afba and remain recorded there, not claimed here. organization KPI 64 -> 61.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/**",
+          "scripts/testing/engineering/native-cohort-parts-seed.ts",
+          "tests/integration/assets/**",
+          "tests/integration/field_service/**",
+          "tests/integration/finance/**",
+          "tests/integration/learning/**",
+          "tests/integration/organization/**",
+          "tests/integration/people_payroll/**",
+          "tests/integration/pos/**",
+          "tests/integration/procurement/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "30601776ae3d8cb92765f13175140dcb3e472a1d",
+        "implementedCommit": "88d60afbac8e8256b473da6b3d71a8bacfb3370b",
+        "lastPushedSha": "88d60afbac8e8256b473da6b3d71a8bacfb3370b",
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "88d60afbac8e8256b473da6b3d71a8bacfb3370b",
+            "note": "Root typecheck passes after deleting the TS level/template setup commands."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "88d60afbac8e8256b473da6b3d71a8bacfb3370b",
+            "note": "Test typecheck passes with the native staff-level seeding helper across 16 suites and the cohort seed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=organization.organization.integration",
+            "result": "passed",
+            "sourceSha": "88d60afbac8e8256b473da6b3d71a8bacfb3370b",
+            "note": "27/27 organization integration cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=organization.rust-organization-setup.unit",
+            "result": "passed",
+            "sourceSha": "88d60afbac8e8256b473da6b3d71a8bacfb3370b",
+            "note": "7/7 native setup unit cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=organization.rust-organization-setup-postgres.integration",
+            "result": "passed",
+            "sourceSha": "88d60afbac8e8256b473da6b3d71a8bacfb3370b",
+            "note": "8/8 native PostgreSQL setup cases pass (levels, template save/apply, replay/stale guards)."
+          },
+          {
+            "command": "bun run test:integration -- --suite=organization.rust-organization-setup-http-postgres.integration",
+            "result": "passed",
+            "sourceSha": "88d60afbac8e8256b473da6b3d71a8bacfb3370b",
+            "note": "4/4 native HTTP setup cases pass (levels/templates, origin/key/scope abuse)."
+          },
+          {
+            "command": "retirement:ts-writes: organization",
+            "result": "passed",
+            "sourceSha": "88d60afbac8e8256b473da6b3d71a8bacfb3370b",
+            "before": 64,
+            "after": 61,
+            "note": "git grep over packages/server-organization/src/**/*.ts: 64 before, 61 after.",
+            "residual": [
+              {
+                "path": "packages/server-organization/src/adapters/organization.ts",
+                "writes": 17,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/organization-drafts.ts",
+                "writes": 13,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/beta-onboarding-effects.ts",
+                "writes": 6,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/company-business-acceptance.ts",
+                "writes": 6,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/department-authority.ts",
+                "writes": 4,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/profile-media-command.ts",
+                "writes": 3,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/operations-staff-settings-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/staff-defaults.ts",
+                "writes": 2,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/member-profiles.ts",
+                "writes": 2,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/people-lifecycle-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/spending-template-owner.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/operations-level-history-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/people-placement-level-history.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Next organization residual: savePosition (positions) still has no native command; drafts and presentation reads remain TS.",
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -27173,21 +27366,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 127,
-      "migratedPackets": 61,
+      "totalPackets": 128,
+      "migratedPackets": 62,
       "statusCounts": {
-        "pending": 30,
-        "in_progress": 5,
+        "pending": 29,
+        "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 61,
+        "migrated": 62,
         "blocked": 22,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 45,
-    "updatedAt": "2026-11-12T18:23:13.160Z",
+    "updatedAt": "2026-11-12T18:28:33.394Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
