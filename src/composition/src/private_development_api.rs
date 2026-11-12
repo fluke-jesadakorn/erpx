@@ -10349,6 +10349,89 @@ pub async fn run_position_move_worker_file(
     Ok(())
 }
 
+/// Native scheduled routine occurrence worker. Drains one bounded 20-occurrence
+/// pass for every registered Holding on a 5s tick. The retained TypeScript
+/// scheduler drain is retired only after this process is running in deployment.
+pub async fn run_routine_occurrence_worker_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    run_routine_occurrence_worker_with_profile(path, Profile::Development, shutdown).await
+}
+
+pub(crate) async fn run_routine_occurrence_worker_with_profile(
+    path: &Path,
+    profile: Profile,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let config = DevelopmentApiConfiguration::read_configuration_file(path, profile)?;
+    if config.holdings.is_empty() {
+        return Err("ROUTINE_OCCURRENCE_WORKER_TARGET_REQUIRED");
+    }
+    let limits = PoolLimits {
+        max_connections: 3,
+        acquire_timeout: Duration::from_secs(5),
+    };
+    let mut pools = Vec::new();
+    for holding in &config.holdings {
+        let pool = holding
+            .database
+            .connect(limits)
+            .await
+            .map_err(|_| "ROUTINE_OCCURRENCE_WORKER_DATABASE_UNAVAILABLE")?;
+        pools.push((holding.registration.holding_id.clone(), pool));
+    }
+    let production = profile == Profile::Production;
+    let mut shutdown = std::pin::pin!(shutdown);
+    loop {
+        tokio::select! {
+            _ = &mut shutdown => break,
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+        }
+        let now = SystemAccountClock.now().get();
+        for (holding, pool) in &pools {
+            match crate::routine_commands::run_routine_occurrence_pass(
+                pool.clone(),
+                holding.clone(),
+                now,
+                20,
+                production,
+            )
+            .await
+            {
+                Ok(pass) if pass.generated > 0 || pass.examined > 0 => {
+                    eprintln!(
+                        "{{\"event\":\"routine_occurrence_drain\",\"holding\":\"{}\",\"generated\":{},\"examined\":{}}}",
+                        holding.as_str(),
+                        pass.generated,
+                        pass.examined
+                    );
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    let code = match &error {
+                        erpx_server_runtime::public::postgres::PgTransactionError::Business(
+                            error,
+                        ) => error.code,
+                        erpx_server_runtime::public::postgres::PgTransactionError::Persistence(
+                            error,
+                        ) => error.code,
+                    };
+                    eprintln!(
+                        "{{\"event\":\"routine_occurrence_drain_failed\",\"holding\":\"{}\",\"code\":\"{}\"}}",
+                        holding.as_str(),
+                        code
+                    );
+                }
+            }
+        }
+    }
+    for (_, pool) in pools {
+        pool.close().await;
+    }
+    Ok(())
+}
+
 pub async fn run_field_dependency_worker_file(
     path: &Path,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
@@ -10867,6 +10950,36 @@ pub async fn run_production_workers_file(
         handles.push(tokio::spawn(async move {
             run_position_move_supervisor(databases, stop).await;
             Ok::<(), &'static str>(())
+        }));
+    }
+    if !config.holdings.is_empty() {
+        let path = path.to_owned();
+        let mut stop = stop.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                if *stop.borrow() {
+                    return Ok::<(), &'static str>(());
+                }
+                let mut worker_stop = stop.clone();
+                let result = run_routine_occurrence_worker_with_profile(
+                    &path,
+                    Profile::Production,
+                    async move {
+                        let _ = worker_stop.changed().await;
+                    },
+                )
+                .await;
+                if *stop.borrow() {
+                    return Ok(());
+                }
+                if let Err(code) = result {
+                    eprintln!("production routine occurrence worker stopped: {code}; restarting");
+                }
+                tokio::select! {
+                    _ = stop.changed() => return Ok(()),
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+            }
         }));
     }
     if !config.holdings.is_empty() {

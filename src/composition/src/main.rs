@@ -168,6 +168,17 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
         }
         #[cfg(feature = "private-field-api")]
         [command, option, path]
+            if command == "routine-occurrence-worker" && option == "--development-config" =>
+        {
+            erpx_service::private_development_api::run_routine_occurrence_worker_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
+        }
+        #[cfg(feature = "private-field-api")]
+        [command, option, path]
             if command == "workflow-projection-worker" && option == "--development-config" =>
         {
             erpx_service::private_development_api::run_workflow_projection_worker_file(

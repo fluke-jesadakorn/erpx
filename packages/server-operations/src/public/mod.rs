@@ -20,4 +20,6 @@ pub mod staff_work_http;
 
 pub mod routine_commands;
 
+pub mod routine_occurrences;
+
 pub mod routine_commands_http;

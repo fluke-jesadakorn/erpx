@@ -16,23 +16,33 @@ use erpx_server_identity_access::public::{
 use erpx_server_operations::public::routine_commands::{
     PgRoutineCommands, PgRoutineSources, RoutineAuthority, RoutineCapture, RoutineCommandRepository,
     RoutineFuture, RunRoutineTemplateCommand, change_schedule_state,
-    end_schedule, lock_routine_sources, run_template, run_template_source,
+    end_schedule, fingerprint_json, lock_routine_sources, run_template, run_template_source,
     save_schedule, save_template,
+};
+use erpx_server_operations::public::routine_occurrences::{
+    OccurrenceOutcome, OccurrencePass, OccurrencePolicy, OccurrenceSourceFacts,
+    RoutineExecutionAuthorization, RoutineOccurrenceFuture, RoutineOccurrenceUnit as OccurrenceUnit,
+    authorization as occurrence_authorization, generate_due_occurrences as generate_occurrences,
+    lock_occurrence_sources, occurrence_image, plan_occurrence, production_enabled,
+    production_forbidden, require_authorization_source, require_current_authority,
+    require_lineage, source as occurrence_source, source_changed, stage_occurrence,
 };
 use erpx_server_operations::public::routine_commands_http::{
     RoutineHttpBackend, RoutineHttpCommand, RoutineHttpCommandRequest, RoutineHttpFuture,
     RoutineHttpResponse,
 };
 use erpx_server_operations::public::staff_tasks::{
-    PgStaffTaskSources, PgStaffTasks, ProjectFact, RouteFact, StaffFact, StaffTaskFactDelegates,
-    StaffTaskFuture, TaskRow, TaskScope, lock_staff_task_sources, notify_staff_task_approval,
+    PgStaffTaskSources, PgStaffTasks, ProjectFact, RouteFact, RoutineTaskWrite, SaveTaskCommand,
+    SaveTaskMode, StaffFact, StaffTaskActor, StaffTaskFactDelegates, StaffTaskFuture,
+    StaffTaskRepository, StaffTaskSources, TaskRow, TaskScope, lock_staff_task_sources,
+    notify_staff_task_approval, save_task_mode,
 };
 use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
 use erpx_server_commercial::public::purchase_command_boundary::{
-    PurchaseCommandBoundary, PurchaseCommandScope,
+    PurchaseCommandBoundary, PurchaseCommandScope, lock_company_purchase_read_sources,
 };
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, PackageEnforcementMode, current_package_catalogue,
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, current_package_catalogue,
 };
 use erpx_server_workflow::public::staff_approval::{
     OpenStaffApproval, StaffApprovalStep, open_staff_approval,
@@ -43,7 +53,7 @@ use erpx_server_organization::public::staff_department_route::{
 use erpx_server_people_payroll::public::staff_facts::{active_staff, staff_people};
 use erpx_server_projects::public::staff_facts::staff_project;
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
 };
@@ -612,6 +622,678 @@ async fn require_routine_project(
             )
             .into()
         })
+}
+
+fn sql_literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn purchase_available(alias: &str, now: &str) -> String {
+    format!(
+        "{alias}.starts_at<={now} AND {alias}.state='active' \
+         AND ({alias}.ends_at IS NULL OR {alias}.ends_at>{now})"
+    )
+}
+
+/// SQL equivalent of the commercial purchased-capability predicate for the
+/// new-work purpose. Definitions and dependency versions come from the current
+/// sealed catalogue, never from the request.
+fn purchased_capability_sql(
+    catalogue: &CommercialCatalogue,
+    company: &str,
+    capability: &str,
+    now: &str,
+) -> String {
+    let candidates = catalogue
+        .definitions()
+        .iter()
+        .filter(|definition| {
+            definition
+                .visible_capabilities
+                .iter()
+                .chain(&definition.included_capabilities)
+                .any(|value| value == capability)
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return "FALSE".into();
+    }
+    candidates
+        .iter()
+        .map(|definition| {
+            let mut sql = format!(
+                "(EXISTS(SELECT 1 FROM company_package_grants purchase \
+                 WHERE purchase.company_id={company} AND purchase.package_id={} \
+                 AND purchase.package_version={} AND {})",
+                sql_literal(&definition.id),
+                definition.version,
+                purchase_available("purchase", now)
+            );
+            for dependency in &definition.dependencies {
+                let versions = catalogue
+                    .definitions()
+                    .iter()
+                    .filter(|parent| &parent.id == dependency)
+                    .map(|parent| parent.version.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                sql.push_str(&format!(
+                    " AND EXISTS(SELECT 1 FROM company_package_grants parent \
+                     WHERE parent.company_id={company} AND parent.package_id={} \
+                     AND parent.package_version IN ({versions}) AND {})",
+                    sql_literal(dependency),
+                    purchase_available("parent", now)
+                ));
+            }
+            sql.push(')');
+            sql
+        })
+        .collect::<Vec<_>>()
+        .join(" OR ")
+}
+
+/// Retained queued selection scope for one Holding. In development or disabled
+/// package mode the scheduler keeps `TRUE`; enforced mode filters invalid
+/// authority, staff, Project membership, purchase and release before LIMIT.
+pub(crate) fn occurrence_policy(
+    production: bool,
+) -> Result<OccurrencePolicy, BusinessError> {
+    let apps_mode = routine_purchase_mode("ERPX_APPS_PACKAGE_ENFORCEMENT")?;
+    if apps_mode != PackageEnforcementMode::Enforced {
+        return Ok(OccurrencePolicy {
+            production,
+            scope_sql: None,
+        });
+    }
+    let projects_mode = routine_purchase_mode("ERPX_PROJECTS_PACKAGE_ENFORCEMENT")?;
+    let catalogue = current_package_catalogue()?;
+    let now = "routine_job_clock.now_ms";
+    let actor = "work_routine_authorization.authority_json::jsonb";
+    let user = format!("({actor}->>'userId')");
+    let role = format!("({actor}->>'role')");
+    let company = "work_routine_authorization.company_id";
+    let assignment = "work_routine_authorization.assignment_id";
+    let branch = format!("({actor}->>'branchId')");
+    let department = format!("({actor}->>'departmentId')");
+    let session = format!("({actor}->'authority'->>'sessionId')");
+    let assignment_version = format!(
+        "COALESCE(({actor}->'authority'->>'assignmentVersion')::integer,\
+         ({actor}->'iam'->>'queuedAssignmentVersion')::integer,\
+         ({actor}->>'assignmentVersion')::integer)"
+    );
+    let apps = ["work.actions", "work.advanced-routines"]
+        .iter()
+        .map(|capability| {
+            purchased_capability_sql(&catalogue, "t.company_id", capability, now)
+        })
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    let project_purchase = ["projects.wbs", "projects.tasks"]
+        .iter()
+        .map(|capability| {
+            purchased_capability_sql(&catalogue, "t.company_id", capability, now)
+        })
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    let project = if projects_mode == PackageEnforcementMode::Enforced {
+        format!(
+            "EXISTS(SELECT 1 FROM staff_projects routine_project \
+             WHERE routine_project.id=t.project_id AND routine_project.company_id=t.company_id \
+             AND iam_role_allows({role},routine_project.company_id,'records.read') \
+             AND (routine_project.owner_user_id={user} OR EXISTS(SELECT 1 FROM staff_project_members routine_member \
+             WHERE routine_member.project_id=routine_project.id AND routine_member.user_id={user}))) \
+             AND ({project_purchase})"
+        )
+    } else {
+        "TRUE".into()
+    };
+    let config = "jsonb_build_object('template',to_jsonb(t),'schedule',to_jsonb(s)-\
+                  ARRAY['next_occurrence_at','last_generated_at','last_error','updated_at','paused_at','state'])::text";
+    let staff = format!(
+        "(SELECT COUNT(*) FROM hr_people p \
+         JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id \
+         WHERE p.company_id=s.company_id AND p.status='active' AND p.merged_into_id IS NULL \
+         AND iam_same_person(p.user_id,{user},p.company_id) AND e.status='active' \
+         AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') \
+         AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))=1"
+    );
+    let production_predicate = if production {
+        " AND EXISTS(SELECT 1 FROM company_feature_rollouts f \
+         WHERE f.company_id=s.company_id AND f.module_id='operations' \
+         AND f.rollout_state IN ('pilot','available'))"
+    } else {
+        ""
+    };
+    let scope = format!(
+        "EXISTS(WITH RECURSIVE routine_job_clock AS MATERIALIZED(SELECT \
+         floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms),\
+         routine_lineage AS(SELECT a.command_id,a.initial_occurrence_at cursor,0 depth \
+         FROM work_routine_execution_authorizations a \
+         WHERE a.schedule_id=s.id AND a.schedule_version=s.version \
+         UNION ALL SELECT lineage.command_id,step.next_occurrence_at,lineage.depth+1 \
+         FROM routine_lineage lineage JOIN work_routine_execution_steps step \
+         ON step.authorization_command_id=lineage.command_id AND step.occurrence_at=lineage.cursor \
+         WHERE lineage.depth<10000) \
+         SELECT 1 FROM routine_templates t CROSS JOIN routine_job_clock \
+         JOIN work_routine_execution_authorizations work_routine_authorization \
+         ON work_routine_authorization.schedule_id=s.id \
+         AND work_routine_authorization.schedule_version=s.version \
+         AND work_routine_authorization.template_id=t.id \
+         AND work_routine_authorization.company_id=t.company_id \
+         WHERE t.id=s.template_id AND t.company_id=s.company_id AND t.published=1 \
+         AND work_routine_authorization.template_version=t.version \
+         AND work_routine_authorization.source_hash=encode(sha256(convert_to({config},'UTF8')),'hex') \
+         AND work_routine_authorization.command_id=(SELECT latest.command_id \
+         FROM work_routine_execution_authorizations latest \
+         WHERE latest.schedule_id=s.id AND latest.schedule_version=s.version \
+         ORDER BY latest.created_at DESC,latest.command_id DESC LIMIT 1) \
+         AND {actor}->>'companyId'={company} \
+         AND {actor}->>'userId'=work_routine_authorization.actor_id \
+         AND {actor}->>'assignmentId'={assignment} \
+         AND {assignment_version}>0 \
+         AND EXISTS(SELECT 1 FROM assignments queued_assignment \
+         WHERE queued_assignment.id={assignment} AND queued_assignment.user_id={user} \
+         AND queued_assignment.role={role} AND queued_assignment.company_id={company} \
+         AND queued_assignment.version={assignment_version} \
+         AND iam_assignment_active(queued_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+         AND iam_principal_active(queued_assignment.user_id,queued_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+         AND (queued_assignment.scope_kind='holding' OR queued_assignment.scope_kind='branch' \
+           AND queued_assignment.scope_node_id={branch} OR queued_assignment.scope_kind='department' \
+           AND queued_assignment.scope_node_id={department}) \
+         AND EXISTS(SELECT 1 FROM iam_roles queued_role WHERE queued_role.id=queued_assignment.role \
+           AND queued_role.company_id IN ('*',{company}) AND queued_role.status='active' \
+           AND ({actor}->'iam'->>'roleRevision' IS NULL \
+             OR queued_role.published_revision=({actor}->'iam'->>'roleRevision')::integer))) \
+         AND NOT EXISTS(SELECT 1 FROM iam_revoked_sessions r \
+         WHERE r.session_id={session} AND r.company_id={company} AND r.user_id={user}) \
+         AND ({actor}->'iam'->>'identityVersion' IS NULL \
+           OR COALESCE((SELECT version FROM iam_members m \
+             WHERE m.company_id={company} AND m.user_id={user}),0)=({actor}->'iam'->>'identityVersion')::integer) \
+         AND ({actor}->'iam'->>'emergencyUntil' IS NULL \
+           OR ({actor}->'iam'->>'emergencyUntil')::bigint>routine_job_clock.now_ms) \
+         AND ({actor}->'authority' IS NULL OR {actor}->'authority'='null'::jsonb \
+           OR EXISTS(SELECT 1 FROM active_work_contexts c WHERE c.session_id={session} \
+             AND c.company_id={company} AND c.user_id={user} AND c.assignment_id={assignment} \
+             AND c.revision=({actor}->'authority'->>'revision')::integer \
+             AND c.assignment_version=({actor}->'authority'->>'assignmentVersion')::integer \
+             AND c.assignment_version={assignment_version} AND c.expires_at>routine_job_clock.now_ms)) \
+         AND ({actor}->'iam'->>'hrAppointmentVersion' IS NULL \
+           OR EXISTS(SELECT 1 FROM authority_seats s \
+             JOIN hr_people p ON p.id=s.person_id AND p.company_id=s.company_id \
+             JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id \
+             WHERE s.company_id={company} AND s.kind='hr' AND s.scope_id={company} \
+             AND s.version=({actor}->'iam'->>'hrAppointmentVersion')::integer \
+             AND s.effective_at<=routine_job_clock.now_ms \
+             AND iam_same_person(p.user_id,{user},s.company_id))) \
+         AND CASE WHEN t.project_id IS NULL THEN ({apps}) ELSE ({project}) END \
+         AND {staff} \
+         AND EXISTS(SELECT 1 FROM routine_lineage chain \
+         WHERE chain.command_id=work_routine_authorization.command_id \
+         AND chain.cursor=s.next_occurrence_at \
+         AND chain.depth=(SELECT count(*) FROM work_routine_execution_steps step \
+           WHERE step.authorization_command_id=chain.command_id)) \
+         AND NOT EXISTS(SELECT 1 FROM work_routine_execution_steps step \
+         WHERE step.authorization_command_id=work_routine_authorization.command_id \
+         AND (step.source_hash<>work_routine_authorization.source_hash OR step.generated AND NOT EXISTS(\
+         SELECT 1 FROM staff_tasks task \
+         JOIN audit_events audit ON audit.command_id=step.command_id AND audit.record_id=task.id \
+         AND audit.record_version=1 AND audit.action='routine.occurrence' AND audit.record_type='staff_task' \
+         JOIN outbox_events outbox ON outbox.command_id=audit.command_id \
+         AND outbox.aggregate_id=task.id AND outbox.aggregate_version=1 \
+         AND outbox.event_type='task.generated' AND outbox.aggregate_type='staff_task' \
+         WHERE task.id=step.task_id AND task.company_id=s.company_id AND task.schedule_id=s.id \
+         AND task.occurrence_at=step.occurrence_at AND task.template_id=t.id \
+         AND task.template_version=t.version)))){production_predicate})"
+    );
+    Ok(OccurrencePolicy {
+        production,
+        scope_sql: Some(scope),
+    })
+}
+
+struct OccurrenceProject {
+    source: RoutineProjectSource,
+}
+
+async fn occurrence_project(
+    connection: &mut PgConnection,
+    actor: &StaffTaskActor,
+    role: &str,
+    project_id: &str,
+) -> Result<OccurrenceProject, PgTransactionError<BusinessError>> {
+    let source = routine_project_source(
+        connection,
+        &actor.company_id,
+        &actor.user_id,
+        project_id,
+    )
+    .await?
+    .ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::NotFound,
+            "PROJECT_NOT_FOUND",
+            "Project not found in the current workspace.",
+        )
+    })?;
+    let allowed: bool = sqlx::query_scalar(
+        "SELECT iam_role_allows($1,$2,'records.read') \
+         AND EXISTS(SELECT 1 FROM assignments g WHERE g.id=$3 AND g.user_id=$4 \
+         AND g.role=$1 AND g.company_id=$2 \
+         AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+         AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+         AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=$5 \
+           OR g.scope_kind='department' AND g.scope_node_id=$6))",
+    )
+    .bind(role)
+    .bind(&actor.company_id)
+    .bind(&actor.assignment_id)
+    .bind(&actor.user_id)
+    .bind(actor.branch_id.as_deref())
+    .bind(actor.department_id.as_deref())
+    .fetch_one(&mut *connection)
+    .await?;
+    if !allowed {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "PROJECT_ACCESS_CHANGED",
+            "Choose a current Project assignment.",
+        )
+        .into());
+    }
+    Ok(OccurrenceProject { source })
+}
+
+fn occurrence_actor(authority: &erpx_server_operations::public::routine_occurrences::StoredRoutineAuthority) -> StaffTaskActor {
+    StaffTaskActor {
+        user_id: authority.user_id.clone(),
+        assignment_id: authority.assignment_id.clone(),
+        company_id: authority.company_id.clone(),
+        branch_id: authority.branch_id.clone(),
+        department_id: authority.department_id.clone(),
+        permissions: authority.permissions.clone(),
+        modules: Vec::new(),
+        expires_at: i64::MAX,
+    }
+}
+
+fn synthetic_occurrence_actor(
+    template: &erpx_server_operations::public::routine_commands::RoutineTemplateRow,
+) -> StaffTaskActor {
+    StaffTaskActor {
+        user_id: template.creator_user_id.clone(),
+        assignment_id: String::new(),
+        company_id: template.company_id.clone(),
+        branch_id: template.branch_id.clone(),
+        department_id: template.department_id.clone(),
+        permissions: Vec::new(),
+        modules: Vec::new(),
+        expires_at: i64::MAX,
+    }
+}
+
+/// One composition-owned scheduled occurrence unit. It binds the captured
+/// authorization, current IAM, package fences and the native routine task write
+/// in the same serializable transaction the Operations pass retries.
+pub(crate) struct RoutineOccurrencePassUnit {
+    holding: HoldingId,
+    production: bool,
+    apps_mode: PackageEnforcementMode,
+    projects_mode: PackageEnforcementMode,
+    catalogue: CommercialCatalogue,
+}
+
+impl RoutineOccurrencePassUnit {
+    pub(crate) fn new(holding: HoldingId, production: bool) -> Result<Self, BusinessError> {
+        Ok(Self {
+            holding,
+            production,
+            apps_mode: routine_purchase_mode("ERPX_APPS_PACKAGE_ENFORCEMENT")?,
+            projects_mode: routine_purchase_mode("ERPX_PROJECTS_PACKAGE_ENFORCEMENT")?,
+            catalogue: current_package_catalogue()?,
+        })
+    }
+}
+
+impl OccurrenceUnit for RoutineOccurrencePassUnit {
+    fn run<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        selected: &'a erpx_server_operations::public::routine_commands::RoutineScheduleRow,
+        at: i64,
+        now: i64,
+    ) -> RoutineOccurrenceFuture<'a, Option<OccurrenceOutcome>> {
+        Box::pin(async move {
+            let Some(source) = occurrence_source(
+                connection,
+                &selected.company_id,
+                &selected.id,
+                at,
+            )
+            .await?
+            else {
+                return Ok(None);
+            };
+            let original = &source.schedule;
+            if original.state != "active"
+                || original.version != selected.version
+                || original.next_occurrence_at != Some(at)
+            {
+                return Ok(None);
+            }
+            let project_mode = self.projects_mode != PackageEnforcementMode::Disabled;
+            let enforced = self.apps_mode == PackageEnforcementMode::Enforced;
+            let Some(template) = source.template.as_ref() else {
+                if enforced {
+                    return Ok(None);
+                }
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "TEMPLATE_UNAVAILABLE",
+                    "The published routine template is unavailable.",
+                )
+                .into());
+            };
+            if !template.is_published() {
+                if enforced {
+                    return Ok(None);
+                }
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "TEMPLATE_UNAVAILABLE",
+                    "The published routine template is unavailable.",
+                )
+                .into());
+            }
+            if self.production && !production_enabled(connection, &original.company_id).await? {
+                return Err(production_forbidden().into());
+            }
+            if self.apps_mode == PackageEnforcementMode::Shadow {
+                sqlx::query(
+                    "SELECT package_id FROM company_package_grants WHERE company_id=$1 \
+                     ORDER BY package_id",
+                )
+                .bind(&original.company_id)
+                .fetch_all(&mut *connection)
+                .await?;
+            }
+            let mut authorization: Option<RoutineExecutionAuthorization> = None;
+            let mut actor = synthetic_occurrence_actor(template);
+            let mut boundaries: Vec<PurchaseCommandBoundary> = Vec::new();
+            let mut assertion_keys: Vec<String> = Vec::new();
+            let mut project_before: Option<RoutineProjectSource> = None;
+            if enforced {
+                let company = CompanyId::new(original.company_id.clone())?;
+                lock_company_purchase_read_sources(connection, &company).await?;
+                lock_occurrence_sources(connection, &original.company_id).await?;
+                let stored = occurrence_authorization(connection, &original.id, original.version)
+                    .await?
+                    .ok_or_else(|| {
+                        BusinessError::new(
+                            FailureKind::Conflict,
+                            "WORK_ROUTINE_AUTHORIZATION_REQUIRED",
+                            "Pause and resume this retained schedule with its original current owner before generation.",
+                        )
+                    })?;
+                let stored_actor = stored.actor()?;
+                require_authorization_source(connection, &stored, template, original, &stored_actor)
+                    .await?;
+                require_lineage(connection, &stored, Some(at)).await?;
+                require_current_authority(connection, &stored, &stored_actor, now).await?;
+                actor = occurrence_actor(&stored_actor);
+                let base = format!("occurrence-{}-{at}", original.id);
+                if template.project_id.is_none() {
+                    if self.apps_mode == PackageEnforcementMode::Enforced {
+                        for (index, capability) in
+                            ["work.actions", "work.advanced-routines"].iter().enumerate()
+                        {
+                            let key = format!("{base}:apps:{index}");
+                            if let Some(mut boundary) = PurchaseCommandBoundary::new(
+                                self.apps_mode,
+                                key.clone(),
+                                PurchaseCommandScope {
+                                    company_id: company.clone(),
+                                    capability: (*capability).to_owned(),
+                                    purpose: CapabilityPurpose::NewWork,
+                                },
+                            )? {
+                                boundary.begin(connection, &self.holding, &self.catalogue).await?;
+                                boundaries.push(boundary);
+                                assertion_keys.push(key);
+                            }
+                        }
+                    }
+                } else if project_mode {
+                    let project_id = template.project_id.as_deref().expect("project checked");
+                    let project = occurrence_project(connection, &actor, &stored_actor.role, project_id).await?;
+                    project_before = Some(project.source);
+                    for (index, capability) in
+                        ["projects.wbs", "projects.tasks"].iter().enumerate()
+                    {
+                        let key = format!("{base}:project:{index}");
+                        if let Some(mut boundary) = PurchaseCommandBoundary::new(
+                            self.projects_mode,
+                            key.clone(),
+                            PurchaseCommandScope {
+                                company_id: company.clone(),
+                                capability: (*capability).to_owned(),
+                                purpose: CapabilityPurpose::NewWork,
+                            },
+                        )? {
+                            boundary.begin(connection, &self.holding, &self.catalogue).await?;
+                            boundaries.push(boundary);
+                            assertion_keys.push(key);
+                        }
+                    }
+                }
+                authorization = Some(stored);
+            }
+            let mut facts = OccurrenceSourceFacts {
+                pause_exists: source.pause_exists,
+                pause_ended_at: source.pause_ended_at,
+                prior: source.prior,
+                start_blocked: None,
+                completion_blocked: None,
+                project_available: true,
+            };
+            if !facts.pause_exists && !facts.prior {
+                let scope = TaskScope {
+                    company_id: template.company_id.clone(),
+                    branch_id: template.branch_id.clone(),
+                    department_id: template.department_id.clone(),
+                };
+                let mut repository = PgStaffTasks::new(&mut *connection);
+                let mut sources = PgStaffTaskSources::new(RoutineRunTaskSources { now });
+                let start_route = sources
+                    .task_route(
+                        repository.connection(),
+                        &scope,
+                        &template.creator_user_id,
+                        &template.assignee_user_id,
+                        "start",
+                        &template.start_approvers()?,
+                        false,
+                    )
+                    .await?;
+                let completion_route = sources
+                    .task_route(
+                        repository.connection(),
+                        &scope,
+                        &template.creator_user_id,
+                        &template.assignee_user_id,
+                        "completion",
+                        &template.completion_approvers()?,
+                        false,
+                    )
+                    .await?;
+                facts.start_blocked = start_route.blocked_reason;
+                facts.completion_blocked = completion_route.blocked_reason;
+                facts.project_available = match template.project_id.as_deref() {
+                    Some(project_id) => sqlx::query_scalar::<_, bool>(
+                        "SELECT EXISTS(SELECT 1 FROM staff_projects WHERE id=$1 AND company_id=$2)",
+                    )
+                    .bind(project_id)
+                    .bind(&template.company_id)
+                    .fetch_one(&mut *connection)
+                    .await?,
+                    None => true,
+                };
+            }
+            let plan = plan_occurrence(template, original, &facts, at)?;
+            let generated = !plan.state.is_empty();
+            if generated {
+                let input = SaveTaskCommand {
+                    title: template.title.clone(),
+                    description: template.description.clone(),
+                    assignee_user_id: template.assignee_user_id.clone(),
+                    project_id: template.project_id.clone(),
+                    start_approvers: plan.start_approvers.clone(),
+                    completion_approvers: plan.completion_approvers.clone(),
+                    due_at: Some(
+                        erpx_server_operations::public::routine_occurrences::due_at_iso(
+                            plan.due_at,
+                        )?,
+                    ),
+                    expected_version: 1,
+                    reason: String::new(),
+                };
+                let fingerprint = fingerprint_json(
+                    "routine.occurrence",
+                    &plan.task_id,
+                    &serde_json::json!({
+                        "scheduleId": original.id,
+                        "occurrenceAt": at,
+                    }),
+                )?;
+                let mut repository = PgStaffTasks::new(&mut *connection);
+                let mut sources = PgStaffTaskSources::new(RoutineRunTaskSources { now });
+                save_task_mode(
+                    &actor,
+                    &mut repository,
+                    &mut sources,
+                    None,
+                    &input,
+                    &plan.key,
+                    false,
+                    now,
+                    SaveTaskMode::Routine(RoutineTaskWrite {
+                        template_id: template.id.clone(),
+                        template_version: template.version,
+                        branch_id: template.branch_id.clone(),
+                        department_id: template.department_id.clone(),
+                        state: plan.state.clone(),
+                        blocked_reason: plan.blocked_reason.clone(),
+                        notification: plan.notification.clone(),
+                        creator_notification: plan.creator_notification.clone(),
+                        open_start_approval: plan.open_start_approval,
+                        request_fingerprint: fingerprint,
+                        creator_user_id: template.creator_user_id.clone(),
+                        record_id: Some(plan.task_id.clone()),
+                        schedule_id: Some(original.id.clone()),
+                        occurrence_at: Some(at),
+                        due_at_millis: Some(plan.due_at),
+                        require_write: false,
+                        require_current_staff: false,
+                        write_ledger: false,
+                    }),
+                )
+                .await?;
+            }
+            let completed = stage_occurrence(
+                connection,
+                authorization.as_ref(),
+                &original.id,
+                &original.company_id,
+                original.version,
+                &template.id,
+                at,
+                plan.next,
+                generated,
+                &plan.task_id,
+                &plan.state,
+                template.branch_id.as_deref(),
+                template.department_id.as_deref(),
+                now,
+                &assertion_keys,
+            )
+            .await?;
+            if let (Some(_authorization), Some(_completed)) = (authorization.as_ref(), completed.as_ref())
+            {
+                let after = occurrence_image(
+                    connection,
+                    &original.company_id,
+                    &template.id,
+                    &original.id,
+                    &plan.task_id,
+                )
+                .await?;
+                if after.as_deref() != completed.as_deref() {
+                    return Err(source_changed_occurrence());
+                }
+                if let Some(before) = project_before.as_ref() {
+                    let current = routine_project_source(
+                        connection,
+                        &actor.company_id,
+                        &actor.user_id,
+                        &before.id,
+                    )
+                    .await?
+                    .ok_or_else(|| {
+                        BusinessError::new(
+                            FailureKind::NotFound,
+                            "PROJECT_NOT_FOUND",
+                            "Project not found in the current workspace.",
+                        )
+                    })?;
+                    if &current != before {
+                        return Err(source_changed_occurrence());
+                    }
+                }
+                require_lineage(
+                    connection,
+                    authorization.as_ref().expect("authorization checked"),
+                    plan.next,
+                )
+                .await?;
+                let stored = authorization.as_ref().expect("authorization checked");
+                let stored_actor = stored.actor()?;
+                require_current_authority(connection, stored, &stored_actor, now).await?;
+            }
+            for mut boundary in boundaries.drain(..) {
+                let receipt = boundary
+                    .complete(connection, &self.holding, &self.catalogue)
+                    .await?;
+                if let Some(observation) = receipt.observation {
+                    write_purchase_shadow_checked_observation(
+                        &mut std::io::stderr(),
+                        &observation,
+                    );
+                }
+            }
+            Ok(Some(OccurrenceOutcome {
+                next: plan.next,
+                generated,
+            }))
+        })
+    }
+}
+
+fn source_changed_occurrence() -> PgTransactionError<BusinessError> {
+    source_changed().into()
+}
+
+/// One bounded scheduled occurrence pass for a registered Holding. The worker
+/// supervisor owns cadence and restart logging; this function owns the native
+/// policy, unit and retry.
+pub(crate) async fn run_routine_occurrence_pass(
+    pool: DatabasePool,
+    holding: HoldingId,
+    now: i64,
+    limit: i64,
+    production: bool,
+) -> Result<OccurrencePass, PgTransactionError<BusinessError>> {
+    let policy = occurrence_policy(production)?;
+    let unit = RoutineOccurrencePassUnit::new(holding, production)?;
+    generate_occurrences(pool, now, limit, policy, unit).await
 }
 
 struct RoutineRunAdmission {

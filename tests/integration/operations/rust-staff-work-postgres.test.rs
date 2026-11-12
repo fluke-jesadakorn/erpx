@@ -68,6 +68,7 @@ fn save_plan(key: &str, now: i64) -> SaveTaskPlan {
         branch_id: Some("branch".into()),
         department_id: Some("department".into()),
         actor_id: "creator".into(),
+        creator_user_id: "creator".into(),
         assignment_id: "assignment-creator".into(),
         input,
         due_at: Some(1_790_820_000_000),
@@ -87,6 +88,7 @@ fn save_plan(key: &str, now: i64) -> SaveTaskPlan {
         notification: None,
         creator_notification: None,
         insert_only: false,
+        write_ledger: true,
     }
 }
 

@@ -10,7 +10,6 @@ import { drainSocialAgent } from "@erpx/server-collaboration/public/social-agent
 import { randomUUID } from 'node:crypto';
 import { resourceSlots, registeredResources } from "@erpx/feature-runtime/lib/holding-registry";
 import { project, type EventMessage, type JobEnv } from "@erpx/server-workflow/public/job-projector";
-import { generateOccurrences } from "@erpx/server-operations/public/routines";
 import { drainExpenseAi } from "@erpx/server-people_payroll/public/expense-ai";
 import { drainRequestAi } from "@erpx/server-records/public/request-ai";
 import { cleanupBetaResources } from "@erpx/server-manage_erpx/public/beta-maintenance";
@@ -87,7 +86,6 @@ export async function scheduledWork(env: JobEnv) {
     const inboxMetrics=await (await import("@erpx/server-collaboration/public/inbox")).inboxOperationalMetrics(write);
     if(inboxMetrics.oldestDeliveryLagMs>300000||inboxMetrics.unresolvedEventTypes>0||inboxMetrics.failedJobs>0)
       console.warn(JSON.stringify({event:"inbox_delivery_health",holdingId:slot.id,...inboxMetrics}));
-    await generateOccurrences(write);
     await drainRequestAi(write,env);
     if (!slot.beta) await (await import("@erpx/server-people_payroll/public/people-evaluation-ai")).drainEvaluationAi(write,env);
     if(!slot.beta) { const financeAi=await import("@erpx/server-finance/public/finance-ai");await financeAi.scanFinanceAi(write,env);await financeAi.drainFinanceAi(write,env); }

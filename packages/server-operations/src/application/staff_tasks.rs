@@ -56,6 +56,9 @@ pub struct SaveTaskPlan {
     pub branch_id: Option<String>,
     pub department_id: Option<String>,
     pub actor_id: String,
+    /// Task owner/creator. Manual runs use the selected actor; a scheduled
+    /// occurrence keeps the published template creator.
+    pub creator_user_id: String,
     pub assignment_id: String,
     pub input: SaveTaskCommand,
     pub due_at: Option<i64>,
@@ -82,6 +85,9 @@ pub struct SaveTaskPlan {
     /// `routine.run` always creates the occurrence row. A command key can never
     /// reuse a different actor's `task-${key}` row through the update branch.
     pub insert_only: bool,
+    /// The scheduled occurrence journals its own `routine.occurrence` audit and
+    /// `task.generated` outbox rows; it must not add a second command receipt.
+    pub write_ledger: bool,
 }
 
 /// Internal write variant for the owner task insert. `Standard` preserves the
@@ -108,6 +114,25 @@ pub struct RoutineTaskWrite {
     pub creator_notification: Option<String>,
     pub open_start_approval: bool,
     pub request_fingerprint: String,
+    /// Task owner/creator. A manual run is the selected actor; a scheduled
+    /// occurrence retains the published template creator.
+    pub creator_user_id: String,
+    /// Explicit task row id for a scheduled occurrence. A manual run keeps the
+    /// retained `task-${key}` id.
+    pub record_id: Option<String>,
+    pub schedule_id: Option<String>,
+    pub occurrence_at: Option<i64>,
+    /// Scheduled occurrences carry the already-computed epoch-millisecond due
+    /// instant instead of re-parsing an ISO request value.
+    pub due_at_millis: Option<i64>,
+    /// A scheduled occurrence is admitted by its captured authorization, not
+    /// by a live request; the retained generator never required write/read
+    /// permissions or the creator's active-staff fact.
+    pub require_write: bool,
+    pub require_current_staff: bool,
+    /// Manual `routine.run` keeps the standard command ledger; a scheduled
+    /// occurrence journals only the generator audit/outbox rows.
+    pub write_ledger: bool,
 }
 #[derive(Clone, Debug)]
 pub struct TransitionTaskPlan {
@@ -663,18 +688,23 @@ where
     S: StaffTaskSources,
     R::Error: From<S::Error> + From<BusinessError>,
 {
-    actor.require_write(now)?;
     input.validate()?;
     let routine = match &mode {
         SaveTaskMode::Standard => None,
         SaveTaskMode::Routine(value) => Some(value),
     };
+    if routine.is_none_or(|routine| routine.require_write) {
+        actor.require_write(now)?;
+    }
     if let Some(id) = id {
         crate::domain::field_policy::identifier(id)?;
     }
     let key = CommandKey::new(key)?;
     let record_id = match routine {
-        Some(_) => format!("task-{}", key.as_str()),
+        Some(routine) => routine
+            .record_id
+            .clone()
+            .unwrap_or_else(|| format!("task-{}", key.as_str())),
         None => task_record_id(input, key.as_str(), id),
     };
     let operation = match routine {
@@ -732,18 +762,24 @@ where
         return Err(BusinessError::invalid("TASK_NOT_FOUND", "Choose the task to revise.").into());
     }
     if let Some(routine) = routine {
-        let _staff = sources
-            .active_staff(repository.connection(), &actor.company_id, &actor.user_id)
-            .await?
-            .ok_or_else(|| {
-                BusinessError::new(
-                    FailureKind::Forbidden,
-                    "TASK_STAFF_REQUIRED",
-                    "Choose a current active staff member.",
-                )
-            })?;
+        if routine.require_current_staff {
+            let _staff = sources
+                .active_staff(repository.connection(), &actor.company_id, &actor.user_id)
+                .await?
+                .ok_or_else(|| {
+                    BusinessError::new(
+                        FailureKind::Forbidden,
+                        "TASK_STAFF_REQUIRED",
+                        "Choose a current active staff member.",
+                    )
+                })?;
+        }
         let version = 1;
         let approval_key = key.as_str().to_owned();
+        let due_at = match routine.due_at_millis {
+            Some(due_at) => Some(due_at),
+            None => input.due_millis()?,
+        };
         let receipt = repository
             .save(SaveTaskPlan {
                 key,
@@ -753,9 +789,10 @@ where
                 branch_id: routine.branch_id.clone(),
                 department_id: routine.department_id.clone(),
                 actor_id: actor.user_id.clone(),
+                creator_user_id: routine.creator_user_id.clone(),
                 assignment_id: actor.assignment_id.clone(),
                 input: input.clone(),
-                due_at: input.due_millis()?,
+                due_at,
                 state: routine.state.clone(),
                 version,
                 revision: false,
@@ -766,12 +803,13 @@ where
                 authority_department_id: actor.department_id.clone(),
                 template_id: Some(routine.template_id.clone()),
                 template_version: Some(routine.template_version),
-                schedule_id: None,
-                occurrence_at: None,
+                schedule_id: routine.schedule_id.clone(),
+                occurrence_at: routine.occurrence_at,
                 blocked_reason: routine.blocked_reason.clone(),
                 notification: Some(routine.notification.clone()),
                 creator_notification: routine.creator_notification.clone(),
                 insert_only: true,
+                write_ledger: routine.write_ledger,
             })
             .await?;
         if routine.open_start_approval {
@@ -902,6 +940,7 @@ where
             branch_id: branch_id.clone(),
             department_id: department_id.clone(),
             actor_id: actor.user_id.clone(),
+            creator_user_id: actor.user_id.clone(),
             assignment_id: actor.assignment_id.clone(),
             input: input.clone(),
             due_at: input.due_millis()?,
@@ -921,6 +960,7 @@ where
             notification: None,
             creator_notification: None,
             insert_only: false,
+            write_ledger: true,
         })
         .await?;
     check_receipt(receipt, &record_id, state, version).map_err(Into::into)
@@ -941,9 +981,9 @@ fn routine_task_row(
         department_id: routine.department_id.clone(),
         title: input.title.trim().into(),
         description: input.description.trim().into(),
-        creator_user_id: actor.user_id.clone(),
+        creator_user_id: routine.creator_user_id.clone(),
         assignee_user_id: input.assignee_user_id.clone(),
-        due_at: input.due_millis()?,
+        due_at: routine.due_at_millis.or(input.due_millis()?),
         project_id: input.project_id.clone(),
         start_approvers_json: serde_json::to_string(&input.start_approvers)
             .map_err(|_| BusinessError::invalid("TASK_FIELDS_INVALID", "The approval route is invalid."))?,
@@ -955,8 +995,8 @@ fn routine_task_row(
         version,
         template_id: Some(routine.template_id.clone()),
         template_version: Some(routine.template_version),
-        schedule_id: None,
-        occurrence_at: None,
+        schedule_id: routine.schedule_id.clone(),
+        occurrence_at: routine.occurrence_at,
         completion_note: String::new(),
         active_delegation_id: None,
         active_delegate_user_id: None,

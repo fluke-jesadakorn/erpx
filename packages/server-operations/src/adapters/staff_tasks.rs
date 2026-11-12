@@ -603,7 +603,7 @@ impl StaffTaskRepository for PgStaffTasks<'_> {
                 .bind(plan.department_id.as_deref())
                 .bind(plan.input.title.trim())
                 .bind(plan.input.description.trim())
-                .bind(&plan.actor_id)
+                .bind(&plan.creator_user_id)
                 .bind(&plan.input.assignee_user_id)
                 .bind(due_at)
                 .bind(&plan.input.project_id)
@@ -642,7 +642,7 @@ impl StaffTaskRepository for PgStaffTasks<'_> {
                     self.connection,
                     plan.key.as_str(),
                     &plan.company_id,
-                    &plan.actor_id,
+                    &plan.creator_user_id,
                     "task",
                     &plan.record_id,
                     plan.version,
@@ -651,28 +651,30 @@ impl StaffTaskRepository for PgStaffTasks<'_> {
                 )
                 .await?;
             }
-            let authority = authority_json(
-                &plan.company_id,
-                plan.authority_branch_id.as_deref(),
-                plan.authority_department_id.as_deref(),
-                &plan.actor_id,
-                &plan.assignment_id,
-            );
-            write_ledger(
-                self.connection,
-                plan.key.as_str(),
-                &plan.operation,
-                &plan.actor_id,
-                &plan.assignment_id,
-                &plan.record_id,
-                "task",
-                plan.version,
-                &plan.request_fingerprint,
-                &plan.receipt,
-                &authority,
-                plan.now,
-            )
-            .await?;
+            if plan.write_ledger {
+                let authority = authority_json(
+                    &plan.company_id,
+                    plan.authority_branch_id.as_deref(),
+                    plan.authority_department_id.as_deref(),
+                    &plan.actor_id,
+                    &plan.assignment_id,
+                );
+                write_ledger(
+                    self.connection,
+                    plan.key.as_str(),
+                    &plan.operation,
+                    &plan.actor_id,
+                    &plan.assignment_id,
+                    &plan.record_id,
+                    "task",
+                    plan.version,
+                    &plan.request_fingerprint,
+                    &plan.receipt,
+                    &authority,
+                    plan.now,
+                )
+                .await?;
+            }
             readback_task(
                 self.connection,
                 &plan.company_id,

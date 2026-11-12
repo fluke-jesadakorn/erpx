@@ -95009,6 +95009,93 @@
       ]
     },
     {
+      "id": "operations.rust-routine-occurrences.unit",
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native scheduled routine occurrence planning must retain pause/prior skips, cursor, due offset, blocked/project state and both notices."
+      },
+      "files": [
+        "tests/unit/operations/rust-routine-occurrences.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "routine_occurrences"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-operations/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/src/domain/routine_occurrences.rs",
+        "packages/server-operations/src/domain/routine_commands.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-operations",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "operations.rust-routine-occurrences-postgres.integration",
+      "lane": "integration",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/integration/operations/rust-routine-occurrences-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native occurrence pass retains bounded cursor selection, pause/prior skips, source errors, production rollout and the captured authorization cursor/journal/step lineage."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "routine_occurrences_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-operations/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/src/adapters/routine_occurrences.rs",
+        "packages/server-operations/src/domain/routine_occurrences.rs",
+        "packages/server-operations/src/adapters/staff_tasks.rs",
+        "packages/server-operations/src/application/staff_tasks.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-operations",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
       "id": "operations.rust-routine-run-postgres.integration",
       "lane": "integration",
       "owner": "operations",

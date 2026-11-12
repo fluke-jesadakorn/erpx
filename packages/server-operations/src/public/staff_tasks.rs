@@ -9,9 +9,10 @@ pub use crate::adapters::staff_tasks::{
 };
 pub use crate::application::staff_tasks::{
     AlertPlan, DelegateTaskPlan, DelegationFact, PostFact, ProjectFact, RevokeDelegationPlan,
-    RouteFact, SaveTaskPlan, StaffFact, StaffTaskFuture, StaffTaskRepository, StaffTaskSources,
-    TransitionTaskPlan, can_attach_task, delegate_task, escalate_staff_tasks, list_tasks,
-    revoke_task_delegation, save_task, task_detail, task_is_assigned, transition_task,
+    RouteFact, RoutineTaskWrite, SaveTaskMode, SaveTaskPlan, StaffFact, StaffTaskFuture,
+    StaffTaskRepository, StaffTaskSources, TransitionTaskPlan, can_attach_task, delegate_task,
+    escalate_staff_tasks, list_tasks, revoke_task_delegation, save_task, save_task_mode,
+    task_detail, task_is_assigned, transition_task,
 };
 pub use crate::domain::staff_tasks::{
     ActiveDelegation, AlertTask, ApprovalView, AttachmentRow, DecisionFact, DelegateTaskCommand,

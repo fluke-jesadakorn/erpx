@@ -637,6 +637,14 @@ where
             creator_notification,
             open_start_approval: state == "start_approval",
             request_fingerprint: fingerprint,
+            creator_user_id: actor.user_id.clone(),
+            record_id: None,
+            schedule_id: None,
+            occurrence_at: None,
+            due_at_millis: None,
+            require_write: true,
+            require_current_staff: true,
+            write_ledger: true,
         }),
     )
     .await

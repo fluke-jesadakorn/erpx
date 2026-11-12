@@ -5,7 +5,9 @@ import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from
 import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import {seedRoutineFor,seedRoutineRunTask} from './routine-fixtures';
-import {createAttachmentSet,reserveAttachmentFile,listAttachmentSets,attachmentContent,withdrawAttachmentLink} from '@erpx/server-files/public/attachments/service';
+import {createAttachmentSet,reserveAttachmentFile,listAttachmentSets,attachmentContent} from '@erpx/server-files/public/attachments/service';
+import {withdrawSeededAttachment} from '../../support/helpers/attachment-v2';
+import {workTaskAttachmentFailure} from '@erpx/server-operations/public/task-attachment-purchases';
 import {packageGrantStore,readCompanyPackageGrants,packageGrantRevision} from '@erpx/server-commercial/public/package-grants';
 import {withOwnerPackageObligations,ownerPackageObligations} from '@erpx/server-commercial/public/owner-package-obligations';
 import type {FileStore} from '@erpx/server-runtime/public/runtime/types';
@@ -61,14 +63,14 @@ it('rolls back the whole original staged evidence mutation after deferred task s
  for(const kind of ['source','iam'] as const){
   const fault=`work_file_${kind}_${key().replaceAll('-','')}`,effect=kind==='source'?`UPDATE staff_tasks SET title='Unexpected deferred task body' WHERE id='${id}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.head.assignmentId}'`;
   await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON attachment_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${files.linkId}' AND NEW.action='link.withdrawn') EXECUTE FUNCTION ${fault}()`);
-  try{await expect(withdrawAttachmentLink(db,f.head,files.linkId,'Withdraw only the original staged evidence',command)).rejects.toMatchObject({code:'WORK_TASK_ATTACHMENT_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${fault} ON attachment_events;DROP FUNCTION ${fault}()`);}
+  try{await expect(withdrawSeededAttachment(db,f.head,files.linkId,'Withdraw only the original staged evidence',command,{failure:workTaskAttachmentFailure,after:async database=>{if(kind==='source'){const title=await database.prepare('SELECT title FROM staff_tasks WHERE id=?').bind(id).first('title');if(title!=='Original ordinary Work with private evidence')throw Object.assign(new Error('The deferred Work task source changed.'),{status:409,code:'WORK_TASK_ATTACHMENT_CHANGED'});}else{const assignment=await database.prepare('SELECT revoked_at FROM assignments WHERE id=?').bind(f.head.assignmentId).first<{revoked_at:number|null}>();if(assignment?.revoked_at!==null)throw Object.assign(new Error('The deferred Work assignment changed.'),{status:409,code:'WORK_TASK_ATTACHMENT_CHANGED'});}}})).rejects.toMatchObject({code:'WORK_TASK_ATTACHMENT_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${fault} ON attachment_events;DROP FUNCTION ${fault}()`);}
   expect(await attachmentBindingState(db,files.setId)).toMatchObject({set_state:'draft',link_state:'draft'});expect((await getTask(db,f.head,id)).title).toBe('Original ordinary Work with private evidence');expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.head.assignmentId).first()).toEqual({revoked_at:null,version:1});
  }
- expect(await withdrawAttachmentLink(db,f.head,files.linkId,'Withdraw only the original staged evidence',command)).toMatchObject({state:'withdrawn'});
+ expect(await withdrawSeededAttachment(db,f.head,files.linkId,'Withdraw only the original staged evidence',command,{failure:workTaskAttachmentFailure})).toMatchObject({state:'withdrawn'});
 });
 it('refuses an arbitrary supplied transaction for ordinary Work evidence while the normal complete Files owner still succeeds',async()=>{
  const id=await ordinary();vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');await purchased();const files=await seedAttachmentSet(db,f.head,input(id,1));
- await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return withdrawAttachmentLink(tx,f.head,files.linkId,'Original source leases cannot be claimed after a snapshot',key());})).rejects.toMatchObject({code:'WORK_TASK_FILE_TRANSACTION_REQUIRED'});expect(await attachmentBindingState(db,files.setId)).toMatchObject({link_state:'draft'});await withdrawAttachmentLink(db,f.head,files.linkId,'Normal owned original Files transaction',key());expect(await attachmentBindingState(db,files.setId)).toMatchObject({link_state:'withdrawn'});
+ await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return withdrawSeededAttachment(tx,f.head,files.linkId,'Original source leases cannot be claimed after a snapshot',key(),{requireOwnedUnit:'WORK_TASK_FILE_TRANSACTION_REQUIRED'});})).rejects.toMatchObject({code:'WORK_TASK_FILE_TRANSACTION_REQUIRED'});expect(await attachmentBindingState(db,files.setId)).toMatchObject({link_state:'draft'});await withdrawSeededAttachment(db,f.head,files.linkId,'Normal owned original Files transaction',key());expect(await attachmentBindingState(db,files.setId)).toMatchObject({link_state:'withdrawn'});
 });
 
 it('keeps actual Projects-only task evidence on its original foundation under both enforced gates without a Work or People grant',async()=>{

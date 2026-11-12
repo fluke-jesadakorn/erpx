@@ -18,6 +18,8 @@ pub(crate) mod staff_work_http;
 
 pub(crate) mod routine_commands;
 
+pub(crate) mod routine_occurrences;
+
 pub(crate) mod routine_commands_http;
 
 pub(crate) mod routine_sources;
