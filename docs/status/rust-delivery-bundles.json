@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1073,
+    "revision": 1075,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-s",
       "agentId": "lead",
       "startedAt": "2026-11-12T16:09:25.074Z",
-      "heartbeatAt": "2026-11-12T17:01:26.894Z",
-      "expiresAt": "2026-11-12T17:31:26.894Z",
+      "heartbeatAt": "2026-11-12T17:16:24.778Z",
+      "expiresAt": "2026-11-12T17:46:24.778Z",
       "generation": 44,
       "tokenHash": "0eabcfe48eaa2e019bd9ff44fd08efe3a2603848f1f8ad8c4b5c16915521bdc5"
     },
@@ -21280,8 +21280,8 @@
           "runId": "run-20261112-s",
           "agentId": "lead",
           "claimedAt": "2026-11-12T16:31:39.034Z",
-          "heartbeatAt": "2026-11-12T17:01:26.894Z",
-          "expiresAt": "2026-11-12T17:31:26.894Z",
+          "heartbeatAt": "2026-11-12T17:16:24.778Z",
+          "expiresAt": "2026-11-12T17:46:24.778Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21652,8 +21652,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-runtime-connections",
           "claimedAt": "2026-11-12T16:19:50.652Z",
-          "heartbeatAt": "2026-11-12T17:01:26.894Z",
-          "expiresAt": "2026-11-12T17:31:26.894Z",
+          "heartbeatAt": "2026-11-12T17:16:24.778Z",
+          "expiresAt": "2026-11-12T17:46:24.778Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21682,7 +21682,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire TS writer in adapters/notification-execution.ts (7 write statements)",
-        "scope": "G4 per-capability retirement for sales: adapters/notification-execution.ts holds 7 retained write statements of the owner total 36. Classify against packages/server-sales/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "scope": "G4 retirement of sales notification execution: native durable delivery worker + provider port + route/job authority, then delete adapters/notification-execution.ts (7 writes) and move the execution oracle. Reconciliation (3 writes) stays live and needs its own removal task. Owner KPI before: 36.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -21705,7 +21705,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/notification-execution.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "STEP 0 AUDIT COMPLETE (2026-11-12, HEAD 09a40ba8a). Sales owner KPI 36; target file adapters/notification-execution.ts = 7 writes. Native pieces available: identity_access PostgresAccountMail/ResendAccountMail/AccountMailWorker pattern (do NOT reuse its tables or private AccountEmailMessage), Finance deferred-effect flush, durable lease/SKIP-LOCKED precedent. Missing for a native slice: (1) sales-owned Rust domain/application in packages/server-sales (claim/recover/current/terminal receipts over commerce_customer_notifications + sales_notification_execution_attempts, preserving attempt/lease/source_hash semantics); (2) a small public EmailDispatchPort (to/subject/text/idempotency key) implemented once in src/composition with Resend + fail-closed without credentials; (3) composition worker registration and drain selection by scheduled feature predicate; (4) switch src/workers jobs + server-runtime jobs.ts to the native worker (no TS fallback); (5) delete notification-execution.ts, its public/barrel export and package export key; (6) migrate tests/integration/sales/sales-customer-notifications.test.ts execution cases to native seeding, keep reconciliation (3 writes, separate live route) under its own removal task. Do not start until inventory. Choose sales notification only if the provider port is approved by the lead; otherwise take the billing native cost/target action batch (owner KPI 82).",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -25539,8 +25539,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T16:12:35.696Z",
-          "heartbeatAt": "2026-11-12T17:01:26.894Z",
-          "expiresAt": "2026-11-12T17:31:26.894Z",
+          "heartbeatAt": "2026-11-12T17:16:24.778Z",
+          "expiresAt": "2026-11-12T17:46:24.778Z",
           "generation": 44
         },
         "baseSha": null,
@@ -25967,7 +25967,7 @@
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T17:11:57.418Z",
+    "updatedAt": "2026-11-12T17:16:58.203Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
