@@ -247,14 +247,82 @@ describe('portable Rust migration work coordination', () => {
     expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
   });
 
-  it('accepts a retirement statement delta for read-only slices', async () => {
+  it('accepts a read-only retirement statement delta only when it reaches zero', async () => {
     const f = fixture(); await begin(f.store); await claim(f.store);
     await f.store.update('one', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });
     await f.store.handoff('one', { runId: 'lead-1', nextAction: 'Integrate' });
     await claim(f.store);
-    await f.store.update('one', { runId: 'lead-1', status: 'migrated', nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed,
-      checks: [passed, { command: 'retirement:ts-statements', before: 12, after: 9, result: 'passed', sourceSha: candidate }] });
+    const base = { runId: 'lead-1', status: 'migrated' as const, nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed };
+    await expect(f.store.update('one', { ...base, checks: [passed, { command: 'retirement:ts-statements', before: 12, after: 9, result: 'passed', sourceSha: candidate }] })).rejects.toThrow('RETIRE_TASK_REQUIRED');
+    await f.store.update('one', { ...base, checks: [passed, { command: 'retirement:ts-statements', before: 12, after: 0, result: 'passed', sourceSha: candidate }] });
     expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
+  });
+
+  it('binds a retire task when a migrated packet still records owner writers', async () => {
+    const f = fixture([task('migrate.files', { owner: 'files' })]); await begin(f.store); await claim(f.store, 'migrate.files');
+    await f.store.update('migrate.files', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });
+    await f.store.handoff('migrate.files', { runId: 'lead-1', nextAction: 'Integrate' });
+    await claim(f.store, 'migrate.files');
+    const base = { runId: 'lead-1', status: 'migrated' as const, nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed };
+    const partial = { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 2, result: 'passed', sourceSha: candidate };
+    await expect(f.store.update('migrate.files', { ...base, checks: [passed, partial] })).rejects.toThrow('RETIRE_TASK_REQUIRED');
+    await f.store.addTask(task('retire.files.writers', { owner: 'files' }), { runId: 'lead-1' });
+    await f.store.update('migrate.files', { ...base, checks: [passed, partial] });
+    expect(f.store.read().executionPlan.tasks.find(task => task.id === 'migrate.files')?.retireTaskId).toBe('retire.files.writers');
+  });
+
+  it('requires a retire task to reach zero or classify its exact residual', async () => {
+    const f = fixture([task('retire.files.writers', { owner: 'files' })]); await begin(f.store); await claim(f.store, 'retire.files.writers');
+    await f.store.update('retire.files.writers', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });
+    await f.store.handoff('retire.files.writers', { runId: 'lead-1', nextAction: 'Integrate' });
+    await claim(f.store, 'retire.files.writers');
+    const base = { runId: 'lead-1', status: 'migrated' as const, nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed };
+    const partial = { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 2, result: 'passed', sourceSha: candidate };
+    await expect(f.store.update('retire.files.writers', { ...base, checks: [passed, partial] })).rejects.toThrow('RETIREMENT_TARGET_REQUIRED');
+    const residual = [{ path: 'packages/server-files/src/adapters/legacy.ts', writes: 2, removalTaskId: 'retire.files.tail', removalCondition: 'Legacy consumer moves to the native port' }];
+    await f.store.update('retire.files.writers', { ...base, checks: [passed, { ...partial, residual }] });
+    expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
+  });
+
+  it('refuses a retirement KPI regression on the same owner command', async () => {
+    const f = fixture(); await begin(f.store); await claim(f.store);
+    const command = 'retirement:ts-writes packages/server-files/src';
+    await f.store.update('one', { runId: 'lead-1', status: 'in_progress', nextAction: 'Count', checks: [{ command, before: 4, after: 2, result: 'passed', sourceSha: candidate }] });
+    await expect(f.store.update('one', { runId: 'lead-1', status: 'in_progress', nextAction: 'Recount', checks: [{ command, before: 2, after: 3, result: 'passed', sourceSha: candidate }] })).rejects.toThrow('RETIREMENT_KPI_REGRESSION');
+    expect(f.store.read().executionPlan.tasks[0].checks).toHaveLength(1);
+  });
+
+  it('reports retirement coverage and open retire tasks in status', async () => {
+    const f = fixture([
+      task('migrate.files', { owner: 'files', status: 'migrated', implementedCommit: candidate, lastPushedSha: pushed,
+        checks: [passed, { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 2, result: 'passed', sourceSha: candidate }] }),
+      task('migrate.legal', { owner: 'legal', status: 'migrated', implementedCommit: candidate, lastPushedSha: pushed,
+        checks: [passed, { command: 'retirement:ts-writes packages/server-legal/src', before: 4, after: 0, result: 'passed', sourceSha: candidate }] }),
+      task('retire.files.writers', { owner: 'files' }),
+    ]);
+    const status = f.store.status() as { retirement: Record<string, unknown> };
+    expect(status.retirement).toMatchObject({ targetValue: 0, migratePackets: 2, retireTasks: 1, openRetireTasks: ['retire.files.writers'], migratedWithoutRetireTask: 0 });
+    const open = f.store.read(); open.executionPlan.tasks.splice(2, 1); atomicMigrationJson(f.store.ledgerPath, open);
+    expect((f.store.status() as { retirement: Record<string, unknown> }).retirement).toMatchObject({ migratedWithoutRetireTask: 1, migratedWithoutRetireTaskIds: ['migrate.files'] });
+  });
+
+  it('requires the global retirement target and no uncovered packet at final integration', async () => {
+    const f = fixture([
+      task('integration.final', { kind: 'integration' }),
+      task('migrate.legacy', { owner: 'files', status: 'migrated', implementedCommit: candidate, lastPushedSha: pushed,
+        checks: [passed, { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 2, result: 'passed', sourceSha: candidate }] }),
+    ]);
+    await begin(f.store); await f.store.claim('integration.final', { runId: 'lead-1', agentId: 'lead' });
+    await f.store.update('integration.final', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Review' });
+    await f.store.update('integration.final', { runId: 'lead-1', status: 'integrating', nextAction: 'Review' });
+    const base = { runId: 'lead-1', status: 'migrated' as const, nextAction: 'Acceptance later', implementedCommit: candidate, pushedSha: pushed };
+    await expect(f.store.update('integration.final', { ...base, checks: [passed, { ...retired, after: 1 }] })).rejects.toThrow('GLOBAL_RETIREMENT_KPI_REQUIRED');
+    await expect(f.store.update('integration.final', { ...base, checks: [passed, retired] })).rejects.toThrow('RETIREMENT_TASKS_INCOMPLETE');
+    const bound = f.store.read(); bound.executionPlan.tasks.push(task('retire.files.writers', { owner: 'files', status: 'migrated',
+      implementedCommit: candidate, lastPushedSha: pushed, checks: [passed, { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 0, result: 'passed', sourceSha: candidate }] }));
+    atomicMigrationJson(f.store.ledgerPath, bound);
+    await f.store.update('integration.final', { ...base, checks: [passed, retired] });
+    expect(f.store.read().executionPlan.tasks.find(task => task.id === 'integration.final')?.status).toBe('migrated');
   });
 
   it('retains older and failed checks while gating on the latest command result in the implemented-source cohort', async () => {

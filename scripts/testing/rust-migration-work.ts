@@ -30,6 +30,18 @@ type StoreOptions = { now?: () => number; mutexTimeoutMs?: number };
 const statuses = new Set<WorkStatus>(['pending', 'in_progress', 'ready_for_integration', 'integrating', 'migrated', 'blocked', 'deferred', 'done']);
 const kinds = new Set<WorkKind>(['coordination', 'inventory', 'migration', 'integration', 'acceptance']);
 const terminal = (status: WorkStatus) => status === 'migrated' || status === 'done';
+const retirementCheck = (check: Record<string, unknown>) => typeof check.command === 'string'
+  && (check.command.startsWith('retirement:ts-writes') || check.command.startsWith('retirement:ts-statements'));
+const retireTask = (task: MigrationTask) => task.id.startsWith('retire.');
+const retirementCoversOwner = (id: string, owner: string) => id === `retire.${owner}` || id.startsWith(`retire.${owner}.`);
+function latestSourceChecks(task: MigrationTask): Map<string, Record<string, unknown>> {
+  const latest = new Map<string, Record<string, unknown>>();
+  for (const check of task.checks) if (check.sourceSha === task.implementedCommit && typeof check.command === 'string' && check.command.trim()) latest.set(check.command, check);
+  return latest;
+}
+function latestRetirementCheck(task: MigrationTask): Record<string, unknown> | undefined {
+  return [...latestSourceChecks(task).values()].filter(retirementCheck).at(-1);
+}
 const digest = (token: string) => createHash('sha256').update(token).digest('hex');
 function fail(code: string): never { throw new Error(`RUST_MIGRATION_WORK_${code}`); }
 function identifier(value: unknown): value is string { return typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,159}$/.test(value); }
@@ -82,12 +94,14 @@ export function validateMigrationLedger(input: unknown): asserts input is Migrat
     for (const path of value.allowedPaths) pathPrefix(path);
     const task = value as MigrationTask;
     if ((task.aggregate !== undefined && typeof task.aggregate !== 'boolean')
-      || (task.scopeRefinementRequired !== undefined && typeof task.scopeRefinementRequired !== 'boolean')) fail('INVALID_TASK_FLAGS');
+      || (task.scopeRefinementRequired !== undefined && typeof task.scopeRefinementRequired !== 'boolean')
+      || (task.retireTaskId !== undefined && (typeof task.retireTaskId !== 'string' || !identifier(task.retireTaskId)))) fail('INVALID_TASK_FLAGS');
     if (task.aggregate === true && !task.dependsOn.length) fail('AGGREGATE_DEPENDENCIES_REQUIRED');
     if (task.claim && (!plan.coordinator || !object(plan.coordinator) || task.claim.runId !== plan.coordinator.runId || task.claim.generation !== plan.coordinator.generation)) fail('ORPHAN_CLAIM');
     if (task.claim && terminal(task.status)) fail('TERMINAL_TASK_CLAIMED');
     tasks.set(task.id, task);
   }
+  for (const task of plan.tasks) if (task.retireTaskId && !tasks.has(task.retireTaskId)) fail('UNKNOWN_RETIRE_TASK');
   const visited = new Set<string>(), visiting = new Set<string>();
   function visit(id: string): void {
     if (visited.has(id)) return;
@@ -123,7 +137,7 @@ function taskConflict(left: MigrationTask, right: MigrationTask): boolean {
 export function atomicMigrationJson(path: string, value: unknown, mode?: number): void {
   atomicMigrationText(path, `${JSON.stringify(value, null, 2)}\n`, mode);
 }
-function atomicMigrationText(path: string, text: string, mode?: number): void {
+export function atomicMigrationText(path: string, text: string, mode?: number): void {
   const temporary = join(dirname(path), `.${randomBytes(12).toString('hex')}.migration.tmp`);
   try {
     const descriptor = openSync(temporary, 'wx', mode ?? (existsSync(path) ? statSync(path).mode & 0o777 : 0o600));
@@ -208,8 +222,17 @@ export class MigrationWorkStore {
       if (task.status === 'blocked' && task.blocker) blockedBy.push(task.blocker);
       if (blockedBy.length) blockedTasks.push({ id: task.id, blockedBy }); else readyTasks.push(summary(task));
     }
+    const migratePackets = plan.tasks.filter(task => task.kind === 'migration' && task.id.startsWith('migrate.'));
+    const retireTasks = plan.tasks.filter(retireTask);
+    const uncovered = migratePackets.filter(task => task.status === 'migrated' && !task.retireTaskId
+      && !retireTasks.some(candidate => retirementCoversOwner(candidate.id, task.owner))
+      && !(latestRetirementCheck(task)?.result === 'passed' && Number(latestRetirementCheck(task)?.after) === 0));
+    const targetValue = Number(object(plan.migrationGate) && object(plan.migrationGate.retirementKpi) ? plan.migrationGate.retirementKpi.targetValue : 0);
     return { ...common, counts: Object.fromEntries([...statuses].map(status => [status, plan.tasks.filter(task => task.status === status).length])),
       migrationProgress: plan.migrationProgress,
+      retirement: { targetValue: Number.isSafeInteger(targetValue) ? targetValue : 0, migratePackets: migratePackets.length,
+        retireTasks: retireTasks.length, openRetireTasks: retireTasks.filter(task => !terminal(task.status)).map(task => task.id),
+        migratedWithoutRetireTask: uncovered.length, migratedWithoutRetireTaskIds: uncovered.slice(0, 50).map(task => task.id) },
       goals: plan.goals.map(goal => ({ id: goal.id, title: goal.title, status: goal.status, tasks: plan.tasks.filter(task => task.goalId === goal.id).length })),
       externalReservations: plan.externalReservations.map(reservation => ({ id: reservation.id, status: reservation.status, reason: reservation.reason, pathCount: reservation.allowedPaths.length })),
       readyTasks, activeTasks: active.map(summary), blockedTasks, deferredTaskIds: plan.tasks.filter(task => task.status === 'deferred').map(task => task.id) };
@@ -341,21 +364,49 @@ export class MigrationWorkStore {
       if (input.baseSha !== undefined) task.baseSha = input.baseSha;
       if (input.implementedCommit !== undefined) task.implementedCommit = input.implementedCommit;
       if (input.pushedSha !== undefined) task.lastPushedSha = input.pushedSha;
-      if (input.checks) task.checks.push(...input.checks);
+      if (input.checks) {
+        const previous = new Map<string, Record<string, unknown>>();
+        for (const check of task.checks) if (retirementCheck(check)) previous.set(String(check.command), check);
+        for (const check of input.checks) {
+          if (!retirementCheck(check) || !Number.isInteger(check.after)) continue;
+          const earlier = previous.get(String(check.command));
+          if (earlier && Number.isInteger(earlier.after) && Number(check.after) > Number(earlier.after)) fail('RETIREMENT_KPI_REGRESSION');
+        }
+        task.checks.push(...input.checks);
+      }
       if (input.retainedLegacy) task.retainedLegacy = input.retainedLegacy;
       if (input.cutover) task.cutover = { ...(object(task.cutover) ? task.cutover as Record<string, unknown> : {}), ...input.cutover };
       if (task.status === 'migrated') {
-        const latest = new Map<string, Record<string, unknown>>();
-        for (const check of task.checks) if (check.sourceSha === task.implementedCommit && typeof check.command === 'string' && check.command.trim()) latest.set(check.command, check);
+        const latest = latestSourceChecks(task);
         if (!task.implementedCommit || !task.lastPushedSha || !latest.size || [...latest.values()].some(check => check.result !== 'passed')) fail('MIGRATION_EVIDENCE_REQUIRED');
         if (['migration', 'integration'].includes(task.kind)) {
-          const retirement = [...latest.values()].filter(check => typeof check.command === 'string'
-            && (check.command.startsWith('retirement:ts-writes') || check.command.startsWith('retirement:ts-statements'))).at(-1);
+          const retirement = [...latest.values()].filter(retirementCheck).at(-1);
           if (!retirement || retirement.result !== 'passed' || !Number.isInteger(retirement.before) || !Number.isInteger(retirement.after) || !(Number(retirement.after) < Number(retirement.before))) fail('RETIREMENT_KPI_REQUIRED');
           if (task.retainedLegacy.some(entry => !object(entry) || typeof entry.removalTaskId !== 'string' || !entry.removalTaskId.trim() || typeof entry.removalCondition !== 'string' || !entry.removalCondition.trim())) fail('RETAINED_LEGACY_REMOVAL_TASK_REQUIRED');
           if (task.cutover !== undefined) {
             const cutover = task.cutover as Record<string, unknown>;
             if (!object(cutover) || cutover.clientParity !== true || cutover.routeAuthority !== true || cutover.presenterParity !== true) fail('CONTRACT_CUTOVER_INCOMPLETE');
+          }
+          if (retireTask(task)) {
+            const residual = Array.isArray(retirement.residual) ? retirement.residual : [];
+            const classified = residual.length > 0 && residual.every(entry => object(entry) && typeof entry.path === 'string' && !!entry.path.trim()
+              && Number.isSafeInteger(entry.writes) && Number(entry.writes) >= 0 && typeof entry.removalTaskId === 'string' && !!entry.removalTaskId.trim()
+              && typeof entry.removalCondition === 'string' && !!entry.removalCondition.trim());
+            const residualTotal = classified ? residual.reduce((sum, entry) => sum + Number(entry.writes), 0) : -1;
+            if (Number(retirement.after) !== 0 && residualTotal !== Number(retirement.after)) fail('RETIREMENT_TARGET_REQUIRED');
+          } else if (task.id === 'integration.final') {
+            const target = Number(object(plan.migrationGate) && object(plan.migrationGate.retirementKpi) ? plan.migrationGate.retirementKpi.targetValue : 0);
+            if (!Number.isSafeInteger(target) || target < 0 || Number(retirement.after) > target) fail('GLOBAL_RETIREMENT_KPI_REQUIRED');
+            const uncovered = plan.tasks.filter(other => other.id !== task.id && other.kind === 'migration' && other.id.startsWith('migrate.')
+              && other.status === 'migrated' && !other.retireTaskId
+              && !plan.tasks.some(candidate => retireTask(candidate) && retirementCoversOwner(candidate.id, other.owner))
+              && !(latestRetirementCheck(other)?.result === 'passed' && Number(latestRetirementCheck(other)?.after) === 0));
+            if (uncovered.length) fail('RETIREMENT_TASKS_INCOMPLETE');
+          } else if (Number(retirement.after) !== 0) {
+            const bound = plan.tasks.filter(other => other.id !== task.id && retireTask(other) && retirementCoversOwner(other.id, task.owner));
+            const chosen = bound.find(other => other.id === `retire.${task.owner}`) ?? bound[0];
+            if (!chosen) fail('RETIRE_TASK_REQUIRED');
+            task.retireTaskId = chosen.id;
           }
         }
       }

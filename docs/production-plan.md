@@ -52,8 +52,12 @@ git grep -I -o -E "INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET" HEAD \
 
 - Baseline at `1399b44cf` (2026-11-12): `2,894` write statements across 561 TypeScript adapters.
 - Every slice records a passed `retirement:ts-writes` check with `before`/`after` for its owner; `after` must be lower. A read-only slice that removes no writer records `retirement:ts-statements` (INSERT/UPDATE/DELETE/SELECT) with the same `before`/`after` shape and a strictly lower count.
+- A `migrate.*` packet that still records owner writers or reads must bind an existing `retire.<owner>*` task; the coordinator records `retireTaskId` and refuses the transition with `RETIRE_TASK_REQUIRED` otherwise. A packet whose own check already reaches `after: 0` needs no binding.
+- A `retire.*` task closes only with its latest retirement check at `after: 0`. A non-zero residual must be listed exactly in that check's `residual` array (`path`, `writes`, `removalTaskId`, `removalCondition`) and must sum to `after`; an unclassified residual fails `RETIREMENT_TARGET_REQUIRED`.
+- A recorded retirement `after` may never exceed the previous recorded `after` for the same command; the coordinator fails `RETIREMENT_KPI_REGRESSION` so TypeScript cannot regrow inside a packet.
+- `integration.final` additionally requires the global owner KPI at `migrationGate.retirementKpi.targetValue` (0) and every migrated `migrate.*` packet to have a covering `retire.*` task or its own zero count.
 - A `migrated` transition fails without that check, without a `removalTaskId`/`removalCondition` on every `retainedLegacy` entry, and without the declared `cutover` layers being true.
-- Counting closed packets is not progress; the KPI must fall on the pushed source.
+- Counting closed packets is not progress; the KPI must fall on the pushed source. `status --json` reports a `retirement` block with uncovered migrated packets, open retire tasks and the target so the gap is visible before a packet is claimed.
 
 ### Cutover order that matches the code
 

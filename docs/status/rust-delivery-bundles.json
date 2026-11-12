@@ -9297,13 +9297,18 @@
         "A passed retirement:ts-writes check records the owner TypeScript write-statement count before and after, and after < before. A read-only slice instead records retirement:ts-statements (INSERT/UPDATE/DELETE/SELECT) with a strictly lower count.",
         "Contract cutover layers declared on the task (clientParity, routeAuthority, presenterParity) are all true.",
         "Scoped compile and affected authorization, transaction, replay/idempotency, audit/outbox and transport regressions pass.",
-        "Post-retirement implementation is committed/pushed and remote SHA is verified."
+        "Post-retirement implementation is committed/pushed and remote SHA is verified.",
+        "A migrate.* packet that still records owner writers or reads binds an existing retire.<owner>* task; the coordinator records retireTaskId and fails RETIRE_TASK_REQUIRED otherwise. A packet whose own check reaches after: 0 needs no binding.",
+        "A retire.* task closes only at after: 0. Any non-zero residual is classified exactly in the check residual array with path, writes, removalTaskId and removalCondition summing to after. A recorded after may never exceed the previous after for the same command (RETIREMENT_KPI_REGRESSION).",
+        "integration.final requires the global owner KPI at retirementKpi.targetValue (0) and every migrated migrate.* packet covered by a retire.* task or its own zero count."
       ],
       "retirementKpi": {
         "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
         "baselineAt": "1399b44cf",
         "baselineValue": 2894,
-        "targetValue": 0
+        "targetValue": 0,
+        "enforcedAt": "migrated-and-integration.final",
+        "coverage": "status --json retirement block"
       },
       "browser": "Focused normal-authentication verification for affected integration; complete desktop/mobile matrix remains deferred.",
       "providers": "Implement adapters, retries/errors and fail-closed missing configuration. Missing credentials block only affected execution proof, never disjoint code work. Do not count retained TS as migrated or mocks as real provider verification.",
