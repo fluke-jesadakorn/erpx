@@ -289,6 +289,183 @@ async fn manual_hold_rejects_stale_stock_lot_and_duplicate_command_keys() {
 }
 
 #[tokio::test]
+async fn manual_hold_requires_current_company_and_branch_stock_and_derives_the_hold_branch() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+
+        let mut foreign_company = serializable(&pool).await;
+        match prepare_quality_hold(
+            &mut foreign_company,
+            &command("foreign-company"),
+            &CompanyId::new("other").unwrap(),
+            Some(&branch()),
+            &UserId::new("maker").unwrap(),
+            1,
+        )
+        .await
+        {
+            Err(PgTransactionError::Business(error)) => assert_eq!(error.code, "STOCK_NOT_FOUND"),
+            _ => panic!("another Company's stock was accepted"),
+        }
+        foreign_company.rollback().await.unwrap();
+
+        let mut foreign_branch = serializable(&pool).await;
+        match prepare_quality_hold(
+            &mut foreign_branch,
+            &command("foreign-branch"),
+            &company(),
+            Some(&RecordId::new("branch-other").unwrap()),
+            &UserId::new("maker").unwrap(),
+            1,
+        )
+        .await
+        {
+            Err(PgTransactionError::Business(error)) => assert_eq!(error.code, "STOCK_NOT_FOUND"),
+            _ => panic!("another Branch's stock was accepted"),
+        }
+        foreign_branch.rollback().await.unwrap();
+
+        // A Holding-level caller has no branch filter; the stored hold branch
+        // must still come from the locked source warehouse, never the request.
+        let mut holding = serializable(&pool).await;
+        let prepared = prepare_quality_hold(
+            &mut holding,
+            &command("holding-scope"),
+            &company(),
+            None,
+            &UserId::new("maker").unwrap(),
+            1,
+        )
+        .await
+        .unwrap();
+        prepared.apply(&mut holding).await.unwrap();
+        let stored_branch: String = sqlx::query_scalar(
+            "SELECT branch_id FROM inventory_quality_holds WHERE id='quality-holding-scope'",
+        )
+        .fetch_one(&mut *holding)
+        .await
+        .unwrap();
+        assert_eq!(stored_branch, "branch");
+        holding.rollback().await.unwrap();
+
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM inventory_quality_holds")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(count, 0, "refused and rolled back holds are not persisted");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn manual_hold_keeps_a_lot_scoped_hold_on_the_current_lot_balance() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode) \
+             VALUES('tracked','company','TRACKED','Tracked product',2000,'lot');\
+             INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor) \
+             VALUES('warehouse','tracked',4000,800);\
+             INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at) \
+             VALUES('lot','company','tracked','lot','L1','maker',1);\
+             INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor) \
+             VALUES('lot','warehouse',4000,800);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+
+        let mut lot_hold = command("lot-hold");
+        lot_hold.product_id = RecordId::new("tracked").unwrap();
+        lot_hold.lot_id = Some(RecordId::new("lot").unwrap());
+        lot_hold.expected_lot_version = Some(1);
+        let mut tx = serializable(&pool).await;
+        let prepared = prepare_quality_hold(
+            &mut tx,
+            &lot_hold,
+            &company(),
+            Some(&branch()),
+            &UserId::new("maker").unwrap(),
+            1_800_000_000_000,
+        )
+        .await
+        .unwrap();
+        prepared.apply(&mut tx).await.unwrap();
+        let saved: (String, i64, String) = sqlx::query_as(
+            "SELECT lot_id,held_quantity_milli,quantity_scope \
+             FROM inventory_quality_holds WHERE id='quality-lot-hold'",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(
+            saved,
+            ("lot".into(), 4000, "whole".into()),
+            "the retained manual hold keeps the whole current lot balance"
+        );
+        let balance: (i64, i64) = sqlx::query_as(
+            "SELECT quantity_milli,version FROM inventory_lot_balances \
+             WHERE lot_id='lot' AND warehouse_id='warehouse'",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(balance, (4000, 1), "the hold does not move the lot balance");
+        let stock_version: i64 = sqlx::query_scalar(
+            "SELECT version FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tracked'",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(stock_version, 2, "the hold trigger advances the stock version");
+        tx.commit().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn applied_hold_rejects_a_changed_source_stock_and_rolls_back() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+        let mut tx = serializable(&pool).await;
+        let prepared = prepare_quality_hold(
+            &mut tx,
+            &command("witness-key"),
+            &company(),
+            Some(&branch()),
+            &UserId::new("maker").unwrap(),
+            1,
+        )
+        .await
+        .unwrap();
+        prepared.apply(&mut tx).await.unwrap();
+
+        // The prepared value is bound to the exact source image it read. A
+        // later change in the same unit must fail closed instead of retaining
+        // a hold whose stock witness no longer matches.
+        sqlx::query(
+            "UPDATE commerce_stock SET version=version+1 \
+             WHERE warehouse_id='warehouse' AND product_id='product'",
+        )
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        match prepared.require_after(&mut tx).await {
+            Err(PgTransactionError::Business(error)) => assert_eq!(error.code, "CONFLICT"),
+            _ => panic!("a changed stock source was accepted"),
+        }
+        tx.rollback().await.unwrap();
+
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM inventory_quality_holds")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(count, 0, "the rejected prepared hold is not persisted");
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn manual_hold_requires_a_serializable_owned_unit() {
     fixture::with_database(1, |pool| async move {
         facts::setup(&pool).await;
