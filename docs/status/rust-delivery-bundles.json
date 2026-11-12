@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1231,
+    "revision": 1232,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -29298,6 +29298,47 @@
         "handoff": null,
         "nextAction": "Work_projection residual: calendar commands/facts (26) are producer-first; work-card preference writes are native.",
         "scopeRefinementRequired": false
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [
+          "collaboration/social-home"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "migrate.collaboration.social-draft-commands",
+        "title": "Native Social draft, upload, participant/source, revision and report commands",
+        "scope": "Add the missing native social owner commands so retire.collaboration.social-home can delete the TS writers. Required native changes: SavePostDraft/UpdateDraft (social_post_drafts with body/audience/participants/sources/purpose/mentions/content/rich_content), PublishDraft (copy draft into social_posts + participants + sources + mentions/topics + staff notification + author follow, bind the draft), EditPost (social_post_revisions + social_posts update), ReportPost (social_reports upsert), and comment/post upload-discard intake (currently social uploads and Files attachment binding). Native already owns post/comment/reaction/follow. After the collaboration-side commands and the native client/feed/posts routes land, switch the three live TS callers: server-operations handover (savePostDraft/publishPost), server-manage_erpx beta-api (all social commands), server-pms home-api (savePostDraft/publishPost/postAction), then delete the TS social-home writer. Caller switching for server-operations is currently blocked by the active retire.operations.routines claim on packages/server-operations/src/**; stage the collaboration-side commands first and record the handoff.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/server-collaboration/Cargo.toml",
+          "packages/server-collaboration/package.json",
+          "packages/feature-collaboration/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/feed/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Implement the collaboration-side native draft/publish/edit/report/upload commands with Rust unit+PG tests, then hand off the three caller switches (operations caller waits for its active claim to release).",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -29306,10 +29347,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 138,
+      "totalPackets": 139,
       "migratedPackets": 72,
       "statusCounts": {
-        "pending": 25,
+        "pending": 26,
         "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
@@ -29320,7 +29361,7 @@
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T21:04:32.991Z",
+    "updatedAt": "2026-11-12T21:07:43.066Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
