@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 595,
+    "revision": 597,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -9886,14 +9886,21 @@
         "resources": [
           "owner:commercial"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261112-b",
+          "agentId": "worker-commercial",
+          "claimedAt": "2026-11-12T02:00:23.215Z",
+          "heartbeatAt": "2026-11-12T02:00:23.215Z",
+          "expiresAt": "2026-11-12T02:30:23.215Z",
+          "generation": 27
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after work snapshot mount; WIP reviewed",
+        "blocker": null,
         "nextAction": "All owner slices implemented and the package page binds the native subscription/grace projection (457da3351): new GET commercial/companies/{id}/subscriptions served by PgCompanySubscriptionReader and merged into providerCompanyPackageOverview alongside the native overview. Checks: transport 11/11, capability 6/6 + PG 3/3, subscriptions 7/7 + PG 3/3, grants 2/2 + PG 1/1, company packages 7/7, erpx-service, typecheck, catalogue 1126. Remaining: bind capability-decision into an owner consumer (composition currently uses PgCompanyPurchaseReader directly); Billing must expose a Company subscription port for Stripe status; grace end intentionally null.",
         "handoff": {
           "runId": "run-20261110-g19",
@@ -16344,6 +16351,60 @@
         "plannedPackage": "erpx-server-collaboration",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.commercial.purchase-command-boundary",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "commercial",
+        "workflowIds": [
+          "commercial/invoices",
+          "commercial/entitlements",
+          "commercial/feature-catalog-plans",
+          "commercial/feature-subscriptions",
+          "commercial/feature-grace-recovery"
+        ],
+        "workstream": "S03",
+        "kind": "migration",
+        "title": "Native Commercial purchase-command boundary for enforce-mode owner switches",
+        "scope": "Port the retained TypeScript purchaseCommandBoundary semantics into packages/server-commercial Rust: package writer fence/advisory/grant locks in retained order, command_assertions before/after guards for enforced mode, shadow observation, and purchase failure mapping, reusing PgCompanyPurchaseReader decisions. Required before any enforce-mode owner route switch (manufacturing specification, ecommerce listing, others) can retire its TS purchase wrapper.",
+        "dependsOn": [
+          "inventory.commercial",
+          "ports.trade"
+        ],
+        "requiredPorts": [
+          "ports.trade"
+        ],
+        "allowedPaths": [
+          "packages/server-commercial/src/**",
+          "packages/server-commercial/Cargo.toml",
+          "tests/unit/commercial/**",
+          "tests/integration/commercial/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:commercial"
+        ],
+        "status": "pending",
+        "nextAction": "Implement the native purchase-command boundary in packages/server-commercial, run cargo/registered unit+PostgreSQL suites, and report the composition integration request.",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-commercial",
+        "plannedPackage": "erpx-server-commercial",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "deliverables": [
+          "Native reusable purchase-command-boundary API in packages/server-commercial.",
+          "Before/after assertion and lock parity with the retained TS boundary.",
+          "Unit and PostgreSQL cases proving enforce/shadow ordering, denial and rollback."
+        ],
+        "claim": null
       }
     ],
     "migrationProgress": {
@@ -16352,13 +16413,13 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 53,
+      "totalPackets": 54,
       "migratedPackets": 21,
       "statusCounts": {
-        "pending": 12,
+        "pending": 13,
         "in_progress": 4,
-        "ready_for_integration": 10,
-        "integrating": 0,
+        "ready_for_integration": 9,
+        "integrating": 1,
         "migrated": 21,
         "blocked": 6,
         "deferred": 0,
@@ -16366,7 +16427,7 @@
       }
     },
     "lastCoordinatorGeneration": 27,
-    "updatedAt": "2026-11-12T01:57:16.998Z",
+    "updatedAt": "2026-11-12T02:01:42.675Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
