@@ -439,3 +439,38 @@ describe('retired access-review command routes', () => {
     expect(response.status).not.toBe(503);
   });
 });
+
+describe('retired role-save command route', () => {
+  const route = () =>
+    import(
+      '../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route'
+    );
+  afterEach(() => {
+    delete process.env.ERPX_NATIVE_IAM_CONFIG;
+  });
+
+  it('fails closed for role-save POST instead of falling back to TypeScript', async () => {
+    delete process.env.ERPX_NATIVE_IAM_CONFIG;
+    const { POST } = await route();
+    const response = await POST(
+      new Request('https://acme.example.com/api/v1/holdings/acme/iam/roles', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Ledger viewer',
+          expectedVersion: 0,
+          permissions: ['finance.read', 'iam.self'],
+          scopes: ['holding'],
+          reason: 'Read-only finance work',
+        }),
+      }),
+      {
+        params: Promise.resolve({ holdingSlug: 'acme', path: ['roles'] }),
+      } as never,
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      error: { code: 'NATIVE_IAM_REQUIRED' },
+    });
+  });
+});

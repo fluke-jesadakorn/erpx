@@ -22,7 +22,7 @@ import { z } from "zod";
 import { currentSession,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {bindIamReviewEvidence,bindIamMigrationEvidence} from "@erpx/server-platform_administration/public/system-evidence";
 import { iamContext } from "@erpx/server-identity_access/public/iam-context";
-import {saveIamRole,roleInput,grantIamAccess,grantInput,proposeIamReview,revokeIamAssignment,decideIamReview,reviewInput} from "@erpx/server-identity_access/public/iam-service";
+import {grantIamAccess,grantInput,proposeIamReview,revokeIamAssignment,decideIamReview,reviewInput} from "@erpx/server-identity_access/public/iam-service";
 import {iamOverview,iamAuditHistory} from '@erpx/server-identity_access/public/iam-service-reads';
 import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 import {saveConnection,connectionInput,testConnection,proposeConnectionActivation,disableConnection,applyDirectoryReview,proposeMapping,mappingInput} from "@erpx/server-identity_access/public/iam-directories";
@@ -360,8 +360,6 @@ export async function iamApi(
       result=await bindIamMigrationEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
     else if (path[0] === "user-management" && ["preview", "save"].includes(path[1]))
       result = await managementCommand(db, actor, input.change, key, path[1] === "preview", input.previewToken);
-    else if (route === "roles")
-      result = await saveIamRole(db, actor, roleInput.parse(input), key);
     else if (route === "assignments")
       result = await grantIamAccess(db, actor, grantInput.parse(input), key);
     else if (path[0] === "assignments" && path[2] === "revoke") {

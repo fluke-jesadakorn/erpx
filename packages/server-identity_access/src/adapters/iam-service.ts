@@ -16,11 +16,9 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { runtimeEnv } from "@erpx/server-runtime/public/runtime";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 export { roleInput, grantInput, reviewInput } from '@erpx/server-identity_access/domain/iam-service';
-import { roleInput, grantInput, reviewInput } from '@erpx/server-identity_access/domain/iam-service';
+import { grantInput, reviewInput } from '@erpx/server-identity_access/domain/iam-service';
 
 async function review(client: PoolClient, actor: IamActor, kind: string, payload: unknown, reason: string) { return serviceCommands().review(serviceTransaction(client, actor), actor, kind, payload, reason); }
-export async function saveIamRole(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof roleInput>, key: string) { return serviceCommands(db).saveIamRole(actor, input, key); }
-
 export async function grantIamAccess(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof grantInput>, key: string) { return serviceCommands(db).grantIamAccess(actor, input, key); }
 export async function revokeIamAssignment(db: PostgresDatabase, actor: IamActor, id: string, version: number, reason: string, key: string) { return serviceCommands(db).revokeIamAssignment(actor, id, version, reason, key); }
 export async function applyIamRevocation(c: PoolClient, actor: IamActor, id: string, version: number, reason: string, approved = false) { return serviceCommands().applyIamRevocation(serviceTransaction(c, actor), actor, id, version, reason, approved); }
@@ -43,35 +41,6 @@ insertIndependentReview: async (facts) => {
                 observedNow,
                 reason,
             ]);
-        },
-lockProposedRole: async (facts) => {
-            const { id } = facts;
-            return (await c.query("SELECT * FROM iam_roles WHERE id=$1 AND company_id IN ($2,'*') FOR UPDATE", [id, actor.companyId])).rows[0] ?? null;
-        },
-createProposedRole: async (facts) => {
-            const { id, input } = facts;
-            return void await c.query("INSERT INTO iam_roles(company_id,id,name) VALUES($1,$2,$3)", [actor.companyId, id, input.name]);
-        },
-nextRoleRevision: async (facts) => {
-            const { id } = facts;
-            return (await c.query("SELECT COALESCE(MAX(revision),0)+1 next FROM iam_role_revisions WHERE company_id=$1 AND role_id=$2", [actor.companyId, id])).rows[0] ?? null;
-        },
-appendRoleRevision: async (facts) => {
-            const { id, revision, input, observedNow } = facts;
-            return void await c.query("INSERT INTO iam_role_revisions VALUES($1,$2,$3,$4,$5,$6,$7,$8)", [
-                actor.companyId,
-                id,
-                revision,
-                JSON.stringify([...new Set(input.permissions)]),
-                JSON.stringify([...new Set(input.grantablePermissions)]),
-                JSON.stringify(input.scopes),
-                actor.userId,
-                observedNow,
-            ]);
-        },
-affectedRoleUsers: async (facts) => {
-            const { id } = facts;
-            return (await c.query(`SELECT DISTINCT user_id FROM ${actor.platform ? "platform_assignments" : "assignments"} WHERE role=$1 AND revoked_at IS NULL ${actor.platform ? "" : "AND company_id=$2"}`, actor.platform ? [id] : [id, actor.companyId])).rows;
         },
 lockRevokedAssignment: async (facts) => {
             const { id } = facts;

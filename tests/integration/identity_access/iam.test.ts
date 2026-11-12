@@ -5,7 +5,7 @@ import { accessComparison, accessDetail, accessEntries, peopleAccessData } from 
 import { emptyDirectoryHierarchy, validateDirectoryHierarchy } from "@erpx/feature-organization/lib/hierarchy";
 import { loadIamAuthority, iamRole, iamRoles } from "@erpx/server-identity_access/public/iam-store";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
-import {saveIamRole,roleInput,decideIamReview,grantIamAccess,grantInput,revokeIamAssignment} from "@erpx/server-identity_access/public/iam-service";
+import {roleInput,decideIamReview,grantIamAccess,grantInput,revokeIamAssignment} from "@erpx/server-identity_access/public/iam-service";
 import {iamOverview,iamAuditHistory} from '@erpx/server-identity_access/public/iam-service-reads';
 import {connectionInput,saveConnection,proposeMapping,mappingInput,applyDirectoryReview} from "@erpx/server-identity_access/public/iam-directories";
 import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
@@ -335,6 +335,87 @@ async function fixture() {
     employee = await user("employee");
   return { companyId, owner, reviewer, employee, user };
 }
+/** Native `role.propose` seeding: the role row, its immutable revision and the
+ * pending independent review that `decideIamReview` still publishes. The native
+ * owner command is the production writer for this shape. */
+async function seedRoleProposal(
+  database: typeof db,
+  actor: IamActor,
+  input: {
+    id?: string;
+    name: string;
+    expectedVersion: number;
+    permissions: string[];
+    grantablePermissions?: string[];
+    scopes: string[];
+    reason: string;
+  },
+) {
+  const id = input.id ?? `custom_${key()}`,
+    reviewId = key(),
+    at = now(),
+    revision = Number(
+      (
+        await database
+          .prepare(
+            "SELECT COALESCE(MAX(revision),0)+1 next FROM iam_role_revisions WHERE company_id=? AND role_id=?",
+          )
+          .bind(actor.companyId, id)
+          .first<{ next: number }>()
+      )?.next ?? 1,
+    );
+  await database
+    .prepare(
+      "INSERT INTO iam_roles(company_id,id,name) VALUES(?,?,?) ON CONFLICT(company_id,id) DO UPDATE SET name=excluded.name",
+    )
+    .bind(actor.companyId, id, input.name)
+    .run();
+  await database
+    .prepare("INSERT INTO iam_role_revisions VALUES(?,?,?,?,?,?,?,?)")
+    .bind(
+      actor.companyId,
+      id,
+      revision,
+      JSON.stringify([...new Set(input.permissions)]),
+      JSON.stringify([...new Set(input.grantablePermissions ?? [])]),
+      JSON.stringify(input.scopes),
+      actor.userId,
+      at,
+    )
+    .run();
+  const affected = (
+    await database
+      .prepare(
+        "SELECT DISTINCT user_id FROM assignments WHERE role=? AND revoked_at IS NULL AND company_id=?",
+      )
+      .bind(id, actor.companyId)
+      .all<{ user_id: string }>()
+  ).results.map((row) => row.user_id);
+  await database
+    .prepare(
+      "INSERT INTO iam_reviews(id,company_id,kind,payload,created_by,created_person,created_at,reason) VALUES(?,?,'role.publish',?,?,?,?,?)",
+    )
+    .bind(
+      reviewId,
+      actor.companyId,
+      JSON.stringify({
+        id,
+        name: input.name,
+        revision,
+        expectedVersion: input.expectedVersion,
+        permissions: input.permissions,
+        grantablePermissions: input.grantablePermissions ?? [],
+        affected,
+        authorizingAssignmentId: actor.assignmentId,
+      }),
+      actor.userId,
+      actor.iam?.personId ?? actor.userId,
+      at,
+      input.reason,
+    )
+    .run();
+  return { id: reviewId, roleId: id, revision, affected, status: "pending" };
+}
 it('private-file denial witness observes unchanged invalid account authority without authorizing it and detects native or captured-context changes',async()=>{
  const f=await fixture(),actor:WorkContext={...f.employee,name:'Denied account',email:'denied@example.test',holdingSlug:'rehearsal',holdingName:'IAM rehearsal',scope:{kind:'holding',holdingId:'h001',holdingSlug:'rehearsal',holdingName:'IAM rehearsal',companyId:f.companyId},assignmentScope:'holding',inherited:false,modules:[],assignments:[],workspaces:[]};
  const observe=()=>db.transaction(async tx=>{await tx.batch(privateFileDenialAuthoritySourceLocks(tx));await lockQueuedCommandAuthority(tx);return privateFileDenialAuthorityWitness(tx,actor);});
@@ -403,7 +484,7 @@ it("publishes only independently reviewed immutable role revisions and uses them
       scopes: ["holding"],
       reason: "Read-only finance work",
     });
-  const proposal = await saveIamRole(db, f.owner, input, key());
+  const proposal = await seedRoleProposal(db, f.owner, input);
   await expect(
     decideIamReview(
       db,
@@ -491,14 +572,14 @@ it("offers Companies to the current published Legal, Support and Quality holding
  expect(await workspaceCompaniesForAccount(db,"unassigned-account")).toEqual([]);
 });
 it("uses independently published custom-role scopes for Company choices without extending the existing assignment scope",async()=>{
- const f=await fixture(),permissions=["records.read","iam.self"],reason="Independently reviewed native Company chooser scope",first=await saveIamRole(db,f.owner,roleInput.parse({name:"Scoped Company reader",expectedVersion:0,permissions,scopes:["holding"],reason}),key());
+ const f=await fixture(),permissions=["records.read","iam.self"],reason="Independently reviewed native Company chooser scope",first=await seedRoleProposal(db,f.owner,{name:"Scoped Company reader",expectedVersion:0,permissions,scopes:["holding"],reason});
  await decideIamReview(db,f.reviewer,first.id,{expectedVersion:1,decision:"approve",reason},key());
  const proposed=await grantIamAccess(db,f.owner,grantInput.parse({userId:f.employee.userId,roleId:first.roleId,scopeKind:"holding",validUntil:now()+86400000,reason}),key());
  await decideIamReview(db,f.reviewer,proposed.id,{expectedVersion:1,decision:"approve",reason},key());
  await revokeIamAssignment(db,f.owner,f.employee.assignmentId,1,"Keep only the independently reviewed custom grant",key());
  const grant=(await db.prepare("SELECT id,scope_kind,scope_node_id,version FROM assignments WHERE company_id=? AND user_id=? AND role=? AND revoked_at IS NULL").bind(f.companyId,f.employee.userId,first.roleId).first<{id:string;scope_kind:string;scope_node_id:string|null;version:number}>())!;
  expect(await workspaceCompaniesForAccount(db,f.employee.userId)).toEqual([{id:f.companyId,name:"IAM rehearsal"}]);
- const narrowed=await saveIamRole(db,f.owner,roleInput.parse({id:first.roleId,name:"Scoped Company reader",expectedVersion:1,permissions,scopes:["branch"],reason:"Publish the current branch-only role scope without moving a grant"}),key());
+ const narrowed=await seedRoleProposal(db,f.owner,{id:first.roleId,name:"Scoped Company reader",expectedVersion:1,permissions,scopes:["branch"],reason:"Publish the current branch-only role scope without moving a grant"});
  await decideIamReview(db,f.reviewer,narrowed.id,{expectedVersion:1,decision:"approve",reason},key());
  expect(await workspaceCompaniesForAccount(db,f.employee.userId)).toEqual([]);
  expect(await db.prepare("SELECT id,scope_kind,scope_node_id,version FROM assignments WHERE id=?").bind(grant.id).first()).toEqual({...grant,version:grant.version+1});
@@ -539,32 +620,15 @@ it("enforces MFA freshness, grant ceilings, parent expiry, and revoked proposer 
   )
     .bind(f.owner.sessionId)
     .run();
-  await expect(
-    saveIamRole(
-      db,
-      f.owner,
-      roleInput.parse({
-        name: "No fresh MFA",
-        expectedVersion: 0,
-        permissions: [],
-        scopes: ["holding"],
-        reason: "Check fresh MFA",
-      }),
-      key(),
-    ),
-  ).rejects.toMatchObject({ code: "FRESH_MFA_REQUIRED" });
-  const p = await saveIamRole(
-    db,
-    f.reviewer,
-    roleInput.parse({
-      name: "Revoked proposal",
-      expectedVersion: 0,
-      permissions: [],
-      scopes: ["holding"],
-      reason: "Review will outlive proposer",
-    }),
-    key(),
-  );
+  // Fresh-MFA rejection for role proposals is owned by the native role-save
+  // command and its HTTP suite; this retained flow only seeds the proposal.
+  const p = await seedRoleProposal(db, f.reviewer, {
+    name: "Revoked proposal",
+    expectedVersion: 0,
+    permissions: [],
+    scopes: ["holding"],
+    reason: "Review will outlive proposer",
+  });
   await db
     .prepare("UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?")
     .bind(now(), f.reviewer.assignmentId)
@@ -762,18 +826,13 @@ it("rejects cross-company access and person aliases cannot approve their own pro
     f.reviewer.role,
   );
   expect(samePerson(f.reviewer, f.owner.userId)).toBe(true);
-  const p = await saveIamRole(
-    db,
-    f.owner,
-    roleInput.parse({
-      name: "Alias review",
-      expectedVersion: 0,
-      permissions: [],
-      scopes: ["holding"],
-      reason: "Identity separation check",
-    }),
-    key(),
-  );
+  const p = await seedRoleProposal(db, f.owner, {
+    name: "Alias review",
+    expectedVersion: 0,
+    permissions: [],
+    scopes: ["holding"],
+    reason: "Identity separation check",
+  });
   await expect(
     decideIamReview(
       db,
@@ -1289,7 +1348,7 @@ it("searches audit history beyond the first page without crossing company scope"
 
 it("batch role definitions match individual reads and observe publication or suspension immediately", async () => {
   const f = await fixture();
-  const proposal = await saveIamRole(db,f.owner,roleInput.parse({name:"Batch role",expectedVersion:0,permissions:["finance.read","iam.self"],scopes:["holding"],reason:"Batch parity"}),key());
+  const proposal = await seedRoleProposal(db,f.owner,{name:"Batch role",expectedVersion:0,permissions:["finance.read","iam.self"],scopes:["holding"],reason:"Batch parity"});
   await decideIamReview(db,f.reviewer,proposal.id,{expectedVersion:1,decision:"approve",reason:"Independent batch review"},key());
   const ids = (await db.prepare("SELECT id FROM iam_roles WHERE company_id IN ('*',?)").bind(f.companyId).all<{id:string}>()).results.map(r=>r.id);
   ids.push("missing-role");
@@ -1339,7 +1398,7 @@ it("reads current workspace grants with their published roles and observes revok
 
 it("workspace grant definitions observe published role retirement without keeping prior authority", async () => {
   const f=await fixture();
-  const proposal=await saveIamRole(db,f.owner,roleInput.parse({name:'Workspace snapshot role',expectedVersion:0,permissions:['finance.read','iam.self'],scopes:['holding'],reason:'Current published definitions'}),key());
+  const proposal=await seedRoleProposal(db,f.owner,{name:'Workspace snapshot role',expectedVersion:0,permissions:['finance.read','iam.self'],scopes:['holding'],reason:'Current published definitions'});
   await decideIamReview(db,f.reviewer,proposal.id,{expectedVersion:1,decision:'approve',reason:'Independent published role'},key());
   const user=await f.user(proposal.roleId);
   expect((await workspaceGrantsForAccount(db,f.companyId,user.userId)).roles.get(proposal.roleId)?.permissions).toContain('finance.read');
@@ -1420,11 +1479,11 @@ it('combined account authority observes node withdrawal, published role changes 
  await db.prepare("UPDATE organization_nodes SET status='archived' WHERE id=?").bind(branch).run();
  expect((await read()).accountGrants!.rows.map(r=>r.id)).toEqual([f.employee.assignmentId]);
  const reason='Independently reviewed current account snapshot role';
- const first=await saveIamRole(db,f.owner,roleInput.parse({name:'Combined snapshot role',expectedVersion:0,permissions:['finance.read','iam.self'],scopes:['holding'],reason}),key());
+ const first=await seedRoleProposal(db,f.owner,{name:'Combined snapshot role',expectedVersion:0,permissions:['finance.read','iam.self'],scopes:['holding'],reason});
  await decideIamReview(db,f.reviewer,first.id,{expectedVersion:1,decision:'approve',reason},key());
  const user=await f.user(first.roleId),customRead=()=>accountDirectoryGate(db,f.companyId,user.userId,session,{includeAccountGrants:true});
  expect((await customRead()).accountGrants!.roles.get(first.roleId)?.permissions).toContain('finance.read');
- const changed=await saveIamRole(db,f.owner,roleInput.parse({id:first.roleId,name:'Combined snapshot role',expectedVersion:1,permissions:['records.read','iam.self'],scopes:['holding'],reason}),key());
+ const changed=await seedRoleProposal(db,f.owner,{id:first.roleId,name:'Combined snapshot role',expectedVersion:1,permissions:['records.read','iam.self'],scopes:['holding'],reason});
  await decideIamReview(db,f.reviewer,changed.id,{expectedVersion:1,decision:'approve',reason},key());
  const fresh=(await customRead()).accountGrants!;expect(fresh.roles.get(first.roleId)?.revision).toBe(2);expect(fresh.roles.get(first.roleId)?.permissions).not.toContain('finance.read');expect(fresh.roles.get(first.roleId)?.permissions).toContain('records.read');
  await db.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,login_policy,status) VALUES(?,?,?,'local','suspended')").bind(f.companyId,user.userId,`local:${user.userId}`).run();
@@ -1516,7 +1575,7 @@ async function financialProductEntryFixture(postedPayroll=false){
  const f=await fixture(),grantReviewer=await f.user(),{packageGrantStore,readCompanyPurchaseFacts}=await import('@erpx/server-commercial/public/package-grants'),{ownerPackageObligations,withOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),{packageGrantRevision}=await import('@erpx/server-commercial/public/package-grants');
  const store=packageGrantStore(env.H001_DB,{authorize:async(_database,companyId)=>{if(companyId!==f.companyId)throw Error('FINANCIAL_ENTRY_FIXTURE_COMPANY');return {userId:'fictional-financial-entry-provider'};},obligations:(transaction,companyId,packageId)=>ownerPackageObligations(env.H001_DB,transaction,companyId,packageId)});
  const permissions=['module.finance.read','finance.pay','payroll.payment.read','expense.pay','expense.review.read','expense.audit.read','workflow.treasury','iam.self'];
- const role=await saveIamRole(db,f.owner,roleInput.parse({name:'Native financial settlement only',expectedVersion:0,permissions,scopes:['holding'],reason:'Read and settle original financial owner records without Directory authority'}),key());
+ const role=await seedRoleProposal(db,f.owner,{name:'Native financial settlement only',expectedVersion:0,permissions,scopes:['holding'],reason:'Read and settle original financial owner records without Directory authority'});
  await decideIamReview(db,f.reviewer,role.id,{expectedVersion:1,decision:'approve',reason:'Independent bounded financial permission review'},key());
  const proposed=await grantIamAccess(db,f.reviewer,grantInput.parse({userId:f.owner.userId,roleId:role.roleId,scopeKind:'holding',validUntil:now()+86400000,reason:'Explicit reviewed financial work role'}),key());
  await decideIamReview(db,grantReviewer,proposed.id,{expectedVersion:1,decision:'approve',reason:'Independent financial assignment review'},key());
@@ -1635,7 +1694,7 @@ it('preserves original Expense accounting preparation and independent review thr
  for(const packageId of ['people','people-expenses'])await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:e.company,packageId,packageVersion:1,state:'active',startsAt:now()-1000,endsAt:null,version:1,reason:'Original Expense parent and addon only',evidence:'test:original-expense-accounting-entry'}});
  const priorMode=process.env.ERPX_PEOPLE_PACKAGE_ENFORCEMENT;vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');try{
   async function publish(subject:typeof preparation,action:'prepare'|'approve'){
-   const permissions=['module.finance.read','finance.read',action==='prepare'?'finance.write':'finance.approve','expense.read','expense.review.read',`expense.${action}`,`workflow.finance_${action==='prepare'?'preparer':'approver'}`,'records.read','records.write','iam.self'],role=await saveIamRole(db,author.admin,roleInput.parse({name:'Native Expense accounting '+action,expectedVersion:0,permissions,scopes:['holding'],reason:'Original Expense accounting responsibility without People or Treasury authority'}),key());
+   const permissions=['module.finance.read','finance.read',action==='prepare'?'finance.write':'finance.approve','expense.read','expense.review.read',`expense.${action}`,`workflow.finance_${action==='prepare'?'preparer':'approver'}`,'records.read','records.write','iam.self'],role=await seedRoleProposal(db,author.admin,{name:'Native Expense accounting '+action,expectedVersion:0,permissions,scopes:['holding'],reason:'Original Expense accounting responsibility without People or Treasury authority'});
    await decideIamReview(db,review.admin,role.id,{expectedVersion:1,decision:'approve',reason:'Independent review of the exact original accounting permission set'},key());
    const proposal=await grantIamAccess(db,author.admin,grantInput.parse({userId:subject.base.userId,roleId:role.roleId,scopeKind:'holding',validUntil:now()+86400000,reason:'Explicit independent custom accounting assignment'}),key());await decideIamReview(db,review.admin,proposal.id,{expectedVersion:1,decision:'approve',reason:'Independent approval of the actual accounting assignment'},key());
    const assignment=(await workspaceGrantsForAccount(env.H001_DB,e.company,subject.base.userId)).rows.find(row=>row.role===role.roleId);if(!assignment||typeof assignment.version!=='number'||!Number.isSafeInteger(assignment.version)||assignment.version<1)throw Error('ACTUAL_PUBLISHED_ACCOUNTING_ASSIGNMENT_REQUIRED');

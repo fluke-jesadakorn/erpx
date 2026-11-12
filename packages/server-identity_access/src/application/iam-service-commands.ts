@@ -1,9 +1,8 @@
 import { createIamGrantPolicy } from '@erpx/server-identity_access/application/iam-grants';
 import { z } from 'zod';
-import { roleInput, grantInput, reviewInput, type IamAssignmentFact, type IamRoleFact, type IamReviewPayload, type IamReviewFact, type IamReviewItemFact, type IamScopeNodeFact, type IamMemberFact, type RoleInput, type GrantInput, type ReviewInput } from '@erpx/server-identity_access/domain/iam-service';
+import { grantInput, reviewInput, type IamAssignmentFact, type IamRoleFact, type IamReviewPayload, type IamReviewFact, type IamReviewItemFact, type IamScopeNodeFact, type IamMemberFact, type GrantInput, type ReviewInput } from '@erpx/server-identity_access/domain/iam-service';
 import type { IamActor } from '@erpx/server-identity_access/domain/iam-actor';
 import { iamPermission } from '@erpx/server-identity_access/domain/iam-actor';
-import { permissionCatalog } from "@erpx/feature-identity_access/lib/permissions";
 import type { IdentityError } from '@erpx/server-identity_access/application/authorization';
 export interface IamServiceTransaction {
     insertIndependentReview(facts: {
@@ -13,29 +12,6 @@ export interface IamServiceTransaction {
         observedNow: number;
         reason: string;
     }): Promise<void>;
-    lockProposedRole(facts: {
-        id: string;
-    }): Promise<IamRoleFact | null>;
-    createProposedRole(facts: {
-        id: string;
-        input: RoleInput;
-    }): Promise<void>;
-    nextRoleRevision(facts: {
-        id: string;
-    }): Promise<{
-        next: number;
-    }>;
-    appendRoleRevision(facts: {
-        id: string;
-        revision: number;
-        input: RoleInput;
-        observedNow: number;
-    }): Promise<void>;
-    affectedRoleUsers(facts: {
-        id: string;
-    }): Promise<{
-        user_id: string;
-    }[]>;
     grantSamePerson(facts: {
         input: GrantInput;
     }): Promise<{
@@ -198,49 +174,6 @@ export function createIamServiceCommands(ports: IamServiceCommandPorts) {
             message: "Submitted for independent review.",
         };
     }
-    async function saveIamRole(actor: IamActor, input: z.infer<typeof roleInput>, key: string) {
-        ports.companyScope(actor);
-        await ports.fresh(actor);
-        const catalog = permissionCatalog
-            .filter((p) => (p.namespace === "platform") === actor.platform &&
-            p.availability === "live")
-            .map((p) => p.id);
-        if ([...input.permissions, ...input.grantablePermissions].some((p) => !catalog.includes(p) || !actor.iam?.grantablePermissions.includes(p)))
-            throw ports.error(403, "DELEGATION_EXCEEDED", "The role exceeds your delegated permission set.");
-        if (input.scopes.some((s) => actor.platform ? s !== "platform" : s === "platform"))
-            throw ports.error(422, "ROLE_SCOPE_INVALID", "Role scopes must remain inside their namespace.");
-        return ports.command(actor, key, "role.propose", input, "iam.roles.manage", async (tx) => {
-            if (input.id &&
-                !input.id.startsWith(actor.platform ? "platform_custom_" : "custom_"))
-                throw ports.error(403, "PROTECTED_ROLE", "Clone a built-in role instead of replacing it.");
-            const id = input.id ??
-                `${actor.platform ? "platform_custom_" : "custom_"}${ports.id()}`;
-            const existing = (await tx.lockProposedRole({ id }));
-            if (existing?.built_in)
-                fail("PROTECTED_ROLE", "Built-in roles are protected. Clone the role instead.");
-            if (Number(existing?.published_revision ?? 0) !== input.expectedVersion)
-                fail("ROLE_CHANGED", "The role changed. Review the latest revision.");
-            if (!existing)
-                (await tx.createProposedRole({ id, input }));
-            const revision = Number((await tx.nextRoleRevision({ id })).next);
-            (await tx.appendRoleRevision({ id, revision, input, observedNow: ports.now() }));
-            const affected = (await tx.affectedRoleUsers({ id })).map((r) => r.user_id);
-            return {
-                ...(await review(tx, actor, "role.publish", {
-                    id,
-                    name: input.name,
-                    revision,
-                    expectedVersion: input.expectedVersion,
-                    permissions: input.permissions,
-                    grantablePermissions: input.grantablePermissions,
-                    affected,
-                }, input.reason)),
-                roleId: id,
-                revision,
-                affected,
-            };
-        });
-    }
     const {validateIamGrant,insertIamGrant} = createIamGrantPolicy(ports);
 
     async function grantIamAccess(actor: IamActor, input: z.infer<typeof grantInput>, key: string) {
@@ -377,5 +310,5 @@ export function createIamServiceCommands(ports: IamServiceCommandPorts) {
             };
         });
     }
-    return { review, saveIamRole, validateIamGrant, insertIamGrant, grantIamAccess, revokeIamAssignment, applyIamRevocation, decideIamReview };
+    return { review, validateIamGrant, insertIamGrant, grantIamAccess, revokeIamAssignment, applyIamRevocation, decideIamReview };
 }
