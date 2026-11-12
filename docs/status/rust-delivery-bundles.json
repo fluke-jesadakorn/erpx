@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 681,
+    "revision": 682,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17334,7 +17334,7 @@
           "owner:quality"
         ],
         "status": "in_progress",
-        "nextAction": "Delete the dead TS quality writers and oracles; measure retirement:ts-writes before/after.",
+        "nextAction": "Hold-create writer is retired (quality KPI 34 -> 33 at e0a9cd9dcd); remaining TS writers to delete: spec save/transition, inspect, release, disposition/scrap, cancellation (+ alert acknowledge if native). Worker is executing this slice with oracles moved and must report the next KPI delta.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -17357,7 +17357,17 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-quality/src",
+            "result": "passed",
+            "before": 34,
+            "after": 33,
+            "sourceSha": "e0a9cd9dcdbc23ea0998a890ff140e2702e0aa03",
+            "sourceKind": "committed",
+            "note": "The committed cutover also removed the TS hold-create INSERT (single-owner writer now native), so the owner write KPI fell 34 -> 33 at HEAD; remaining spec/inspect/release/disposition/cancellation writers are this task's remainder."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null
@@ -17383,7 +17393,7 @@
       }
     },
     "lastCoordinatorGeneration": 33,
-    "updatedAt": "2026-11-12T06:11:33.351Z",
+    "updatedAt": "2026-11-12T06:12:56.011Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
