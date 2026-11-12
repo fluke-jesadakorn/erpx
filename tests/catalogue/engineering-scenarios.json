@@ -5158,14 +5158,7 @@
         "Persisted Dependents lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "binds dependent proof to the independent verification action",
-          "proof": "Normal employee dependent and separate reviewer verification bind the clean evidence set to the verification owner action."
-        }
-      ],
+      "cases": [],
       "moduleId": "benefits",
       "capabilityId": "dependents"
     },
@@ -5179,12 +5172,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit\u2192provider acknowledgement\u2192different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
@@ -5212,14 +5199,7 @@
         "Persisted Plans lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit\u2192provider acknowledgement\u2192different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
-        }
-      ],
+      "cases": [],
       "moduleId": "benefits",
       "capabilityId": "feature-plans"
     },
@@ -5232,14 +5212,7 @@
         "Persisted Enrollment windows lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit\u2192provider acknowledgement\u2192different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
-        }
-      ],
+      "cases": [],
       "moduleId": "benefits",
       "capabilityId": "feature-enrollment-windows"
     },
@@ -5253,18 +5226,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit\u2192provider acknowledgement\u2192different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "feeds released benefit deductions and employer cost into payroll snapshots",
-          "proof": "Released source election version4 enters calculated payroll snapshot with gross100000,deductions12550,employer30000,net87450; proves downstream consumption amount and source version."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
@@ -5393,18 +5354,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "consumes immutable Learning eligibility once into Benefits and rechecks certificate expiry before handoff release",
-          "proof": "Missing qualification blocks election; source-dated certificate/handoff becomes one immutable Benefits receipt, command replay returns same result; expiry blocks later provider acknowledgement without changing original completion/handoff/election source."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "revokes a reviewed Learning certificate without changing completion or its original Benefits consumption receipt",
-          "proof": "Learning reviewer revokes certificate idempotently; Benefits submission is blocked while completed learning and exactly one original consumption receipt remain; revocation source evidence cannot be edited."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",

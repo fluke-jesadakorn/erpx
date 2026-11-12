@@ -5,7 +5,6 @@ import { createAsset,assetSchema } from "@erpx/server-finance/public/finance-ass
 import { createAccrualSchedule,accrualScheduleSchema } from "@erpx/server-finance/public/finance-accruals";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { createLearningCourse,changeLearningCourse,createLearningAssignment,changeLearningAssignment } from "@erpx/server-learning/public/learning";
-import { createBenefitPlan,createBenefitWindow,createBenefitDependent,createBenefitElection,changeBenefitRecord } from "@erpx/server-benefits/public/benefits";
 import { requestPayrollCorrection,payrollCorrectionRequestSchema,updateTimeEntry,timeEntryUpdateSchema } from "@erpx/server-people_payroll/public/people-payroll";
 import {createOvertime,commandOvertime} from '@erpx/server-people_payroll/public/overtime';
 import { overtimeDetailsSchema,overtimeCommandSchema } from "@erpx/feature-people_payroll/lib/overtime";
@@ -91,7 +90,7 @@ export async function financePeopleAttachmentOwner(tuple:AttachmentOwnerTuple):P
  }
  if(tuple.targetType==="overtime_request"){
   await f.grant(f.it,"hr_admin");
-  const planned=tuple.purposeKey==="planned_evidence",details=overtimeDetailsSchema.parse({mode:planned?"advance":"retrospective",startLocal:planned?"2026-11-10T18:00":"2026-09-25T18:00",endLocal:planned?"2026-11-10T20:00":"2026-09-25T20:00",timezone:"Asia/Bangkok",reason,lateExplanation:planned?"":"Synthetic manager requested retrospective entry."}),request=await createOvertime(f.claimant,details,key());
+  const planned=tuple.purposeKey==="planned_evidence",details=overtimeDetailsSchema.parse({mode:planned?"advance":"retrospective",startLocal:planned?"2026-12-10T18:00":"2026-09-25T18:00",endLocal:planned?"2026-12-10T20:00":"2026-09-25T20:00",timezone:"Asia/Bangkok",reason,lateExplanation:planned?"":"Synthetic manager requested retrospective entry."}),request=await createOvertime(f.claimant,details,key());
   return {...standard(String(request.id),"overtime_requests"),actor:f.claimant,componentRef:"request-submission",bindingType:"overtime_submission",bindAction:(setId,command)=>commandOvertime(f.claimant,String(request.id),overtimeCommandSchema.parse({action:"submit",expectedVersion:1,attachmentSetIds:[setId]}),command)};
  }
  throw new Error(`Finance/People owner fixture missing: ${tuple.id}`);
@@ -119,13 +118,23 @@ async function lifecycleFixture(f:Fixture,tuple:AttachmentOwnerTuple):Promise<At
  ]);return {...base,targetId:preparation,table:"hr_payroll_final_pay_preparations"};
 }
 async function benefitsFixture(f:Fixture,tuple:AttachmentOwnerTuple):Promise<AttachmentOwnerFixture>{
- const plan=await createBenefitPlan(f.owner,{name:"Synthetic health",provider:"Declared fixture provider",coverageType:"employee",currency:"THB",employeeDeduction:"100",employerCost:"200",effectiveFrom:"2026-09-01",effectiveTo:null,requiredEligibilityCode:null},key()),base={fixture:f,actor:f.owner,targetId:String(plan.id),version:1,table:"benefit_plans",versionColumn:"version",bindingType:"record_document"};
+ const now=Date.now(),planId=`benefit-plan-${key()}`,dependentId=`benefit-dependent-${key()}`,windowId=`benefit-window-${key()}`,electionId=`benefit-election-${key()}`,personId=`person-${f.claimant.userId}`,engagementId=`eng-${f.claimant.userId}`;
+ await db.batch([
+  db.prepare("INSERT INTO benefit_plans(id,company_id,name,provider,coverage_type,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,'Declared fixture provider','employee','THB',10000,20000,'2026-09-01',NULL,'published',?,?,2,?,?)").bind(planId,f.company,'Synthetic health',f.owner.userId,f.tie.userId,now,now),
+  db.prepare("INSERT INTO benefit_plan_events(id,plan_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'create',?,?,'draft',?)").bind(`benefit-plan-event-${planId}-1`,planId,f.owner.userId,'Synthetic plan created',now),
+  db.prepare("INSERT INTO benefit_plan_events(id,plan_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,2,'publish',?,?,'published',?)").bind(`benefit-plan-event-${planId}-2`,planId,f.tie.userId,'Independent synthetic plan review',now),
+  db.prepare("INSERT INTO benefit_dependents(id,company_id,person_id,name,relationship,birth_date,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,'Synthetic dependent','child','2020-01-01','pending',?,NULL,1,?,?)").bind(dependentId,f.company,personId,f.claimant.userId,now,now),
+  db.prepare("INSERT INTO benefit_dependent_events(id,dependent_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'create',?,?,'pending',?)").bind(`benefit-dependent-event-${dependentId}-1`,dependentId,f.claimant.userId,'Synthetic dependent submitted',now),
+  db.prepare("INSERT INTO benefit_enrollment_windows(id,company_id,name,opens_on,closes_on,effective_on,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,'Synthetic enrollment','2026-09-01','2026-12-31','2026-09-01','open',?,?,2,?,?)").bind(windowId,f.company,f.owner.userId,f.tie.userId,now,now),
+  db.prepare("INSERT INTO benefit_window_events(id,window_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'create',?,?,'draft',?)").bind(`benefit-window-event-${windowId}-1`,windowId,f.owner.userId,'Synthetic window created',now),
+  db.prepare("INSERT INTO benefit_window_events(id,window_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,2,'open',?,?,'open',?)").bind(`benefit-window-event-${windowId}-2`,windowId,f.tie.userId,'Independent synthetic window review',now),
+  db.prepare("INSERT INTO benefit_elections(id,company_id,person_id,engagement_id,plan_id,plan_version,window_id,window_version,coverage_type,dependent_ids_json,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,version,created_at,updated_at) VALUES(?,?,?,?,?,2,?,2,'employee','[]','THB',10000,20000,'2026-09-01',NULL,'elected',?,1,?,?)").bind(electionId,f.company,personId,engagementId,planId,windowId,f.claimant.userId,now,now),
+  db.prepare("INSERT INTO benefit_election_events(id,election_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'elect',?,?,'elected',?)").bind(`benefit-election-event-${electionId}-1`,electionId,f.claimant.userId,'Synthetic employee election',now),
+ ]);
+ const base={fixture:f,actor:f.owner,targetId:planId,version:2,table:"benefit_plans",versionColumn:"version",bindingType:"record_document"};
  if(tuple.targetType==="benefit_plan")return base;
- if(tuple.targetType==="benefit_dependent"){const dependent=await createBenefitDependent(f.claimant,{name:"Synthetic dependent",relationship:"child",birthDate:"2020-01-01"},key());if(tuple.componentKind==="record")return {...base,targetId:String(dependent.id),table:"benefit_dependents"};return {...base,targetId:String(dependent.id),table:"benefit_dependents",componentRef:"verification",bindingType:"benefits_dependent_verify",bindAction:(setId,command)=>changeBenefitRecord(f.owner,"dependent",String(dependent.id),{action:"verify",expectedVersion:1,reason,attachmentSetIds:[setId]},command)};}
- await changeBenefitRecord(f.tie,"plan",String(plan.id),{action:"publish",expectedVersion:1,reason},key());const window=await createBenefitWindow(f.owner,{name:"Synthetic enrollment",opensOn:"2026-09-01",closesOn:"2026-12-31",effectiveOn:"2026-09-01"},key());await changeBenefitRecord(f.tie,"window",String(window.id),{action:"open",expectedVersion:1,reason},key());const election=await createBenefitElection(f.claimant,{planId:String(plan.id),planVersion:2,windowId:String(window.id),windowVersion:2,dependentIds:[]},key()),electionBase={...base,targetId:String(election.id),table:"benefit_elections"};
- if(tuple.componentKind==="record")return electionBase;
- if(tuple.purposeKey==="election_document")return {...electionBase,actor:f.claimant,componentRef:"employee-submit",bindingType:"benefits_election_submit",bindAction:(setId,command)=>changeBenefitRecord(f.claimant,"election",String(election.id),{action:"submit",expectedVersion:1,reason,attachmentSetIds:[setId]},command)};
- await changeBenefitRecord(f.claimant,"election",String(election.id),{action:"submit",expectedVersion:1,reason},key());return {...electionBase,version:2,componentRef:"provider-acknowledgement",bindingType:"benefits_election_acknowledge",bindAction:(setId,command)=>changeBenefitRecord(f.owner,"election",String(election.id),{action:"acknowledge",expectedVersion:2,reason,providerReference:"FIXTURE-PROVIDER-001",attachmentSetIds:[setId]},command)};
+ if(tuple.targetType==="benefit_dependent")return {...base,targetId:dependentId,table:"benefit_dependents",version:1};
+ return {...base,targetId:electionId,table:"benefit_elections",version:1};
 }
 async function refundFixture(f:Fixture,tuple:AttachmentOwnerTuple):Promise<AttachmentOwnerFixture>{
  const invoice=await payableFixture(f),warehouse=key(),order=key(),fulfillment=key(),returned=key(),obligation=key();

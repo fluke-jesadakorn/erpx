@@ -1,5 +1,11 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
+vi.mock('@erpx/server-manage_erpx/public/public-origin',()=>({requestPublicOrigin:()=>'https://acme.example.com'}));
+vi.mock('@erpx/feature-work_projection/lib/destination-links',()=>({canonicalDestinationLinks:(value:unknown)=>value}));
+vi.mock('@erpx/server-identity_access/public/authorization',()=>({requireWorkContext:async()=>({
+  userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,
+  assignmentId:'assignment',role:'owner',modules:['benefits'],iam:{permissions:['records.read','records.write']},
+})}));
 import {
   createNativeBenefitsClient,
   nativeBenefitsAvailable,
@@ -346,5 +352,28 @@ describe('native Benefits workspace transport',()=>{
   expect(nativeBenefitsFailure(new NativeBenefitsError('BENEFITS_SOURCE_INVALID',409,'Reload.')))
     .toMatchObject({status:409,code:'BENEFITS_SOURCE_INVALID'});
   expect(nativeBenefitsFailure(new Error('other'))).toBeUndefined();
+ });
+});
+
+describe('Benefits route command authority',()=>{
+ const call=async(body:unknown,headers:Record<string,string>={})=>{
+  const {POST}=await import('../../../packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/route');
+  return POST(new Request('https://acme.example.com/api/v1/holdings/acme/benefits',{method:'POST',headers:{origin:'https://acme.example.com','Idempotency-Key':'command-key',...headers},body:JSON.stringify(body)}),{params:Promise.resolve({holdingSlug:'acme'})});
+ };
+
+ it('fails closed instead of using a retained TypeScript Benefits command writer',async()=>{
+  const response=await call({entity:'plan',name:'Family medical plan'});
+  expect(response.status).toBe(503);
+  expect((await response.json()).error).toMatchObject({code:'NATIVE_BENEFITS_UNAVAILABLE'});
+ });
+
+ it('keeps origin, idempotency and registered entity guards ahead of the native owner',async()=>{
+  expect((await call({entity:'plan'},{origin:'https://other.example.com'})).status).toBe(403);
+  const missing=await call({entity:'plan',name:'Family medical plan'}, {'Idempotency-Key':''});
+  expect(missing.status).toBe(422);
+  expect((await missing.json()).error).toMatchObject({code:'COMMAND_KEY_REQUIRED'});
+  const invalid=await call({entity:'course',name:'Family medical plan'});
+  expect(invalid.status).toBe(422);
+  expect((await invalid.json()).error).toMatchObject({code:'BENEFIT_ENTITY_INVALID'});
  });
 });

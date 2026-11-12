@@ -453,14 +453,11 @@
 @source "../../../../packages/server-benefits/src/adapters/payroll-owner-facts.ts";
 @source "../../../../packages/server-benefits/src/adapters/payroll-source-facts.ts";
 @source "../../../../packages/server-benefits/src/adapters/people-payroll-final-owner-projections.ts";
-@source "../../../../packages/server-benefits/src/adapters/plan.ts";
 @source "../../../../packages/server-benefits/src/adapters/presentation.ts";
 @source "../../../../packages/server-benefits/src/adapters/purchases.ts";
 @source "../../../../packages/server-benefits/src/adapters/record-purchases.ts";
 @source "../../../../packages/server-benefits/src/application/benefits.ts";
-@source "../../../../packages/server-benefits/src/application/plan.ts";
 @source "../../../../packages/server-benefits/src/domain/benefits.ts";
-@source "../../../../packages/server-benefits/src/domain/plan.ts";
 @source "../../../../packages/server-benefits/src/public/attachment-purchases.ts";
 @source "../../../../packages/server-benefits/src/public/attachment-read.ts";
 @source "../../../../packages/server-benefits/src/public/attachments-sensitive-facts.ts";

@@ -3444,11 +3444,7 @@
         {
           "id": "plan-create",
           "migration": "clean",
-          "source": [
-            "packages/server-benefits/src/domain/plan.ts",
-            "packages/server-benefits/src/application/plan.ts",
-            "packages/server-benefits/src/adapters/plan.ts"
-          ],
+          "source": [],
           "regression": [
             "tests/unit/shared.architecture/owner-command-applications.test.ts"
           ]
