@@ -83,3 +83,11 @@ path = "../../tests/integration/people_payroll/rust-staff-people-postgres.test.r
 [[test]]
 name = "workflow_projection_source_postgres"
 path = "../../tests/integration/people_payroll/rust-workflow-projection-source-postgres.test.rs"
+
+[[test]]
+name = "workforce"
+path = "../../tests/unit/people_payroll/rust-workforce.test.rs"
+
+[[test]]
+name = "workforce_postgres"
+path = "../../tests/integration/people_payroll/rust-workforce-postgres.test.rs"
