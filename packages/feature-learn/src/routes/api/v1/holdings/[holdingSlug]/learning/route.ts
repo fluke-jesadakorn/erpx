@@ -6,7 +6,6 @@ import {
   changeLearningAssignment,
   changeLearningCourse,
   createLearningAssignment,
-  createLearningCourse,
   learningAssignmentDetail,
   learningWorkspace,
 } from "@erpx/server-learning/public/learning";
@@ -64,12 +63,16 @@ export async function POST(r: Request, c: C) {
         "NATIVE_LEARNING_UNAVAILABLE",
         "The native Learning command is unavailable.",
       );
+    if (!native && input.entity === "course" && typeof input.id !== "string")
+      throw new ApiError(
+        503,
+        "NATIVE_LEARNING_UNAVAILABLE",
+        "The native Learning course command is unavailable.",
+      );
     const data =
       result ??
       (input.entity==="certificate"?await revokeLearningCertificate(a,input.id,certificateRevocationSchema.parse({expectedAssignmentVersion:input.expectedAssignmentVersion,reason:input.reason}),key):input.entity === "course"
-        ? typeof input.id === "string"
-          ? await changeLearningCourse(a, input.id, input, key)
-          : await createLearningCourse(a, input, key)
+        ? await changeLearningCourse(a, String(input.id), input, key)
         : typeof input.id === "string"
           ? await changeLearningAssignment(a, input.id, input, key)
           : await createLearningAssignment(a, input, key));

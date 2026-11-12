@@ -1,13 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { createLearningCourseApplication, type LearningCourseInputPorts } from "@erpx/server-learning/application/course";
 import { createTalentRequisitionApplication, type TalentRequisitionInputPorts } from "@erpx/server-talent/application/requisition";
 import { createUsagePeriodApplication } from "@erpx/server-commercial/application/usage";
 import { platformUsageItems, type UsageItem } from "@erpx/server-commercial/domain/usage";
 import { agentSourceAllowed } from "@erpx/server-agent/domain/source-policy";
 
-const course = { title: "Safety course", description: "Workplace safety training", provider: "Provider", durationMinutes: 120 };
 const requisition = { jobTitle: "Engineer", openings: 2, targetStartDate: "2026-10-31", description: "Maintain the company service" };
-type Command = Parameters<LearningCourseInputPorts["persist"]>[0] | Parameters<TalentRequisitionInputPorts["persist"]>[0];
+type Command = Parameters<TalentRequisitionInputPorts["persist"]>[0];
 function fixture() {
   const calls: string[] = [];
   const commands: Command[] = [];
@@ -21,13 +19,6 @@ function fixture() {
 }
 
 describe("owner draft commands without PostgreSQL", () => {
-  test("Learning validates course duration and emits the original draft result", async () => {
-    const f = fixture();
-    await expect(createLearningCourseApplication(f.ports)({ ...course, durationMinutes: 0 }, "key-123456")).rejects.toThrow();
-    expect(f.commands).toEqual([]);
-    expect(await createLearningCourseApplication(f.ports)(course, "key-123456")).toEqual({ id: "learning-course-key-123456", status: "draft", version: 1 });
-    expect(f.commands[0]).toMatchObject({ operation: "learning.course.create", now: 42, input: course });
-  });
   test("Talent requires Branch scope before receipt lookup and persists a reviewable requisition", async () => {
     const f = fixture();
     f.ports.branchId = null;
@@ -40,11 +31,11 @@ describe("owner draft commands without PostgreSQL", () => {
   test("permission failures and replay do not persist a second draft", async () => {
     const f = fixture();
     f.ports.authorize = async () => { throw new Error("authority revoked"); };
-    await expect(createLearningCourseApplication(f.ports)(course, "key-123456")).rejects.toThrow("authority revoked");
+    await expect(createTalentRequisitionApplication(f.ports)(requisition, "key-123456")).rejects.toThrow("authority revoked");
     expect(f.commands).toEqual([]);
     f.ports.authorize = async () => {};
-    f.ports.replay = async () => ({ id: "original-course", status: "draft", version: 1 });
-    expect(await createLearningCourseApplication(f.ports)(course, "key-123456")).toMatchObject({ id: "original-course" });
+    f.ports.replay = async () => ({ id: "original-requisition", status: "draft", version: 1 });
+    expect(await createTalentRequisitionApplication(f.ports)(requisition, "key-123456")).toMatchObject({ id: "original-requisition" });
     expect(f.commands).toEqual([]);
   });
 });

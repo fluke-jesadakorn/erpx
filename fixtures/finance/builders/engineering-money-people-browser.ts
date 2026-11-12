@@ -1,5 +1,6 @@
 /** Fictional companies for actual owner commands through normal browser authentication. */
 import {randomBytes,randomUUID} from 'node:crypto';
+import {createCourseSeed} from '../../../tests/support/helpers/learning-courses';
 import {chmod,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {hashPassword} from 'better-auth/crypto';
@@ -16,7 +17,7 @@ import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-fin
 import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import {createPayGroup,payGroupSchema} from "@erpx/server-people_payroll/public/people-payroll";
 import {createTalentRequisition,createTalentCandidate,createTalentApplication,createTalentProposal,createTalentOffer,changeTalentRecord,talentDetail} from "@erpx/server-talent/public/talent";
-import {createLearningCourse,createLearningAssignment,changeLearningCourse} from "@erpx/server-learning/public/learning";
+import {createLearningAssignment,changeLearningCourse} from "@erpx/server-learning/public/learning";
 
 type Input={run:string;directory:string;control:PostgresDatabase;db:PostgresDatabase;files:FileStore;workspaceProducts?:readonly ProductId[]};
 export type EngineeringMoneyPeopleUser={key:string;email:string;userId:string;role:string;assignmentId:string;workspaceBase:string};
@@ -100,7 +101,7 @@ export async function seedEngineeringMoneyPeopleBrowser(input:Input){
   const proposal=await createTalentProposal(talent,{applicationId:app.id,applicationVersion:2,recommendation:'hire',scoreBps:9200,evidence:'Fictional interview panel retained identity and role-fit evidence.'},key());await changeTalentRecord(talentReview,'proposal',String(proposal.id),{action:'accept-proposal',expectedVersion:1,reason:'Independent review of the fictional panel recommendation'},key());await changeTalentRecord(talent,'application',String(app.id),{action:'select',expectedVersion:2,reason:'Accepted independent proposal authorizes offer preparation'},key());
   const offer=await createTalentOffer(talent,{applicationId:app.id,applicationVersion:3,currency:'THB',baseAmount:'36000.00',startDate:'2026-11-01',expiresOn:'2026-11-15',terms:'Fictional monthly compensation and onboarding conditions.'},key());await changeTalentRecord(talentReview,'offer',String(offer.id),{action:'approve-offer',expectedVersion:1,reason:'Independent fictional compensation review'},key());await changeTalentRecord(talent,'offer',String(offer.id),{action:'send',expectedVersion:2,reason:'Reviewed offer delivered to the fictional candidate'},key());await changeTalentRecord(talent,'offer',String(offer.id),{action:'accept-offer',expectedVersion:3,reason:'Fictional candidate acceptance recorded against reviewed offer',acceptanceEvidence:'Signed synthetic offer reference ENGINEERING-HIRE-1'},key());
   const handoff=(await talentDetail(talent,String(app.id))).handoff!;
-  const course=await createLearningCourse(academy,{title:`${project} Synthetic qualification`,description:'Fictional safety training prerequisite for the benefit election.',provider:'Synthetic academy fixture',durationMinutes:60,requiredFor:'equipment_operator'},key());await changeLearningCourse(academyReview,String(course.id),{action:'publish',expectedVersion:1,reason:'Independent course content and eligibility review'},key());
+  const course=await createCourseSeed(input.db,academy,{title:`${project} Synthetic qualification`,description:'Fictional safety training prerequisite for the benefit election.',provider:'Synthetic academy fixture',durationMinutes:60,requiredFor:'equipment_operator'},key());await changeLearningCourse(academyReview,String(course.id),{action:'publish',expectedVersion:1,reason:'Independent course content and eligibility review'},key());
   const assignment=await createLearningAssignment(academy,{courseId:course.id,courseVersion:2,learnerId:learner.userId,dueDate:'2026-12-31',reason:'Fictional learner must qualify before electing the benefit'},key());
   const planId=`benefit-plan-${key()}`,windowId=`benefit-window-${key()}`,benefitNow=Date.now();
   // Benefits plan/window rows are seeded as published owner facts. The native

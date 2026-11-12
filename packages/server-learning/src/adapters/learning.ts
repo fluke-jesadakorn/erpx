@@ -73,7 +73,6 @@ export function nativeLearningWorkspace(source: DatabaseSource) {
  return async(a:WorkContext,personal=false)=>{access(a);return withLearningPurchasedRead(await database(),a,async write=>{const purchases=await requireLearningPurchasedRead(write,a);return {...await workspace(async()=>write,purchases)(a,personal),...(purchases?{purchases}:{})};});};
 }
 export async function learningWorkspace(a: WorkContext, personal = false) { return nativeLearningWorkspace(lazyDatabase(a))(a, personal); }
-export { createLearningCourse } from "@erpx/server-learning/adapters/course";
 function learningCourseChanges(source: DatabaseSource) {
  const database = databaseSource(source); return createChangeLearningCourse({ ...commandPorts(database),
  async course(a,id) { const write = await database(); return await write
