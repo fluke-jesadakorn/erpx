@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1101,
+    "revision": 1107,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -25734,26 +25734,477 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "nextAction": "Migrate the 34 consumers and delete the journal writers; measure retirement:ts-writes.",
+        "status": "migrated",
+        "nextAction": "Journal create/post/reverse are native-only and the TS writers are deleted; finance KPI 380 -> 376 at 56326d72c; 376 residual writes classified under retire.finance.finance.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": {
-          "runId": "run-20261112-s",
-          "agentId": "worker-finance",
-          "claimedAt": "2026-11-12T16:12:35.696Z",
-          "heartbeatAt": "2026-11-12T17:52:32.057Z",
-          "expiresAt": "2026-11-12T18:22:32.057Z",
-          "generation": 44
-        },
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "56326d72ca6ed4d17459ae298f649dc951d9acc5",
+        "lastPushedSha": "56326d72ca6ed4d17459ae298f649dc951d9acc5",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-finance/src",
+            "result": "passed",
+            "before": 380,
+            "after": 376,
+            "sourceSha": "56326d72ca6ed4d17459ae298f649dc951d9acc5",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-finance/src/adapters/finance.ts",
+                "writes": 49,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-ai.ts",
+                "writes": 18,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-payment-repository.ts",
+                "writes": 17,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-register.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-consolidation.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-accruals.ts",
+                "writes": 12,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-core-facts.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-instruments.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-asset-policies.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/refunds.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-ownership.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-assets.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-facts.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding-remittance.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-business-contracts.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-bank-automation.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-reporting.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-billing-corrections.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-command-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-thai-documents.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-books.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/company-money.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-native-effects.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/customer-authority-changes.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-starter.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-manual-drafts.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-engines.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-collections.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-identities.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany-pairs.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-due-drafts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-planning.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-owned-reversal.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-editions.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-book-adjustments.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/purchase-boundary.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-import-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-owner-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/journal-planning.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/hospitality-tax-documents.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/accounting-profiles.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supply-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-payment-corrections.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-bill-draft-void.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales-customer-receipts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/refund-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-startup-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-daily-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-remittance-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-other-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-other-bank-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/manufacturing-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/journal-reversal-money.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/hospitality-accounting.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-invoice-lines.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-expansion-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-company-tools.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/document-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/customer-receipt-issue.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-return-accounting-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/assets-posting-prerequisites.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/assets-financial-unit.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Port this file's remaining writer(s) to their native owner port with receipt/audit/outbox, then delete the TS statements and exports once no TS caller remains."
+              }
+            ]
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --locked",
+            "result": "passed",
+            "sourceSha": "56326d72ca6ed4d17459ae298f649dc951d9acc5",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles without the journal writers."
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --test journal_review_postgres --locked",
+            "result": "passed",
+            "sourceSha": "56326d72ca6ed4d17459ae298f649dc951d9acc5",
+            "sourceKind": "committed",
+            "note": "21/21 native journal review cases incl. independent approval, reversal authority, opening reversal, source/FX/dimension guards."
+          },
+          {
+            "command": "bun run --filter '@erpx/server-finance' typecheck",
+            "result": "passed",
+            "sourceSha": "56326d72ca6ed4d17459ae298f649dc951d9acc5",
+            "sourceKind": "committed",
+            "note": "exit 0"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "handoff": null
+        "handoff": {
+          "runId": "run-20261112-s",
+          "agentId": "worker-finance",
+          "at": "2026-11-12T18:10:39.986Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: mark migrated with cutover flags."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "retire.shared.dead-effect-writers",
@@ -26527,15 +26978,22 @@
         "resources": [
           "owner:billing"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-s",
+          "agentId": "worker-billing-invoice",
+          "claimedAt": "2026-11-12T18:07:29.369Z",
+          "heartbeatAt": "2026-11-12T18:07:29.369Z",
+          "expiresAt": "2026-11-12T18:37:29.369Z",
+          "generation": 44
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 per-file native counterpart audit; start with target/retry only if the lead records an explicit authority decision, otherwise take billing-attachments/beta-onboarding with their owner ports.",
+        "nextAction": "Retire the platform-route approve/void TS fallback to nativeBillingInvoiceCommand (native authority require_cost_command = platform_admin, matching the retained adminActions contract), delete the TS invoice issue/void cases and their repository writes, move the oracles, and record the billing KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -26549,20 +27007,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 125,
-      "migratedPackets": 60,
+      "migratedPackets": 61,
       "statusCounts": {
-        "pending": 30,
+        "pending": 29,
         "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 60,
+        "migrated": 61,
         "blocked": 20,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T18:05:38.152Z",
+    "updatedAt": "2026-11-12T18:10:40.046Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
