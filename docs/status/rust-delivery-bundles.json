@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 758,
+    "revision": 760,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -18610,17 +18610,24 @@
           "tests/integration/assets/**",
           "tests/unit/shared.business-contracts/**",
           "tests/integration/support/**",
-          "tests/integration/finance/**",
           "tests/integration/maintenance/**",
           "tests/integration/shared.executive/**",
+          "tests/integration/finance/**",
           "tests/support/helpers/**",
           "fixtures/**"
         ],
         "resources": [
           "owner:assets"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-l",
+          "agentId": "worker-assets",
+          "claimedAt": "2026-11-12T08:38:37.607Z",
+          "heartbeatAt": "2026-11-12T08:38:37.607Z",
+          "expiresAt": "2026-11-12T09:08:37.607Z",
+          "generation": 37
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -18777,8 +18784,8 @@
       "totalPackets": 71,
       "migratedPackets": 33,
       "statusCounts": {
-        "pending": 12,
-        "in_progress": 1,
+        "pending": 11,
+        "in_progress": 2,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 33,
@@ -18788,7 +18795,7 @@
       }
     },
     "lastCoordinatorGeneration": 37,
-    "updatedAt": "2026-11-12T08:37:28.335Z",
+    "updatedAt": "2026-11-12T08:38:37.607Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
