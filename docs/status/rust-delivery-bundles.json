@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1255,
+    "revision": 1258,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-c",
       "agentId": "lead",
       "startedAt": "2026-11-12T21:18:48.018Z",
-      "heartbeatAt": "2026-11-12T21:41:24.865Z",
-      "expiresAt": "2026-11-12T22:11:24.865Z",
+      "heartbeatAt": "2026-11-12T21:44:13.174Z",
+      "expiresAt": "2026-11-12T22:14:13.174Z",
       "generation": 47,
       "tokenHash": "91a1002fa2a1a47f0b2fca58abc16158516e2acc4bf018d2c5fa1d969162a3a1"
     },
@@ -22536,8 +22536,8 @@
           "runId": "run-20261113-c",
           "agentId": "worker-workflow-retire",
           "claimedAt": "2026-11-12T21:38:26.941Z",
-          "heartbeatAt": "2026-11-12T21:41:24.865Z",
-          "expiresAt": "2026-11-12T22:11:24.865Z",
+          "heartbeatAt": "2026-11-12T21:44:13.174Z",
+          "expiresAt": "2026-11-12T22:14:13.174Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29451,8 +29451,8 @@
           "runId": "run-20261113-c",
           "agentId": "lead",
           "claimedAt": "2026-11-12T21:18:59.466Z",
-          "heartbeatAt": "2026-11-12T21:41:24.865Z",
-          "expiresAt": "2026-11-12T22:11:24.865Z",
+          "heartbeatAt": "2026-11-12T21:44:13.174Z",
+          "expiresAt": "2026-11-12T22:14:13.174Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29469,7 +29469,7 @@
           "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
           "nextAction": "Implement the collaboration-side native draft/publish/edit/report/upload commands with Rust unit+PG tests, then hand off the three caller switches (operations caller waits for its active claim to release)."
         },
-        "nextAction": "ReportPost, SavePostDraft/UpdateDraft, PublishDraft and EditPost/RetractPost are native and pushed at 509594db9 (unit 11/11, PG 7/7, HTTP 3/3). Remaining: upload-discard intake, then switch manage_erpx/pms/operations callers, delete the TS social-home writer and record Collaboration KPI before/after.",
+        "nextAction": "ReportPost, SavePostDraft/UpdateDraft, PublishDraft and EditPost/RetractPost are native at 509594db9. Upload-discard is BLOCKED on a native Files owner port: the TS cancel commands update attachments/upload_intents with owner_type='social_draft', and the collaboration crate has no Files dependency; removalTaskId=migrate.files.social-upload-discard-port. After that port and the four upload commands, switch manage_erpx/pms/operations callers and delete the TS social-home writer.",
         "scopeRefinementRequired": false
       },
       {
@@ -29516,8 +29516,8 @@
           "runId": "run-20261113-c",
           "agentId": "worker-ca-access-duplicates",
           "claimedAt": "2026-11-12T21:23:12.405Z",
-          "heartbeatAt": "2026-11-12T21:41:24.865Z",
-          "expiresAt": "2026-11-12T22:11:24.865Z",
+          "heartbeatAt": "2026-11-12T21:44:13.174Z",
+          "expiresAt": "2026-11-12T22:14:13.174Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29531,6 +29531,49 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "files",
+        "workflowIds": [
+          "files/social-draft-uploads"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "migrate.files.social-upload-discard-port",
+        "title": "Native Files port for social draft upload revoke/expire",
+        "scope": "The remaining social-home upload-discard commands need two Files-owned effects that the collaboration crate cannot perform without crossing owner boundaries: UPDATE attachments SET revoked_at WHERE owner_type='social_draft' AND owner_id=? AND revoked_at IS NULL, and UPDATE upload_intents SET status='expired' WHERE owner_type='social_draft' AND owner_id=? AND status='ready'. Add a native Files public function/port for those two effects on the caller's retained connection, expose it through the Files public boundary, and wire it into the collaboration cancel-campaign unit (composition) so the collaboration adapter never writes Files-owned tables. Then implement Change::CreateCommentUploadDraft/CancelCommentUploadDraft/CreatePostEditUploadDraft/CancelPostEditUploadDraft in the collaboration crate and add unit+PG tests. Completion: the four upload commands are native, the TS revoke/expire SQL is gone, and the social-home caller switch can proceed.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-collaboration/src/**",
+          "packages/server-files/Cargo.toml",
+          "packages/server-files/package.json",
+          "src/composition/src/**",
+          "tests/unit/files/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/files/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:files",
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Add the native Files revoke/expire-draft-uploads port, wire it into the collaboration upload-cancel unit, then implement the four native social upload commands with Rust unit+PG tests.",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -29539,10 +29582,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 140,
+      "totalPackets": 141,
       "migratedPackets": 73,
       "statusCounts": {
-        "pending": 24,
+        "pending": 25,
         "in_progress": 6,
         "ready_for_integration": 10,
         "integrating": 0,
@@ -29553,7 +29596,7 @@
       }
     },
     "lastCoordinatorGeneration": 47,
-    "updatedAt": "2026-11-12T21:41:24.905Z",
+    "updatedAt": "2026-11-12T21:44:13.205Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
