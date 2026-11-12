@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 825,
+    "revision": 829,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -20978,15 +20978,103 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "in_progress",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "9ac3adfa0d743498e3c57a3938cbb1c5a5aea1f9",
+        "lastPushedSha": "9ac3adfa0d743498e3c57a3938cbb1c5a5aea1f9",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9ac3adfa0d743498e3c57a3938cbb1c5a5aea1f9",
+            "before": 29,
+            "after": 26,
+            "residual": [
+              {
+                "path": "packages/server-operations/src/adapters/routines.ts",
+                "writes": 12,
+                "removalTaskId": "migrate.operations.routines-native",
+                "removalCondition": "Native routine command module is mounted and the workplace routine routes fail closed; delete the TS routine stubs and fences."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/work-routine-purchases.ts",
+                "writes": 5,
+                "removalTaskId": "migrate.operations.routines-native",
+                "removalCondition": "Removed with the TS routine run/generate command fence after native routine mount."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/staff-tasks.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Native beta social task create replaces saveTask, then delete the writer/export."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/work-task-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the fenced TS task commands."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/task-attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the TS attachment purchase fences."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/work-task-alert-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the fenced task alert command."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/task-attachment-read.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the TS task file read path."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/workflow-approval-effects.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Native approval reroute owns the task revision bump; delete with the staff-work retirement."
+              }
+            ]
+          },
+          {
+            "command": "bun run test:unit -- --suite=operations.services.unit",
+            "result": "passed",
+            "sourceSha": "9ac3adfa0d743498e3c57a3938cbb1c5a5aea1f9"
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.handover.integration",
+            "result": "passed",
+            "sourceSha": "9ac3adfa0d743498e3c57a3938cbb1c5a5aea1f9"
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.work-task-files.integration",
+            "result": "passed",
+            "sourceSha": "9ac3adfa0d743498e3c57a3938cbb1c5a5aea1f9"
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.work.work-review.integration",
+            "result": "passed",
+            "sourceSha": "9ac3adfa0d743498e3c57a3938cbb1c5a5aea1f9"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "9ac3adfa0d743498e3c57a3938cbb1c5a5aea1f9"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "9ac3adfa0d743498e3c57a3938cbb1c5a5aea1f9"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete transitionTask/delegateTask adapters/application/exports; replace test calls with owner-row staff_tasks/event updates preserving state/version/delegation fields; KPI 29->25; typecheck/catalogue/affected suites; push.",
+        "nextAction": "Deleted transitionTask/delegateTask TS writers/application/exports; native staff route authoritative; tests seed owner rows; KPI 29->26 with 26 residual classification; pushed 9ac3adfa0.",
         "handoff": {
           "runId": "run-20261112-n",
           "agentId": "worker-operations",
@@ -21015,20 +21103,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 96,
-      "migratedPackets": 37,
+      "migratedPackets": 38,
       "statusCounts": {
         "pending": 30,
-        "in_progress": 4,
+        "in_progress": 3,
         "ready_for_integration": 11,
         "integrating": 0,
-        "migrated": 37,
+        "migrated": 38,
         "blocked": 14,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 40,
-    "updatedAt": "2026-11-12T10:52:12.184Z",
+    "updatedAt": "2026-11-12T10:58:38.508Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
