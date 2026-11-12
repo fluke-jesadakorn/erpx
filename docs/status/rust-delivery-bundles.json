@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 979,
+    "revision": 980,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -22275,7 +22275,7 @@
           "owner:finance"
         ],
         "status": "blocked",
-        "nextAction": "STEP 1 IN PROGRESS: 11 of 31 finance journal consumers fully migrated to tests/support/helpers/finance-journal-seed.ts; bank-automation partially migrated. Evidence: finance.reporting 6/6, expansion-rehearsal 1/1, money-people attachments 46/46, executive project-cost 1/1, record-details 6/6, operations-attachments 8/8, planning 10/10, group-editions 14/14, thai-accounting-foundation 13/13, bank-automation 16/16. Remaining: finance-opening-balances/manual-drafts/books/close-fixture oracles need native HTTP porting; pms opening; commerce/payroll forged-source cases; remaining assets/inventory/sales/shared setup; browser-simulation. Then route switch + delete createJournal/postJournal/reverseJournal (finance 381 -> 376).",
+        "nextAction": "STEP 1 IN PROGRESS: 12 of 31 finance journal consumers fully migrated to tests/support/helpers/finance-journal-seed.ts (3 fixture builders, attachments owner helper, projects cost-source, executive Project-cost, record-details, operations-attachments, planning, group-editions, thai-accounting-foundation, bank-automation). Evidence: reporting 6/6, expansion-rehearsal 1/1, money-people attachments 46/46, project-cost 1/1, record-details 6/6, operations-attachments 8/8, planning 10/10, group-editions 14/14, thai-foundation 13/13, bank-automation 16/16. Remaining: opening-balances/manual-drafts/books/close-fixture oracles need native HTTP porting; pms opening; commerce/payroll forged-source cases; remaining assets/inventory/sales/shared setup; browser-simulation. Then route switch + delete createJournal/postJournal/reverseJournal (finance 381 -> 376).",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
@@ -23930,7 +23930,7 @@
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T14:30:25.804Z",
+    "updatedAt": "2026-11-12T14:32:36.664Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
