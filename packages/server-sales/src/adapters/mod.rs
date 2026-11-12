@@ -11,4 +11,6 @@ pub(crate) mod sales_notification_email;
 pub(crate) mod sales_notification_observation;
 pub(crate) mod sales_notification_reconciliation;
 pub(crate) mod sales_notification_reconciliation_http;
+pub(crate) mod followups;
+pub(crate) mod followups_http;
 pub(crate) mod sales_notification_execution;

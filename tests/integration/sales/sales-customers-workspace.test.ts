@@ -4,7 +4,6 @@ import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expe
 import {orderSchema,saveMaster,saveOrder,commercePage} from '@erpx/server-commerce/public/commerce';
 import { customerWorkspaceDirectory, customerWorkspaceProfile, salesToday, customerReviewCounts } from "@erpx/server-sales/public/sales-customers";
 import { customerTimeline } from "@erpx/server-customer_360/public/customer-timeline";
-import { createCustomerFollowup } from "@erpx/server-sales/public/customer-followups";
 import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
 import * as crm from "@erpx/server-crm/public/crm";
 import { editedCustomerParty } from "@erpx/server-finance/public/document-posting-preview";
@@ -20,6 +19,16 @@ beforeEach(async () => {
   order = String((await saveOrder(f.owner, null, orderSchema.parse({ kind: "sales", partyId: customer, warehouseId: warehouse.id, orderDate: "2026-09-20", dueDate: "2026-09-25", lines: [{ productId: product.id, quantity: "1", price: "10", taxBps: 0 }] }), key())).id);
 });
 afterEach(() => { vi.restoreAllMocks(); });
+/** Commands are native-only; seed the exact owner rows they persist. */
+async function seedFollowup(ownerId: string, dueDate: string, nextAction: string) {
+  const id = `followup-${key()}`, now = Date.now();
+  await db.batch([
+    db.prepare('INSERT INTO customer_followups(id,company_id,order_id,owner_id,due_date,next_action,status,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,\'open\',1,?,?,?)').bind(id, f.company, order, ownerId, dueDate, nextAction, f.owner.userId, now, now),
+    db.prepare("INSERT INTO customer_followup_events(id,followup_id,version,action,actor_id,owner_id,due_date,reason,created_at) VALUES(?,?,1,'create',?,?,?,?,?)").bind(`followup-event-${id}`, id, f.owner.userId, ownerId, dueDate, nextAction, now),
+  ]);
+  return { id };
+}
+
 it("reads customers without source documents without expanding the timeline API", async () => {
   expect(await editedCustomerParty(f.owner, customer, db)).toMatchObject({ id: customer, kind: "customer", person_id: null });
   expect(await editedCustomerParty({ ...f.owner, companyId: "other" }, customer, db)).toBeNull();
@@ -33,7 +42,7 @@ it("reads customers without source documents without expanding the timeline API"
   expect((await customerWorkspaceDirectory({ ...f.owner, companyId: "other" }, {})).items).toEqual([]);
 });
 it("keeps summary evidence scoped and represents missing service access as restricted", async () => {
-  await createCustomerFollowup(f.owner, { orderId: order, expectedVersion: 1, ownerId: f.owner.userId, dueDate: "2026-09-22", nextAction: "Call Harbor buyer" }, key());
+  await seedFollowup(f.owner.userId, "2026-09-22", "Call Harbor buyer");
   await seedSupportTicket(db, f.owner, { orderId: order, title: "Install Harbor item", issue: "Customer needs installation assistance", ownerId: f.owner.userId, dueDate: "2026-09-24" });
   const visible = (await customerWorkspaceDirectory(f.owner, { q: "Harbor" })).items[0];
   expect(visible.summary).toMatchObject({ openOrders: 1, openSupport: 1, nextFollowup: { action: "Call Harbor buyer" } });
@@ -53,8 +62,8 @@ it("filters customer and document lists before pagination", async () => {
 });
 it("puts overdue personal work first and reports source failure without a false empty total", async () => {
   f.head.role = "sales_operator"; f.head.branchId = null; f.head.departmentId = null; f.head.assignmentId = await f.grant(f.head, "sales_operator");
-  const own = await createCustomerFollowup(f.owner, { orderId: order, expectedVersion: 1, ownerId: f.owner.userId, dueDate: "2026-09-21", nextAction: "Earlier personal task" }, key());
-  const other = await createCustomerFollowup(f.owner, { orderId: order, expectedVersion: 1, ownerId: f.head.userId, dueDate: "2026-09-23", nextAction: "Team task" }, key());
+  const own = await seedFollowup(f.owner.userId, "2026-09-21", "Earlier personal task");
+  const other = await seedFollowup(f.head.userId, "2026-09-23", "Team task");
   const mine = await salesToday(f.head, { kind: "followups" });
   expect(mine.items.map(item => item.id)).toEqual([other.id]);
   const team = await salesToday(f.owner, { kind: "followups", owner: "team" });

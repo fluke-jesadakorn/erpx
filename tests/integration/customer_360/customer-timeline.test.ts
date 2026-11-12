@@ -5,7 +5,6 @@ import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/com
 import {createCRMLead,changeCRMLead,getCRMLead} from "@erpx/server-crm/public/crm";
 import {changeCRMIdentity} from "@erpx/server-crm/public/crm-identities";
 import {createCustomerNote,changeCustomerNote} from "@erpx/server-sales/public/customer-notes";
-import {createCustomerFollowup,changeCustomerFollowup} from "@erpx/server-sales/public/customer-followups";
 import {customerDirectory,customerTimeline,customerTimelineEvents} from "@erpx/server-customer_360/public/customer-timeline";
 import {withNativeFieldFixture} from '../../support/files/field-files-native-parity';
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
@@ -22,8 +21,15 @@ it('federates actual CRM, notes and follow-up source events without copying priv
  const note=await createCustomerNote(f.owner,{orderId:order,expectedVersion:1,channel:'phone',occurredAt:Date.now(),body:'PRIVATE_NOTE_CONTENT'},key());
  await changeCustomerNote(f.owner,String(note.id),{action:'correct',expectedVersion:1,body:'CORRECTED_PRIVATE_NOTE',reason:'PRIVATE_CORRECTION'},key());
  await changeCustomerNote(f.owner,String(note.id),{action:'archive',expectedVersion:2,reason:'PRIVATE_ARCHIVE_REASON'},key());
- const follow=await createCustomerFollowup(f.owner,{orderId:order,expectedVersion:1,ownerId:f.owner.userId,dueDate:'2026-09-23',nextAction:'PRIVATE_FOLLOWUP'},key());
- await changeCustomerFollowup(f.owner,String(follow.id),{action:'complete',expectedVersion:1,reason:'PRIVATE_OUTCOME'},key());
+ // Follow-up commands are native-only; the timeline oracle seeds the exact
+ // owner rows (follow-up, immutable events and notification) those commands persist.
+ const follow={id:`followup-${key()}`},followNow=Date.now();
+ await db.batch([
+  db.prepare('INSERT INTO customer_followups(id,company_id,order_id,owner_id,due_date,next_action,status,outcome,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,2,?,?,?)').bind(follow.id,f.company,order,f.owner.userId,'2026-09-23','PRIVATE_FOLLOWUP','completed','PRIVATE_OUTCOME',f.owner.userId,followNow,followNow),
+  db.prepare("INSERT INTO customer_followup_events(id,followup_id,version,action,actor_id,owner_id,due_date,reason,created_at) VALUES(?,?,1,'create',?,?,?,?,?)").bind(`followup-event-${follow.id}-1`,follow.id,f.owner.userId,f.owner.userId,'2026-09-23','PRIVATE_FOLLOWUP',followNow),
+  db.prepare("INSERT INTO customer_followup_events(id,followup_id,version,action,actor_id,owner_id,due_date,reason,created_at) VALUES(?,?,2,'complete',?,?,?,?,?)").bind(`followup-event-${follow.id}-2`,follow.id,f.owner.userId,f.owner.userId,'2026-09-23','PRIVATE_OUTCOME',followNow+1),
+  db.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,'customer_followup',?,2,'Customer follow-up outcome recorded',?)").bind(`followup-notice-${follow.id}`,f.company,f.owner.userId,follow.id,followNow+1),
+ ]);
  const data=await customerTimeline(f.owner,customer);
  expect(data.items).toHaveLength(8);
  expect(new Set(data.items.map(x=>x.source_type))).toEqual(new Set(['order','contact','followup','crm']));

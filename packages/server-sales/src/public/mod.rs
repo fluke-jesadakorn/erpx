@@ -1,4 +1,5 @@
 //! The Sales owner's supported Rust interface.
+pub mod customer_followup_commands;
 pub mod sales_documents;
 pub mod commerce_order_price_guard;
 pub mod commerce_selected_pricing;

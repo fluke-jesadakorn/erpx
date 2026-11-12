@@ -1,6 +1,6 @@
 import {afterEach,describe,expect,test} from 'vitest';
 import {createPriceListApplication,type PriceListRepository,type PriceListMutation} from "@erpx/server-sales/application/price-lists";
-import {createFollowupApplication,type FollowupRepository,type FollowupMutation} from "@erpx/server-sales/application/followups";
+import {createFollowupApplication,type FollowupRepository} from "@erpx/server-sales/application/followups";
 import {createCustomerNoteApplication,type CustomerNoteRepository} from "@erpx/server-sales/application/notes";
 import {createSalesCustomerApplication,type SalesCustomerRepository} from "@erpx/server-sales/application/customers";
 import {createCustomerNotificationApplication,type CustomerNotificationRepository,type CustomerNotificationMutation} from "@erpx/server-sales/application/notifications";
@@ -32,14 +32,10 @@ describe('Sales price-list semantic ports',()=>{
  });
 });
 function followupFixture(overrides:Partial<FollowupRepository>={}){
- const mutations:FollowupMutation[]=[];const repository:FollowupRepository={async rows(){return [{id:'followup',order_id:'order',owner_id:'assigned',owner_eligible:1,status:'open',due_date:'2026-10-06'}];},async evidence(){return null;},async recipients(){return [];},async history(){return [];},async order(){return {id:'order',kind:'sales',branch_id:'branch',department_id:null};},async replay(){return null;},async commit(m){mutations.push(m);return m.result;},...overrides};
- const ports={actorId:'manager',canRead:true,canSell:true,canManage:true,authorize(){},clock:{now:()=>42},async repository(){return repository;}};return {repository,ports,mutations,app:createFollowupApplication(ports)};
+ const repository:FollowupRepository={async rows(){return [{id:'followup',order_id:'order',owner_id:'assigned',owner_eligible:1,status:'open',due_date:'2026-10-06'}];},async evidence(){return null;},async recipients(){return [];},async history(){return [];},async order(){return {id:'order',kind:'sales',branch_id:'branch',department_id:null};},...overrides};
+ const ports={actorId:'manager',canRead:true,canSell:true,canManage:true,authorize(){},clock:{now:()=>42},async repository(){return repository;}};return {repository,ports,app:createFollowupApplication(ports)};
 }
 describe('Sales follow-up and note semantics',()=>{
- test('a sales manager can reassign but cannot complete another assigned owner contact',async()=>{
-  const f=followupFixture();await expect(f.app.change('followup',{action:'complete',expectedVersion:1,reason:'Customer contacted'},'key')).rejects.toMatchObject({code:'CUSTOMER_FOLLOWUP_OWNER_REQUIRED'});
-  await f.app.change('followup',{action:'reassign',expectedVersion:1,ownerId:'replacement',dueDate:'2026-10-08',reason:'Current owner is unavailable'},'other');expect(f.mutations[0]).toMatchObject({owner:'replacement',due:'2026-10-08',status:'open'});
- });
  test('revoked recipient facts make work wait for reassignment',async()=>{
   const f=followupFixture({async rows(){return [{id:'followup',owner_id:'manager',owner_eligible:0,status:'open',due_date:'2026-10-06',updated_at:42}];}});
   expect(await f.app.work()).toEqual([expect.objectContaining({canAct:false,queue:'waiting',blocker:'Assigned owner is no longer eligible; a sales manager must reassign with a reason'})]);
