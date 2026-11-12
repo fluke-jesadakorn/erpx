@@ -78,7 +78,8 @@
     "./routes/api/v1/holdings/[holdingSlug]/pos/startup/route": "./src/routes/api/v1/holdings/[holdingSlug]/pos/startup/route.ts",
     "./routes/api/pos/stripe/webhook/route": "./src/routes/api/pos/stripe/webhook/route.ts",
     "./routes/holdings/[holdingSlug]/pos/approvals/shifts/page": "./src/routes/holdings/[holdingSlug]/pos/approvals/shifts/page.tsx",
-    "./routes/holdings/[holdingSlug]/pos/receipts/page": "./src/routes/holdings/[holdingSlug]/pos/receipts/page.tsx"
+    "./routes/holdings/[holdingSlug]/pos/receipts/page": "./src/routes/holdings/[holdingSlug]/pos/receipts/page.tsx",
+    "./adapters/server/native-pos-workspace": "./src/adapters/server/native-pos-workspace.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -134,7 +134,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 const reserved = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 
-function configuration(raw: NativePosCashConfiguration) {
+export function resolveNativePosCashConfiguration(raw: NativePosCashConfiguration) {
   let base: URL;
   try {
     base = new URL(raw.privateBaseUrl);
@@ -219,7 +219,7 @@ function body(value: string): NativePosCashBody {
 
 function transportCall(
   transport: NativePosCashTransport,
-  config: ReturnType<typeof configuration>,
+  config: ReturnType<typeof resolveNativePosCashConfiguration>,
   incoming: Pick<Headers, 'get'>,
   actor: NativePosCashActor,
   key: string,
@@ -448,7 +448,7 @@ export function nativePosCashConfiguration(raw: string): NativePosCashConfigurat
 
 function commandTransportCall(
   transport: NativePosCashTransport,
-  config: ReturnType<typeof configuration>,
+  config: ReturnType<typeof resolveNativePosCashConfiguration>,
   incoming: Pick<Headers, 'get'>,
   actor: NativePosCashActor,
   operation: string,
@@ -545,7 +545,7 @@ export function createNativePosCashClient(
   raw: NativePosCashConfiguration,
   transport: NativePosCashTransport = directHttp,
 ) {
-  const config = configuration(raw);
+  const config = resolveNativePosCashConfiguration(raw);
   const cash = async (
     incoming: Pick<Headers, 'get'>,
     actor: NativePosCashActor,
