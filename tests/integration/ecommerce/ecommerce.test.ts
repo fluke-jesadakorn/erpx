@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {settlementSchema} from '@erpx/server-commerce/public/commerce';
@@ -11,7 +12,7 @@ import {
   key,
 } from "../../support/helpers/expense-fixture";
 import { deliveryEvidence } from "../../support/helpers/delivery-evidence";
-import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,saveMaster,settleInvoice,saveOrder,transitionOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
+import {completeCommerceReturn,decideCommerceReturn,invoiceFulfillment,saveMaster,settleInvoice,saveOrder,transitionOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {importBankStatement,postInvoice} from '@erpx/server-finance/public/finance';
 import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
@@ -78,7 +79,7 @@ it("collects a Sales-backed checkout and completes its reviewed return and bank 
  await changeEcommerce(reviewer,'checkout',checkoutId,approveInput,approveKey);
  await expect(changeEcommerce(reviewer,'checkout',checkoutId,approveInput,approveKey)).resolves.toMatchObject({status:'confirmed',salesOrderVersion:4});
  await assignStock(orderId);
- const order=await getOrder(owner,orderId),delivered=await fulfillOrder(owner,orderId,fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-22',lines:[{lineId:String(order.lines[0].id),quantity:'2',allocations:[{lotId,quantity:'2'}]}],...(await deliveryEvidence(db,owner,orderId))}),key());
+ const order=await getOrder(owner,orderId),delivered=await seedCommerceFulfillment(db, owner,orderId,fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-22',lines:[{lineId:String(order.lines[0].id),quantity:'2',allocations:[{lotId,quantity:'2'}]}],...(await deliveryEvidence(db,owner,orderId))}),key());
  const fulfillmentId=String(delivered.fulfillmentId),goodsJournal=String(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(fulfillmentId).first('journal_id'));
  await assignOwnerStep('journal',goodsJournal,'draft',fixture.manager.userId);await markFinanceJournalPosted(db,goodsJournal,fixture.manager.userId);
  await assignOwnerStep('order',orderId,'invoicing',owner.userId);
@@ -376,7 +377,7 @@ it("fulfills only reserved stock and syncs immutable delivery evidence", async (
   );
   await assignStock(String(checkout.salesOrderId));
   const order = await getOrder(owner, String(checkout.salesOrderId));
-  await fulfillOrder(
+  await seedCommerceFulfillment(db, 
     owner,
     String(checkout.salesOrderId),
     {
@@ -440,7 +441,7 @@ it("rejects stale carts and refuses a return before the Sales fulfillment is inv
   );
   await assignStock(String(checkout.salesOrderId));
   const order = await getOrder(owner, String(checkout.salesOrderId));
-  await fulfillOrder(
+  await seedCommerceFulfillment(db, 
     owner,
     String(checkout.salesOrderId),
     {

@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
@@ -6,7 +7,7 @@ import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
 import {getQualityHold,qualityWork} from "@erpx/server-quality/public/quality";
 import {seedNativeQualityHold,seedNativeQualityRelease} from "../../../fixtures/quality/hold";
 import {seedNativeQualitySpec} from "../../../fixtures/quality/specification";
-import {commercePage,changeOrderReservation,fulfillOrder,fulfillmentSchema,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {commercePage,changeOrderReservation,fulfillmentSchema,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {mergeWorkItems} from "@erpx/server-work_projection/public/work-items";
 import {filterWork} from "@erpx/feature-work_projection/lib/work-item";
@@ -46,7 +47,7 @@ it('keeps failed inspections and requires a third person to release a passing in
  await expect(db.prepare('DELETE FROM inventory_quality_inspections WHERE hold_id=?').bind(id).run()).rejects.toMatchObject({message:'QUALITY_INSPECTION_IMMUTABLE'});
 });
 
-it('blocks already reserved Sales delivery atomically until all overlapping holds are released',async()=>{const created=await saveOrder(f.owner,null,orderSchema.parse({kind:'sales',partyId:party,warehouseId:warehouse,orderDate:'2026-09-02',dueDate:'2026-09-03',lines:[{productId:product,quantity:'2',price:'10',taxBps:0}]}),key()),id=String(created.id);await transitionOrder(f.owner,id,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,id,{action:'approve',expectedVersion:2},key());const source=await getOrder(f.owner,id),lineId=String(source.lines[0].id);await changeOrderReservation(f.owner,id,{expectedVersion:3,action:'reserve',lineId,quantity:'2',expiresAt:Date.now()+3600000,reason:'Customer delivery promise'},key());const a=await hold(),b=await hold(),proof=await deliveryEvidence(db,f.owner,id);const deliver=()=>fulfillOrder(f.owner,id,fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-02',lines:[{lineId,quantity:'2'}],...proof}),key());await expect(deliver()).rejects.toThrow('QUALITY_HOLD');expect((await getOrder(f.owner,id)).lines[0].reserved_milli).toBe(2000);expect((await getOrder(f.owner,id)).order.version).toBe(4);
+it('blocks already reserved Sales delivery atomically until all overlapping holds are released',async()=>{const created=await saveOrder(f.owner,null,orderSchema.parse({kind:'sales',partyId:party,warehouseId:warehouse,orderDate:'2026-09-02',dueDate:'2026-09-03',lines:[{productId:product,quantity:'2',price:'10',taxBps:0}]}),key()),id=String(created.id);await transitionOrder(f.owner,id,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,id,{action:'approve',expectedVersion:2},key());const source=await getOrder(f.owner,id),lineId=String(source.lines[0].id);await changeOrderReservation(f.owner,id,{expectedVersion:3,action:'reserve',lineId,quantity:'2',expiresAt:Date.now()+3600000,reason:'Customer delivery promise'},key());const a=await hold(),b=await hold(),proof=await deliveryEvidence(db,f.owner,id);const deliver=()=>seedCommerceFulfillment(db, f.owner,id,fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-02',lines:[{lineId,quantity:'2'}],...proof}),key());await expect(deliver()).rejects.toThrow('QUALITY_HOLD');expect((await getOrder(f.owner,id)).lines[0].reserved_milli).toBe(2000);expect((await getOrder(f.owner,id)).order.version).toBe(4);
  await seedNativeQualityRelease(db,{companyId:f.company,holdId:String(a.id),releasedBy:f.manager.userId,inspectorId:f.reviewer.userId,reason:'Independent release review complete'});
  await expect(deliver()).rejects.toThrow('QUALITY_HOLD');
  await seedNativeQualityRelease(db,{companyId:f.company,holdId:String(b.id),releasedBy:f.manager.userId,inspectorId:f.reviewer.userId,reason:'Independent release review complete'});

@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
@@ -168,7 +169,7 @@ it("requires stock approval before balanced GL and posts the counted stock only 
   expect((await resolveFlow(db,f.manager,"stock_count",id)).current).toBeNull();
 });
 it("hands purchase receipt to accounting before drafting and posting its payable",async()=>{
-  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,fulfillOrder,invoiceFulfillment}=await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,invoiceFulfillment}=await import("@erpx/server-commerce/public/commerce");
   const {markFinanceJournalPosted}=await import("../../support/helpers/finance-journal-seed");
   const stock=await stockFixture();
   f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");
@@ -179,7 +180,7 @@ it("hands purchase receipt to accounting before drafting and posting its payable
   await transitionOrder(f.head,id,{action:"approve",expectedVersion:2},key());
   await choose("order",id,"stock_gl",f.manager.userId);
   const details=await getOrder(f.owner,id);
-  const receipt=await fulfillOrder(f.owner,id,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"2",allocations:[]}]},key());
+  const receipt=await seedCommerceFulfillment(db, f.owner,id,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"2",allocations:[]}]},key());
   const journal=await db.prepare("SELECT j.id,j.status FROM finance_journals j JOIN commerce_fulfillments f ON f.journal_id=j.id WHERE f.id=?").bind(receipt.fulfillmentId).first<{id:string;status:string}>();
   expect(journal?.status).toBe("draft");
   expect((await resolveFlow(db,f.manager,"order",id)).current?.key).toBe("stock_gl");
@@ -196,7 +197,7 @@ it("hands purchase receipt to accounting before drafting and posting its payable
 });
 
 it("cancels an approved order independently but requires a return after stock moved",async()=>{
-  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,fulfillOrder}=await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder}=await import("@erpx/server-commerce/public/commerce");
   const stock=await stockFixture();
   f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");
   const party=await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Cancellation supplier"},key());
@@ -212,7 +213,7 @@ it("cancels an approved order independently but requires a return after stock mo
   const cancelled=await transitionOrder(f.head,cancellable,{action:"cancel",expectedVersion:3},key());
   expect(cancelled).toMatchObject({state:"cancelled",version:4});
   const received=await approvedOrder(),details=await getOrder(f.owner,received);
-  await fulfillOrder(f.owner,received,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"1",allocations:[]}]},key());
+  await seedCommerceFulfillment(db, f.owner,received,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"1",allocations:[]}]},key());
   await expect(transitionOrder(f.head,received,{action:"cancel",expectedVersion:4},key())).rejects.toMatchObject({code:"ORDER_REVERSAL_REQUIRED"});
 });
 

@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../../tests/support/helpers/commerce-fulfillment-seed";
 /** Declared isolated inputs with native Business owner lifecycle sources for worker verification. */
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
@@ -9,7 +10,7 @@ import {mapSpendingOrganization} from "../../../tests/support/helpers/spending-o
 import {deliveryEvidence} from "../../../tests/support/helpers/delivery-evidence";
 import {moduleRegistry} from "@erpx/catalogue/module-registry";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {changeOrderReservation,fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {changeOrderReservation,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {seedNativeQualityHold} from "../../quality/hold";
 import {changeManufacturingOrder,createPlanningScenario,reviewPlanningRecommendation} from "@erpx/server-manufacturing/public/production";
@@ -75,7 +76,7 @@ export async function seedBusinessWorkerSources(db:PostgresDatabase,files:FileSt
   const sha256=createHash('sha256').update(bytes).digest('hex');if(scanned?.source_state!=='available'||scanned.checksum_sha256!==sha256||!scanned.scanner_engine)throw new Error('WORKER_NATIVE_DELIVERY_SCAN_MISMATCH');
   evidence={sourceId:uploaded.sourceId,sha256,engine:scanned.scanner_engine};proof={evidenceIds:[],evidenceNote:'Declared repository icon stands in for the fictional receiver evidence; actual clean File Source is consumed by native fulfillment.',attachmentSetIds:[set.id]};
  }else proof=await deliveryEvidence(db,f.owner,deliveryOrderId);
- const delivery=await fulfillOrder(f.owner,deliveryOrderId,{expectedVersion:3,date:new Date(now).toISOString().slice(0,10),lines:[{lineId:String(deliveryOrder.lines[0].id),quantity:'1',allocations:[]}],...proof,attachmentSetIds:proof.attachmentSetIds??[]},key());
+ const delivery=await seedCommerceFulfillment(db, f.owner,deliveryOrderId,{expectedVersion:3,date:new Date(now).toISOString().slice(0,10),lines:[{lineId:String(deliveryOrder.lines[0].id),quantity:'1',allocations:[]}],...proof,attachmentSetIds:proof.attachmentSetIds??[]},key());
  if(options.nativeOpening){
   const journal=await db.prepare("SELECT j.id,j.version FROM commerce_fulfillments d JOIN commerce_orders o ON o.id=d.order_id JOIN finance_journals j ON j.id=d.journal_id AND j.company_id=o.company_id WHERE d.id=? AND o.company_id=? AND j.source_type='delivery' AND j.source_id=d.id AND j.status='draft'").bind(delivery.fulfillmentId,f.company).first<{id:string;version:number}>();
   if(!journal)throw new Error('WORKER_NATIVE_DELIVERY_JOURNAL_REQUIRED');

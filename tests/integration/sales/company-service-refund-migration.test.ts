@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {postgresBackupTools} from '../../support/postgres-tools';
 import {expect,it,vi} from 'vitest';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
@@ -16,7 +17,7 @@ import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-r
 import {withFinanceFlowAssignment} from '@erpx/server-finance/public/document-purchases';
 import {postInvoice} from '@erpx/server-finance/public/finance';
 import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
-import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
+import {completeCommerceReturn,decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 
@@ -54,7 +55,7 @@ it('upgrades populated1055 without rewriting old rows and admits only original w
   const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Fictional original Company service customer'},key()),product=await saveMaster(f.owner,'products',null,{sku:key(),name:'Original warehouse-free service',price:'100',itemType:'service'},key());
   const order=await saveOrder(f.owner,null,orderSchema.parse({kind:'sales',partyId:customer.id,orderDate:'2026-09-02',dueDate:'2026-09-03',lines:[{productId:product.id,quantity:'1',price:'100',taxBps:0}]}),key()),orderId=String(order.id);
   await transitionOrder(f.owner,orderId,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,orderId,{action:'approve',expectedVersion:2},key());await assign('order',orderId,'confirmed',f.owner.userId);
-  const detail=await getOrder(f.owner,orderId),fulfilled=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({completionMode:'service',expectedVersion:3,date:'2026-09-02',evidenceNote:'Original fictional customer confirmed completed service',lines:[{lineId:String(detail.lines[0].id),quantity:'1'}]}),key());
+  const detail=await getOrder(f.owner,orderId),fulfilled=await seedCommerceFulfillment(db, f.owner,orderId,fulfillmentSchema.parse({completionMode:'service',expectedVersion:3,date:'2026-09-02',evidenceNote:'Original fictional customer confirmed completed service',lines:[{lineId:String(detail.lines[0].id),quantity:'1'}]}),key());
   await assign('order',orderId,'invoicing',f.owner.userId);const invoice=await invoiceFulfillment(f.owner,String(fulfilled.fulfillmentId),{expectedVersion:1,date:'2026-09-02',dueDate:'2026-09-03'},key()),invoiceId=String(invoice.invoiceId);
   await assign('invoice',invoiceId,'draft',f.manager.userId);await postInvoice(f.manager,invoiceId,{expectedVersion:1,periodId:f.period,entryDate:'2026-09-02'},key());await assign('invoice',invoiceId,'posted',f.payer.userId);await settleInvoice(f.payer,invoiceId,{expectedVersion:2,date:'2026-09-03',amount:'50',reference:'Fictional original partial service receipt',attachmentSetIds:[]},key());
   const invoiced=await getOrder(f.owner,orderId),requested=await requestCommerceReturn(f.owner,String(fulfilled.fulfillmentId),returnRequestSchema.parse({expectedVersion:2,date:'2026-09-04',reason:'Customer independently accepted return of completed service',lines:[{lineId:String(invoiced.fulfillmentLines[0].id),quantity:'1'}]}),key()),returnId=String(requested.id),approved=await decideCommerceReturn(f.head,returnId,'approve',{expectedVersion:1,reason:'Different Sales manager reviewed original service source'},key());

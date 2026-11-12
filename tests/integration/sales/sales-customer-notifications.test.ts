@@ -3,7 +3,8 @@ import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {seedCommerceFulfillment} from '../../support/helpers/commerce-fulfillment-seed';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {queueDeliveryNotification,retryCustomerNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {packageGrantStore,readCompanyPackageGrants} from '@erpx/server-commercial/public/package-grants';
@@ -27,7 +28,7 @@ async function delivered(){
   const order=await saveOrder(f.owner,null,orderSchema.parse({kind:'sales',partyId:customer,warehouseId:warehouse,orderDate:'2026-09-21',dueDate:'2026-09-22',lines:[{productId:product,quantity:'1',price:'10',taxBps:0}]}),key()),orderId=String(order.id);
   await transitionOrder(f.owner,orderId,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,orderId,{action:'approve',expectedVersion:2},key());
   const lineId=String((await getOrder(f.owner,orderId)).lines[0].id),proof=await deliveryEvidence(db,f.owner,orderId);
-  const delivery=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof}),key());
+  const delivery=await seedCommerceFulfillment(db,f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof}),key());
   return {orderId,customer,fulfillmentId:String(delivery.fulfillmentId)};
 }
 

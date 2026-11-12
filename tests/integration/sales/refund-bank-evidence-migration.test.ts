@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {postgresBackupTools} from '../../support/postgres-tools';
 import {expect,it,vi} from 'vitest';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
@@ -13,7 +14,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {postInvoice} from '@erpx/server-finance/public/finance';
 import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
-import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
+import {completeCommerceReturn,decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 
 let db:PostgresDatabase,files:LocalFileStore;
@@ -123,7 +124,7 @@ async function actualSalesServiceBeforeGoods(noVat=false){
   const approved=await api.decideSalesPostingDefaults(z.manager,String(draft.id),{contextKey:(await zeroSalesEnvelope(z.manager)).contextKey,input:{expectedVersion:1,action:'approve',reason:'Original independent reviewer approves actual service defaults before the goods extension'}},key());
   const customer=await saveMaster(z.owner,'parties',null,{kind:'customer',code:key(),name:'Actual pre-existing service customer'},key()),service=await saveMaster(z.owner,'products',null,{sku:key(),name:'Actual pre-existing installed service',itemType:'service',price:'100',taxBps:noVat?0:700},key()),order=await saveOrder(z.owner,null,orderSchema.parse({kind:'sales',partyId:customer.id,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId:service.id,quantity:'1',price:'100',taxBps:noVat?0:700}]}),key()),orderId=String(order.id);
   await transitionOrder(z.owner,orderId,{expectedVersion:1,action:'submit'},key());await transitionOrder(z.salesManager,orderId,{expectedVersion:2,action:'approve'},key());await assignZeroSales(z,'order',orderId,'confirmed',z.owner);
-  const lineId=String((await getOrder(z.owner,orderId)).lines[0].id),completion=await fulfillOrder(z.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Original customer accepted the actual pre-existing service',lines:[{lineId,quantity:'1'}]}),key());
+  const lineId=String((await getOrder(z.owner,orderId)).lines[0].id),completion=await seedCommerceFulfillment(db, z.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Original customer accepted the actual pre-existing service',lines:[{lineId,quantity:'1'}]}),key());
   await assignZeroSales(z,'order',orderId,'invoicing',z.owner);
   const invoiced=await invoiceFulfillment(z.owner,String(completion.fulfillmentId),{expectedVersion:1,date:'2026-09-04',dueDate:'2026-09-10'},key()),invoiceId=String(invoiced.invoiceId);
   await assignZeroSales(z,'invoice',invoiceId,'draft',z.manager);await postInvoice(z.manager,invoiceId,{expectedVersion:1,periodId:refs.period.id,entryDate:'2026-09-04'},key());await assignZeroSales(z,'invoice',invoiceId,'posted',z.treasury);

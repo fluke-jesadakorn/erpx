@@ -883,9 +883,6 @@ export function saveOrder(actor: WorkContext, id: string | null, input: z.infer<
 export function transitionOrder(actor: WorkContext, id: string, input: z.infer<typeof transitionSchema>, key: string, ownerWrite?: SqlDatabase) {
  return withCommercePurchasedCommand(actor,{operation:`commerce.order.${input.action}`,kindAuthority:true,key,target:{type:"order",id},purpose:["cancel","return"].includes(input.action)?"settle-existing":"new-work",permissions:input.action==="approve"?["commerce.approve"]:[],convert:input.action==="convert"},database=>applicationFor(database).transitionOrder(actor,id,input,key,unit(database)),ownerWrite);
 }
-export function fulfillOrder(actor: WorkContext, id: string, input: z.input<typeof fulfillmentSchema>, key: string) {
- return withCommercePurchasedCommand(actor,{operation:"commerce.order.fulfill",key,target:{type:"order",id},purpose:"settle-existing",permissions:input.completionMode==="service"?["commerce.sales"]:input.completionMode==="mixed"?["inventory.prepare","commerce.sales"]:["inventory.prepare"],transactional:true,stockLines:input.lines.map(line=>line.lineId),financial:true,receiving:true},database=>applicationFor(database).fulfillOrder(actor,id,input,key));
-}
 export function invoiceFulfillment(actor: WorkContext, fulfillmentId: string, input: z.infer<typeof invoiceFromDeliverySchema>, key: string) {
  return withCommercePurchasedCommand(actor,{operation:"commerce.invoice.create",key,target:{type:"fulfillment",id:fulfillmentId},purpose:"settle-existing",permissions:["finance.write"],transactional:true,financial:true},database=>applicationFor(database).invoiceFulfillment(actor,fulfillmentId,input,key));
 }

@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {confirmPaymentSchema} from '@erpx/server-finance/public/finance';
 import {returnRequestSchema} from '@erpx/server-commerce/public/commerce';
@@ -9,7 +10,7 @@ import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-r
 import {approvePayment,confirmPayment,createAccount,createAccountSchema,createPayment,createPeriod,decideFxRevaluation,importBankStatement,postInvoice,prepareFxRevaluation,releasePayment} from '@erpx/server-finance/public/finance';
 import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
 import {confirmManualRate} from '@erpx/server-finance/public/company-money';
-import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {completeCommerceReturn,decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import { captureSupplierBill, decideSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
 import { approveRefund, confirmRefundInstruction, exportRefundInstructions, prepareRefundInstruction, recoverRefundExport, refundConfirmationSchema, refundInstructionSchema, refundWorkspace } from "@erpx/server-finance/public/refunds";
@@ -64,8 +65,8 @@ async function goods(kind: "purchase" | "sales", source?: { warehouseId: string;
   await assign("order", orderId, "stock_gl", f.manager.userId);
   const details = await getOrder(f.owner, orderId), allocations = kind === "purchase" ? [{ lotCode: key(), quantity: "2" }] : [{ lotId: source!.lotId, quantity: "2" }];
   const input = { expectedVersion: 3, date: kind === "purchase" ? "2026-09-28" : "2026-09-29", lines: [{ lineId: String(details.lines[0].id), quantity: "2", allocations }], ...(kind === "sales" ? await deliveryEvidence(db, f.owner, orderId) : {}) }, command = key();
-  const fulfilled = await fulfillOrder(f.owner, orderId, fulfillmentSchema.parse(input), command);
-  expect(await fulfillOrder(f.owner, orderId, fulfillmentSchema.parse(input), command)).toEqual(fulfilled);
+  const fulfilled = await seedCommerceFulfillment(db, f.owner, orderId, fulfillmentSchema.parse(input), command);
+  expect(await seedCommerceFulfillment(db, f.owner, orderId, fulfillmentSchema.parse(input), command)).toEqual(fulfilled);
   const fulfillmentId = String(fulfilled.fulfillmentId), journalId = String(await db.prepare("SELECT journal_id FROM commerce_fulfillments WHERE id=?").bind(fulfillmentId).first("journal_id"));
   await postGoods(journalId);
   await assign("order", orderId, "invoicing", f.owner.userId);
