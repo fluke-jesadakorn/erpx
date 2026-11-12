@@ -210,7 +210,6 @@
     "./public/social-agent-image-sources": "./src/public/social-agent-image-sources.ts",
     "./public/social-upload-cleanup": "./src/public/social-upload-cleanup.ts",
     "./public/streamed-file-contract": "./src/public/streamed-file-contract.ts",
-    "./public/support-attachment-effects": "./src/public/support-attachment-effects.ts",
     "./public/support-ticket-portal-files": "./src/public/support-ticket-portal-files.ts",
     "./public/task-private-read-sources": "./src/public/task-private-read-sources.ts",
     "./public/upload-validation": "./src/public/upload-validation.ts",
