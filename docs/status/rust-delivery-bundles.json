@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 655,
+    "revision": 656,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -10710,8 +10710,15 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-f",
+          "agentId": "worker-finance",
+          "claimedAt": "2026-11-12T04:49:34.616Z",
+          "heartbeatAt": "2026-11-12T04:49:34.616Z",
+          "expiresAt": "2026-11-12T05:19:34.616Z",
+          "generation": 31
+        },
         "baseSha": null,
         "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
         "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
@@ -10748,7 +10755,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-b lease expired at 03:01Z; pms packet source is pushed at 9f96ad765; WIP reviewed, no pms writer active",
+        "blocker": null,
         "nextAction": "goods-journal-port pushed 19580e083 and verified through the registered suite. Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets.",
         "handoff": {
           "runId": "run-20261112-b",
@@ -16842,17 +16849,17 @@
       "migratedPackets": 24,
       "statusCounts": {
         "pending": 8,
-        "in_progress": 1,
+        "in_progress": 2,
         "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 24,
-        "blocked": 10,
+        "blocked": 9,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 31,
-    "updatedAt": "2026-11-12T04:47:54.742Z",
+    "updatedAt": "2026-11-12T04:49:34.616Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
