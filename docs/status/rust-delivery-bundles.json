@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1232,
+    "revision": 1236,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-b",
+      "runId": "run-20261113-c",
       "agentId": "lead",
-      "startedAt": "2026-11-12T19:21:40.531Z",
-      "heartbeatAt": "2026-11-12T20:39:07.338Z",
-      "expiresAt": "2026-11-12T21:09:07.338Z",
-      "generation": 46,
-      "tokenHash": "da5d2711ad0b6538842db9c48a2aa2cc4a1b0ac7be2d601a7d5a055ba6421fed"
+      "startedAt": "2026-11-12T21:18:48.018Z",
+      "heartbeatAt": "2026-11-12T21:18:48.018Z",
+      "expiresAt": "2026-11-12T21:48:48.018Z",
+      "generation": 47,
+      "tokenHash": "91a1002fa2a1a47f0b2fca58abc16158516e2acc4bf018d2c5fa1d969162a3a1"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -21552,15 +21552,8 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-b",
-          "agentId": "worker-operations",
-          "claimedAt": "2026-11-12T19:21:40.653Z",
-          "heartbeatAt": "2026-11-12T20:39:07.338Z",
-          "expiresAt": "2026-11-12T21:09:07.338Z",
-          "generation": 46
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -21704,14 +21697,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
         "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0.",
         "handoff": {
-          "runId": "run-20261113-a",
+          "runId": "run-20261113-b",
           "agentId": "worker-operations",
-          "at": "2026-11-12T19:21:40.531Z",
+          "at": "2026-11-12T21:18:48.017Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
+          "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
           "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -21882,15 +21875,8 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-b",
-          "agentId": "worker-pos-retire",
-          "claimedAt": "2026-11-12T20:54:56.582Z",
-          "heartbeatAt": "2026-11-12T20:54:56.582Z",
-          "expiresAt": "2026-11-12T21:24:56.582Z",
-          "generation": 46
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
         "lastPushedSha": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
@@ -21922,15 +21908,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
         "nextAction": "Move the POS seed/workflow/helper callers to the native POS client, delete the shift/sale/tender/refund TS writers they kept alive, refresh the stale required case, and record the owner KPI pair.",
         "handoff": {
           "runId": "run-20261113-b",
           "agentId": "worker-pos-retire",
-          "at": "2026-11-12T20:54:56.494Z",
+          "at": "2026-11-12T21:18:48.018Z",
           "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Freeze for scope extension: the remaining shift/sale/tender/refund writers are kept alive only by POS seeds/workflow/helper callers."
+          "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
+          "nextAction": "Move the POS seed/workflow/helper callers to the native POS client, delete the shift/sale/tender/refund TS writers they kept alive, refresh the stale required case, and record the owner KPI pair."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -27333,28 +27319,21 @@
         "resources": [
           "owner:billing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-b",
-          "agentId": "worker-billing-invoice",
-          "claimedAt": "2026-11-12T19:21:40.623Z",
-          "heartbeatAt": "2026-11-12T20:39:07.338Z",
-          "expiresAt": "2026-11-12T21:09:07.338Z",
-          "generation": 46
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
         "nextAction": "BLOCKED on billing transport conformance (see retire.billing.billing). The cost cutover was reverted at f0aa0dfcd; owner KPI is back to 82. Do not start approve/void or target/retry until the conformance task lands.",
         "handoff": {
-          "runId": "run-20261113-a",
+          "runId": "run-20261113-b",
           "agentId": "worker-billing-invoice",
-          "at": "2026-11-12T19:21:40.531Z",
+          "at": "2026-11-12T21:18:48.018Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
+          "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
           "nextAction": "BLOCKED on billing transport conformance (see retire.billing.billing). The cost cutover was reverted at f0aa0dfcd; owner KPI is back to 82. Do not start approve/void or target/retry until the conformance task lands."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -28565,15 +28544,8 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-b",
-          "agentId": "worker-ca-enrollment",
-          "claimedAt": "2026-11-12T20:54:17.233Z",
-          "heartbeatAt": "2026-11-12T20:54:17.233Z",
-          "expiresAt": "2026-11-12T21:24:17.233Z",
-          "generation": 46
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -28690,15 +28662,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
         "nextAction": "Batch 1b: native public portal enrollment endpoint + composition mount + feature-portal route switch, delete portal-enrollment.ts (6), migrate oracle, KPI 35->29.",
         "handoff": {
           "runId": "run-20261113-b",
-          "agentId": "worker-ca-portal-commands",
-          "at": "2026-11-12T20:51:32.124Z",
-          "previousStatus": "blocked",
-          "reason": "handoff",
-          "nextAction": "Batch 1b per handoff; released for the next worker."
+          "agentId": "worker-ca-enrollment",
+          "at": "2026-11-12T21:18:48.018Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
+          "nextAction": "Batch 1b: native public portal enrollment endpoint + composition mount + feature-portal route switch, delete portal-enrollment.ts (6), migrate oracle, KPI 35->29."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -29328,16 +29300,30 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-c",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T21:18:59.466Z",
+          "heartbeatAt": "2026-11-12T21:18:59.466Z",
+          "expiresAt": "2026-11-12T21:48:59.466Z",
+          "generation": 47
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "handoff": null,
-        "nextAction": "Implement the collaboration-side native draft/publish/edit/report/upload commands with Rust unit+PG tests, then hand off the three caller switches (operations caller waits for its active claim to release).",
+        "handoff": {
+          "runId": "run-20261113-b",
+          "agentId": "lead",
+          "at": "2026-11-12T21:18:48.018Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
+          "nextAction": "Implement the collaboration-side native draft/publish/edit/report/upload commands with Rust unit+PG tests, then hand off the three caller switches (operations caller waits for its active claim to release)."
+        },
+        "nextAction": "ReportPost native and pushed at d268a4ed3 (unit 8/8, PG 4/4; erpx-service check blocked by another worker's portal_enrollment WIP). Remaining: SavePostDraft/UpdateDraft, PublishDraft, EditPost/revisions, upload-discard, then switch manage_erpx/pms/operations callers and retire social-home.",
         "scopeRefinementRequired": false
       }
     ],
@@ -29350,18 +29336,18 @@
       "totalPackets": 139,
       "migratedPackets": 72,
       "statusCounts": {
-        "pending": 26,
-        "in_progress": 7,
+        "pending": 25,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 72,
-        "blocked": 24,
+        "blocked": 28,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T21:07:43.066Z",
+    "lastCoordinatorGeneration": 47,
+    "updatedAt": "2026-11-12T21:18:59.499Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -29404,10 +29390,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-a",
-      "runId": "run-20261113-b",
-      "at": "2026-11-12T19:21:40.531Z",
-      "reason": "Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
+      "previousRunId": "run-20261113-b",
+      "runId": "run-20261113-c",
+      "at": "2026-11-12T21:18:48.018Z",
+      "reason": "Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
       "wipReviewed": true,
       "previousRunStopped": true
     }
