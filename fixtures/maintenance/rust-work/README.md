@@ -4,7 +4,7 @@
 
 The native portable work policy currently compares all112 owner/reviewer/state combinations and all21 pure transition projections. The other nine retained application/wire/order cases remain inputs to the pending full command adapter; they are preserved unchanged and are not claimed migrated by the domain tests. Full schema, receipt replay ordering, current source/worker/purchase authority, stock/reservation/Finance/Money effects and source-event after-images remain required before the Maintenance owner can be complete.
 
-Regenerate with `node scripts/testing/fixtures/generate-maintenance-rust-oracle.mjs`; use `--check` to detect drift. The fixed original revision and every source hash remain recorded. The generator is development evidence only; the native production runtime does not execute Node business code.
+The Node oracle generator was retired with the superseded TypeScript Maintenance writers; `conformance.v1.json` and `fixtures/maintenance/rust-schedule/application.v1.json` remain immutable retained evidence. The fixed original revision and every source hash stay recorded, and the native production runtime does not execute Node business code.
 
 `wire.v1.json` separately records54 actual original schema/Fetch observations using the same pinned Node and Zod4.6.7 as B0. Its dependency source hashes expose library semantic drift; regenerate/check with `node scripts/testing/fixtures/generate-maintenance-wire-oracle.mjs [--check]`. Native wire tests compare normalized JSON and validation issue order, including Unicode, lone UTF-16 units and oversized-array refusal before child validation. The original `conformance.v1.json` bytes remain unchanged.
 

@@ -22,48 +22,6 @@ async orders(companyId:string,branchId:string | null,branchId2:string | null){re
           .all<Row>();},
 async accountingProfiles(companyId:string){return db.prepare("SELECT id,status,version,currency,chart_id,inventory_account_id,wip_account_id,labor_account_id,overhead_account_id FROM manufacturing_accounting_profiles WHERE company_id=? ORDER BY updated_at DESC")
           .bind(companyId).all<Row>();},
-prepareSpecification(id:string,companyId:string,name:string,mode:"bom" | "formula",outputProductId:string,value:number,expectedYieldBps:number,userId:string,now:number,now2:number){return db
-        .prepare(
-          "INSERT INTO manufacturing_specifications VALUES(?,?,?,?,?,?,?,'draft',?,NULL,1,?,?)",
-        )
-        .bind(
-          id,
-          companyId,
-          name,
-          mode,
-          outputProductId,
-          value,
-          expectedYieldBps,
-          userId,
-          now,
-          now2,
-        );},
-prepareSpecificationLine(value:string,id:string,productId:string,value2:number,value3:string | null,n:number){return db
-        .prepare(
-          "INSERT INTO manufacturing_specification_lines VALUES(?,?,?,?,?,?)",
-        )
-        .bind(
-          value,
-          id,
-          productId,
-          value2,
-          value3,
-          n,
-        );},
-prepareSpecificationOperation(value:string,id:string,resourceId:string,name:string,setupMinutes:number,runMinutesPerBatch:number,n:number){return db.prepare("INSERT INTO manufacturing_specification_operations(id,specification_id,resource_id,name,setup_minutes,run_minutes_per_batch,ordinal) VALUES(?,?,?,?,?,?,?)")
-      .bind(value, id, resourceId, name, setupMinutes, runMinutesPerBatch, n);},
-guardSpecificationReview(key:string,value:"spec",id:string,companyId:string,expectedVersion:number,expected:"approved" | "draft",action:"approve" | "reject" | "retire",userId:string){return assertion(
-        db,
-        key,
-        value,
-        "EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status=? AND (?='retire' OR created_by<>?))",
-        [id, companyId, expectedVersion, expected, action, userId],
-      );},
-prepareSpecificationReview(status:"approved" | "rejected" | "retired",userId:string,now:number,id:string){return db
-        .prepare(
-          "UPDATE manufacturing_specifications SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?",
-        )
-        .bind(status, userId, now, id);},
 async specificationLines(specificationId:string){return db.prepare("SELECT * FROM manufacturing_specification_lines WHERE specification_id=? ORDER BY ordinal")
       .bind(specificationId).all<Row>();},
 guardScenarioSpecification(key:string,value:"specification-source",specificationId:string,companyId:string,specificationVersion:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')", [specificationId, companyId, specificationVersion]);},

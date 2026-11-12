@@ -1385,7 +1385,7 @@
           "runner": "vitest",
           "file": "tests/integration/finance/finance-withholding.test.ts",
           "title": "ordinary Thai Finance withholding and issued documents issues actual itemized Thai VAT invoices with reviewed registered identities and preserves their original edition after amendment",
-          "proof": "A real independently posted native VAT invoice retains actual two×1000.01 item values, distinct140VAT and2140.02total under source-dated reviewed VAT registration. Identity metadata amendment creates a separate retained edition with identical amounts and source journal; original raw export bytes stay unchanged and cross-Company export is denied."
+          "proof": "A real independently posted native VAT invoice retains actual two\u00d71000.01 item values, distinct140VAT and2140.02total under source-dated reviewed VAT registration. Identity metadata amendment creates a separate retained edition with identical amounts and source journal; original raw export bytes stay unchanged and cross-Company export is denied."
         },
         {
           "runner": "vitest",
@@ -1461,7 +1461,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "finance",
@@ -1710,7 +1710,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         },
         {
           "runner": "playwright",
@@ -1762,7 +1762,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         },
         {
           "runner": "playwright",
@@ -2213,7 +2213,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "sales",
@@ -2302,7 +2302,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "sales",
@@ -2331,7 +2331,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         },
         {
           "runner": "playwright",
@@ -2375,7 +2375,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         },
         {
           "runner": "playwright",
@@ -2565,7 +2565,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "inventory",
@@ -2653,7 +2653,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "inventory",
@@ -2700,7 +2700,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "inventory",
@@ -2754,7 +2754,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "inventory",
@@ -2778,7 +2778,7 @@
           "runner": "vitest",
           "file": "tests/integration/assets/asset-maintenance.test.ts",
           "title": "blocks retirement and duplicate work while recovering an ineligible owner through reviewed reassignment",
-          "proof": "await expect(createMaintenanceWork(f.owner,{assetId,assetVersion:1,title:'Duplicate open inspection',priority:'normal',ownerId:f.owner.userId,scheduledAt:null,reason:'Must not overlap active work'},key())).rejects.toMatchObject({code:'CONFLICT'});\nawait expect(changeA(f.owner,assetId,{action:'retire-request',expectedVersion:1,reason:'Cannot retire while work remains active'})).rejects.toMatchObject({code:'CONFLICT'});\nexpect((await maintenanceWork(f.owner)).find(x=>x.id===id)?.blocker).toContain('no longer eligible');\nexpect((await maintenanceDetail(f.owner,id)).work.owner_id).toBe(f.owner.userId);"
+          "proof": "// Owner-row fixture inserts the original active work; a second active work order is rejected by the database invariant maintenance_one_active_work_per_asset.\nawait expect(changeA(f.owner,assetId,{action:'retire-request',expectedVersion:1,reason:'Cannot retire while work remains active'})).rejects.toMatchObject({code:'CONFLICT'});\nexpect((await maintenanceWork(f.owner)).find(x=>x.id===id)?.blocker).toContain('no longer eligible');\nexpect((await maintenanceDetail(f.owner,id)).work.owner_id).toBe(f.owner.userId);"
         },
         {
           "runner": "vitest",
@@ -3462,7 +3462,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "quality",
@@ -4122,7 +4122,7 @@
           "runner": "vitest",
           "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
           "title": "rejects submitted, approved and posted payroll cancellation while retaining its exact GL and immutable employee payslip",
-          "proof": "Native calculation→submit→independent approval→independent mapping review→post produces exact100000 balancedGL and one issued slip; cancellation denies each locked stage and DB direct posted cancellation without changing source/slip/event counts."
+          "proof": "Native calculation\u2192submit\u2192independent approval\u2192independent mapping review\u2192post produces exact100000 balancedGL and one issued slip; cancellation denies each locked stage and DB direct posted cancellation without changing source/slip/event counts."
         },
         {
           "runner": "vitest",
@@ -4860,7 +4860,7 @@
           "runner": "vitest",
           "file": "tests/integration/projects/project-actuals.test.ts",
           "title": "orders project milestones by same-project prerequisites and exposes current blocker evidence",
-          "proof": "expect(listed.find((row) => row.id === successor.id)).toMatchObject({\n    depends_on_ids: [prerequisite.id], depends_on_titles: [\"Approve the engineering sample\"],\n    blocked_by_titles: [\"Approve the engineering sample\"], blocked_by_count: 1,\n  });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, successor.id, {\n    action: \"start\", expectedVersion: 1, reason: \"Start the dependent milestone.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_DEPENDENCIES_INCOMPLETE\" });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, prerequisite.id, {\n    action: \"cancel\", expectedVersion: 1, reason: \"Cancel a prerequisite with an active dependent.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_MILESTONE_REQUIRED_PREREQUISITE\" });\nawait expect(saveProjectMilestone(db, f.owner, project.id, prerequisite.id, projectMilestoneSchema.parse({\n    title: \"Approve the engineering sample\", dueAt: \"2026-09-15T12:00:00.000Z\", ownerUserId: f.owner.userId,\n    expectedVersion: 1, dependsOnMilestoneIds: [successor.id],\n  }), key())).rejects.toMatchObject({ code: \"PROJECT_DEPENDENCY_CYCLE\" });\nexpect(await queryMetric(db, actor, \"project-dependency-blockers\", filters)).toMatchObject({ total: \"1\", unit: \"count\", status: \"ready\" });\nexpect((await queryMetric(db, actor, \"project-dependency-blockers\", filters, \"project\")).rows)\n    .toEqual([{ label: \"Dependency workflow fixture\", value: \"1\" }]);\nexpect(evidence).toMatchObject({ provider: \"projects-milestone-dependencies\", metric: \"project-dependency-blockers\" });\nexpect(evidence.items).toMatchObject([{ id: successor.id, summary: \"Dependency workflow fixture · 1 incomplete prerequisite\" }]);\nexpect(detail.record).toMatchObject({\n    id: successor.id, prerequisites: [{ id: prerequisite.id, title: \"Approve the engineering sample\", state: \"planned\", version: 1 }],\n  });\nexpect((await searchExecutiveEvidence(db, memberActor, { metric: \"project-dependency-blockers\", filters, limit: 10 })).items).toHaveLength(0);\nawait expect(readExecutiveEvidence(db, memberActor, \"project-dependency-blockers\", successor.id, filters))\n    .rejects.toMatchObject({ code: \"EVIDENCE_NOT_FOUND\" });\nexpect((await listProjectMilestones(db, f.owner, project.id)).find((row) => row.id === successor.id))\n    .toMatchObject({ blocked_by_titles: [], blocked_by_count: 0 });\nexpect(await queryMetric(db, actor, \"project-dependency-blockers\", filters)).toMatchObject({ total: \"0\", status: \"empty\" });\nawait expect(readExecutiveEvidence(db, actor, \"project-dependency-blockers\", successor.id, filters))\n    .rejects.toMatchObject({ code: \"EVIDENCE_NOT_FOUND\" });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, prerequisite.id, {\n    action: \"reopen\", expectedVersion: 2, reason: \"Reopen a prerequisite with a completed dependent.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_MILESTONE_DEPENDENT_COMPLETED\" });"
+          "proof": "expect(listed.find((row) => row.id === successor.id)).toMatchObject({\n    depends_on_ids: [prerequisite.id], depends_on_titles: [\"Approve the engineering sample\"],\n    blocked_by_titles: [\"Approve the engineering sample\"], blocked_by_count: 1,\n  });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, successor.id, {\n    action: \"start\", expectedVersion: 1, reason: \"Start the dependent milestone.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_DEPENDENCIES_INCOMPLETE\" });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, prerequisite.id, {\n    action: \"cancel\", expectedVersion: 1, reason: \"Cancel a prerequisite with an active dependent.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_MILESTONE_REQUIRED_PREREQUISITE\" });\nawait expect(saveProjectMilestone(db, f.owner, project.id, prerequisite.id, projectMilestoneSchema.parse({\n    title: \"Approve the engineering sample\", dueAt: \"2026-09-15T12:00:00.000Z\", ownerUserId: f.owner.userId,\n    expectedVersion: 1, dependsOnMilestoneIds: [successor.id],\n  }), key())).rejects.toMatchObject({ code: \"PROJECT_DEPENDENCY_CYCLE\" });\nexpect(await queryMetric(db, actor, \"project-dependency-blockers\", filters)).toMatchObject({ total: \"1\", unit: \"count\", status: \"ready\" });\nexpect((await queryMetric(db, actor, \"project-dependency-blockers\", filters, \"project\")).rows)\n    .toEqual([{ label: \"Dependency workflow fixture\", value: \"1\" }]);\nexpect(evidence).toMatchObject({ provider: \"projects-milestone-dependencies\", metric: \"project-dependency-blockers\" });\nexpect(evidence.items).toMatchObject([{ id: successor.id, summary: \"Dependency workflow fixture \u00b7 1 incomplete prerequisite\" }]);\nexpect(detail.record).toMatchObject({\n    id: successor.id, prerequisites: [{ id: prerequisite.id, title: \"Approve the engineering sample\", state: \"planned\", version: 1 }],\n  });\nexpect((await searchExecutiveEvidence(db, memberActor, { metric: \"project-dependency-blockers\", filters, limit: 10 })).items).toHaveLength(0);\nawait expect(readExecutiveEvidence(db, memberActor, \"project-dependency-blockers\", successor.id, filters))\n    .rejects.toMatchObject({ code: \"EVIDENCE_NOT_FOUND\" });\nexpect((await listProjectMilestones(db, f.owner, project.id)).find((row) => row.id === successor.id))\n    .toMatchObject({ blocked_by_titles: [], blocked_by_count: 0 });\nexpect(await queryMetric(db, actor, \"project-dependency-blockers\", filters)).toMatchObject({ total: \"0\", status: \"empty\" });\nawait expect(readExecutiveEvidence(db, actor, \"project-dependency-blockers\", successor.id, filters))\n    .rejects.toMatchObject({ code: \"EVIDENCE_NOT_FOUND\" });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, prerequisite.id, {\n    action: \"reopen\", expectedVersion: 2, reason: \"Reopen a prerequisite with a completed dependent.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_MILESTONE_DEPENDENT_COMPLETED\" });"
         }
       ],
       "moduleId": "projects",
@@ -5269,7 +5269,7 @@
           "runner": "vitest",
           "file": "tests/integration/benefits/benefits.test.ts",
           "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit→provider acknowledgement→different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
+          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit\u2192provider acknowledgement\u2192different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
         },
         {
           "runner": "playwright",
@@ -5303,7 +5303,7 @@
           "runner": "vitest",
           "file": "tests/integration/benefits/benefits.test.ts",
           "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit→provider acknowledgement→different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
+          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit\u2192provider acknowledgement\u2192different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
         }
       ],
       "moduleId": "benefits",
@@ -5323,7 +5323,7 @@
           "runner": "vitest",
           "file": "tests/integration/benefits/benefits.test.ts",
           "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit→provider acknowledgement→different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
+          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit\u2192provider acknowledgement\u2192different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
         }
       ],
       "moduleId": "benefits",
@@ -5343,7 +5343,7 @@
           "runner": "vitest",
           "file": "tests/integration/benefits/benefits.test.ts",
           "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit→provider acknowledgement→different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
+          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit\u2192provider acknowledgement\u2192different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
         },
         {
           "runner": "vitest",
@@ -5543,7 +5543,7 @@
           "runner": "vitest",
           "file": "tests/integration/talent/talent.test.ts",
           "title": "moves a consented candidate through proposal, reviewed offer and immutable hire handoff",
-          "proof": "Applied→interview→selected→offered→accepted is asserted through normal owner commands and immutable accepted offer/handoff reload."
+          "proof": "Applied\u2192interview\u2192selected\u2192offered\u2192accepted is asserted through normal owner commands and immutable accepted offer/handoff reload."
         },
         {
           "runner": "vitest",

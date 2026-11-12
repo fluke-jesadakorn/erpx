@@ -4,7 +4,6 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { createAsset } from "@erpx/server-assets/public/asset-maintenance";
-import { savePreventivePlan, changePreventivePlan } from "@erpx/server-maintenance/public/maintenance-preventive";
 import MaintenancePage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/maintenance/[id]/screen";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
@@ -23,11 +22,18 @@ let actor: WorkContext, f: Awaited<ReturnType<typeof expenseFixture>>, workId: s
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {
   f = await expenseFixture(); actor = { ...f.owner, modules: ["maintenance", "assets"] };
-  const reviewer = { ...f.tie, modules: ["maintenance", "assets"] };
   const asset = await createAsset(actor, { branchId: f.branch, code: key(), name: "Encoded native work source", category: "Inspection equipment", currency: "THB", costMinor: 0, acquiredDate: "2026-01-01" }, key());
-  const plan = await savePreventivePlan(actor, null, { assetId: asset.id, assetVersion: 1, title: "Daily encoded inspection", priority: "normal", ownerId: actor.userId, intervalDays: 1, firstDueAt: Date.now() - 86_400_000, timeZone: "Asia/Bangkok", leadDays: 0, reason: "Create the actual owner plan." }, key());
-  await changePreventivePlan(reviewer, String(plan.id), { action: "activate", expectedVersion: 1, reason: "Independent review of the owner plan." }, key());
-  workId = String((await changePreventivePlan(actor, String(plan.id), { action: "generate", expectedVersion: 2, reason: "Generate the actual due work." }, key())).workOrderId);
+  // Owner rows for the retained reads. Preventive-plan and work commands are
+  // native; this suite only needs the generated work the owner unit would store.
+  const planId = `maintenance-${key()}`, dueAt = Date.now() - 86_400_000, now = Date.now();
+  workId = `${planId}:work`;
+  await db.transaction(async tx => {
+    await tx.prepare("INSERT INTO maintenance_preventive_plans(id,company_id,branch_id,department_id,asset_id,title,priority,owner_id,interval_days,time_zone,first_due_local,next_due_local,next_due_at,lead_days,status,version,created_by,edited_by,approved_by,approved_at,created_at,updated_at) VALUES(?,?,?,NULL,?,?,?,?,1,'Asia/Bangkok','2026-01-01T09:00','2026-01-01T09:00',?,0,'active',2,?,?,?,?,?,?)").bind(planId, f.company, f.branch, String(asset.id), "Daily encoded inspection", "normal", actor.userId, dueAt, actor.userId, actor.userId, actor.userId, now, now, now).run();
+    await tx.prepare("INSERT INTO maintenance_preventive_events(id,plan_id,version,action,actor_id,reason,snapshot_json,created_at) SELECT ?,id,version,'activate',?,?,to_jsonb(p),? FROM maintenance_preventive_plans p WHERE id=?").bind(`preventive-event-${key()}`, actor.userId, "Independent review of the owner plan.", now, planId).run();
+    await tx.prepare("INSERT INTO maintenance_work_orders(id,company_id,branch_id,department_id,asset_id,title,priority,status,owner_id,scheduled_at,version,created_by,created_at,updated_at) VALUES(?,?,?,NULL,?,?,?,'scheduled',?,?,1,?,?,?)").bind(workId, f.company, f.branch, String(asset.id), "Daily encoded inspection", "normal", actor.userId, dueAt, actor.userId, now, now).run();
+    await tx.prepare("INSERT INTO maintenance_work_events(id,work_order_id,version,action,actor_id,reason,status,owner_id,scheduled_at,downtime_started_at,downtime_ended_at,created_at) VALUES(?,?,1,'create',?,?,'scheduled',?,?,NULL,NULL,?)").bind(`maintenance-event-${key()}`, workId, actor.userId, "Generate the actual due work.", actor.userId, dueAt, now).run();
+    await tx.prepare("INSERT INTO maintenance_preventive_occurrences(id,plan_id,plan_version,work_order_id,due_local,due_at,source_asset_version,definition_json,generated_by,generated_at) VALUES(?,?,2,?,'2026-01-01T09:00',?,1,?,?,?)").bind(`preventive-occurrence-${key()}`, planId, workId, dueAt, JSON.stringify({ title: "Daily encoded inspection", priority: "normal", ownerId: actor.userId }), actor.userId, now).run();
+  });
 });
 
 it("renders the real generated work when the compiled route parameter escapes its original command suffix", async () => {

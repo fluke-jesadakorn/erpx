@@ -59476,7 +59476,7 @@
         "migratedSlots": []
       }
     },
-{
+    {
       "lane": "unit",
       "owner": "finance",
       "modules": [
@@ -59575,7 +59575,7 @@
         "scripts/testing/fixtures/generate-finance-rust-goldens.ts"
       ]
     },
-{
+    {
       "lane": "integration",
       "owner": "finance",
       "modules": [
@@ -59674,7 +59674,7 @@
         "scripts/testing/fixtures/generate-finance-rust-goldens.ts"
       ]
     },
-{
+    {
       "lane": "unit",
       "owner": "pms",
       "modules": [
@@ -59771,7 +59771,7 @@
         "packages/server-pms/src/application/room_board.rs"
       ]
     },
-{
+    {
       "lane": "integration",
       "owner": "pms",
       "modules": [
@@ -68076,7 +68076,6 @@
         "fixtures/maintenance/rust-work/conformance.v1.json",
         "fixtures/maintenance/rust-work/wire.v1.json",
         "rust-toolchain.toml",
-        "scripts/testing/fixtures/generate-maintenance-rust-oracle.mjs",
         "packages/server-maintenance/Cargo.toml"
       ],
       "ci": {
@@ -69156,7 +69155,6 @@
       ],
       "verificationInputs": [
         "fixtures/maintenance/rust-work/conformance.v1.json",
-        "scripts/testing/fixtures/generate-maintenance-rust-oracle.mjs",
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
@@ -69248,7 +69246,6 @@
       ],
       "verificationInputs": [
         "fixtures/maintenance/rust-schedule/application.v1.json",
-        "scripts/testing/fixtures/generate-maintenance-schedule-oracle.mjs",
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",

@@ -3,7 +3,8 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { createAsset, createMaintenanceWork, changeMaintenanceWork, maintenanceDetail } from "@erpx/server-assets/public/asset-maintenance";
+import { createAsset, maintenanceDetail } from "@erpx/server-assets/public/asset-maintenance";
+import { prepareInventoryConsumption } from "@erpx/server-inventory/public/inventory-consumption";
 import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import JournalPage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen";
@@ -23,10 +24,22 @@ beforeEach(async () => {
   const product = String((await saveMaster(f.owner, "products", null, { sku: key(), name: "Replacement fuse", unit: "each", price: "5" }, key())).id);
   // Declared opening stock; the actual Maintenance command retains its issue and journal.
   await db.prepare("INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor) VALUES(?,?,3000,1001)").bind(warehouse, product).run();
-  workId = String((await createMaintenanceWork(f.owner, { assetId: asset.id, assetVersion: 1, title: "Replace the inspected fuse", priority: "normal", ownerId: f.owner.userId, scheduledAt: null, reason: "Native inspection requires a replacement." }, key())).id);
-  await changeMaintenanceWork(f.owner, workId, { action: "start", expectedVersion: 1, reason: "Isolate the equipment before work." }, key());
-  await changeMaintenanceWork(f.owner, workId, { action: "issue-part", expectedVersion: 2, warehouseId: warehouse, productId: product, quantityMilli: 1000, entryDate: "2026-10-02", reason: "Issue one valued fuse through the native owner." }, key());
-  journalId = String((await maintenanceDetail(f.owner, workId)).consumptions[0].journal_id);
+  workId = `maintenance-${key()}`;
+  const work = { id: workId, title: "Replace the inspected fuse", owner: f.owner.userId, at: Date.now() };
+  await db.transaction(async tx => {
+    await tx.prepare("INSERT INTO maintenance_work_orders(id,company_id,branch_id,department_id,asset_id,title,priority,status,owner_id,scheduled_at,downtime_started_at,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'in_progress',?,NULL,?,3,?,?,?)").bind(workId, f.company, f.branch, f.department, asset.id, work.title, "normal", work.owner, work.at, work.owner, work.at, work.at).run();
+    for (const event of [
+      { version: 1, action: "create", status: "open", start: null },
+      { version: 2, action: "start", status: "in_progress", start: work.at },
+      { version: 3, action: "issue-part", status: "in_progress", start: work.at },
+    ]) await tx.prepare("INSERT INTO maintenance_work_events(id,work_order_id,version,action,actor_id,reason,status,owner_id,scheduled_at,downtime_started_at,downtime_ended_at,created_at) VALUES(?,?,?,?,?,?,?,?,NULL,?,NULL,?)").bind(`maintenance-event-${key()}`, workId, event.version, event.action, work.owner, "Native owner event retained for the parts journal.", event.status, work.owner, event.start, work.at).run();
+    // The Inventory owner port prepares the consumption, its Finance journal and
+    // the money snapshot in the caller's transaction. Maintenance no longer owns
+    // a TypeScript issue-part writer.
+    const prepared = await prepareInventoryConsumption(tx, f.owner, { key: key(), sourceKind: "maintenance", sourceId: workId, sourceVersion: 3, branchId: f.branch, departmentId: f.department, warehouseId: warehouse, productId: product, quantityMilli: 1000, entryDate: "2026-10-02", reason: "Issue one valued fuse through the native owner.", allocations: [] });
+    for (const step of prepared.steps) await step.run();
+    journalId = String(prepared.journalId);
+  });
   const flow = await resolveFlow(db, f.owner, "journal", journalId);
   await assignFlowPrimary(db, f.owner, "journal", journalId, { stepKey: "draft", userId: actor.userId, reason: "Route the actual spare cost to an independent Finance approver.", saveDefault: false, expectedVersion: flow.version, recordVersion: flow.recordVersion }, key());
 });

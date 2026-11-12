@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/maintenance/rust-work", "../../fixtures/maintenance/rust-schedule", "../../scripts/testing/fixtures/generate-maintenance-schedule-oracle.mjs", "../../scripts/testing/fixtures/generate-maintenance-rust-oracle.mjs", "../../scripts/testing/fixtures/generate-maintenance-wire-oracle.mjs"]
+verification-roots = ["../../fixtures/maintenance/rust-work", "../../fixtures/maintenance/rust-schedule", "../../scripts/testing/fixtures/generate-maintenance-wire-oracle.mjs"]
 
 [lib]
 path = "src/lib.rs"

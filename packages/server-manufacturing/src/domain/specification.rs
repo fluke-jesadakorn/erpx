@@ -3,8 +3,8 @@
 //! Create, independent review and retire are expressed as validated inputs,
 //! policy decisions and immutable plans. The application layer supplies the
 //! current authority, active product/routing sources and persistence; nothing
-//! here reaches a database, clock or HTTP request. The retained TypeScript
-//! contract (`specSchema`/`reviewSchema`) is preserved: draft creation at
+//! here reaches a database, clock or HTTP request. The native contract is
+//! preserved: draft creation at
 //! version 1, independent approve/reject, retire only from `approved`, and a
 //! current version/status CAS.
 use crate::domain::bom::{

@@ -12,13 +12,11 @@ import {
   changeManufacturingOrder,
   createPlanningScenario,
   cancelPlanningScenario,
-  createSpecification,
   productionDetail,
   reviewPlanningRecommendation,
-  reviewSpecification,
 } from "@erpx/server-manufacturing/public/production";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type {FileStore} from '@erpx/server-runtime/public/runtime/types';
+import type {FileStore,SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import { escalateInventoryReservations } from "@erpx/server-inventory/public/inventory-reservation-alerts";
 import { queryMetric } from "@erpx/server-runtime/public/executive/metrics";
 import { readExecutiveEvidence, searchExecutiveEvidence } from "@erpx/server-runtime/public/executive/evidence";
@@ -98,13 +96,12 @@ it("keeps a failed run in WIP through rework, accumulates actual labor and indep
 async function routedSpecification() {
   const resource = await saveProductionResource(reviewer, null, { branchId: f.branch, code: key(), name: "Reviewed assembly cell", dailyMinutes: 20 }, key());
   await saveProductionResourceCalendar(reviewer, String(resource.id), { expectedVersion: 0, resourceVersion: 1, workDate: "2026-10-05", availableMinutes: 0, reason: "Planned equipment shutdown" }, key());
-  const spec = await createSpecification(owner, { name: "Routed assembly", mode: "bom", outputProductId: output, batchQuantity: "1", expectedYieldBps: 10000,
+  const spec = await seedSpecification(db, owner, `mfg-spec-${key()}`, { name: "Routed assembly", mode: "bom", outputProductId: output, batchQuantity: "1", expectedYieldBps: 10000,
     lines: [{ productId: material, quantity: "2" }], operations: [
-      { resourceId: resource.id, name: "Prepare and assemble", setupMinutes: 5, runMinutesPerBatch: 10 },
-      { resourceId: resource.id, name: "Package and inspect", setupMinutes: 0, runMinutesPerBatch: 5 },
-    ] }, key());
-  await reviewSpecification(reviewer, String(spec.id), { action: "approve", expectedVersion: 1, reason: "Independent BOM and routing review" }, key());
-  return { resourceId: String(resource.id), specificationId: String(spec.id) };
+      { resourceId: String(resource.id), name: "Prepare and assemble", setupMinutes: 5, runMinutesPerBatch: 10 },
+      { resourceId: String(resource.id), name: "Package and inspect", setupMinutes: 0, runMinutesPerBatch: 5 },
+    ] });
+  return { resourceId: String(resource.id), specificationId: spec.id };
 }
 
 it("uses effective resource calendars, compares immutable plans and atomically rejects competing capacity releases", async () => {
@@ -223,41 +220,52 @@ beforeEach(async () => {
     .bind(warehouse, material)
     .run();
 });
+const specificationMilli = (value: string | number) => Math.round(Number(value) * 1000);
+type SpecificationSeed = {
+  name: string;
+  mode?: "bom" | "formula";
+  outputProductId: string;
+  batchQuantity?: string;
+  expectedYieldBps?: number;
+  lines: { productId: string; quantity: string; substitutionGroup?: string | null }[];
+  operations?: { resourceId: string; name: string; setupMinutes: number; runMinutesPerBatch: number }[];
+};
+async function seedSpecification(
+  database: SqlDatabase,
+  actor: Pick<WorkContext, "companyId" | "userId">,
+  id: string,
+  input: SpecificationSeed,
+  options: { status?: "draft" | "approved"; version?: number } = {},
+) {
+  const status = options.status ?? "approved", version = options.version ?? (status === "approved" ? 2 : 1), now = Date.now();
+  await database.batch([
+    database.prepare("INSERT INTO manufacturing_specifications(id,company_id,name,mode,output_product_id,batch_quantity_milli,expected_yield_bps,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'draft',?,NULL,1,?,?)")
+      .bind(id, actor.companyId, input.name, input.mode ?? "bom", input.outputProductId, specificationMilli(input.batchQuantity ?? "1"), input.expectedYieldBps ?? 10000, actor.userId, now, now),
+    ...input.lines.map((line, ordinal) => database.prepare("INSERT INTO manufacturing_specification_lines VALUES(?,?,?,?,?,?)")
+      .bind(`${id}-line-${ordinal}`, id, line.productId, specificationMilli(line.quantity), line.substitutionGroup ?? null, ordinal)),
+    ...(input.operations ?? []).map((operation, ordinal) => database.prepare("INSERT INTO manufacturing_specification_operations VALUES(?,?,?,?,?,?,?)")
+      .bind(`${id}-operation-${ordinal}`, id, operation.resourceId, operation.name, operation.setupMinutes, operation.runMinutesPerBatch, ordinal)),
+    ...((status !== "draft" || version !== 1)
+      ? [database.prepare("UPDATE manufacturing_specifications SET status=?,reviewed_by=?,version=?,updated_at=? WHERE id=?")
+        .bind(status, status === "approved" ? "native-reviewer" : null, version, now, id)]
+      : []),
+  ]);
+  return { id, status, version };
+}
+async function activeTransactionSpecification(actor: WorkContext, id: string, name: string, outputProductId: string, productId: string) {
+  const {holdingResources} = await import("@erpx/server-runtime/adapters/runtime");
+  const {write} = await holdingResources(actor.holdingId);
+  return seedSpecification(write, actor, id, { name, outputProductId, lines: [{ productId, quantity: "2" }] }, { status: "draft", version: 1 });
+}
 async function order(mode: "bom" | "formula" = "bom", demand = "2") {
-  const spec = await createSpecification(
-    owner,
-    {
-      name: `${mode} specification`,
-      mode,
-      outputProductId: output,
-      batchQuantity: "1",
-      expectedYieldBps: 9500,
-      lines: [{ productId: material, quantity: "2", substitutionGroup: null }],
-    },
-    key(),
-  );
-  await expect(
-    reviewSpecification(
-      owner,
-      String(spec.id),
-      {
-        action: "approve",
-        expectedVersion: 1,
-        reason: "Self approval forbidden",
-      },
-      key(),
-    ),
-  ).rejects.toMatchObject({ code: "CONFLICT" });
-  await reviewSpecification(
-    reviewer,
-    String(spec.id),
-    {
-      action: "approve",
-      expectedVersion: 1,
-      reason: "Material and yield reviewed independently",
-    },
-    key(),
-  );
+  const spec = await seedSpecification(db, owner, `mfg-spec-${key()}`, {
+    name: `${mode} specification`,
+    mode,
+    outputProductId: output,
+    batchQuantity: "1",
+    expectedYieldBps: 9500,
+    lines: [{ productId: material, quantity: "2", substitutionGroup: null }],
+  });
   const plan = await createPlanningScenario(
     owner,
     {
@@ -623,14 +631,14 @@ it('observes a committed native production cancellation before its byte snapshot
  const {attachmentContent,bindRecordAttachmentSet}=await import('@erpx/server-files/public/attachments/service'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{companyPurchaseReadLocks}=await import('@erpx/server-commercial/public/purchase-command-boundary'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');vi.stubEnv('ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT','disabled');const first=await order(),runFile=await seedAttachmentSet(db,owner,{targetType:'production_run',targetId:first.id,componentKind:'record',purposeKey:'run_sheet',expectedTargetVersion:1});await bindRecordAttachmentSet(db,owner,runFile.setId,1,key());const runKey=await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(runFile.sourceId).first<string>('object_key');if(!runKey)throw Error('ACTUAL_RETAINED_RUN_SHEET_REQUIRED');await env.H001_FILES.put(runKey,'Original planned run retained after native cancellation');const fault=`production_bytes_visible_${key().replaceAll('-','')}`;
  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF (SELECT status FROM manufacturing_orders WHERE id='${first.id}')<>'cancelled' THEN RAISE EXCEPTION 'STALE_NATIVE_PRODUCTION_FILE_SOURCE';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${runFile.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${fault}()`);
  try{const observed=await committedSourceVisibility(db,async tx=>{await tx.batch(companyPurchaseReadLocks(tx,f.company));manufacturingDatabase=tx;try{await changeManufacturingOrder(owner,first.id,{action:'cancel',expectedVersion:2,reason:'Actual native source closes before the private byte snapshot'},key());}finally{manufacturingDatabase=undefined;}},()=>measureReads(()=>attachmentContent(db,env.H001_FILES,owner,runFile.linkId,'original')));expect(await observed.result.object.text()).toBe('Original planned run retained after native cancellation');expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{manufacturingDatabase=undefined;await db.exec(`DROP TRIGGER ${fault} ON attachment_access_events;DROP FUNCTION ${fault}()`);}
- const otherFixture=await expenseFixture(),other={...otherFixture.owner,modules:['planning','manufacturing']};await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(other.modules),other.assignmentId).run();const otherOutput=await saveMaster(other,'products',null,{sku:key(),name:'Separate Company native output',price:'10'},key()),otherMaterial=await saveMaster(other,'products',null,{sku:key(),name:'Separate Company native material',price:'5'},key()),second=await createSpecification(other,{name:'Separate Company private specification',mode:'bom',outputProductId:String(otherOutput.id),batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:String(otherMaterial.id),quantity:'1'}]},key()),rows:{actor:WorkContext;id:string;version:number;file:Awaited<ReturnType<typeof seedAttachmentSet>>;bytes:string}[]=[];
+ const otherFixture=await expenseFixture(),other={...otherFixture.owner,modules:['planning','manufacturing']};await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(other.modules),other.assignmentId).run();const otherOutput=await saveMaster(other,'products',null,{sku:key(),name:'Separate Company native output',price:'10'},key()),otherMaterial=await saveMaster(other,'products',null,{sku:key(),name:'Separate Company native material',price:'5'},key()),second=await seedSpecification(db,other,`mfg-spec-${key()}`,{name:'Separate Company private specification',mode:'bom',outputProductId:String(otherOutput.id),batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:String(otherMaterial.id),quantity:'1'}]},{status:'draft',version:1}),rows:{actor:WorkContext;id:string;version:number;file:Awaited<ReturnType<typeof seedAttachmentSet>>;bytes:string}[]=[];
  for(const source of [{actor:owner,id:String(first.spec.id),version:2},{actor:other,id:String(second.id),version:1}]){const file=await seedAttachmentSet(db,source.actor,{targetType:'manufacturing_spec',targetId:source.id,componentKind:'record',purposeKey:'drawing',expectedTargetVersion:source.version});await bindRecordAttachmentSet(db,source.actor,file.setId,source.version,key());const objectKey=await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first<string>('object_key');if(!objectKey)throw Error('ACTUAL_PRIVATE_SPECIFICATION_REQUIRED');const bytes=`Native specification ${source.actor.companyId}`;await env.H001_FILES.put(objectKey,bytes);rows.push({...source,file,bytes});}
  const parallel=`production_bytes_parallel_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${parallel}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(0.08);UPDATE manufacturing_specifications SET name=name WHERE id=CASE WHEN NEW.company_id='${f.company}' THEN '${rows[0].id}' ELSE '${rows[1].id}' END;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${parallel} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id IN ('${rows[0].file.linkId}','${rows[1].file.linkId}') AND NEW.outcome='allowed') EXECUTE FUNCTION ${parallel}()`);
  try{const observed=await measureReads(()=>Promise.all(rows.map(row=>attachmentContent(db,env.H001_FILES,row.actor,row.file.linkId,'original'))));for(let index=0;index<rows.length;index++)expect(await observed.result[index].object.text()).toBe(rows[index].bytes);expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${parallel} ON attachment_access_events;DROP FUNCTION ${parallel}()`);}
 });
 it('runs Manufacturing alone through retained material issue independent QC and original WIP while included Finance remains readonly',async()=>{
  vi.stubEnv('ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
- await expect(createSpecification(owner,{name:'Unpurchased specification',mode:'bom',outputProductId:output,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:material,quantity:'2'}]},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await purchasedManufacturing();
+ await purchasedManufacturing();
  const {id,spec}=await order(),other=await order(),reserveKey=key(),reserve={action:'reserve',expectedVersion:1,expiresAt:Date.now()+3600000,reason:'Protect purchased production material'};
  const reserved=await changeManufacturingOrder(owner,id,reserve,reserveKey);await purchasedManufacturing('draining');expect(await changeManufacturingOrder(owner,id,reserve,reserveKey)).toEqual(reserved);await expect(changeManufacturingOrder(owner,other.id,reserve,key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
  await expect(createPlanningScenario(owner,{warehouseId:warehouse,specificationId:String(spec.id),specificationVersion:2,demandQuantity:'1',dueDate:'2026-10-02'},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
@@ -652,10 +660,6 @@ it('requires the advanced addon only for actual scenario comparison and retains 
  const {productionWorkspace}=await import('@erpx/server-manufacturing/public/production');expect((await productionWorkspace(owner,'planning')).plans.map(row=>row.id)).toContain(compared.id);await cancelPlanningScenario(owner,compared.id,{action:'cancel',expectedVersion:1,reason:'Close the retained actual advanced comparison'},key());
  const fake={...input,comparisonScenarioId:key()};await purchasedManufacturing('active',null,'manufacturing-mrp');await expect(createPlanningScenario(owner,fake,key())).rejects.toMatchObject({code:'PRODUCTION_SOURCE_NOT_FOUND'});
 });
-it('rolls back a late active production expiry and retries the same original specification and receipt',async()=>{
- vi.stubEnv('ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT','enforced');await purchasedManufacturing('active',Date.now()+3000);const command=key(),id=`mfg-spec-${command}`,input={name:'Expiry controlled original specification',mode:'bom',outputProductId:output,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:material,quantity:'2'}]},fault=`manufacturing_expiry_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(3.15);RETURN NEW;END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}();`);
- try{await expect(createSpecification(owner,input,command)).rejects.toMatchObject({code:'PACKAGE_CAPABILITY_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}();`);}for(const [table,column,value] of [['manufacturing_specifications','id',id],['manufacturing_specification_lines','specification_id',id],['command_receipts','command_id',command],['audit_events','command_id',command],['outbox_events','command_id',command]])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE ${column}=?`).bind(value).first()).toBeNull();await purchasedManufacturing();const created=await createSpecification(owner,input,command);expect(await createSpecification(owner,input,command)).toEqual(created);
-});
 it('rolls back original material stock WIP and posting evidence when current production authority changes after the receipt',async()=>{
  vi.stubEnv('ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');await purchasedManufacturing();const {id}=await order();await changeManufacturingOrder(owner,id,{action:'reserve',expectedVersion:1,expiresAt:Date.now()+3600000,reason:'Reserve material for authority rollback'},key());await purchasedManufacturing('draining');const command=key(),input={action:'issue',expectedVersion:2,entryDate:'2026-10-02',reason:'Only current original authority may issue retained material'},fault=`manufacturing_authority_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=floor(extract(epoch FROM clock_timestamp())*1000)::bigint,version=version+1 WHERE id='${owner.assignmentId}';RETURN NEW;END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}();`);
  try{await expect(changeManufacturingOrder(owner,id,input,command)).rejects.toMatchObject({code:'CONFLICT'});}finally{await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}();`);}expect((await productionDetail(owner,id)).order).toMatchObject({status:'reserved',version:2});expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,material).first()).toEqual({quantity_milli:10000,value_minor:5000});for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM manufacturing_order_postings WHERE order_id=?').bind(id).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM manufacturing_cost_movements WHERE order_id=?').bind(id).first()).toBeNull();const issued=await changeManufacturingOrder(owner,id,input,command);expect(await changeManufacturingOrder(owner,id,input,command)).toEqual(issued);
@@ -669,7 +673,7 @@ it('checks actual Manufacturing source history before shared Records Work Inbox 
  await purchasedManufacturing();const {measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),small=await measureReads(()=>productionWorkspace(owner,'manufacturing'));await order();const larger=await measureReads(()=>productionWorkspace(owner,'manufacturing'));expect(larger.result.orders.length).toBe(small.result.orders.length+1);expect(larger.metrics.queries).toBe(small.metrics.queries);const purchasedCatalog=await metricCatalogFor(db,owner);expect(['completed-manufacturing-orders','production-cost','planning-shortage-scenarios'].map(id=>purchasedCatalog.find(metric=>metric.id===id)?.available)).toEqual([true,true,true]);expect((await listRecords(owner,'manufacturing','orders')).map(row=>row.id)).toEqual([id]);expect((await getRecord(owner,'planning',String(plan.id))).id).toBe(plan.id);expect((await listStaffNotifications(db,owner)).some(row=>row.record_id===id)).toBe(true);expect((await inboxPage(db,owner,{view:'all'})).items.some(item=>item.sourceId===id)).toBe(true);expect((await manufacturingWork(owner)).find(item=>item.id===id)).toMatchObject({canAct:true});await purchasedManufacturing('draining');expect((await manufacturingWork(owner)).find(item=>item.id===id)).toMatchObject({canAct:false});await bindRecordAttachmentSet(db,owner,document.setId,2,key());expect(await attachmentBindingState(db,document.setId)).toMatchObject({set_state:'bound',link_state:'bound'});expect((await productionWorkspace(owner,'manufacturing')).specifications.find(row=>row.id===spec.id)?.version).toBe(3);
 });
 it('binds two Companies original production files concurrently without upgrading shared source leases after their first snapshot',async()=>{
- const first=await order(),second=await expenseFixture(),other={...second.owner,modules:['planning','manufacturing']};await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(other.modules),other.assignmentId).run();const material2=String((await saveMaster(other,'products',null,{sku:key(),name:'Second Company original material',price:'5'},key())).id),output2=String((await saveMaster(other,'products',null,{sku:key(),name:'Second Company output',price:'10'},key())).id),spec2=await createSpecification(other,{name:'Second Company controlled specification',mode:'bom',outputProductId:output2,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:material2,quantity:'1'}]},key()),one=await seedAttachmentSet(db,owner,{targetType:'manufacturing_spec',targetId:String(first.spec.id),componentKind:'record',purposeKey:'drawing',expectedTargetVersion:2}),two=await seedAttachmentSet(db,other,{targetType:'manufacturing_spec',targetId:String(spec2.id),componentKind:'record',purposeKey:'drawing',expectedTargetVersion:1});
+ const first=await order(),second=await expenseFixture(),other={...second.owner,modules:['planning','manufacturing']};await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(other.modules),other.assignmentId).run();const material2=String((await saveMaster(other,'products',null,{sku:key(),name:'Second Company original material',price:'5'},key())).id),output2=String((await saveMaster(other,'products',null,{sku:key(),name:'Second Company output',price:'10'},key())).id),spec2=await seedSpecification(db,other,`mfg-spec-${key()}`,{name:'Second Company controlled specification',mode:'bom',outputProductId:output2,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:material2,quantity:'1'}]},{status:'draft',version:1}),one=await seedAttachmentSet(db,owner,{targetType:'manufacturing_spec',targetId:String(first.spec.id),componentKind:'record',purposeKey:'drawing',expectedTargetVersion:2}),two=await seedAttachmentSet(db,other,{targetType:'manufacturing_spec',targetId:String(spec2.id),componentKind:'record',purposeKey:'drawing',expectedTargetVersion:1});
  vi.stubEnv('ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT','enforced');await purchasedManufacturing();await purchasedManufacturing('active',null,'manufacturing',second.company);const {bindRecordAttachmentSet}=await import('@erpx/server-files/public/attachments/service');const {measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),{manufacturingAttachmentPurchaseScope,manufacturingAttachmentSourceReadLocks}=await import('@erpx/server-manufacturing/public/attachment-purchases'),source=await manufacturingAttachmentPurchaseScope(db,owner,'manufacturing_spec',String(first.spec.id)),otherSource=await manufacturingAttachmentPurchaseScope(db,other,'manufacturing_spec',String(spec2.id));expect(source).not.toBeNull();expect(otherSource).not.toBeNull();const fault=`manufacturing_parallel_files_${key().replaceAll('-','')}`;await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id LIKE 'manufacturing-file-before:%' THEN PERFORM pg_sleep(0.1); END IF; RETURN NEW; END $$`).run();await db.prepare(`CREATE TRIGGER ${fault} INSTEAD OF INSERT ON command_assertions FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();try{const measured=await measureReads(()=>Promise.all([db.transaction(async tx=>{await tx.batch(await manufacturingAttachmentSourceReadLocks(tx,[source!]));return bindRecordAttachmentSet(tx,owner,one.setId,2,key());}),db.transaction(async tx=>{await tx.batch(await manufacturingAttachmentSourceReadLocks(tx,[otherSource!]));return bindRecordAttachmentSet(tx,other,two.setId,1,key());})]));expect(measured.result).toHaveLength(2);expect(measured.metrics.deadlockFailures??0).toBe(0);const directOne=await seedAttachmentSet(db,owner,{targetType:'manufacturing_spec',targetId:String(first.spec.id),componentKind:'record',purposeKey:'sop',expectedTargetVersion:3}),directTwo=await seedAttachmentSet(db,other,{targetType:'manufacturing_spec',targetId:String(spec2.id),componentKind:'record',purposeKey:'sop',expectedTargetVersion:2}),direct=await measureReads(()=>Promise.all([bindRecordAttachmentSet(db,owner,directOne.setId,3,key()),bindRecordAttachmentSet(db,other,directTwo.setId,2,key())]));expect(direct.result).toHaveLength(2);expect(direct.metrics.deadlockFailures??0).toBe(0);expect(await attachmentBindingState(db,directOne.setId)).toMatchObject({set_state:'bound',link_state:'bound'});expect(await attachmentBindingState(db,directTwo.setId)).toMatchObject({set_state:'bound',link_state:'bound'});}finally{await db.prepare(`DROP TRIGGER ${fault} ON command_assertions`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}expect(await attachmentBindingState(db,one.setId)).toMatchObject({set_state:'bound',link_state:'bound'});expect(await attachmentBindingState(db,two.setId)).toMatchObject({set_state:'bound',link_state:'bound'});
 });
 it('rolls back a production file command when its original specification source changes after the effect then retries the captured set',async()=>{
@@ -698,14 +702,14 @@ it('withdraws only the actual MRP comparison scope while an unrelated basic Manu
  vi.stubEnv('ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT','enforced');await purchasedManufacturing();const basic=await order();await purchasedManufacturing('active',null,'manufacturing-mrp');const scenario=await createPlanningScenario(owner,{warehouseId:warehouse,specificationId:String(basic.spec.id),specificationVersion:2,demandQuantity:'1',dueDate:'2026-10-03',capacityMinutes:100,comparisonScenarioId:String(basic.plan.id)},key()),released=await reviewPlanningRecommendation(reviewer,String(scenario.recommendationId),{action:'approve',expectedVersion:1,reason:'Independent actual advanced comparison release'},key());await changeManufacturingOrder(owner,String(released.orderId),{action:'reserve',expectedVersion:1,expiresAt:Date.now()+3600000,reason:'Protect the actual advanced source material before withdrawal'},key());await purchasedManufacturing('draining',null,'manufacturing-mrp');const request=await manufacturingWithdrawal('manufacturing-mrp');await expect(manufacturingWithdrawalReview(request)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');await changeManufacturingOrder(owner,String(released.orderId),{action:'cancel',expectedVersion:2,reason:'Close the retained actual advanced production plan'},key());expect(await db.prepare('SELECT quantity_milli,consumed_milli,released_milli FROM manufacturing_material_reservations WHERE order_id=?').bind(String(released.orderId)).first()).toEqual({quantity_milli:2000,consumed_milli:0,released_milli:2000});expect((await manufacturingSettlement('manufacturing-mrp')).total).toBe(0);await manufacturingWithdrawalReview(request);await manufacturingWithdrawalReview(request,true);expect((await productionDetail(owner,String(released.orderId))).order.status).toBe('cancelled');expect((await productionDetail(owner,basic.id)).order.status).toBe('planned');expect((await manufacturingSettlement()).total).toBeGreaterThan(0);
 });
 it('rolls back withdrawal and a late normal owner source command together before the full Commercial transaction commits',async()=>{
- await purchasedManufacturing();await purchasedManufacturing('draining');const request=await manufacturingWithdrawal(),command=key(),id=`mfg-spec-${command}`;await expect(manufacturingWithdrawalReview(request,true,async()=>{await createSpecification(owner,{name:'Late original owner settlement obligation',mode:'bom',outputProductId:output,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:material,quantity:'2'}]},command);})).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');expect(await db.prepare("SELECT state,version FROM company_package_grants WHERE company_id=? AND package_id='manufacturing'").bind(f.company).first()).toEqual({state:'draining',version:2});expect(await db.prepare('SELECT 1 FROM manufacturing_specifications WHERE id=?').bind(id).first()).toBeNull();for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();expect((await manufacturingSettlement()).total).toBe(0);
+ await purchasedManufacturing();await purchasedManufacturing('draining');const request=await manufacturingWithdrawal(),command=key(),id=`mfg-spec-${command}`;await expect(manufacturingWithdrawalReview(request,true,async()=>{await activeTransactionSpecification(owner,id,'Late original owner settlement obligation',output,material);})).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');expect(await db.prepare("SELECT state,version FROM company_package_grants WHERE company_id=? AND package_id='manufacturing'").bind(f.company).first()).toEqual({state:'draining',version:2});expect(await db.prepare('SELECT 1 FROM manufacturing_specifications WHERE id=?').bind(id).first()).toBeNull();for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();expect((await manufacturingSettlement()).total).toBe(0);
 });
 it('requires exact minted source leases and v1 owner scope before any Manufacturing withdrawal observation',async()=>{
  const {manufacturingPackageObligations}=await import('@erpx/server-manufacturing/public/package-obligations'),{withOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),input={...manufacturingSettlementInput(),moduleId:'manufacturing',now:Date.now()};await expect(db.transaction(tx=>manufacturingPackageObligations(db,tx,input))).rejects.toThrow('MANUFACTURING_PACKAGE_OBLIGATION_SOURCE_REQUIRED');expect(()=>withOwnerPackageObligations(db,{...manufacturingSettlementInput(),packageVersion:2},tx=>manufacturingPackageObligations(db,tx,{...input,packageVersion:2}))).toThrow('PACKAGE_OBLIGATION_SOURCES_REQUIRED');await expect(withOwnerPackageObligations(db,manufacturingSettlementInput(),tx=>manufacturingPackageObligations(db,tx,{...input,moduleId:'planning'}))).rejects.toThrow('MANUFACTURING_PACKAGE_OBLIGATION_SCOPE_REQUIRED');await expect(withOwnerPackageObligations(db,manufacturingSettlementInput(),tx=>manufacturingPackageObligations(db,tx,{...input,companyId:'other-company'}))).rejects.toThrow('MANUFACTURING_PACKAGE_OBLIGATION_SOURCE_REQUIRED');
 });
 it('acquires Manufacturing withdrawal source leases before its first snapshot and sees a concurrent committed native obligation',async()=>{
  await purchasedManufacturing();await purchasedManufacturing('draining');const request=await manufacturingWithdrawal(),command=key();let ready:()=>void=()=>{},failed:(cause:unknown)=>void=()=>{},release:()=>void=()=>{};const sourceReady=new Promise<void>((resolve,reject)=>{ready=resolve;failed=reject;}),finish=new Promise<void>(resolve=>{release=resolve;});
- const writer=db.transaction(async tx=>{manufacturingDatabase=tx;try{await createSpecification(owner,{name:'Concurrent original Manufacturing obligation',mode:'bom',outputProductId:output,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:material,quantity:'2'}]},command);}finally{manufacturingDatabase=undefined;}ready();await finish;}).catch(cause=>{failed(cause);throw cause;});
+ const writer=db.transaction(async tx=>{manufacturingDatabase=tx;try{await seedSpecification(tx,owner,`mfg-spec-${command}`,{name:'Concurrent original Manufacturing obligation',mode:'bom',outputProductId:output,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:material,quantity:'2'}]},{status:'draft',version:1});}finally{manufacturingDatabase=undefined;}ready();await finish;}).catch(cause=>{failed(cause);throw cause;});
  try{await sourceReady;let completed=false;const observation=manufacturingWithdrawalReview(request).then(()=>null,cause=>cause).finally(()=>{completed=true;});await new Promise(resolve=>setTimeout(resolve,100));expect(completed).toBe(false);release();await writer;expect(await observation).toMatchObject({message:'PACKAGE_OBLIGATIONS_REMAIN'});}finally{release();manufacturingDatabase=undefined;await writer.catch(()=>{});}
  expect(await db.prepare('SELECT status FROM manufacturing_specifications WHERE id=?').bind(`mfg-spec-${command}`).first('status')).toBe('draft');expect(await db.prepare("SELECT state,version FROM company_package_grants WHERE company_id=? AND package_id='manufacturing'").bind(f.company).first()).toEqual({state:'draining',version:2});
 });
@@ -1042,8 +1046,7 @@ it('Manufacturing-only initial physical Count binds evidence and posts independe
  // The very same counted units now feed ORIGINAL Manufacturing commands.
  // Finance approver can author records; Company owner performs independent
  // specification/plan review and QC after the different person's report.
- const output=await s.masters.createManufacturingInitialPhysicalStockProduct(z.owner,{sku:key(),name:'Actual output from first physically counted Manufacturing material',itemType:'stock',price:'12',taxBps:700},key()),spec=await createSpecification(z.manager,{name:'Actual first-stock Manufacturing BOM',mode:'bom',outputProductId:String(output.id),batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:String(product.id),quantity:'2'}]},key());
- await reviewSpecification(z.owner,String(spec.id),{action:'approve',expectedVersion:1,reason:'Different original Company reviewer approves real first-stock material specification'},key());
+ const output=await s.masters.createManufacturingInitialPhysicalStockProduct(z.owner,{sku:key(),name:'Actual output from first physically counted Manufacturing material',itemType:'stock',price:'12',taxBps:700},key()),spec=await seedSpecification(db,z.manager,`mfg-spec-${key()}`,{name:'Actual first-stock Manufacturing BOM',mode:'bom',outputProductId:String(output.id),batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:String(product.id),quantity:'2'}]});
  const plan=await createPlanningScenario(z.manager,{warehouseId:String(warehouse.id),specificationId:String(spec.id),specificationVersion:2,demandQuantity:'1',dueDate:'2026-09-06',capacityMinutes:100},key()),released=await reviewPlanningRecommendation(z.owner,String(plan.recommendationId),{action:'approve',expectedVersion:1,reason:'Independent actual Manufacturing release uses the counted material'},key()),orderId=String(released.orderId);
  await changeManufacturingOrder(z.manager,orderId,{action:'reserve',expectedVersion:1,expiresAt:Date.now()+3600000,reason:'Reserve precisely two actually counted material units'},key());
  await changeManufacturingOrder(z.manager,orderId,{action:'issue',expectedVersion:2,entryDate:'2026-09-06',reason:'Issue original counted material into the actual approved WIP profile'},key());
@@ -1357,8 +1360,7 @@ async function populatedLegacyConfiguredManufacturingCompany(){
  expect(await db.prepare('SELECT count(*)::int n FROM inventory_mfg_initial_physical_sources WHERE count_id=?').bind(supplyCountId).first('n')).toBe(0);
  const originalCountReceipt=await db.prepare('SELECT result_json FROM command_receipts WHERE command_id=?').bind(supplyCountKey).first<string>('result_json');expect(JSON.parse(originalCountReceipt??'{}')).not.toHaveProperty('_manufacturingInitialPhysicalStockCount');
  const outputProduct=await commerce.saveMaster(z.owner,'products',null,{sku:key(),name:'Real released original Company output before Manufacturing mapping confirmation',itemType:'stock',price:'12',taxBps:700},key());
- const spec=await createSpecification(z.manager,{name:'Original pre-confirmation actual production BOM',mode:'bom',outputProductId:String(outputProduct.id),batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:String(product.id),quantity:'2'}]},key());
- await reviewSpecification(z.owner,String(spec.id),{action:'approve',expectedVersion:1,reason:'Different Company actor reviews the real original BOM'},key());
+ const spec=await seedSpecification(db,z.manager,`mfg-spec-${key()}`,{name:'Original pre-confirmation actual production BOM',mode:'bom',outputProductId:String(outputProduct.id),batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:String(product.id),quantity:'2'}]});
  const plan=await createPlanningScenario(z.manager,{warehouseId:String(warehouse.id),specificationId:String(spec.id),specificationVersion:2,demandQuantity:'1',dueDate:'2026-09-06',capacityMinutes:100},key()),released=await reviewPlanningRecommendation(z.owner,String(plan.recommendationId),{action:'approve',expectedVersion:1,reason:'Independent original release before Manufacturing source confirmation'},key()),productionId=String(released.orderId);
  await changeManufacturingOrder(z.manager,productionId,{action:'reserve',expectedVersion:1,expiresAt:Date.now()+3600000,reason:'Original reservation protects the physically counted source material'},key());
  await changeManufacturingOrder(z.manager,productionId,{action:'issue',expectedVersion:2,entryDate:'2026-09-06',reason:'Original actual material issue transfers the retained value into WIP'},key());
