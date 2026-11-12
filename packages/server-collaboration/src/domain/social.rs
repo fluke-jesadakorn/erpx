@@ -243,6 +243,18 @@ pub enum Change {
         id: String,
         version: i64,
     },
+    EditPost {
+        id: String,
+        expected_version: i64,
+        body: String,
+        mentions: Vec<MentionInput>,
+        content_json: Option<String>,
+        rich_content_json: Option<String>,
+    },
+    RetractPost {
+        id: String,
+        expected_version: i64,
+    },
     SavePostDraft {
         id: Option<String>,
         body: String,
@@ -311,6 +323,19 @@ pub enum OwnerPlan {
         post_id: String,
         reporter_id: String,
         reason: String,
+    },
+    EditPost {
+        id: String,
+        expected_version: i64,
+        body: String,
+        content_json: Option<String>,
+        rich_content_json: Option<String>,
+        mentions_json: String,
+        mentions: Vec<Mention>,
+    },
+    RetractPost {
+        id: String,
+        expected_version: i64,
     },
     PublishDraftPost {
         draft_id: String,
@@ -666,6 +691,23 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             id: post_id.clone(),
             version: 1,
             status: "published",
+        },
+        OwnerPlan::EditPost {
+            id,
+            expected_version,
+            ..
+        } => Receipt {
+            id: id.clone(),
+            version: next_version(*expected_version)?,
+            status: "published",
+        },
+        OwnerPlan::RetractPost {
+            id,
+            expected_version,
+        } => Receipt {
+            id: id.clone(),
+            version: next_version(*expected_version)?,
+            status: "archived",
         },
     })
 }

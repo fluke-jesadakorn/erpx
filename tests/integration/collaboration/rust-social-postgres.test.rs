@@ -33,6 +33,8 @@ fn operation(change: &Change) -> &'static str {
         Change::ReportPost { .. } => "social.post.report",
         Change::SavePostDraft { .. } => "social.draft.save",
         Change::PublishDraft { .. } => "social.draft.publish",
+        Change::EditPost { .. } => "social.post.edit",
+        Change::RetractPost { .. } => "social.post.retract",
     }
 }
 
@@ -46,6 +48,7 @@ fn record_id(key: &str, change: &Change) -> String {
         Change::ReportPost { post_id, .. } => post_id.clone(),
         Change::SavePostDraft { id, .. } => id.clone().unwrap_or_else(|| format!("post-draft-{key}")),
         Change::PublishDraft { id, .. } => format!("post-{id}"),
+        Change::EditPost { id, .. } | Change::RetractPost { id, .. } => id.clone(),
     }
 }
 
@@ -301,6 +304,7 @@ fn decode_receipt(raw: &str) -> Result<Receipt, Error> {
         Some("tombstoned") => "tombstoned",
         Some("reported") => "reported",
         Some("draft") => "draft",
+        Some("archived") => "archived",
         _ => return Err(changed()),
     };
     let id = value["id"]
@@ -1073,6 +1077,123 @@ async fn publish_draft_creates_the_social_post_participants_sources_and_binding(
         .await
         .unwrap_err();
         assert!(matches!(again, PgTransactionError::Business(e) if e.code == "DRAFT_NOT_FOUND"));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn edits_and_retracts_the_authors_post_with_immutable_revisions() {
+    fixture::with_database(7, |pool| async move {
+        setup(&pool).await;
+        let post = run(
+            &pool,
+            "author",
+            "company",
+            "social-post-0601",
+            Change::PublishPost {
+                body: "Original".into(),
+                audience: Audience::Holding,
+                tags: vec![],
+                mentions: vec![],
+                linked_record: None,
+            },
+        )
+        .await
+        .unwrap();
+        let edited = run(
+            &pool,
+            "author",
+            "company",
+            "social-post-0602",
+            Change::EditPost {
+                id: post.id.clone(),
+                expected_version: 1,
+                body: "Edited".into(),
+                mentions: vec![],
+                content_json: None,
+                rich_content_json: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!((edited.version, edited.status), (2, "published"));
+        let row: (String, i64) =
+            sqlx::query_as("SELECT body,version FROM social_posts WHERE id=$1")
+                .bind(&post.id)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(row, ("Edited".into(), 2));
+        let revision: (String, i64, String) = sqlx::query_as(
+            "SELECT action,prior_version,body FROM social_post_revisions WHERE post_id=$1 ORDER BY prior_version",
+        )
+        .bind(&post.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(revision, ("edit".into(), 1, "Original".into()));
+        let stale = run(
+            &pool,
+            "author",
+            "company",
+            "social-post-0603",
+            Change::EditPost {
+                id: post.id.clone(),
+                expected_version: 1,
+                body: "Stale".into(),
+                mentions: vec![],
+                content_json: None,
+                rich_content_json: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(stale, PgTransactionError::Business(e) if e.code == "VERSION_CONFLICT"));
+        let foreign = run(
+            &pool,
+            "other-author",
+            "other",
+            "social-post-0604",
+            Change::EditPost {
+                id: post.id.clone(),
+                expected_version: 2,
+                body: "Foreign".into(),
+                mentions: vec![],
+                content_json: None,
+                rich_content_json: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(foreign, PgTransactionError::Business(e) if e.code == "POST_NOT_FOUND"));
+        let retracted = run(
+            &pool,
+            "author",
+            "company",
+            "social-post-0605",
+            Change::RetractPost {
+                id: post.id.clone(),
+                expected_version: 2,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!((retracted.version, retracted.status), (3, "archived"));
+        let state: (String, i64) =
+            sqlx::query_as("SELECT state,version FROM social_posts WHERE id=$1")
+                .bind(&post.id)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(state, ("archived".into(), 3));
+        let retract_revision: (String, i64, String) = sqlx::query_as(
+            "SELECT action,prior_version,body FROM social_post_revisions WHERE post_id=$1 AND action='retract'",
+        )
+        .bind(&post.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(retract_revision, ("retract".into(), 2, "Edited".into()));
     })
     .await;
 }

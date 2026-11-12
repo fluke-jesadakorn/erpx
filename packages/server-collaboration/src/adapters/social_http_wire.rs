@@ -143,6 +143,32 @@ pub fn decode_social_command(
             post_id: post(post_id)?,
             reason: text(raw, "reason")?.to_owned(),
         },
+        "social.post.edit" => Change::EditPost {
+            id: post(post_id)?,
+            expected_version: positive(raw, "expectedVersion")?,
+            body: raw
+                .get("body")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            mentions: mentions(raw)?,
+            content_json: raw
+                .get("content")
+                .filter(|value| !value.is_null())
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(|_| invalid())?,
+            rich_content_json: raw
+                .get("richContent")
+                .filter(|value| !value.is_null())
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(|_| invalid())?,
+        },
+        "social.post.retract" => Change::RetractPost {
+            id: post(post_id)?,
+            expected_version: positive(raw, "expectedVersion")?,
+        },
         "social.draft.publish" => Change::PublishDraft {
             id: post(post_id)?,
             version: positive(raw, "version")?,

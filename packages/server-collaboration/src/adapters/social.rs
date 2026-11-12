@@ -728,6 +728,108 @@ pub async fn apply_plan(
             }
             Ok(expected.clone())
         }
+        OwnerPlan::EditPost {
+            id,
+            expected_version,
+            body,
+            content_json,
+            rich_content_json,
+            mentions_json,
+            mentions: mention_rows,
+        } => {
+            let prior = sqlx::query(
+                "SELECT body,content_json,rich_content_json,mentions_json FROM social_posts WHERE id=$1 AND company_id=$2",
+            )
+            .bind(id)
+            .bind(&actor.company_id)
+            .fetch_optional(&mut *c)
+            .await?
+            .ok_or_else(changed)?;
+            sqlx::query(
+                "INSERT INTO social_post_revisions(id,post_id,prior_version,action,body,content_json,rich_content_json,mentions_json,actor_id,created_at) VALUES($1,$2,$3,'edit',$4,$5,$6,$7,$8,$9)",
+            )
+            .bind(format!("revision-{}", key.as_str()))
+            .bind(id)
+            .bind(expected_version)
+            .bind(prior.try_get::<String, _>(0)?)
+            .bind(prior.try_get::<Option<String>, _>(1)?)
+            .bind(prior.try_get::<Option<String>, _>(2)?)
+            .bind(prior.try_get::<String, _>(3)?)
+            .bind(&actor.user_id)
+            .bind(now)
+            .execute(&mut *c)
+            .await?;
+            sqlx::query("DELETE FROM social_mentions WHERE owner_type='post' AND owner_id=$1")
+                .bind(id)
+                .execute(&mut *c)
+                .await?;
+            sqlx::query("DELETE FROM social_post_topics WHERE post_id=$1")
+                .bind(id)
+                .execute(&mut *c)
+                .await?;
+            let updated = sqlx::query(
+                "UPDATE social_posts SET body=$1,content_json=$2,rich_content_json=$3,mentions_json=$4,edited_at=$5,version=version+1,updated_at=$6 WHERE id=$7 AND author_id=$8 AND version=$9",
+            )
+            .bind(body)
+            .bind(content_json)
+            .bind(rich_content_json)
+            .bind(mentions_json)
+            .bind(now)
+            .bind(now)
+            .bind(id)
+            .bind(&actor.user_id)
+            .bind(expected_version)
+            .execute(&mut *c)
+            .await?;
+            if updated.rows_affected() != 1 {
+                return Err(changed());
+            }
+            let tags = normalize_tags(&hashtags(body))?;
+            post_topics(c, id, &tags, &actor.user_id, now).await?;
+            mentions(c, "post", id, mention_rows, &actor.user_id, &actor.company_id, now).await?;
+            Ok(expected.clone())
+        }
+        OwnerPlan::RetractPost {
+            id,
+            expected_version,
+        } => {
+            let prior = sqlx::query(
+                "SELECT body,content_json,rich_content_json,mentions_json FROM social_posts WHERE id=$1 AND company_id=$2",
+            )
+            .bind(id)
+            .bind(&actor.company_id)
+            .fetch_optional(&mut *c)
+            .await?
+            .ok_or_else(changed)?;
+            sqlx::query(
+                "INSERT INTO social_post_revisions(id,post_id,prior_version,action,body,content_json,rich_content_json,mentions_json,actor_id,created_at) VALUES($1,$2,$3,'retract',$4,$5,$6,$7,$8,$9)",
+            )
+            .bind(format!("revision-{}", key.as_str()))
+            .bind(id)
+            .bind(expected_version)
+            .bind(prior.try_get::<String, _>(0)?)
+            .bind(prior.try_get::<Option<String>, _>(1)?)
+            .bind(prior.try_get::<Option<String>, _>(2)?)
+            .bind(prior.try_get::<String, _>(3)?)
+            .bind(&actor.user_id)
+            .bind(now)
+            .execute(&mut *c)
+            .await?;
+            let updated = sqlx::query(
+                "UPDATE social_posts SET state='archived',retracted_at=$1,version=version+1,updated_at=$2 WHERE id=$3 AND author_id=$4 AND version=$5",
+            )
+            .bind(now)
+            .bind(now)
+            .bind(id)
+            .bind(&actor.user_id)
+            .bind(expected_version)
+            .execute(&mut *c)
+            .await?;
+            if updated.rows_affected() != 1 {
+                return Err(changed());
+            }
+            Ok(expected.clone())
+        }
         OwnerPlan::PublishDraftPost {
             draft_id,
             draft_version,
@@ -963,6 +1065,13 @@ pub async fn retain_effects(
                 return Err(changed());
             }
             capture(c, &mut images, format!("draft:{id}")).await?;
+        }
+
+        OwnerPlan::EditPost { id, .. } | OwnerPlan::RetractPost { id, .. } => {
+            if receipt.id != *id {
+                return Err(changed());
+            }
+            capture(c, &mut images, format!("post:{id}")).await?;
         }
         OwnerPlan::PublishDraftPost {
             post_id,

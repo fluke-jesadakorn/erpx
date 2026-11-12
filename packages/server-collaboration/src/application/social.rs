@@ -297,6 +297,66 @@ pub async fn execute<P: SocialUnit>(
                     reason,
                 });
             }
+            Change::EditPost {
+                id,
+                expected_version,
+                body,
+                mentions: mention_inputs,
+                content_json,
+                rich_content_json,
+            } => {
+                validate_expected_version(expected_version)?;
+                let post = p.post(&id).await?;
+                require_published_post(&actor, &post)?;
+                if post.author_id != actor.user_id || post.linked_record.is_some() {
+                    return Err(BusinessError::new(
+                        FailureKind::Forbidden,
+                        "POST_AUTHOR_REQUIRED",
+                        "Only the author can change this team post.",
+                    )
+                    .into());
+                }
+                if post.version != expected_version {
+                    return Err(conflict().into());
+                }
+                let body = text(&body, 0, MAX_DRAFT_BODY)?;
+                if body.trim().is_empty() && content_json.is_none() {
+                    return Err(invalid().into());
+                }
+                let resolved = mentions(p, &mention_inputs).await?;
+                plan = Some(OwnerPlan::EditPost {
+                    id,
+                    expected_version,
+                    body,
+                    content_json,
+                    rich_content_json,
+                    mentions_json: serde_json::to_string(&resolved).map_err(|_| invalid())?,
+                    mentions: resolved,
+                });
+            }
+            Change::RetractPost {
+                id,
+                expected_version,
+            } => {
+                validate_expected_version(expected_version)?;
+                let post = p.post(&id).await?;
+                require_published_post(&actor, &post)?;
+                if post.author_id != actor.user_id || post.linked_record.is_some() {
+                    return Err(BusinessError::new(
+                        FailureKind::Forbidden,
+                        "POST_AUTHOR_REQUIRED",
+                        "Only the author can change this team post.",
+                    )
+                    .into());
+                }
+                if post.version != expected_version {
+                    return Err(conflict().into());
+                }
+                plan = Some(OwnerPlan::RetractPost {
+                    id,
+                    expected_version,
+                });
+            }
             Change::PublishDraft { id, version } => {
                 validate_expected_version(version)?;
                 let draft = p.draft(&id).await?.ok_or_else(draft_not_found)?;

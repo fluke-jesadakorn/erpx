@@ -262,6 +262,8 @@ impl<'c> PgSocialUnit<'c> {
             Change::ReportPost { .. } => "social.post.report",
             Change::SavePostDraft { .. } => "social.draft.save",
             Change::PublishDraft { .. } => "social.draft.publish",
+            Change::EditPost { .. } => "social.post.edit",
+            Change::RetractPost { .. } => "social.post.retract",
         }
     }
 
@@ -286,6 +288,7 @@ impl<'c> PgSocialUnit<'c> {
                 .clone()
                 .unwrap_or_else(|| format!("post-draft-{}", key.as_str())),
             Change::PublishDraft { id, .. } => format!("post-{id}"),
+            Change::EditPost { id, .. } | Change::RetractPost { id, .. } => id.clone(),
         })
     }
 
@@ -574,6 +577,16 @@ impl SocialUnit for PgSocialUnit<'_> {
                 "social_post",
                 "Publish workplace update",
                 "social.post.published",
+            ),
+            OwnerPlan::EditPost { .. } => (
+                "social_post",
+                "Edit workplace update",
+                "social.post.edited",
+            ),
+            OwnerPlan::RetractPost { .. } => (
+                "social_post",
+                "Retract workplace update",
+                "social.post.retracted",
             ),
         };
         let value = serde_json::to_value(&receipt).map_err(|_| {

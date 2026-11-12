@@ -203,6 +203,10 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
             post(report_post),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/actions",
+            post(post_action),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/feed/drafts",
             post(save_draft),
         )
@@ -508,6 +512,38 @@ pub async fn report_post(
         Some(post_id),
         None,
     )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn post_action(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = async {
+        let target = target(&state, &headers, &slug)?.clone();
+        check_origin(&target, &headers)?;
+        let key = command_key(&headers)?;
+        let raw = json_body(request).await?;
+        let action = raw
+            .get("action")
+            .and_then(Value::as_str)
+            .ok_or_else(content_invalid)?;
+        let operation = match action {
+            "edit" => "social.post.edit",
+            "retract" => "social.post.retract",
+            _ => return Err(content_invalid()),
+        };
+        let decoded = decode_social_command(operation, Some(&post_id), None, &raw)?;
+        Ok(PreparedSocialCommand {
+            target,
+            change: decoded.change,
+            input: decoded.input,
+            key,
+        })
+    }
     .await;
     command_response(prepared, headers).await
 }

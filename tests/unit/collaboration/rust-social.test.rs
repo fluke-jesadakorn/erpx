@@ -588,6 +588,78 @@ async fn publishes_a_draft_by_binding_the_retained_author_version() {
 }
 
 #[tokio::test]
+async fn edits_and_retracts_only_the_authors_current_post_with_a_revision_plan() {
+    let mut unit = Unit::new();
+    let edited = execute(
+        &mut unit,
+        &key(),
+        Change::EditPost {
+            id: "post-1".into(),
+            expected_version: 2,
+            body: " Edited ".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!((edited.version, edited.status), (3, "published"));
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::EditPost {
+            body,
+            expected_version,
+            mentions_json,
+            ..
+        } => {
+            assert_eq!(body, "Edited");
+            assert_eq!(*expected_version, 2);
+            assert_eq!(mentions_json, "[]");
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let stale = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0002").unwrap(),
+        Change::EditPost {
+            id: "post-1".into(),
+            expected_version: 1,
+            body: "Stale".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(stale.code, "VERSION_CONFLICT");
+    unit.posts.get_mut("post-1").unwrap().author_id = "other".into();
+    let denied = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0003").unwrap(),
+        Change::RetractPost {
+            id: "post-1".into(),
+            expected_version: 2,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(denied.code, "POST_AUTHOR_REQUIRED");
+    unit.posts.get_mut("post-1").unwrap().author_id = "user".into();
+    let retracted = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0004").unwrap(),
+        Change::RetractPost {
+            id: "post-1".into(),
+            expected_version: 2,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!((retracted.version, retracted.status), (3, "archived"));
+}
+
+#[tokio::test]
 async fn exact_replay_skips_apply_but_still_revalidates_current_sources() {
     let mut unit = Unit::new();
     unit.replay = Some(Receipt {
