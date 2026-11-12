@@ -26,6 +26,8 @@ pub(crate) mod social_pg;
 
 pub(crate) mod messaging_native;
 
+pub(crate) mod messaging_file_discard;
+
 pub(crate) mod messaging_pg;
 
 pub(crate) mod inbox_pg;

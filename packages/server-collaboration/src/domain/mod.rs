@@ -10,6 +10,8 @@ pub(crate) mod social;
 
 pub(crate) mod messaging_native;
 
+pub(crate) mod messaging_file_discard;
+
 pub(crate) mod messaging_teams;
 
 pub mod web_push;

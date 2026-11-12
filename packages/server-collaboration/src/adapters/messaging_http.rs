@@ -159,6 +159,25 @@ pub struct MessagingFilesContentRequest<'a> {
     pub variant: &'a str,
 }
 
+/// Unsent-file discard command. The backend owns the session, Company,
+/// conversation guard, purchase admission, Files owner port and one
+/// serializable transaction; the router transports only bounded facts.
+pub struct MessagingFileDiscardRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub file_id: &'a str,
+    pub reason: &'a str,
+    pub key: CommandKey,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessagingFileDiscardReceipt {
+    pub id: String,
+    pub state: &'static str,
+}
+
 /// Files owner port. Composition implements quarantine/scan/audience checks;
 /// the collaboration router only transports the requested binding.
 pub trait MessagingFilesPort: Send + Sync {
@@ -213,6 +232,10 @@ pub trait MessagingHttpBackend: Send + Sync {
         request: MessagingHttpAttachmentRequest<'a>,
         files: &'a dyn MessagingFilesPort,
     ) -> MessagingHttpFuture<'a, MessagingAttachmentReply>;
+    fn discard<'a>(
+        &'a self,
+        request: MessagingFileDiscardRequest<'a>,
+    ) -> MessagingHttpFuture<'a, MessagingFileDiscardReceipt>;
 }
 
 #[derive(Clone)]
@@ -311,6 +334,10 @@ pub fn messaging_router(targets: Vec<MessagingHttpTarget>) -> Result<Router, Bus
         .route(
             "/api/v1/holdings/{holding_slug}/messaging/files/{file_id}",
             get(read_file),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/messaging/files/{file_id}/discard",
+            post(discard_file),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/messaging/teams",
@@ -753,6 +780,46 @@ fn attachment_ids(raw: &Value) -> Result<Vec<String>, BusinessError> {
         .collect()
 }
 
+pub async fn discard_file(
+    State(state): State<Arc<MessagingHttpState>>,
+    Path((slug, file_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let target = target(&state, &headers, &slug)?.clone();
+        check_origin(&target, &headers)?;
+        let key = command_key(&headers)?;
+        let raw = json_body(request).await?;
+        let reason = raw
+            .get("reason")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty() && value.len() <= 4096)
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "MESSAGE_FILE_DISCARD_REASON_REQUIRED",
+                    "Explain why this unsent attachment is being discarded.",
+                )
+            })?;
+        target
+            .backend
+            .discard(MessagingFileDiscardRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                file_id: &file_id,
+                reason,
+                key,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(receipt) => bounded(receipt),
+        Err(error) => error_response(error),
+    }
+}
+
 pub async fn read_file(
     State(state): State<Arc<MessagingHttpState>>,
     Path((slug, file_id)): Path<(String, String)>,
@@ -850,6 +917,7 @@ mod tests {
         reads: Mutex<Vec<(String, String, &'static str)>>,
         commands: Mutex<Vec<(String, String, String)>>,
         attachments: Mutex<Vec<String>>,
+        discards: Mutex<Vec<(String, String)>>,
     }
 
     impl MessagingHttpBackend for FakeBackend {
@@ -992,6 +1060,23 @@ mod tests {
                     })
                 }
             }
+        }
+
+        fn discard<'a>(
+            &'a self,
+            request: MessagingFileDiscardRequest<'a>,
+        ) -> MessagingHttpFuture<'a, MessagingFileDiscardReceipt> {
+            let file_id = request.file_id.to_owned();
+            self.discards
+                .lock()
+                .unwrap()
+                .push((file_id.clone(), request.reason.to_owned()));
+            Box::pin(async move {
+                Ok(MessagingFileDiscardReceipt {
+                    id: file_id,
+                    state: "withdrawn",
+                })
+            })
         }
     }
 
@@ -1217,6 +1302,65 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(value["data"]["status"], "pending_scan");
         assert_eq!(backend.attachments.lock().unwrap().as_slice(), ["room-1:1"]);
+    }
+
+    #[tokio::test]
+    async fn file_discard_requires_origin_key_and_reason() {
+        let backend = Arc::new(FakeBackend::default());
+        let state = http_state(make_target(backend.clone(), false));
+        let response = discard_file(
+            State(state.clone()),
+            Path(("acme".into(), "file-1".into())),
+            post_request(
+                r#"{"reason":"Unsent duplicate"}"#,
+                Some("https://evil.test"),
+                Some("messaging-key-0004"),
+            ),
+        )
+        .await;
+        assert_eq!(body(response).await.0, StatusCode::FORBIDDEN);
+        let response = discard_file(
+            State(state.clone()),
+            Path(("acme".into(), "file-1".into())),
+            post_request(
+                r#"{"reason":"Unsent duplicate"}"#,
+                Some("https://acme.example.test"),
+                None,
+            ),
+        )
+        .await;
+        assert_eq!(body(response).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+        let response = discard_file(
+            State(state.clone()),
+            Path(("acme".into(), "file-1".into())),
+            post_request(
+                r#"{"reason":""}"#,
+                Some("https://acme.example.test"),
+                Some("messaging-key-0004"),
+            ),
+        )
+        .await;
+        assert_eq!(body(response).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(backend.discards.lock().unwrap().is_empty());
+
+        let response = discard_file(
+            State(state),
+            Path(("acme".into(), "file-1".into())),
+            post_request(
+                r#"{"reason":"Unsent duplicate"}"#,
+                Some("https://acme.example.test"),
+                Some("messaging-key-0004"),
+            ),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(value["data"]["id"], "file-1");
+        assert_eq!(value["data"]["state"], "withdrawn");
+        assert_eq!(
+            backend.discards.lock().unwrap().as_slice(),
+            [("file-1".to_owned(), "Unsent duplicate".to_owned())]
+        );
     }
 
     #[tokio::test]

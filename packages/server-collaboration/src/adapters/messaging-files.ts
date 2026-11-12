@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { headers } from 'next/headers';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { FileStore, SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { ApiError } from '@erpx/server-runtime/public/http';
@@ -9,13 +10,14 @@ import { sha256 } from '@erpx/server-runtime/public/crypto';
 import { executeCommand, replayCommand } from '@erpx/server-workflow/public/commands';
 import { attachmentsV2ReadOnly } from '@erpx/server-files/public/attachments/feature';
 import { detectedAttachmentMediaType } from '@erpx/server-files/public/attachments/preview';
-import { createAttachmentSet, reserveAttachmentFile, completeAttachmentUpload, scanAttachmentNow,withdrawAttachmentLink } from '@erpx/server-files/public/attachments/service';
+import { createAttachmentSet, reserveAttachmentFile, completeAttachmentUpload, scanAttachmentNow } from '@erpx/server-files/public/attachments/service';
 import { collaborationMessageSource } from '@erpx/server-files/public/collaboration-message-sources';
 import {withMessagingUploadRollback} from '@erpx/server-files/public/messaging-upload-rollback';
 import { metadata } from '@erpx/server-collaboration/domain/messaging-files';
 import {withMessagingPurchasedCommand} from '@erpx/server-collaboration/adapters/messaging-purchases';
 import {appsPackageEnforcementMode} from '@erpx/server-commercial/public/purchase-command-boundary';
 import { createMessagingFileApplication,type MessagingFilePorts } from '@erpx/server-collaboration/application/messaging-files';
+import { nativeDiscardMessagingFile } from '@erpx/server-collaboration/public/native-messaging-page';
 async function inward<T>(run: () => Promise<T>) { try {
     return await run();
 }
@@ -42,14 +44,14 @@ export async function uploadMessagingFile(db: SqlDatabase, files: FileStore, act
     }
 }
 
-/** Discard only the original uploader's still-unbound evidence through normal
- * Files withdrawal. The source and original bytes remain retained history. */
-export async function discardMessagingFile(db:SqlDatabase,actor:WorkContext,id:string,input:{reason:string},key:string){
+/** Discard only the original uploader's still-unbound evidence through the
+ * native Messaging owner command. Replay, the conversation guard, the Files
+ * withdrawal and the purchase settlement commit in one serializable unit; the
+ * source and original bytes remain retained history. */
+export async function discardMessagingFile(_db:SqlDatabase,actor:WorkContext,id:string,input:{reason:string},key:string){
  const reason=input.reason.trim();if(reason.length<3||reason.length>1000)throw new ApiError(422,'MESSAGE_FILE_DISCARD_REASON_REQUIRED','Explain why this unsent attachment is being discarded.');
- const file=await messagingFileForDiscard(db,actor,id);return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.file-discard',id:file.room_id,privateFiles:true,alwaysOwned:true,purpose:'settle-existing'},async tx=>{
-  const original=await messagingFileForDiscard(tx,actor,id);if(original.room_id!==file.room_id)throw new ApiError(409,'MESSAGING_FILE_SOURCE_CHANGED','The original unsent attachment moved to another conversation.');const fingerprint={id,reason},prior=await replayCommand<{id:string;state:'withdrawn'}>(tx,actor,key,'messaging.file-discard',original.room_id,fingerprint);if(prior)return prior;
-  if(!original.attachment_link_id||original.message_id!==null||original.created_by!==actor.userId)throw new ApiError(409,'MESSAGE_FILE_ALREADY_BOUND','Only your own unsent message attachment can be discarded.');
-  await withdrawAttachmentLink(tx,actor,original.attachment_link_id,reason,key,{compatibilityAdapter:true});return executeCommand(tx,actor,key,'messaging.file-discard',fingerprint,original.room_id,Number(original.version),{id,state:'withdrawn' as const},[messagingGuard(tx,actor,key,original.room_id)]);
- });
+ const value=await nativeDiscardMessagingFile(await headers(),actor.holdingSlug,id,reason,key);
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==2||(value as Record<string,unknown>).id!==id||(value as Record<string,unknown>).state!=='withdrawn')
+  throw new ApiError(503,'NATIVE_COLLABORATION_RESPONSE_INVALID','The native Messaging receipt was invalid.');
+ return value as {id:string;state:'withdrawn'};
 }
-async function messagingFileForDiscard(database:SqlDatabase,actor:WorkContext,id:string){const file=await database.prepare('SELECT file.id,file.room_id,file.created_by,file.message_id,file.attachment_link_id,room.version FROM messaging_files file JOIN messaging_rooms room ON room.id=file.room_id WHERE file.id=? AND room.company_id=?').bind(id,actor.companyId).first<{id:string;room_id:string;created_by:string;message_id:string|null;attachment_link_id:string|null;version:number}>();if(!file)throw new ApiError(404,'MESSAGE_FILE_NOT_FOUND','The original unsent attachment is unavailable.');await messagingRoom(database,actor,file.room_id);return file;}

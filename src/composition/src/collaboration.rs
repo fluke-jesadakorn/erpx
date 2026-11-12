@@ -10,16 +10,19 @@ use erpx_server_collaboration::public::social::{
 };
 use erpx_server_collaboration::public::messaging_http::{
     MessagingAttachmentKind, MessagingAttachmentReply, MessagingChannelsData,
-    MessagingFileBinding, MessagingFileContent, MessagingFilesBindRequest,
-    MessagingFilesContentRequest, MessagingFilesPort, MessagingHistoryData,
-    MessagingHttpAttachmentRequest, MessagingHttpBackend, MessagingHttpCommand,
-    MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
+    MessagingFileBinding, MessagingFileContent, MessagingFileDiscardReceipt,
+    MessagingFileDiscardRequest, MessagingFilesBindRequest, MessagingFilesContentRequest,
+    MessagingFilesPort, MessagingHistoryData, MessagingHttpAttachmentRequest, MessagingHttpBackend,
+    MessagingHttpCommand, MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
     MessagingHttpReadRequest, MessagingHttpReceipt, MessagingHttpTarget, MessagingMembersData,
     MessagingOverviewData, MessagingReadKind,
 };
 use erpx_server_collaboration::public::messaging_native::{
-    Change as RoomChange, HistoryCursor, PgMessagingUnit, Receipt as RoomReceipt, RoomView,
-    lock_messaging_sources, execute as execute_room,
+    Change as RoomChange, HistoryCursor, MessagingActor, PgMessagingUnit, Receipt as RoomReceipt,
+    RoomView, lock_messaging_sources, execute as execute_room,
+};
+use erpx_server_collaboration::public::messaging_file_discard::{
+    MessagingFileDiscardPort, MessagingFileWithdrawRequest, discard_file,
 };
 use erpx_server_collaboration::public::messaging_teams::{
     Change as TeamChange, PgMessagingTeamUnit, Receipt as TeamReceipt,
@@ -32,7 +35,7 @@ use erpx_server_collaboration::public::social_http::{
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
+    account_inbound_http::{parse_inbound_account_request, unique_request_header},
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
@@ -42,6 +45,16 @@ use erpx_server_identity_access::public::{
 use erpx_server_files::public::messaging_files::{
     MessagingFilesActor, MessagingFilesAudience, MessagingFilesFuture,
 };
+use erpx_server_files::public::attachment_command::{
+    AttachmentWithdrawAuthority, WithdrawAttachmentRequest, WithdrawTarget, withdraw_attachment,
+};
+use erpx_server_commercial::public::purchase_command_boundary::{
+    PurchaseCommandBoundary, PurchaseCommandScope,
+};
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, current_package_catalogue,
+};
+use erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current;
 use erpx_server_records::public::record_context::{
     PgRecordContext, RecordContextActor, record_context,
 };
@@ -831,6 +844,107 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
             )
             .await
     }
+
+    pub async fn discard(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        file_id: String,
+        reason: String,
+        key: erpx_server_shared::public::CommandKey,
+    ) -> Result<MessagingFileDiscardReceipt, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected || !request.mutation {
+                        return Err(scope_error());
+                    }
+                    request.mutation = true;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.write".into(),
+                    module: Some("collaboration".into()),
+                    destination: "messaging".into(),
+                    api: true,
+                },
+                CollaborationSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    let file_id = file_id.clone();
+                    let reason = reason.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_error().into());
+                        }
+                        current.require_permission("records.write")?;
+                        current.require_permission("records.read")?;
+                        let now = clock.now().get();
+                        let name = display_name(connection, &company, current.user_id().as_str())
+                            .await;
+                        let actor = MessagingActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            display_name: name,
+                            company_id: company.as_str().to_owned(),
+                        };
+                        // Retained order: Company package fence before the
+                        // Messaging/owner source locks.
+                        let mut purchase = begin_messaging_file_discard_purchase(
+                            connection,
+                            &holding,
+                            &company,
+                            key.as_str(),
+                        )
+                        .await?;
+                        lock_messaging_sources(connection).await?;
+                        sqlx::query(
+                            "LOCK TABLE messaging_files IN SHARE ROW EXCLUSIVE MODE",
+                        )
+                        .execute(&mut *connection)
+                        .await?;
+                        let authority = MessageFileWithdrawAuthority {
+                            company_id: company.clone(),
+                            current,
+                        };
+                        let port = MessageFileDiscardFilesPort {
+                            authority: &authority,
+                        };
+                        let receipt = discard_file(
+                            connection,
+                            &actor,
+                            current.selection().assignment().id.as_str(),
+                            key.as_str(),
+                            &file_id,
+                            &reason,
+                            now,
+                            &port,
+                        )
+                        .await?;
+                        if let Some((mut boundary, catalogue)) = purchase.take() {
+                            boundary.complete(connection, &holding, &catalogue).await?;
+                        }
+                        Ok(MessagingFileDiscardReceipt {
+                            id: receipt.id,
+                            state: receipt.state,
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct MessagingBackend<C> {
@@ -869,6 +983,54 @@ impl<C: Clock + Send + Sync + 'static> MessagingBackend<C> {
                 department_slug: department,
                 expected: None,
                 mutation: false,
+            },
+        ))
+    }
+
+    fn mutation_context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let company =
+            unique_request_header(headers, "x-erpx-context-company")?.ok_or_else(scope_error)?;
+        if company != self.service.company().as_str() {
+            return Err(scope_error());
+        }
+        let assignment = unique_request_header(headers, "x-erpx-context-assignment")?
+            .ok_or_else(scope_error)?;
+        let revision: i64 = unique_request_header(headers, "x-erpx-context-revision")?
+            .ok_or_else(scope_error)?
+            .parse()
+            .map_err(|_| scope_error())?;
+        let assignment_version: i64 =
+            unique_request_header(headers, "x-erpx-context-assignment-version")?
+                .ok_or_else(scope_error)?
+                .parse()
+                .map_err(|_| scope_error())?;
+        if !(1..=9_007_199_254_740_991).contains(&revision)
+            || !(1..=9_007_199_254_740_991).contains(&assignment_version)
+        {
+            return Err(scope_error());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: Some(
+                    erpx_server_identity_access::public::work_context::ExpectedWorkSelection {
+                        revision,
+                        assignment_id: erpx_server_shared::public::AssignmentId::new(assignment)?,
+                        assignment_version,
+                    },
+                ),
+                mutation: true,
             },
         ))
     }
@@ -951,6 +1113,26 @@ impl<C: Clock + Send + Sync + 'static> MessagingHttpBackend for MessagingBackend
                     )
                 }
             })
+        })
+    }
+
+    fn discard<'a>(
+        &'a self,
+        request: MessagingFileDiscardRequest<'a>,
+    ) -> MessagingHttpFuture<'a, MessagingFileDiscardReceipt> {
+        Box::pin(async move {
+            let (proof, selection) = self.mutation_context(request.headers)?;
+            self.service
+                .discard(
+                    request.host,
+                    proof,
+                    selection,
+                    request.file_id.to_owned(),
+                    request.reason.to_owned(),
+                    request.key,
+                )
+                .await
+                .map_err(business)
         })
     }
 }
@@ -1071,6 +1253,190 @@ impl MessagingFilesAudience for CompositionMessagingFilesAudience {
             Ok(())
         })
     }
+}
+
+/// Files owner authority for a Messaging unsent-file discard. The current
+/// Account/Holding/Company scope and the `collaboration` module are required,
+/// and the exact `messaging_room` target must stay in this Company. Room
+/// membership is rechecked by the Messaging unit before and after the Files
+/// write; this port never mints a Customer, Account or File permission.
+struct MessageFileWithdrawAuthority<'a> {
+    company_id: CompanyId,
+    current: &'a AuthorizedWorkContext,
+}
+
+impl MessageFileWithdrawAuthority<'_> {
+    fn require(&self, target: &WithdrawTarget<'_>) -> Result<(), BusinessError> {
+        if target.company_id != self.company_id.as_str()
+            || target.target_type != "messaging_room"
+        {
+            return Err(scope_error());
+        }
+        self.current
+            .require_permission("records.write")
+            .map_err(|_| {
+                BusinessError::new(
+                    FailureKind::Forbidden,
+                    "ATTACHMENT_FORBIDDEN",
+                    "Your current assignment cannot discard this file.",
+                )
+            })?;
+        self.current
+            .require_permission("records.read")
+            .map_err(|_| {
+                BusinessError::new(
+                    FailureKind::Forbidden,
+                    "ATTACHMENT_FORBIDDEN",
+                    "Your current assignment cannot discard this file.",
+                )
+            })?;
+        if !self
+            .current
+            .modules()
+            .iter()
+            .any(|value| value == "collaboration")
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ATTACHMENT_FORBIDDEN",
+                "Your current assignment cannot discard this file.",
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl AttachmentWithdrawAuthority for MessageFileWithdrawAuthority<'_> {
+    fn authorize_withdraw<'c>(
+        &'c self,
+        _connection: &'c mut PgConnection,
+        target: &'c WithdrawTarget<'c>,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            self.require(target)?;
+            Ok(())
+        })
+    }
+
+    fn revalidate_withdraw<'c>(
+        &'c self,
+        connection: &'c mut PgConnection,
+        target: &'c WithdrawTarget<'c>,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            self.require(target).map_err(Error::Business)?;
+            let now = self.current.expires_at();
+            let sampled = sqlx::query_scalar::<_, i64>(
+                "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint",
+            )
+            .fetch_one(&mut *connection)
+            .await?;
+            if sampled >= now {
+                return Err(Error::Business(BusinessError::new(
+                    FailureKind::Conflict,
+                    "ATTACHMENT_WITHDRAW_AUTHORITY_CHANGED",
+                    "The selected role or file record changed. Reload and retry.",
+                )));
+            }
+            require_selected_actor_current(connection, self.current, sampled).await?;
+            Ok(())
+        })
+    }
+}
+
+/// In-process Files owner port for the Messaging unit. It calls the Files
+/// generic remove command on the caller's connection; both owners commit or
+/// roll back together.
+struct MessageFileDiscardFilesPort<'a> {
+    authority: &'a MessageFileWithdrawAuthority<'a>,
+}
+
+impl MessagingFileDiscardPort for MessageFileDiscardFilesPort<'_> {
+    fn withdraw<'a>(
+        &'a self,
+        connection: &'a mut PgConnection,
+        request: MessagingFileWithdrawRequest<'a>,
+    ) -> erpx_server_collaboration::public::messaging_file_discard::MessagingFileDiscardFuture<'a, ()>
+    {
+        Box::pin(async move {
+            withdraw_attachment(
+                connection,
+                self.authority,
+                WithdrawAttachmentRequest {
+                    actor_id: request.actor_id,
+                    company_id: request.company_id,
+                    link_id: request.link_id,
+                    reason: request.reason,
+                    command_key: request.command_key,
+                    now: request.now,
+                },
+            )
+            .await
+            .map(|_| ())
+            .map_err(business)
+        })
+    }
+}
+
+fn messaging_file_discard_mode() -> Result<PackageEnforcementMode, BusinessError> {
+    let raw = std::env::var("ERPX_APPS_PACKAGE_ENFORCEMENT")
+        .unwrap_or_else(|_| "disabled".to_owned());
+    let mode = match raw.as_str() {
+        "disabled" => PackageEnforcementMode::Disabled,
+        "shadow" => PackageEnforcementMode::Shadow,
+        "enforced" => PackageEnforcementMode::Enforced,
+        _ => {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "PACKAGE_ENFORCEMENT_CONFIGURATION",
+                "Package enforcement is unavailable.",
+            ));
+        }
+    };
+    if mode != PackageEnforcementMode::Disabled
+        && std::env::var("ERPX_ENVIRONMENT").as_deref() != Ok("local")
+    {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "PACKAGE_ENFORCEMENT_ENVIRONMENT",
+            "Package enforcement is unavailable in this environment.",
+        ));
+    }
+    Ok(mode)
+}
+
+/// Settle the existing Messages purchase obligation for an unsent file
+/// discard. The boundary attaches to the Messaging serializable unit before the
+/// owner write and re-evaluates `work.messages`/`settle-existing` afterwards.
+async fn begin_messaging_file_discard_purchase(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    key: &str,
+) -> Result<Option<(PurchaseCommandBoundary, CommercialCatalogue)>, Error> {
+    let mode = messaging_file_discard_mode().map_err(Error::Business)?;
+    if mode == PackageEnforcementMode::Disabled {
+        return Ok(None);
+    }
+    let catalogue = current_package_catalogue().map_err(Error::Business)?;
+    let purchase_key = format!("{key}:file-discard");
+    let Some(mut boundary) = PurchaseCommandBoundary::new(
+        mode,
+        purchase_key,
+        PurchaseCommandScope {
+            company_id: company.clone(),
+            capability: "work.messages".into(),
+            purpose: CapabilityPurpose::SettleExisting,
+        },
+    )
+    .map_err(Error::Business)?
+    else {
+        return Ok(None);
+    };
+    boundary
+        .begin(connection, holding, &catalogue)
+        .await?;
+    Ok(Some((boundary, catalogue)))
 }
 
 fn inbox_scope(

@@ -14,6 +14,8 @@ pub mod social;
 
 pub mod messaging_native;
 
+pub mod messaging_file_discard;
+
 pub mod messaging_teams;
 
 pub mod messaging_http;

@@ -91,10 +91,22 @@ async function command(
   body: unknown,
   key: string,
 ): Promise<unknown> {
+  return commandHeaders(request.headers, holdingSlug, path, body, key);
+}
+
+async function commandHeaders(
+  incoming: Pick<Headers, 'get'>,
+  holdingSlug: string,
+  path: string,
+  body: unknown,
+  key: string,
+): Promise<unknown> {
   const config = configuration();
   const headers = new Headers({ accept: 'application/json', 'content-type': 'application/json' });
-  const cookie = request.headers.get('cookie');
-  const origin = request.headers.get('origin');
+  const host = incoming.get('host');
+  const cookie = incoming.get('cookie');
+  const origin = incoming.get('origin');
+  if (host) headers.set('host', host);
   if (cookie) headers.set('cookie', cookie);
   if (origin) headers.set('origin', origin);
   headers.set('idempotency-key', key);
@@ -106,7 +118,7 @@ async function command(
     'x-erpx-workspace-branch',
     'x-erpx-workspace-department',
   ]) {
-    const value = request.headers.get(name);
+    const value = incoming.get(name);
     if (value) headers.set(name, value);
   }
   let response: Response;
@@ -172,6 +184,25 @@ export function nativeMarkRead(
   key: string,
 ) {
   return command(request, holdingSlug, `/rooms/${encodeURIComponent(roomId)}/read`, { seq }, key);
+}
+
+/** Discard one original unsent attachment through the native Messaging owner
+ * command. The caller must already hold the current request; a missing native
+ * transport configuration fails closed with 503. */
+export function nativeDiscardMessagingFile(
+  incoming: Pick<Headers, 'get'>,
+  holdingSlug: string,
+  fileId: string,
+  reason: string,
+  key: string,
+) {
+  return commandHeaders(
+    incoming,
+    holdingSlug,
+    `/files/${encodeURIComponent(fileId)}/discard`,
+    { reason },
+    key,
+  );
 }
 
 export function nativeCreateTeam(request: Request, holdingSlug: string, body: unknown, key: string) {
