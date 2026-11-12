@@ -2214,8 +2214,7 @@
         {
           "id": "registration",
           "migration": "clean",
-          "source": [
-          ],
+          "source": [],
           "regression": [
             "tests/integration/assets/asset-maintenance.test.ts"
           ]
@@ -2226,7 +2225,7 @@
           "source": [
             "packages/server-assets/src/adapters/assets.ts",
             "packages/server-assets/src/application/assets.ts",
-            "packages/server-assets/src/domain/assets.ts",
+            "packages/server-assets/src/domain/assets.ts"
           ],
           "regression": [
             "tests/integration/assets/asset-maintenance.test.ts",
@@ -3751,7 +3750,6 @@
             "packages/server-collaboration/src/adapters/crm-notifications.ts",
             "packages/server-collaboration/src/adapters/customer-authority-notifications.ts",
             "packages/server-collaboration/src/adapters/customer-portal-notifications.ts",
-            "packages/server-collaboration/src/adapters/field-service-notifications.ts",
             "packages/server-collaboration/src/adapters/inbox.ts",
             "packages/server-collaboration/src/adapters/inventory-counts-sources.ts",
             "packages/server-collaboration/src/adapters/inventory-landed-costs-sources.ts",
