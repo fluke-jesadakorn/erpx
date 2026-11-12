@@ -198,6 +198,10 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
             "/api/v1/holdings/{holding_slug}/topics/{tag}/follows",
             post(set_topic_follow),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/reports",
+            post(report_post),
+        )
         .with_state(Arc::new(state)))
 }
 
@@ -479,6 +483,24 @@ pub async fn set_topic_follow(
     let headers = request.headers().clone();
     let prepared =
         prepare_command(state, slug, request, "social.topic.follow", Some(tag), None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn report_post(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.post.report",
+        Some(post_id),
+        None,
+    )
+    .await;
     command_response(prepared, headers).await
 }
 

@@ -5,7 +5,7 @@
 //! retries a transaction and never invents an access result or mention label.
 use crate::domain::social::{
     Change, CommentSnapshot, CommentState, FollowTarget, MAX_COMMENT_BODY, MAX_POST_BODY,
-    Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot, Receipt, SocialActor, comment_not_found,
+    MAX_REPORT_REASON, Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot, Receipt, SocialActor, comment_not_found,
     normalize_tags, plan_receipt, post_not_found, post_tags, require_audience, require_comment_edit,
     require_comment_removal, require_published_post, text, validate_expected_version,
     validate_mentions,
@@ -278,6 +278,17 @@ pub async fn execute<P: SocialUnit>(
                     target_id,
                     version,
                     active,
+                });
+            }
+            Change::ReportPost { post_id, reason } => {
+                let post = p.post(&post_id).await?;
+                require_published_post(&actor, &post)?;
+                let reason = text(&reason, 1, MAX_REPORT_REASON)?;
+                plan = Some(OwnerPlan::ReportPost {
+                    id: format!("report-{}", key.as_str()),
+                    post_id,
+                    reporter_id: actor.user_id.clone(),
+                    reason,
                 });
             }
         }

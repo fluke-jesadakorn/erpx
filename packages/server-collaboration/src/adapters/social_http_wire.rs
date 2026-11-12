@@ -139,6 +139,10 @@ pub fn decode_social_command(
             target_id: post(post_id)?,
             active: boolean(raw, "active")?,
         },
+        "social.post.report" => Change::ReportPost {
+            post_id: post(post_id)?,
+            reason: text(raw, "reason")?.to_owned(),
+        },
         _ => return Err(invalid()),
     };
     Ok(DecodedSocialCommand {

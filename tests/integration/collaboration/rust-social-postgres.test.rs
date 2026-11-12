@@ -30,6 +30,7 @@ fn operation(change: &Change) -> &'static str {
             target: FollowTarget::Topic,
             ..
         } => "social.topic.follow",
+        Change::ReportPost { .. } => "social.post.report",
     }
 }
 
@@ -40,6 +41,7 @@ fn record_id(key: &str, change: &Change) -> String {
         Change::EditComment { id, .. } | Change::TombstoneComment { id, .. } => id.clone(),
         Change::SetReaction { post_id, .. } => post_id.clone(),
         Change::SetFollow { target_id, .. } => target_id.clone(),
+        Change::ReportPost { post_id, .. } => post_id.clone(),
     }
 }
 
@@ -264,6 +266,7 @@ fn decode_receipt(raw: &str) -> Result<Receipt, Error> {
         Some("followed") => "followed",
         Some("unfollowed") => "unfollowed",
         Some("tombstoned") => "tombstoned",
+        Some("reported") => "reported",
         _ => return Err(changed()),
     };
     let id = value["id"]
@@ -772,6 +775,83 @@ async fn reactions_follows_filters_and_tampered_effects_roll_back() {
         .await
         .unwrap();
         assert_eq!(before, after);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn reports_are_idempotent_per_reporter_and_replay_without_duplicates() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let post = run(
+            &pool,
+            "author",
+            "company",
+            "social-post-0301",
+            post_change("Report target", Audience::Holding),
+        )
+        .await
+        .unwrap();
+        let first = run(
+            &pool,
+            "reader",
+            "company",
+            "social-report-0301",
+            Change::ReportPost {
+                post_id: post.id.clone(),
+                reason: "Spam".into(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!((first.id.as_str(), first.status), (post.id.as_str(), "reported"));
+        let replay = run(
+            &pool,
+            "reader",
+            "company",
+            "social-report-0301",
+            Change::ReportPost {
+                post_id: post.id.clone(),
+                reason: "Spam".into(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, first);
+        run(
+            &pool,
+            "reader",
+            "company",
+            "social-report-0302",
+            Change::ReportPost {
+                post_id: post.id.clone(),
+                reason: "Harassment".into(),
+            },
+        )
+        .await
+        .unwrap();
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT id,reason FROM social_reports WHERE post_id=$1 ORDER BY reporter_id",
+        )
+        .bind(&post.id)
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].1, "Harassment");
+        let missing = run(
+            &pool,
+            "reader",
+            "company",
+            "social-report-0303",
+            Change::ReportPost {
+                post_id: "post-missing".into(),
+                reason: "Spam".into(),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(missing, PgTransactionError::Business(e) if e.code == "POST_NOT_FOUND"));
     })
     .await;
 }

@@ -259,6 +259,7 @@ impl<'c> PgSocialUnit<'c> {
                 target: FollowTarget::Topic,
                 ..
             } => "social.topic.follow",
+            Change::ReportPost { .. } => "social.post.report",
         }
     }
 
@@ -278,6 +279,7 @@ impl<'c> PgSocialUnit<'c> {
                 target_id,
                 ..
             } => crate::domain::social::normalize_tag(target_id)?,
+            Change::ReportPost { post_id, .. } => post_id.clone(),
         })
     }
 
@@ -522,6 +524,11 @@ impl SocialUnit for PgSocialUnit<'_> {
                     (FollowTarget::Post, true) => "social.post.followed",
                     (FollowTarget::Post, false) => "social.post.unfollowed",
                 },
+            ),
+            OwnerPlan::ReportPost { .. } => (
+                "social_post",
+                "Report workplace update",
+                "social.post.reported",
             ),
         };
         let value = serde_json::to_value(&receipt).map_err(|_| {

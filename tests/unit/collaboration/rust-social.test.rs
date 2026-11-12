@@ -348,6 +348,58 @@ async fn reaction_and_follow_are_idempotent_flags_not_audience_grants() {
 }
 
 #[tokio::test]
+async fn report_requires_a_published_readable_post_and_bounded_reason() {
+    let mut unit = Unit::new();
+    let receipt = execute(
+        &mut unit,
+        &key(),
+        Change::ReportPost {
+            post_id: "post-1".into(),
+            reason: " Spam ".into(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!((receipt.id.as_str(), receipt.status), ("post-1", "reported"));
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::ReportPost {
+            id,
+            post_id,
+            reporter_id,
+            reason,
+        } => {
+            assert_eq!(id, "report-social-command-0001");
+            assert_eq!(post_id, "post-1");
+            assert_eq!(reporter_id, "user");
+            assert_eq!(reason, "Spam");
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let missing = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0002").unwrap(),
+        Change::ReportPost {
+            post_id: "post-x".into(),
+            reason: "Spam".into(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(missing.code, "POST_NOT_FOUND");
+    let empty = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0003").unwrap(),
+        Change::ReportPost {
+            post_id: "post-1".into(),
+            reason: "   ".into(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(empty.code, "SOCIAL_INPUT_INVALID");
+}
+
+#[tokio::test]
 async fn exact_replay_skips_apply_but_still_revalidates_current_sources() {
     let mut unit = Unit::new();
     unit.replay = Some(Receipt {

@@ -9,6 +9,7 @@ use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 pub const MAX_SAFE_VERSION: i64 = 9_007_199_254_740_991;
 pub const MAX_POST_BODY: usize = 3000;
 pub const MAX_COMMENT_BODY: usize = 10_000;
+pub const MAX_REPORT_REASON: usize = 2000;
 pub const MAX_TAGS: usize = 5;
 pub const MAX_MENTIONS: usize = 20;
 
@@ -226,6 +227,10 @@ pub enum Change {
         target_id: String,
         active: bool,
     },
+    ReportPost {
+        post_id: String,
+        reason: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -275,6 +280,12 @@ pub enum OwnerPlan {
         target_id: String,
         version: i64,
         active: bool,
+    },
+    ReportPost {
+        id: String,
+        post_id: String,
+        reporter_id: String,
+        reason: String,
     },
 }
 
@@ -551,6 +562,11 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             id: target_id.clone(),
             version: *version,
             status: if *active { "followed" } else { "unfollowed" },
+        },
+        OwnerPlan::ReportPost { post_id, .. } => Receipt {
+            id: post_id.clone(),
+            version: 1,
+            status: "reported",
         },
     })
 }

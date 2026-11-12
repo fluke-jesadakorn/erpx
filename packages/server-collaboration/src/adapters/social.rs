@@ -666,6 +666,24 @@ pub async fn apply_plan(
             }
             Ok(expected.clone())
         }
+        OwnerPlan::ReportPost {
+            id,
+            post_id,
+            reporter_id,
+            reason,
+        } => {
+            sqlx::query(
+                "INSERT INTO social_reports(id,post_id,reporter_id,reason,created_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(post_id,reporter_id) DO UPDATE SET reason=excluded.reason",
+            )
+            .bind(id)
+            .bind(post_id)
+            .bind(reporter_id)
+            .bind(reason)
+            .bind(now)
+            .execute(&mut *c)
+            .await?;
+            Ok(expected.clone())
+        }
     };
     let receipt = result?;
     if receipt != expected {
@@ -698,6 +716,16 @@ async fn image(c: &mut PgConnection, key: &str) -> Result<Option<String>, Error>
         "post" => "SELECT to_jsonb(p)::text FROM social_posts p WHERE p.id=$1",
         "comment" => "SELECT to_jsonb(p)::text FROM social_comments p WHERE p.id=$1",
         "notice" => "SELECT to_jsonb(p)::text FROM staff_notifications p WHERE p.id=$1",
+        "report" => {
+            let (post_id, reporter_id) = id.split_once(':').ok_or_else(changed)?;
+            return Ok(sqlx::query_scalar(
+                "SELECT to_jsonb(p)::text FROM social_reports p WHERE p.post_id=$1 AND p.reporter_id=$2",
+            )
+            .bind(post_id)
+            .bind(reporter_id)
+            .fetch_optional(c)
+            .await?);
+        }
         _ => return Err(changed()),
     };
     Ok(sqlx::query_scalar(sql).bind(id).fetch_optional(c).await?)
@@ -779,6 +807,21 @@ pub async fn retain_effects(
             if receipt.id != *post_id {
                 return Err(changed());
             }
+        }
+        OwnerPlan::ReportPost {
+            post_id,
+            reporter_id,
+            ..
+        } => {
+            if receipt.id != *post_id {
+                return Err(changed());
+            }
+            capture(
+                c,
+                &mut images,
+                format!("report:{post_id}:{reporter_id}"),
+            )
+            .await?;
         }
     }
     Ok(CurrentSocialEffects {
