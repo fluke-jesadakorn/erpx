@@ -9,6 +9,7 @@ import {
   type NativeQualityDispositionReceipt,
   type NativeQualityHoldReceipt,
   type NativeQualityInspectionReceipt,
+  type NativeQualityAlertAcknowledgementReceipt,
   type NativeQualityReceipt,
   type NativeQualityReleaseReceipt,
   type NativeQualitySpecReceipt,
@@ -148,6 +149,18 @@ export async function nativeQualityCancel(
   const native = client(transport);
   if (!native) return undefined;
   return native.cancel(await headers(), holdingSlug, id, input, key);
+}
+
+export async function nativeQualityAcknowledgeAlert(
+  holdingSlug: string,
+  id: string,
+  input: unknown,
+  key: string,
+  transport?: QualityTransport,
+): Promise<NativeQualityAlertAcknowledgementReceipt | undefined> {
+  const native = client(transport);
+  if (!native) return undefined;
+  return native.acknowledgeAlert(await headers(), holdingSlug, id, input, key);
 }
 
 export type NativeQualityFailure = Readonly<{

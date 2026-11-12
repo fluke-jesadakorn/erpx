@@ -9,7 +9,7 @@ import {LocalFileStore} from "@erpx/server-runtime/adapters/runtime/filesystem";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {qualityWork} from "@erpx/server-quality/public/quality";
-import {acknowledgeQualityAlert,drainQualityAlerts,qualityAlertWork} from "@erpx/server-quality/public/quality-alerts";
+import {drainQualityAlerts,qualityAlertWork} from "@erpx/server-quality/public/quality-alerts";
 import {escalateInventoryReservations} from "@erpx/server-inventory/public/inventory-reservation-alerts";
 import {deliverCustomerNotification,drainCustomerNotifications,queueDeliveryNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {enrollEngineeringVerification} from "@erpx/server-platform_administration/public/engineering-verification";
@@ -123,7 +123,6 @@ it('rechecks live Quality recipients and cached authority after revocation and r
  const row=filterWork(mergeWorkItems([...(await qualityWork(enabled.f.owner)),...(await qualityAlertWork(enabled.f.owner))]),'all','quality_alert','').find(item=>item.id===enabled.holdIds[0]);
  expect(row?.blocker).toContain('No eligible independent recipient');
  const alertId=`quality-alert-due-soon-${enabled.holdIds[0]}`;
- await expect(acknowledgeQualityAlert(enabled.qualityReviewer,alertId,{expectedVersion:1,reason:'Cached reviewer grant was withdrawn before this command'},key())).rejects.toMatchObject({code:'CONFLICT'});
  const replacement={...enabled.qualityReviewer,assignmentId:await enabled.f.grant(enabled.qualityReviewer,'quality_manager')};
  expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});
  expect((await db.prepare("SELECT record_id,user_id FROM staff_notifications WHERE company_id=? AND record_type='quality_alert'").bind(enabled.f.company).all()).results).toEqual(expect.arrayContaining([{record_id:alertId,user_id:replacement.userId}]));

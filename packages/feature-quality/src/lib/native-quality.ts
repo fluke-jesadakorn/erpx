@@ -1,4 +1,5 @@
 export {
+  nativeQualityAcknowledgeAlert,
   nativeQualityAvailable,
   nativeQualityCancel,
   nativeQualityDetail,
@@ -7,6 +8,7 @@ export {
 } from '../adapters/server/native-quality-page';
 export type {
   NativeQualityAlert,
+  NativeQualityAlertAcknowledgementReceipt,
   NativeQualityCancellation,
   NativeQualityDecision,
   NativeQualityDetail,

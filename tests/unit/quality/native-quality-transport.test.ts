@@ -150,6 +150,32 @@ describe('native Quality transport',()=>{
   expect(headers.get('x-erpx-workspace-branch')).toBe('bangkok');
  });
 
+ it('sends one keyed acknowledgement with origin and validates the exact owner receipt',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:{id:'alert-a',version:2,acknowledgedBy:'manager'}}));
+  const client=createNativeQualityReader(config(),transport);
+  const result=await client.acknowledgeAlert(incoming({'x-erpx-workspace-branch':'bangkok'}),'acme','alert-a',{
+    expectedVersion:1,reason:'Quality manager accepted the escalation',
+  },'quality-alert-ack');
+  expect(result).toEqual({id:'alert-a',version:2,acknowledgedBy:'manager'});
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44991/api/v1/holdings/acme/quality/alert-a/acknowledge');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(headers.get('x-erpx-context-assignment')).toBe('quality-assignment');
+  expect(headers.get('x-erpx-context-revision')).toBe('7');
+  expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
+  expect(headers.get('x-erpx-workspace-branch')).toBe('bangkok');
+  expect(headers.get('idempotency-key')).toBe('quality-alert-ack');
+  expect(headers.get('content-type')).toBe('application/json');
+  expect(JSON.parse(body)).toEqual({expectedVersion:1,reason:'Quality manager accepted the escalation'});
+  for(const value of [null,{id:'alert-a',version:2},{id:'alert-a',version:0,acknowledgedBy:'manager'},{id:'alert-a',version:2,acknowledgedBy:''}]) {
+   transport.mockResolvedValueOnce(ok({data:value}));
+   await expect(client.acknowledgeAlert(incoming(),'acme','alert-a',{},'quality-alert-bad')).rejects.toMatchObject({code:'NATIVE_QUALITY_RESPONSE_INVALID'});
+  }
+ });
+
  it('sends one keyed cancellation with origin and returns the owner acknowledgement',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:receipt}));
   const client=createNativeQualityReader(config(),transport);

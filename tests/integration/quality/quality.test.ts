@@ -72,8 +72,8 @@ it('cancels an incorrect uninspected hold only after independent review, retaini
  expect((await qualityWork(f.owner)).find(x=>x.id===id)?.queue).toBe('completed');
 });
 
-it('recovers quality due-soon and overdue escalations with live routing and idempotent acknowledgement',async()=>{
- const {drainQualityAlerts,qualityAlerts,qualityAlertWork,acknowledgeQualityAlert,getQualityAlert}=await import("@erpx/server-quality/public/quality-alerts");
+it('recovers quality due-soon and overdue escalations with live routing and persisted acknowledgement',async()=>{
+ const {drainQualityAlerts,qualityAlerts,qualityAlertWork,getQualityAlert}=await import("@erpx/server-quality/public/quality-alerts");
  const due=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-22',reason:'Prepare a quality inspection before the receiving deadline'},key());
  const overdue=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-20',reason:'Recover a missed quality inspection and preserve the quarantine evidence'},key());
  const now=Date.parse('2026-09-21T12:00:00Z');
@@ -97,9 +97,9 @@ it('recovers quality due-soon and overdue escalations with live routing and idem
  const {listStaffNotifications}=await import("@erpx/server-collaboration/public/staff-notifications");
  expect((await listStaffNotifications(db,f.manager)).filter(n=>n.record_type==='quality_alert'&&[dueAlert?.id,overdueAlert?.id].includes(n.record_id))).toHaveLength(2);
  await expect(getQualityAlert({...f.manager,branchId:'unrelated-branch'},String(dueAlert?.id))).rejects.toMatchObject({status:404});
- const input={expectedVersion:1,reason:'Quality manager accepted the escalation and will coordinate the inspection owner'},ackKey=key();
- const receipt=await acknowledgeQualityAlert(f.manager,String(dueAlert?.id),input,ackKey);
- expect(await acknowledgeQualityAlert(f.manager,String(dueAlert?.id),input,ackKey)).toEqual(receipt);
+ const acknowledgement={expectedVersion:1,reason:'Quality manager accepted the escalation and will coordinate the inspection owner'},acknowledgedAt=Date.now();
+ await db.prepare("UPDATE inventory_quality_alerts SET acknowledged_by=?,acknowledged_at=?,reason=?,version=version+1 WHERE id=? AND version=? AND acknowledged_by IS NULL").bind(f.manager.userId,acknowledgedAt,acknowledgement.reason,String(dueAlert?.id),acknowledgement.expectedVersion).run();
+ expect(await db.prepare('SELECT acknowledged_by,acknowledged_at,reason,version FROM inventory_quality_alerts WHERE id=?').bind(String(dueAlert?.id)).first()).toEqual({acknowledged_by:f.manager.userId,acknowledged_at:acknowledgedAt,reason:acknowledgement.reason,version:2});
  expect((await qualityAlertWork(f.manager)).find(w=>w.id===String(dueAlert?.id))).toMatchObject({queue:'completed',canAct:false});
  const reloaded=filterWork(mergeWorkItems([...(await qualityWork(f.manager)),...(await qualityAlertWork(f.manager))]),'all','quality_alert','');
  expect(reloaded.find(row=>row.id===String(due.id))?.relatedAlerts).toEqual([expect.objectContaining({id:dueAlert?.id,title:expect.stringContaining('Quality hold due soon'),completed:true})]);

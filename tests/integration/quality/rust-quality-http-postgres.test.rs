@@ -495,10 +495,16 @@ async fn selected_quality_reads_use_current_hr_fallback_identity_aliases() {
 #[tokio::test]
 async fn selected_quality_alias_fence_serializes_both_writer_orders() {
     use std::time::Duration;
-    async fn settle<T>(mut task: tokio::task::JoinHandle<T>) -> Option<Result<T, tokio::task::JoinError>> {
+    async fn settle<T>(
+        mut task: tokio::task::JoinHandle<T>,
+    ) -> Option<Result<T, tokio::task::JoinError>> {
         match tokio::time::timeout(Duration::from_secs(25), &mut task).await {
             Ok(result) => Some(result),
-            Err(_) => { task.abort(); let _ = task.await; None }
+            Err(_) => {
+                task.abort();
+                let _ = task.await;
+                None
+            }
         }
     }
     review::account::with_system(|system| async move {
@@ -960,6 +966,211 @@ async fn quality_http_hold_create_is_native_purchase_gated_and_replayable() {
         .await
         .unwrap();
         assert_eq!(refused, 0, "refused creates persist no hold");
+    })
+    .await;
+}
+
+/// Alert acknowledgement keeps the actual recipient assertion, receipt replay
+/// and Commercial settlement purchase admission inside one composed unit.
+#[tokio::test]
+async fn quality_alert_acknowledgement_is_native_purchase_gated_and_replayable() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_quality(&p).await;
+        seed_quality(&p).await;
+        let db = p.system.holdings[0].raw();
+        let now = p.system.scenario.clock.now().get();
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id IN ('finance-fixture-a','finance-fixture-b');\
+             INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,version) \
+             VALUES('http-alert-hold','company','branch','warehouse','product','Acknowledge the current escalation','2026-11-10','held','maker',{now},{now},'whole',1),\
+                   ('http-alert-creator-hold','company','branch','warehouse','product','Creator cannot acknowledge own escalation','2026-11-10','held','fixture-b',{now},{now},'whole',1),\
+                   ('http-alert-terminal-hold','company','branch','warehouse','product','Terminal hold escalation','2026-11-10','cancelled','maker',{now},{now},'whole',1),\
+                   ('http-alert-stale-hold','company','branch','warehouse','product','Stale escalation version','2026-11-10','held','maker',{now},{now},'whole',1),\
+                   ('http-alert-purchase-hold','company','branch','warehouse','product','Unpurchased escalation','2026-11-10','held','maker',{now},{now},'whole',1),\
+                   ('http-alert-unknown-hold','company','branch','warehouse','product','Unknown escalation scope','2026-11-10','held','maker',{now},{now},'whole',1);\
+             INSERT INTO inventory_quality_alerts(id,hold_id,phase,source_version,due_date,detected_at) \
+             VALUES('http-alert-a','http-alert-hold','due_soon',1,'2026-11-10',{now}),\
+                   ('http-alert-creator','http-alert-creator-hold','due_soon',1,'2026-11-10',{now}),\
+                   ('http-alert-terminal','http-alert-terminal-hold','overdue',1,'2026-11-10',{now}),\
+                   ('http-alert-stale','http-alert-stale-hold','overdue',1,'2026-11-10',{now}),\
+                   ('http-alert-purchase','http-alert-purchase-hold','due_soon',1,'2026-11-10',{now})"
+        )))
+        .execute(db)
+        .await
+        .unwrap();
+        let app = prepared_router(&p);
+        let key = "http-quality-alert-ack";
+        let body = r#"{"expectedVersion":1,"reason":"Independent quality manager accepted the escalation"}"#;
+        let acknowledged = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-alert-a/acknowledge",
+                &p,
+                true,
+                key,
+                body,
+            ))
+            .await
+            .unwrap();
+        let status = acknowledged.status();
+        let acknowledged = json(acknowledged).await;
+        assert_eq!(status, StatusCode::OK, "{acknowledged}");
+        assert_eq!(acknowledged["data"]["id"], "http-alert-a");
+        assert_eq!(acknowledged["data"]["version"], 2);
+        assert_eq!(acknowledged["data"]["acknowledgedBy"], "fixture-b");
+        let saved: (String, i64, i64, String) = sqlx::query_as(
+            "SELECT acknowledged_by,version,acknowledged_at,reason FROM inventory_quality_alerts WHERE id='http-alert-a'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(saved.0, "fixture-b");
+        assert_eq!(saved.1, 2);
+        assert_eq!(saved.2, now);
+        assert_eq!(
+            saved.3,
+            "Independent quality manager accepted the escalation"
+        );
+        let ledger: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),\
+                    (SELECT count(*) FROM audit_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM outbox_events WHERE command_id=$1)",
+        )
+        .bind(key)
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(ledger, (1, 1, 1));
+
+        let replay = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-alert-a/acknowledge",
+                &p,
+                true,
+                key,
+                body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        let replay = json(replay).await;
+        assert_eq!(replay["data"]["version"], 2);
+        assert_eq!(replay["data"]["acknowledgedBy"], "fixture-b");
+        let repeated: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM inventory_quality_alerts WHERE id='http-alert-a' AND version=2 AND acknowledged_by='fixture-b'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(repeated, 1);
+
+        let conflict = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-alert-a/acknowledge",
+                &p,
+                true,
+                key,
+                r#"{"expectedVersion":1,"reason":"A different acknowledgement body"}"#,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(conflict.status(), StatusCode::CONFLICT);
+        assert_eq!(
+            json(conflict).await["error"]["code"],
+            "IDEMPOTENCY_CONFLICT"
+        );
+
+        let already = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-alert-a/acknowledge",
+                &p,
+                true,
+                "http-quality-alert-already",
+                body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(already.status(), StatusCode::CONFLICT);
+        assert_eq!(
+            json(already).await["error"]["code"],
+            "QUALITY_ALERT_ACKNOWLEDGED"
+        );
+
+        for (path, key, reason) in [
+            (
+                "/api/v1/holdings/acme/quality/http-alert-stale/acknowledge",
+                "http-quality-alert-stale",
+                r#"{"expectedVersion":2,"reason":"A stale escalation version"}"#,
+            ),
+            (
+                "/api/v1/holdings/acme/quality/http-alert-creator/acknowledge",
+                "http-quality-alert-creator",
+                r#"{"expectedVersion":1,"reason":"The creator cannot acknowledge their own escalation"}"#,
+            ),
+            (
+                "/api/v1/holdings/acme/quality/http-alert-terminal/acknowledge",
+                "http-quality-alert-terminal",
+                r#"{"expectedVersion":1,"reason":"A terminal hold escalation cannot be acknowledged"}"#,
+            ),
+        ] {
+            let refused = app
+                .clone()
+                .oneshot(command_request(path, &p, true, key, reason))
+                .await
+                .unwrap();
+            assert_eq!(refused.status(), StatusCode::CONFLICT, "{path}");
+            assert_eq!(json(refused).await["error"]["code"], "CONFLICT", "{path}");
+        }
+
+        let missing = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-alert-missing/acknowledge",
+                &p,
+                true,
+                "http-quality-alert-missing",
+                body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            json(missing).await["error"]["code"],
+            "QUALITY_ALERT_NOT_FOUND"
+        );
+
+        sqlx::query("DELETE FROM company_package_grants WHERE company_id='company' AND package_id='supply-quality'")
+            .execute(db)
+            .await
+            .unwrap();
+        let unpurchased = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-alert-purchase/acknowledge",
+                &p,
+                true,
+                "http-quality-alert-purchase",
+                body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(unpurchased.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(unpurchased).await["error"]["code"],
+            "PACKAGE_REQUIRED"
+        );
+        let refused: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM inventory_quality_alerts WHERE id IN ('http-alert-stale','http-alert-creator','http-alert-terminal','http-alert-purchase') AND acknowledged_by IS NULL AND version=1",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(refused, 4, "refused acknowledgements persist no alert write");
+
     })
     .await;
 }

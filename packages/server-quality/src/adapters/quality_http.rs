@@ -11,6 +11,10 @@ use crate::application::quality::{
     QualityInspection, QualityLot, QualityMeasurement, QualityProduct, QualitySpecification,
     QualityStock, QualityWorkspace,
 };
+use crate::application::quality_alerts::{
+    QualityAlertAcknowledgeCommand, QualityAlertAcknowledgementReceipt,
+    normalize_quality_alert_acknowledge,
+};
 use crate::application::quality_commands::{
     QualityDispositionCommand, QualityDispositionReceipt, QualityHoldCommand, QualityHoldReceipt,
     QualityInspectionCommand, QualityInspectionReceipt, QualityReleaseCommand,
@@ -115,6 +119,18 @@ pub trait QualityHttpBackend: Send + Sync {
         &'a self,
         request: QualityHttpCommandRequest<'a>,
     ) -> QualityHttpFuture<'a, QualityCancellationReceipt>;
+    fn acknowledge<'a>(
+        &'a self,
+        _request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityAlertAcknowledgementReceipt> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_ALERT_UNAVAILABLE",
+                "Quality escalation acknowledgement is unavailable.",
+            ))
+        })
+    }
     fn history<'a>(
         &'a self,
         _request: QualityHttpHistoryRequest<'a>,
@@ -298,6 +314,10 @@ pub fn quality_router(targets: Vec<QualityHttpTarget>) -> Result<Router, Busines
         .route(
             "/api/v1/holdings/{holding_slug}/quality/{id}/cancel",
             post(cancel),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/quality/{id}/acknowledge",
+            post(acknowledge_alert),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/quality/{id}/cancellations",
@@ -635,6 +655,16 @@ fn receipt_json(value: &QualityCancellationReceipt) -> Value {
     })
 }
 
+fn alert_acknowledgement_receipt_json(value: &QualityAlertAcknowledgementReceipt) -> Value {
+    json!({
+        "data": {
+            "id": value.id,
+            "version": value.version,
+            "acknowledgedBy": value.acknowledged_by,
+        }
+    })
+}
+
 fn spec_receipt_json(value: &QualitySpecReceipt) -> Value {
     json!({
         "data": {
@@ -712,8 +742,12 @@ pub fn parse_spec_save(
     let expected_version = object
         .get("expectedVersion")
         .map(|value| {
-            json_integer(value, 1)
-                .ok_or_else(|| BusinessError::invalid("VERSION_REQUIRED", "Refresh the draft specification before editing."))
+            json_integer(value, 1).ok_or_else(|| {
+                BusinessError::invalid(
+                    "VERSION_REQUIRED",
+                    "Refresh the draft specification before editing.",
+                )
+            })
         })
         .transpose()?;
     let metrics = object
@@ -758,12 +792,20 @@ pub fn parse_spec_action(
 ) -> Result<QualitySpecActionCommand, BusinessError> {
     let object = command_object(value)?;
     let expected_version = json_integer(
-        object
-            .get("expectedVersion")
-            .ok_or_else(|| BusinessError::invalid("VERSION_REQUIRED", "Refresh the draft specification before editing."))?,
+        object.get("expectedVersion").ok_or_else(|| {
+            BusinessError::invalid(
+                "VERSION_REQUIRED",
+                "Refresh the draft specification before editing.",
+            )
+        })?,
         1,
     )
-    .ok_or_else(|| BusinessError::invalid("VERSION_REQUIRED", "Refresh the draft specification before editing."))?;
+    .ok_or_else(|| {
+        BusinessError::invalid(
+            "VERSION_REQUIRED",
+            "Refresh the draft specification before editing.",
+        )
+    })?;
     let action = object
         .get("action")
         .and_then(Value::as_str)
@@ -791,14 +833,12 @@ pub fn parse_inspection(
 ) -> Result<QualityInspectionCommand, BusinessError> {
     let object = command_object(value)?;
     let expected_version = json_integer(
-        object
-            .get("expectedVersion")
-            .ok_or_else(|| {
-                BusinessError::invalid(
-                    "VERSION_REQUIRED",
-                    "Refresh the quality hold before inspecting.",
-                )
-            })?,
+        object.get("expectedVersion").ok_or_else(|| {
+            BusinessError::invalid(
+                "VERSION_REQUIRED",
+                "Refresh the quality hold before inspecting.",
+            )
+        })?,
         1,
     )
     .ok_or_else(|| {
@@ -825,12 +865,15 @@ pub fn parse_inspection(
     let measurements = object
         .get("measurements")
         .map(|value| {
-            value.as_array().filter(|rows| rows.len() <= 100).ok_or_else(|| {
-                BusinessError::invalid(
-                    "QUALITY_MEASUREMENTS_REQUIRED",
-                    "Record one value for every measurement in the held specification.",
-                )
-            })
+            value
+                .as_array()
+                .filter(|rows| rows.len() <= 100)
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "QUALITY_MEASUREMENTS_REQUIRED",
+                        "Record one value for every measurement in the held specification.",
+                    )
+                })
         })
         .transpose()?
         .map(|rows| {
@@ -1053,10 +1096,7 @@ fn strict_keys(
     code: &'static str,
     message: &'static str,
 ) -> Result<(), BusinessError> {
-    if object
-        .keys()
-        .any(|key| !allowed.contains(&key.as_str()))
-    {
+    if object.keys().any(|key| !allowed.contains(&key.as_str())) {
         return Err(BusinessError::invalid(code, message));
     }
     Ok(())
@@ -1179,6 +1219,42 @@ pub fn parse_release(
         hold_id: RecordId::new(hold_id)?,
         expected_version,
         reason,
+    })
+}
+
+/// Retained alert acknowledgement admission: one positive expected version
+/// and the shared trimmed 3..2000 character reason. The alert identifier is the
+/// exact route target, never a caller-supplied body value.
+pub fn parse_alert_acknowledge(
+    value: &Value,
+    alert_id: &str,
+    command_key: CommandKey,
+) -> Result<QualityAlertAcknowledgeCommand, BusinessError> {
+    let invalid = || {
+        BusinessError::invalid(
+            "QUALITY_ALERT_REQUIRED",
+            "Review the current Quality escalation, version and acknowledgement reason.",
+        )
+    };
+    let object = value.as_object().ok_or_else(invalid)?;
+    let expected_version = object
+        .get("expectedVersion")
+        .and_then(|value| json_integer(value, 1))
+        .ok_or_else(|| {
+            BusinessError::invalid(
+                "VERSION_REQUIRED",
+                "Refresh the Quality escalation before acknowledging.",
+            )
+        })?;
+    let reason = object
+        .get("reason")
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?;
+    normalize_quality_alert_acknowledge(QualityAlertAcknowledgeCommand {
+        key: command_key,
+        alert_id: RecordId::new(alert_id)?,
+        expected_version,
+        reason: reason.to_owned(),
     })
 }
 
@@ -1315,8 +1391,7 @@ async fn parse_quality_command(
     request: Request,
     target: &QualityHttpTarget,
 ) -> Result<ParsedQualityCommand, BusinessError> {
-    if unique_header(request.headers(), header::ORIGIN)?
-        .is_some_and(|value| value != target.origin)
+    if unique_header(request.headers(), header::ORIGIN)?.is_some_and(|value| value != target.origin)
     {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
@@ -1329,9 +1404,7 @@ async fn parse_quality_command(
         HeaderName::from_static("idempotency-key"),
     )?
     .filter(|value| !value.is_empty())
-    .ok_or_else(|| {
-        BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
-    })
+    .ok_or_else(|| BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required."))
     .and_then(CommandKey::new)?;
     if !unique_header(request.headers(), header::CONTENT_TYPE)?.is_some_and(|value| {
         value
@@ -1344,9 +1417,7 @@ async fn parse_quality_command(
     let headers = request.headers().clone();
     let body = to_bytes(request.into_body(), BODY_LIMIT)
         .await
-        .map_err(|_| {
-            BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller Quality command.")
-        })?;
+        .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller Quality command."))?;
     let body = serde_json::from_slice::<Value>(&body).map_err(|_| malformed())?;
     Ok(ParsedQualityCommand { headers, key, body })
 }
@@ -1533,6 +1604,35 @@ async fn disposition_command(
     .await;
     match result {
         Ok(receipt) => bounded(disposition_receipt_json(&receipt)),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn acknowledge_alert(
+    State(state): State<Arc<QualityHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let parsed = parse_quality_command(request, target).await?;
+        let id = RecordId::new(id)?;
+        let command = parse_alert_acknowledge(&parsed.body, id.as_str(), parsed.key.clone())?;
+        target
+            .backend
+            .acknowledge(QualityHttpCommandRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &parsed.headers,
+                id: id.as_str(),
+                body: &parsed.body,
+                key: &command.key,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(receipt) => bounded(alert_acknowledgement_receipt_json(&receipt)),
         Err(error) => error_response(error),
     }
 }

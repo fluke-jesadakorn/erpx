@@ -220,6 +220,12 @@ export type NativeQualityReceipt = Readonly<{
   version: number;
 }>;
 
+export type NativeQualityAlertAcknowledgementReceipt = Readonly<{
+  id: string;
+  version: number;
+  acknowledgedBy: string;
+}>;
+
 export type NativeQualitySpecReceipt = Readonly<{
   id: string;
   status: string;
@@ -1180,6 +1186,35 @@ export function createNativeQualityReader(raw: string, transport: QualityTranspo
         cancellationId: value.cancellationId,
         status: value.status,
         version: value.version,
+      };
+    },
+    acknowledgeAlert: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+      id: string,
+      input: unknown,
+      key: string,
+    ): Promise<NativeQualityAlertAcknowledgementReceipt> => {
+      if (!identifier(id)) return fail('NATIVE_QUALITY_REQUEST_INVALID', 422);
+      const value = await send(
+        'POST',
+        incoming,
+        slug,
+        `/${encodeURIComponent(id)}/acknowledge`,
+        JSON.stringify(input ?? {}),
+        key,
+      );
+      if (
+        !identifier(value.id) ||
+        !safeInteger(value.version) ||
+        value.version < 1 ||
+        !identifier(value.acknowledgedBy)
+      )
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return {
+        id: value.id,
+        version: value.version,
+        acknowledgedBy: value.acknowledgedBy,
       };
     },
   };

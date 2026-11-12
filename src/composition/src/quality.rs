@@ -19,21 +19,21 @@ use erpx_server_identity_access::public::{
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest},
 };
 use erpx_server_quality::public::quality_commands::{
-    HoldStatus, InspectionResult, QualityDispositionCommand, QualityDispositionReceipt,
-    QualityInspectionCommand, QualityInspectionReceipt, QualityReleaseCommand,
-    QualityHoldCommand, QualityHoldReceipt, QualityReleaseReceipt, QualitySpecActionCommand,
-    QualitySpecCommand, QualitySpecReceipt,
-    SpecStatus, normalize_quality_cancellation, normalize_quality_disposition,
-    normalize_quality_inspection, normalize_quality_release, normalize_quality_spec_action,
-    normalize_quality_spec_save,
+    HoldStatus, InspectionResult, QualityAlertAcknowledgeCommand,
+    QualityAlertAcknowledgementReceipt, QualityDispositionCommand, QualityDispositionReceipt,
+    QualityHoldCommand, QualityHoldReceipt, QualityInspectionCommand, QualityInspectionReceipt,
+    QualityReleaseCommand, QualityReleaseReceipt, QualitySpecActionCommand, QualitySpecCommand,
+    QualitySpecReceipt, SpecStatus, normalize_quality_alert_acknowledge,
+    normalize_quality_cancellation, normalize_quality_disposition, normalize_quality_inspection,
+    normalize_quality_release, normalize_quality_spec_action, normalize_quality_spec_save,
 };
 use erpx_server_quality::public::quality_http::{
     PgQualityRead, QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture,
-    QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpReadReply,
-    QualityHttpHoldCreateRequest, QualityHttpReadRequest, QualityHttpSaveSpecRequest,
-    QualityHttpTarget, parse_cancellation, parse_disposition, parse_hold_create,
-    parse_inspection, parse_quality_history_query, parse_release,
-    parse_spec_action, parse_spec_save, quality_router, read_quality_cancellation_history_page,
+    QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpHoldCreateRequest,
+    QualityHttpReadReply, QualityHttpReadRequest, QualityHttpSaveSpecRequest, QualityHttpTarget,
+    parse_alert_acknowledge, parse_cancellation, parse_disposition, parse_hold_create,
+    parse_inspection, parse_quality_history_query, parse_release, parse_spec_action,
+    parse_spec_save, quality_router, read_quality_cancellation_history_page,
     read_quality_detail_core,
 };
 use erpx_server_quality::public::quality_read::{
@@ -690,6 +690,67 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
             .await
     }
 
+    pub async fn acknowledge(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        command: QualityAlertAcknowledgeCommand,
+    ) -> Result<QualityAlertAcknowledgementReceipt, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        if selection.company_id != company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let command = normalize_quality_alert_acknowledge(command)?;
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                Self::access(),
+                QualityCommandPreparation::new(false),
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        if !current.has_permission("quality.release")
+                            && !current.has_permission("quality.inspect")
+                        {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "QUALITY_ALERT_PERMISSION_REQUIRED",
+                                "A quality inspector or manager must acknowledge this escalation.",
+                            )
+                            .into());
+                        }
+                        let mut identifiers = QualityIds;
+                        let outcome = execute_quality_command(
+                            connection,
+                            current,
+                            &QualityOwnerCommand::Acknowledge(command),
+                            PackageEnforcementMode::Enforced,
+                            clock.as_ref(),
+                            clock.as_ref(),
+                            &mut identifiers,
+                        )
+                        .await?;
+                        alert_acknowledgement_receipt(&outcome)
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn release(
         &self,
         host: &str,
@@ -899,6 +960,26 @@ fn cancellation_receipt(
         cancellation_id: value.cancellation_id,
         status: HoldStatus::parse(&value.status).ok_or_else(changed_result)?,
         version: value.version,
+    })
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AlertAcknowledgeResultJson {
+    id: String,
+    version: i64,
+    acknowledged_by: String,
+}
+
+fn alert_acknowledgement_receipt(
+    outcome: &erpx_server_workflow::public::commands::CommandOutcome,
+) -> Result<QualityAlertAcknowledgementReceipt, Error> {
+    let value: AlertAcknowledgeResultJson =
+        serde_json::from_str(outcome.result.as_str()).map_err(|_| changed_result())?;
+    Ok(QualityAlertAcknowledgementReceipt {
+        id: value.id,
+        version: value.version,
+        acknowledged_by: value.acknowledged_by,
     })
 }
 
@@ -1137,6 +1218,20 @@ impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> 
             let command = parse_cancellation(request.body, request.id, request.key.clone())?;
             self.service
                 .cancel(request.host, proof, move || Ok(selection), command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn acknowledge<'a>(
+        &'a self,
+        request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityAlertAcknowledgementReceipt> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let command = parse_alert_acknowledge(request.body, request.id, request.key.clone())?;
+            self.service
+                .acknowledge(request.host, proof, selection, command)
                 .await
                 .map_err(business)
         })

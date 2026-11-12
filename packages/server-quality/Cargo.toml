@@ -45,6 +45,10 @@ name = "quality_http"
 path = "../../tests/integration/quality/rust-quality-http.test.rs"
 
 [[test]]
+name = "quality_alert_acknowledge"
+path = "../../tests/integration/quality/rust-quality-alert-acknowledge.test.rs"
+
+[[test]]
 name = "quality_hold"
 path = "../../tests/unit/quality/rust-quality-hold.test.rs"
 
