@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1023,
+    "revision": 1029,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-s",
       "agentId": "lead",
       "startedAt": "2026-11-12T16:09:25.074Z",
-      "heartbeatAt": "2026-11-12T16:09:25.074Z",
-      "expiresAt": "2026-11-12T16:39:25.075Z",
+      "heartbeatAt": "2026-11-12T16:21:42.700Z",
+      "expiresAt": "2026-11-12T16:51:42.700Z",
       "generation": 44,
       "tokenHash": "0eabcfe48eaa2e019bd9ff44fd08efe3a2603848f1f8ad8c4b5c16915521bdc5"
     },
@@ -20836,8 +20836,15 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-s",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T16:31:39.034Z",
+          "heartbeatAt": "2026-11-12T16:31:39.034Z",
+          "expiresAt": "2026-11-12T17:01:39.034Z",
+          "generation": 44
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -20913,11 +20920,76 @@
             "sourceSha": "8aa99c070a8c17f9f1558e0a9f1f87658774a2c9",
             "sourceKind": "committed",
             "note": "TEST_CATALOGUE_VALID:33 modules,1188 suites."
+          },
+          {
+            "command": "retirement:ts-writes packages/server-operations routine occurrence scheduler",
+            "result": "passed",
+            "before": 15,
+            "after": 9,
+            "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
+            "sourceKind": "committed",
+            "note": "Native routine occurrence scheduler (bounded 20, pause/prior/template/cursor/lineage/authorization/per-occurrence purchase fences, serialization retry) mounted as routine-occurrence-worker CLI + production supervisor. Deleted TS generateOccurrences, withWorkRoutineOccurrence, their adapter effects/ports/exports, and the runtime-jobs drain call. Operations KPI 15->9."
+          },
+          {
+            "command": "cargo check -p erpx-server-operations -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
+            "sourceKind": "committed",
+            "note": "Native scheduler + worker composition compile."
+          },
+          {
+            "command": "bun run test:unit -- --suite=operations.rust-routine-occurrences.unit",
+            "result": "passed",
+            "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
+            "sourceKind": "committed",
+            "note": "6/6 occurrence planning/cursor cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.rust-routine-occurrences-postgres.integration",
+            "result": "passed",
+            "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
+            "sourceKind": "committed",
+            "note": "5/5 PostgreSQL generator cases."
+          },
+          {
+            "command": "bun run test:unit -- --suite=operations.services.unit",
+            "result": "passed",
+            "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
+            "sourceKind": "committed",
+            "note": "74/74."
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.staff-work.integration",
+            "result": "passed",
+            "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
+            "sourceKind": "committed",
+            "note": "30/30 after scheduler fixture migration."
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.work-task-files.integration",
+            "result": "passed",
+            "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
+            "sourceKind": "committed",
+            "note": "14/14 on rerun (one deferred-trigger flake)."
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.work-projections.integration",
+            "result": "passed",
+            "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID:33 modules,1187 suites."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Recover expired run-20261112-r after the agent AI-provider worker completed its slice and lease expired; WIP reviewed, previous run stopped.",
-        "nextAction": "runTemplate retired natively (operations KPI 16->15 at 8aa99c07): POST /routine-templates/{id}/run reuses the native staff-task create/ledger path with routine.run operation/fingerprint, template publish/approver/blocker/notification parity, purchase admission and project visibility. Remaining operations TS writers: generateOccurrences scheduler, saveTask beta post->task source flow, task-alert escalation purchase witnesses. Parity gaps: queued authority/scheduled feature/approval source locks and worker-reference witnesses not recreated; shadow observe uses the native boundary.",
+        "blocker": null,
+        "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0.",
         "handoff": {
           "runId": "run-20261112-r",
           "agentId": "lead",
@@ -21116,7 +21188,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire TS writer in adapters/executive/connections.ts (5 write statements)",
-        "scope": "G4 per-capability retirement for runtime: adapters/executive/connections.ts holds 5 retained write statements of the owner total 36. Classify against packages/server-runtime/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "scope": "Implement the native executive external-connection producer (token create/list/revoke, audit and rate-limit) with a native route/client, switch the feature-apps executive connections route, delete the TS runtime connections writers/exports, move the oracle to native tests, and record the runtime KPI pair. KPI adapters/executive/connections.ts 5 -> 0 and runtime owner 36 -> 31 with the remaining 31 classified under retire.runtime.residual-writers.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -21124,22 +21196,34 @@
           "packages/server-runtime/Cargo.toml",
           "packages/server-runtime/package.json",
           "packages/feature-runtime/**",
-          "fixtures/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/**",
+          "packages/contracts/src/ownership.json",
+          "src/composition/src/**",
           "tests/unit/runtime/**",
-          "tests/integration/runtime/**"
+          "tests/unit/shared.runtime/**",
+          "tests/integration/runtime/**",
+          "tests/integration/shared.executive/**",
+          "tests/e2e/shared.executive/**"
         ],
         "resources": [
           "owner:runtime"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-s",
+          "agentId": "worker-runtime-connections",
+          "claimedAt": "2026-11-12T16:19:50.652Z",
+          "heartbeatAt": "2026-11-12T16:21:42.700Z",
+          "expiresAt": "2026-11-12T16:51:42.700Z",
+          "generation": 44
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/executive/connections.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Audit the TS executive connection adapter/route and native runtime composition; implement the native token/audit/rate-limit producer and route/client, switch the feature-apps route, delete the TS writers/exports, move tests to native oracle, and record KPI.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -24913,8 +24997,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T16:12:35.696Z",
-          "heartbeatAt": "2026-11-12T16:12:35.696Z",
-          "expiresAt": "2026-11-12T16:42:35.696Z",
+          "heartbeatAt": "2026-11-12T16:21:42.700Z",
+          "expiresAt": "2026-11-12T16:51:42.700Z",
           "generation": 44
         },
         "baseSha": null,
@@ -24935,18 +25019,18 @@
       "totalPackets": 120,
       "migratedPackets": 54,
       "statusCounts": {
-        "pending": 32,
-        "in_progress": 4,
+        "pending": 31,
+        "in_progress": 6,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 54,
-        "blocked": 20,
+        "blocked": 19,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T16:15:40.657Z",
+    "updatedAt": "2026-11-12T16:31:39.071Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
