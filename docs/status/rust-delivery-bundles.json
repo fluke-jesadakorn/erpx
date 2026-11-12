@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1107,
+    "revision": 1112,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -26998,6 +26998,126 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "retire.manage_erpx.onboarding-command",
+        "title": "Retire the TypeScript onboarding command after mounting the native owner router",
+        "scope": "Mount the native onboarding command router beside the onboarding read, add the private-loopback POST client and switch the workplace POST with a typed 503 when unconfigured; delete the TS onboard/view orchestration and provisioning writers while retaining the member/branch bootstrap effects that beta team invitations still consume. manage_erpx KPI 16 -> 7.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/manage_erpx.rs",
+          "src/composition/src/private_development_api.rs",
+          "packages/feature-platform_administration/src/adapters/server/native-manage-erpx.ts",
+          "packages/workplace/src/lib/native-manage-erpx.ts",
+          "packages/workplace/src/routes/api/v1/onboarding/**",
+          "packages/server-manage_erpx/src/**",
+          "tests/unit/manage_erpx/**",
+          "tests/integration/collaboration/social-beta.test.ts"
+        ],
+        "resources": [
+          "owner:manage_erpx"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "85bf60769a68deaa1f788e684e578e02dc4d9888",
+        "implementedCommit": "54e8ffa25114fc450a7a764ff215b7b909387139",
+        "lastPushedSha": "54e8ffa25114fc450a7a764ff215b7b909387139",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features private-development-api,existing-business,contracts --locked",
+            "result": "passed",
+            "sourceSha": "54e8ffa25114fc450a7a764ff215b7b909387139",
+            "note": "Composition compiles with the mounted onboarding command router and backend."
+          },
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "54e8ffa25114fc450a7a764ff215b7b909387139",
+            "note": "Root TypeScript project typechecks after deleting the TS onboard/view path."
+          },
+          {
+            "command": "bun run test:unit -- --suite=manage_erpx.semantic-services.unit",
+            "result": "passed",
+            "sourceSha": "54e8ffa25114fc450a7a764ff215b7b909387139",
+            "note": "26/26 retained team/email/api/services cases pass after removing the superseded onboarding application cases."
+          },
+          {
+            "command": "bun run test:unit -- --suite=manage_erpx.rust-onboarding-command.unit",
+            "result": "passed",
+            "sourceSha": "54e8ffa25114fc450a7a764ff215b7b909387139",
+            "note": "10/10 native command cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=manage_erpx.rust-onboarding-postgres.integration",
+            "result": "passed",
+            "sourceSha": "54e8ffa25114fc450a7a764ff215b7b909387139",
+            "note": "7/7 native PostgreSQL cases pass: provision once, replay, verified actor/serializable guards, slug/mismatch, waitlist, view/policy."
+          },
+          {
+            "command": "retirement:ts-writes: manage_erpx",
+            "result": "passed",
+            "sourceSha": "54e8ffa25114fc450a7a764ff215b7b909387139",
+            "before": 16,
+            "after": 7,
+            "note": "git grep over packages/server-manage_erpx/src/**/*.ts: 16 before, 7 after. Retained 7 are beta-team/beta-api/beta-email/attachments facts plus the beta_members bootstrap insert.",
+            "residual": [
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-api.ts",
+                "writes": 2,
+                "removalTaskId": "retire.manage_erpx.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-team.ts",
+                "writes": 2,
+                "removalTaskId": "retire.manage_erpx.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-email.ts",
+                "writes": 1,
+                "removalTaskId": "retire.manage_erpx.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-onboarding.ts",
+                "writes": 1,
+                "removalTaskId": "retire.manage_erpx.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.manage_erpx.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Next manage_erpx residuals: beta-team invitation writers and beta-api gateway writers need native owner ports; onboarding is now native-only.",
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -27006,21 +27126,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 125,
-      "migratedPackets": 61,
+      "totalPackets": 126,
+      "migratedPackets": 62,
       "statusCounts": {
         "pending": 29,
         "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 61,
+        "migrated": 62,
         "blocked": 20,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T18:10:40.046Z",
+    "updatedAt": "2026-11-12T18:12:44.021Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
