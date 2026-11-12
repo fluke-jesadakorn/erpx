@@ -67,3 +67,7 @@ path = "../../tests/integration/operations/rust-staff-work-http.test.rs"
 [[test]]
 name = "staff_work_postgres"
 path = "../../tests/integration/operations/rust-staff-work-postgres.test.rs"
+
+[[test]]
+name = "workflow_projection_source_postgres"
+path = "../../tests/integration/operations/rust-workflow-projection-source-postgres.test.rs"

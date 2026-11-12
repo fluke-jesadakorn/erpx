@@ -92860,6 +92860,143 @@
         ],
         "migratedSlots": []
       }
+    },
+    {
+      "id": "workflow.rust-job-projector.unit",
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "operations",
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Workflow projection classification must retain task/routine, leave, overtime and payroll work facts while leaving policy, eligibility and other families unacknowledged."
+      },
+      "files": [
+        "tests/unit/workflow/rust-job-projector.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-workflow",
+        "targets": [
+          "job_projector"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-workflow/Cargo.toml"
+      ]
+    },
+    {
+      "id": "workflow.rust-job-projector-postgres.integration",
+      "lane": "integration",
+      "owner": "workflow",
+      "modules": [
+        "operations",
+        "people_payroll"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Workflow projection must retain receipt/work/checkpoint ordering, owner freshness and no independent commit while leaving unhandled families and missing sources unwritten."
+      },
+      "files": [
+        "tests/integration/workflow/rust-job-projector-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-workflow",
+        "targets": [
+          "job_projector_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-workflow/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ]
+    },
+    {
+      "id": "operations.rust-workflow-projection-source-postgres.integration",
+      "lane": "integration",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "The Operations staff task projection source must copy the retained owner table, columns and caller-connection read without writing or fabricating a row."
+      },
+      "files": [
+        "tests/integration/operations/rust-workflow-projection-source-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "workflow_projection_source_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/Cargo.toml",
+        "tests/support/operations/rust-operations-database.rs"
+      ]
+    },
+    {
+      "id": "people_payroll.rust-workflow-projection-source-postgres.integration",
+      "lane": "integration",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "The People/Payroll projection sources must copy the retained overtime, leave and payroll owner reads, including payroll status-as-state with no branch or department scope."
+      },
+      "files": [
+        "tests/integration/people_payroll/rust-workflow-projection-source-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-people-payroll",
+        "targets": [
+          "workflow_projection_source_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-people_payroll/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ]
     }
   ]
 }

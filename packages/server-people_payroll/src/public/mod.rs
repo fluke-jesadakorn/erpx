@@ -25,3 +25,5 @@ pub mod benefit_person;
 pub mod operations_people;
 
 pub mod staff_facts;
+
+pub mod workflow_projection_source;

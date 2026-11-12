@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod record_origin;
+pub mod job_projector;
 
 pub mod approval_oversight;
 pub mod approval_oversight_http;

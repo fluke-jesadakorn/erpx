@@ -21,3 +21,5 @@ pub(crate) mod benefit_person;
 pub(crate) mod operations_people;
 
 pub(crate) mod staff_facts;
+
+pub(crate) mod workflow_projection_source;
