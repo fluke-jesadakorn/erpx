@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 832,
+    "revision": 834,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -13915,11 +13915,41 @@
             "sourceSha": "a1049ac1f604c8273fa00773c3321eb431e6bf89",
             "sourceKind": "committed",
             "note": "TEST_CATALOGUE_VALID:33 modules,1185 suites."
+          },
+          {
+            "command": "retirement:ts-writes packages/server-collaboration orphan notification shims",
+            "result": "passed",
+            "before": 218,
+            "after": 216,
+            "sourceSha": "c36c1060a2f0471eb7beae26fcda9c919b419f58",
+            "sourceKind": "committed",
+            "note": "Deleted the orphan OperationsExceptionsCollaborationFacts adapter/public barrel/package exports/ownership path; native Operations exceptions use the Identity/Organization facts. No consumer remained."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --locked",
+            "result": "passed",
+            "sourceSha": "c36c1060a2f0471eb7beae26fcda9c919b419f58",
+            "sourceKind": "committed",
+            "note": "Native crate green."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "c36c1060a2f0471eb7beae26fcda9c919b419f58",
+            "sourceKind": "committed",
+            "note": "0 errors; no import remains."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "c36c1060a2f0471eb7beae26fcda9c919b419f58",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID:33 modules,1185 suites."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Messaging history/file content native; attachments bind/content port wired fail-closed. Retired the dead TS field-service notification shim (collaboration KPI 219->218, a1049ac1f) since the native Rust notification port is authoritative and nothing imported the TS symbol. Remaining: native messaging upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain.",
+        "nextAction": "Messaging history/file content native; attachments bind/content fail-closed. Retired two dead TS shims (field-service notification 219->218 a1049ac1f; orphan operations-exception notifications 218->216 c36c1060a). Remaining: native messaging upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain, and the live support-notification/commercial-effect writers.",
         "handoff": {
           "runId": "run-20261110-g10",
           "agentId": "lead",
@@ -19433,14 +19463,21 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261112-o",
+          "agentId": "worker-operations",
+          "claimedAt": "2026-11-12T11:11:42.860Z",
+          "heartbeatAt": "2026-11-12T11:11:42.860Z",
+          "expiresAt": "2026-11-12T11:41:42.860Z",
+          "generation": 40
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Native routine command module is tested (11/11) but unmounted; next: composition RoutineHttpBackend + Identity/People/Projects/Workflow delegates, fail-closed route switch, delete TS stubs/fences, KPI 29->12.",
         "handoff": {
           "runId": "run-20261112-n",
@@ -21145,8 +21182,8 @@
       "statusCounts": {
         "pending": 30,
         "in_progress": 3,
-        "ready_for_integration": 11,
-        "integrating": 0,
+        "ready_for_integration": 10,
+        "integrating": 1,
         "migrated": 38,
         "blocked": 14,
         "deferred": 0,
@@ -21154,7 +21191,7 @@
       }
     },
     "lastCoordinatorGeneration": 40,
-    "updatedAt": "2026-11-12T11:06:42.413Z",
+    "updatedAt": "2026-11-12T11:11:45.052Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
