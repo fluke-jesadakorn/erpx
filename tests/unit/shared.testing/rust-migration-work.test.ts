@@ -247,6 +247,16 @@ describe('portable Rust migration work coordination', () => {
     expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
   });
 
+  it('accepts a retirement statement delta for read-only slices', async () => {
+    const f = fixture(); await begin(f.store); await claim(f.store);
+    await f.store.update('one', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });
+    await f.store.handoff('one', { runId: 'lead-1', nextAction: 'Integrate' });
+    await claim(f.store);
+    await f.store.update('one', { runId: 'lead-1', status: 'migrated', nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed,
+      checks: [passed, { command: 'retirement:ts-statements', before: 12, after: 9, result: 'passed', sourceSha: candidate }] });
+    expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
+  });
+
   it('retains older and failed checks while gating on the latest command result in the implemented-source cohort', async () => {
     const f = fixture(); await begin(f.store); await claim(f.store);
     await f.store.update('one', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate', checks: [{ ...passed, result: 'failed', sourceSha: 'c'.repeat(40) }] });

@@ -349,7 +349,8 @@ export class MigrationWorkStore {
         for (const check of task.checks) if (check.sourceSha === task.implementedCommit && typeof check.command === 'string' && check.command.trim()) latest.set(check.command, check);
         if (!task.implementedCommit || !task.lastPushedSha || !latest.size || [...latest.values()].some(check => check.result !== 'passed')) fail('MIGRATION_EVIDENCE_REQUIRED');
         if (['migration', 'integration'].includes(task.kind)) {
-          const retirement = [...latest.values()].filter(check => typeof check.command === 'string' && check.command.startsWith('retirement:ts-writes')).at(-1);
+          const retirement = [...latest.values()].filter(check => typeof check.command === 'string'
+            && (check.command.startsWith('retirement:ts-writes') || check.command.startsWith('retirement:ts-statements'))).at(-1);
           if (!retirement || retirement.result !== 'passed' || !Number.isInteger(retirement.before) || !Number.isInteger(retirement.after) || !(Number(retirement.after) < Number(retirement.before))) fail('RETIREMENT_KPI_REQUIRED');
           if (task.retainedLegacy.some(entry => !object(entry) || typeof entry.removalTaskId !== 'string' || !entry.removalTaskId.trim() || typeof entry.removalCondition !== 'string' || !entry.removalCondition.trim())) fail('RETAINED_LEGACY_REMOVAL_TASK_REQUIRED');
           if (task.cutover !== undefined) {

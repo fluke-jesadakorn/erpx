@@ -51,7 +51,7 @@ git grep -I -o -E "INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET" HEAD \
 ```
 
 - Baseline at `1399b44cf` (2026-11-12): `2,894` write statements across 561 TypeScript adapters.
-- Every slice records a passed `retirement:ts-writes` check with `before`/`after` for its owner; `after` must be lower.
+- Every slice records a passed `retirement:ts-writes` check with `before`/`after` for its owner; `after` must be lower. A read-only slice that removes no writer records `retirement:ts-statements` (INSERT/UPDATE/DELETE/SELECT) with the same `before`/`after` shape and a strictly lower count.
 - A `migrated` transition fails without that check, without a `removalTaskId`/`removalCondition` on every `retainedLegacy` entry, and without the declared `cutover` layers being true.
 - Counting closed packets is not progress; the KPI must fall on the pushed source.
 
