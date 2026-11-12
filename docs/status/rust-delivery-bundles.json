@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 812,
+    "revision": 814,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -19303,15 +19303,22 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "ready_for_integration",
+        "claim": {
+          "runId": "run-20261112-n",
+          "agentId": "worker-operations",
+          "claimedAt": "2026-11-12T10:19:41.864Z",
+          "heartbeatAt": "2026-11-12T10:19:41.864Z",
+          "expiresAt": "2026-11-12T10:49:41.864Z",
+          "generation": 39
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
-        "nextAction": "Implement native routine template/schedule commands with receipt/audit/outbox and PG tests; report composition mount; switch the routine routes fail-closed; delete the replaced TS writers/fences/exports; migrate tests; record KPI 29->12 and push.",
+        "blocker": null,
+        "nextAction": "Native routine template/schedule command module committed (73ddcc32b): domain/application/adapters/http + 11 unit tests pass. Remaining before migration: mount RoutineHttpBackend in composition with Identity/People/Projects/Workflow RoutineFactDelegates, switch workplace routine routes fail-closed, delete the retained TS stubs/fences and record KPI 29->12.",
         "handoff": {
           "runId": "run-20261112-m",
           "agentId": "worker-operations",
@@ -20864,16 +20871,16 @@
       "statusCounts": {
         "pending": 31,
         "in_progress": 2,
-        "ready_for_integration": 10,
+        "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 37,
-        "blocked": 15,
+        "blocked": 14,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 39,
-    "updatedAt": "2026-11-12T10:19:17.522Z",
+    "updatedAt": "2026-11-12T10:19:41.893Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
