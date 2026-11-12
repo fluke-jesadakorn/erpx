@@ -94425,6 +94425,87 @@
         ],
         "migratedSlots": []
       }
+    },
+    {
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS reservation commands/reads must preserve owner-unit receipts, Company scope and serializable enforcement."
+      },
+      "framework": "cargo",
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.rust-pms-reservation.unit",
+      "lane": "unit",
+      "fixture": "none",
+      "files": [
+        "tests/unit/pms/rust-pms-reservation.test.rs"
+      ],
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_reservation"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-pms/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ]
+    },
+    {
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS reservation commands/reads must preserve owner-unit receipts, Company scope and serializable enforcement."
+      },
+      "framework": "cargo",
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.rust-pms-reservation.postgres.integration",
+      "lane": "integration",
+      "fixture": "postgres",
+      "files": [
+        "tests/integration/pms/rust-pms-reservation-postgres.test.rs"
+      ],
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_reservation_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-pms/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ]
     }
   ]
 }
