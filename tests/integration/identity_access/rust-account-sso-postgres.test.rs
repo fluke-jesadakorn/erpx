@@ -687,6 +687,202 @@ async fn observing_a_legacy_unbound_parent_never_upgrades_it_into_an_issuer_sess
     .await;
 }
 
+async fn unbound_signed_parent(pool: &DatabasePool, parent_id: &str) {
+    let browser: Option<String> =
+        sqlx::query_scalar("SELECT browser_id FROM account_device_accounts WHERE session_id=$1")
+            .bind(parent_id)
+            .fetch_optional(pool.raw())
+            .await
+            .unwrap();
+    if let Some(browser) = browser {
+        sqlx::query("DELETE FROM native_account_device_group_keys WHERE browser_id=$1")
+            .bind(&browser)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM account_device_accounts WHERE session_id=$1")
+            .bind(parent_id)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM account_device_browsers WHERE id=$1")
+            .bind(&browser)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+    }
+}
+fn assert_adopted_browser(id: &str) {
+    assert_eq!(id.len(), 64);
+    assert!(
+        id.bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    );
+}
+
+#[tokio::test]
+async fn native_authorize_adopts_an_unbound_signed_parent_once_and_keeps_its_selection() {
+    database::with_database(2, |pool| async move {
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let service = sso(&pool, &scenario);
+        let (parent, account) = login(&scenario, "a@example.test").await;
+        // A pre-migration signed parent has a live Account session and its
+        // central binding, but no native device grouping rows.
+        unbound_signed_parent(&pool, &parent.id).await;
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM account_device_accounts")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            0
+        );
+        let active = proof(account.active.clone().unwrap());
+        let f = flow(&service, &active, ACME).await;
+        let (browser_id, handle, revision, selected): (String, String, i64, String) = sqlx::query_as(
+            "SELECT a.browser_id,a.handle,b.revision,b.active_session_id FROM account_device_accounts a JOIN account_device_browsers b ON b.id=a.browser_id WHERE a.session_id=$1",
+        )
+        .bind(&parent.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_adopted_browser(&browser_id);
+        assert_eq!(revision, 1);
+        assert_eq!(selected, parent.id);
+        assert_eq!(handle.len(), 36);
+        let issued = consume(&service, &f, ACME).await;
+        assert!(
+            scenario
+                .auth
+                .session(&proof(issued.token), holding(ACME))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        // Re-entry without a browser-group cookie resolves the same selected
+        // device, and neither authorize nor consume mint a second binding.
+        let again = flow(&service, &active, ACME).await;
+        assert!(
+            service
+                .consume(ACME, &again.1.code, &again.0.state, again.0.browser_cookie)
+                .await
+                .is_ok()
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM account_device_accounts")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM account_device_browsers")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            1
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn native_authorize_never_adopts_an_unbound_parent_without_a_current_central_binding() {
+    database::with_database(2, |pool| async move {
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let service = sso(&pool, &scenario);
+        let (parent, account) = login(&scenario, "a@example.test").await;
+        unbound_signed_parent(&pool, &parent.id).await;
+        sqlx::query("DELETE FROM sso_session_bindings WHERE session_id=$1")
+            .bind(&parent.id)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let started = service.start(ACME, Some("/finance")).await.unwrap();
+        assert!(
+            service
+                .authorize(
+                    started.transaction_id,
+                    &started.state,
+                    started.challenge,
+                    &proof(account.active.unwrap())
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM account_device_accounts")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM sso_authorization_grants")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            0
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn native_authorize_never_moves_a_parent_that_another_saved_account_currently_selects() {
+    database::with_database(2, |pool| async move {
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let service = sso(&pool, &scenario);
+        let (parent, first) = login(&scenario, "a@example.test").await;
+        scenario
+            .auth
+            .sign_in(
+                "b@example.test",
+                fixture::PASSWORD.into(),
+                &first,
+                Some(1),
+            )
+            .await
+            .unwrap();
+        // The browser now selects b; a is still saved but must not be moved or
+        // re-selected by an authorize request that only proves a's session.
+        let only_a = proof(first.active.clone().unwrap());
+        let started = service.start(ACME, None).await.unwrap();
+        fixture::account::assert_error(
+            service
+                .authorize(
+                    started.transaction_id,
+                    &started.state,
+                    started.challenge,
+                    &only_a,
+                )
+                .await,
+            "INVALID_SSO_TRANSACTION",
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM account_device_accounts WHERE session_id=$1"
+            )
+            .bind(&parent.id)
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM sso_authorization_grants WHERE parent_session_id=$1"
+            )
+            .bind(&parent.id)
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            0
+        );
+    })
+    .await;
+}
+
 #[tokio::test]
 async fn grant_expiry_during_a_real_session_lock_wait_rejects_the_callback_before_snapshot() {
     database::with_database(2, |pool| async move {

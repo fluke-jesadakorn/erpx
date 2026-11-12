@@ -16,6 +16,9 @@ it('shares one host audience across applications and refuses a different Holding
  await control.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt")VALUES(?,?,?,1,?,?)').bind(user,'Holding routing fixture',`${user}@example.test`,now,now).run();
  await control.prepare('INSERT INTO session(id,token,"userId","createdAt","updatedAt","expiresAt")VALUES(?,?,?,?,?,?)').bind(parent,randomUUID(),user,new Date(now).toISOString(),new Date(now).toISOString(),new Date(now+3600000).toISOString()).run();
  await store.registerCentral({id:parent,createdAt:new Date(now),expiresAt:new Date(now+3600000)});
+ const browserId=randomUUID();
+  await control.prepare('INSERT INTO account_device_browsers(id,active_session_id,revision,updated_at)VALUES(?,?,1,?)').bind(browserId,parent,now).run();
+  await control.prepare('INSERT INTO account_device_accounts(session_id,browser_id,handle)VALUES(?,?,?)').bind(parent,browserId,randomUUID()).run();
  const browser=await store.start(one,'/bangkok/accounting/finance?tag=one&tag=two'),grant=await store.authorize({transactionId:browser.id,state:browser.state,challenge:browser.challenge,parentSessionId:parent});
  const input={code:grant.code,state:browser.state,browserCookie:browser.browserCookie};
  await expect(store.consume({...input,audience:two})).rejects.toThrow('INVALID_SSO_TRANSACTION');

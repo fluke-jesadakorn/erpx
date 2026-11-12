@@ -14,7 +14,14 @@ async function parent(register = true) {
   const createdAt = new Date(instant - 60_000), expiresAt = new Date(instant + 3_600_000);
   await db.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?)').bind(user, "Fictional employee", `${user}@example.test`, createdAt.getTime(), createdAt.getTime()).run();
   await db.prepare('INSERT INTO session(id,token,"userId","createdAt","updatedAt","expiresAt") VALUES(?,?,?,?,?,?)').bind(id, randomUUID(), user, createdAt.toISOString(), createdAt.toISOString(), expiresAt.toISOString()).run();
-  if (register) await store.registerCentral({ id, createdAt, expiresAt });
+  if (register) {
+    await store.registerCentral({ id, createdAt, expiresAt });
+    // Native adoption owns pre-migration parents; a normal parent already has
+    // the selected device row this retained oracle reads.
+    const browser = randomUUID();
+    await db.prepare("INSERT INTO account_device_browsers(id,active_session_id,revision,updated_at) VALUES(?,?,1,?)").bind(browser, id, instant).run();
+    await db.prepare("INSERT INTO account_device_accounts(session_id,browser_id,handle) VALUES(?,?,?)").bind(id, browser, randomUUID()).run();
+  }
   return { id, user, createdAt, expiresAt };
 }
 async function flow(parentId: string, audience = "finance") {

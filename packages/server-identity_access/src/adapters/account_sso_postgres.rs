@@ -6,7 +6,7 @@ use crate::{
     },
     application::{account_ports::*, account_sso::*},
     domain::{
-        account_auth::{AccountSession, RequestAudience},
+        account_auth::{AccountSession, RequestAudience, SecretDigest},
         account_sso::*,
     },
 };
@@ -106,6 +106,43 @@ async fn selected_parent(
  AND s."expiresAt"::timestamptz>to_timestamp($3::double precision/1000)"#).bind(id).bind(environment).bind(now).fetch_optional(connection).await?.ok_or_else(rejected_sso)?;
     Ok(session_row(&row)?)
 }
+/// A pre-migration signed parent keeps its live Account session and central
+/// binding but predates native browser grouping. The exact presented session is
+/// resolved as a central parent: an absent device account is adopted once in the
+/// same unit, an existing row must still select that parent, and a device group
+/// that currently selects another saved account is never upgraded.
+async fn central_parent(
+    connection: &mut PgConnection,
+    active: Option<&SecretDigest>,
+    environment: &str,
+    now: i64,
+) -> TxResult<Option<(AccountSession, bool)>> {
+    let Some(active) = active else {
+        return Ok(None);
+    };
+    let row=sqlx::query(r#"SELECT s.id session_id,s."userId" user_id,u.name,u.email,u."emailVerified" email_verified,u.image,b.authenticated_at,
+ LEAST(b.absolute_expires_at,(EXTRACT(EPOCH FROM s."expiresAt"::timestamptz)*1000)::bigint) expires_at,
+ a.browser_id,d.active_session_id
+ FROM session s JOIN sso_session_bindings b ON b.session_id=s.id JOIN "user" u ON u.id=s."userId"
+ LEFT JOIN principals p ON p.user_id=u.id
+ LEFT JOIN account_device_accounts a ON a.session_id=s.id
+ LEFT JOIN account_device_browsers d ON d.id=a.browser_id
+ WHERE s.token=$1 AND b.audience='account' AND b.environment=$2 AND b.parent_session_id IS NULL
+ AND COALESCE(p.status,'active')='active' AND b.authenticated_at<=$3 AND b.absolute_expires_at>$3
+ AND b.absolute_expires_at<=b.authenticated_at+43200000
+ AND s."expiresAt"::timestamptz>to_timestamp($3::double precision/1000)"#).bind(active.as_str()).bind(environment).bind(now).fetch_optional(connection).await?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let session = session_row(&row)?;
+    if row.try_get::<Option<String>, _>("browser_id")?.is_none() {
+        return Ok(Some((session, false)));
+    }
+    if row.try_get::<Option<String>, _>("active_session_id")? != Some(session.id.clone()) {
+        return Err(rejected_sso().into());
+    }
+    Ok(Some((session, true)))
+}
 async fn authorize(
     connection: &mut PgConnection,
     input: AuthorizeSso,
@@ -113,7 +150,9 @@ async fn authorize(
     clock: &(dyn Clock + Send + Sync),
     holdings: &ConfiguredHoldingRegistry,
 ) -> TxResult<Option<String>> {
-    lock_session_reads(connection).await?;
+    // Adoption writes the device account in this same serializable unit, so the
+    // session-first writer fence (not the read fence) is required.
+    lock_session_writes(connection).await?;
     lock_sso(connection).await?;
     let instant = clock.now().get();
     if input.now > instant {
@@ -134,7 +173,7 @@ async fn authorize(
     {
         return Err(rejected_sso().into());
     }
-    let Some(parent) = read_session(
+    let parent = match read_session(
         connection,
         &input.proof,
         &RequestAudience::Account,
@@ -143,8 +182,35 @@ async fn authorize(
         holdings,
     )
     .await?
-    else {
-        return Ok(None);
+    {
+        Some(parent) => parent,
+        None => {
+            let Some((parent, bound)) = central_parent(
+                connection,
+                input.proof.active.as_ref(),
+                &policy.account().environment,
+                instant,
+            )
+            .await?
+            else {
+                return Ok(None);
+            };
+            if !bound {
+                sqlx::query("INSERT INTO account_device_browsers(id,active_session_id,revision,updated_at) VALUES($1,$2,1,$3)")
+                    .bind(input.adoption_browser_id.as_str())
+                    .bind(&parent.id)
+                    .bind(instant)
+                    .execute(&mut *connection)
+                    .await?;
+                sqlx::query("INSERT INTO account_device_accounts(session_id,browser_id,handle) VALUES($1,$2,$3)")
+                    .bind(&parent.id)
+                    .bind(input.adoption_browser_id.as_str())
+                    .bind(&input.adoption_handle)
+                    .execute(&mut *connection)
+                    .await?;
+            }
+            parent
+        }
     };
     let expires = grant_expiry(instant, &transaction, &parent)?;
     sqlx::query("INSERT INTO sso_authorization_grants(code_hash,transaction_id,parent_session_id,audience,environment,callback,state_hash,challenge,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)").bind(input.code_hash.as_str()).bind(transaction.id.as_str()).bind(parent.id).bind(&transaction.audience).bind(&transaction.environment).bind(&transaction.callback).bind(transaction.state_hash.as_str()).bind(transaction.challenge.as_str()).bind(instant).bind(expires).execute(&mut *connection).await?;

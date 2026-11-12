@@ -21,6 +21,11 @@ pub struct AuthorizeSso {
     pub challenge: SsoDigest,
     pub proof: DeviceProof,
     pub code_hash: SsoDigest,
+    /// Fresh device identity for a pre-migration signed parent that predates
+    /// native browser grouping. The repository adopts it only when the exact
+    /// parent still has no device account row.
+    pub adoption_browser_id: SecretDigest,
+    pub adoption_handle: String,
     pub now: i64,
 }
 #[derive(Clone)]
@@ -131,6 +136,13 @@ impl AccountSso {
         presented: &PresentedSecrets,
     ) -> Result<Option<AuthorizedSso>, BusinessError> {
         let code = self.cryptography.issue()?;
+        // Only used when the presented Account session is a signed parent that
+        // predates native device grouping; generated here so the adapter never
+        // draws randomness inside its transaction.
+        let adoption_browser_id = self
+            .sessions
+            .digest(SecretPurpose::DeviceBrowser, &self.sessions.issue()?);
+        let adoption_handle = self.sessions.identifier()?;
         let callback = self
             .repository
             .authorize(AuthorizeSso {
@@ -139,6 +151,8 @@ impl AccountSso {
                 challenge,
                 proof: presented.proof(self.sessions.as_ref()),
                 code_hash: self.cryptography.digest(code.expose()),
+                adoption_browser_id,
+                adoption_handle,
                 now: self.clock.now().get(),
             })
             .await?;
