@@ -18,7 +18,7 @@ import {drainSocialAgent} from "@erpx/server-collaboration/public/social-agent";
 import {createReport,reportView} from "@erpx/server-runtime/public/executive/reports";
 import {queueGeneration,drainExecutiveGeneration} from "@erpx/server-runtime/public/executive/generation";
 import {generateSchema,emptyDefinition} from "@erpx/feature-shared/lib/executive/canvas";
-import {selectAiProviders,aiSelectionSchema} from "@erpx/server-agent/public/ai-providers";
+import {seedAiSelection} from "../agent/ai-provider-seed";
 
 const run=randomBytes(6).toString('hex'),source='a'.repeat(64),version=`release-${source}`,directory=resolve('.runtime/browser',run),databaseName=`erpx_browser_${run}_h001_db`,key=()=>crypto.randomUUID();
 const aiEnv={AI_BASE_URL:'https://opencode.ai/zen/go/v1',AI_MODEL:'muse-spark-1.3-contributor',AI_API_KEY:'declared-no-network-worker-fixture'};
@@ -50,7 +50,7 @@ async function social(company:typeof f){
  const draft=await savePostDraft(db,company.owner,null,{body:'@ERPX assistant Help with this fictional manual question',mentions:[{kind:'agent',targetId:'erpx-assistant',label:'ERPX assistant',start:0,end:15}],branchId:company.branch,expectedVersion:1},key()),post=await publishPost(db,company.owner,String(draft.id),Number(draft.version),key());
  return {id:String(post.id),reply:(await postView(db,company.owner,String(post.id))).agentReplies[0].id};
 }
-async function executive(company:typeof f){await selectAiProviders(db,company.owner,aiSelectionSchema.parse({expectedVersion:0,mode:'deployment',imageMode:'disabled'}),key());const report=await createReport(db,company.owner,key(),'Fictional manual report'),job=key();await queueGeneration(db,company.owner,aiEnv,report.id,generateSchema.parse({question:'Propose a fictional layout for explicit human review'}),job);return {report:report.id,job};}
+async function executive(company:typeof f){await seedAiSelection(db,company.owner,{mode:'deployment',imageMode:'disabled'});const report=await createReport(db,company.owner,key(),'Fictional manual report'),job=key();await queueGeneration(db,company.owner,aiEnv,report.id,generateSchema.parse({question:'Propose a fictional layout for explicit human review'}),job);return {report:report.id,job};}
 const reply=()=>({result:{body:'Declared fixture reply; a person decides the next step.'},inputTokens:4,outputTokens:3});
 const proposal=()=>({result:{message:'Declared fixture proposal; review before applying.',definition:emptyDefinition('Fictional proposal'),followUps:[]},inputTokens:4,outputTokens:3});
 

@@ -17,6 +17,7 @@
     "./components/platform-holding-provisioning": "./src/components/platform-holding-provisioning.tsx",
     "./components/platform-job-recovery": "./src/components/platform-job-recovery.tsx",
     "./adapters/server/native-platform-administration": "./src/adapters/server/native-platform-administration.ts",
+    "./adapters/server/native-agent-ai-providers": "./src/adapters/server/native-agent-ai-providers.ts",
     "./lib/native-platform-administration": "./src/lib/native-platform-administration.ts",
     "./adapters/server/native-manage-erpx": "./src/adapters/server/native-manage-erpx.ts"
   },

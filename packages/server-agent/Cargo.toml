@@ -17,6 +17,7 @@ erpx-server-workflow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
+time.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

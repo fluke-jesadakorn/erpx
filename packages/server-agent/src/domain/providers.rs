@@ -457,6 +457,58 @@ impl AiVersionInput {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AiDisableInput {
+    pub expected_version: i64,
+    pub disable_uses: bool,
+    pub remove: bool,
+}
+
+impl AiDisableInput {
+    pub fn parse(value: &Value) -> Result<Self, BusinessError> {
+        let root = object(
+            value,
+            "AI_REQUEST_INVALID",
+            "Use the current connection version.",
+        )?;
+        let expected_version = integer(root.get("expectedVersion")).ok_or_else(|| {
+            validation("AI_REQUEST_INVALID", "Use the current connection version.")
+        })?;
+        if expected_version < 1 {
+            return Err(validation(
+                "AI_REQUEST_INVALID",
+                "Use the current connection version.",
+            ));
+        }
+        let disable_uses = match root.get("disableUses") {
+            None | Some(Value::Null) => false,
+            Some(Value::Bool(value)) => *value,
+            _ => {
+                return Err(validation(
+                    "AI_REQUEST_INVALID",
+                    "Choose whether to disable AI uses of this connection.",
+                ));
+            }
+        };
+        let remove = match root.get("remove") {
+            None | Some(Value::Null) => false,
+            Some(Value::Bool(value)) => *value,
+            _ => {
+                return Err(validation(
+                    "AI_REQUEST_INVALID",
+                    "Choose whether to delete this connection.",
+                ));
+            }
+        };
+        Ok(Self {
+            expected_version,
+            disable_uses,
+            remove,
+        })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AiSelectionInput {
     pub expected_version: i64,
     pub mode: SelectionMode,
@@ -628,6 +680,8 @@ pub struct AiRevision {
     pub image_model: Option<String>,
     pub text_verified: bool,
     pub image_verified: bool,
+    pub tested_at: Option<i64>,
+    pub test_error: Option<String>,
     pub has_credential: bool,
 }
 

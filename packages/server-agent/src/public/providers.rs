@@ -8,14 +8,15 @@ pub use crate::adapters::provider_http::{
 pub use crate::adapters::provider_postgres::{AiProviderError, PgAiProvider};
 pub use crate::application::providers::{
     AiActor, AiProviderMutation, AiProviderMutationAction, AiProviderMutationCommon,
-    AiProviderPorts, GenerateKind, SealedCredential, activate_ai_connection, capability_available,
-    disable_ai_connection, discover_ai_models, fail_closed_credentials, fail_closed_transport,
-    normalized_base_url, protocol_for, save_ai_connection, select_ai_providers,
-    supported_model_ids, test_ai_connection,
+    AiProviderPorts, AiUsage, GenerateKind, SealedCredential, activate_ai_connection,
+    ai_provider_overview, capability_available, disable_ai_connection, discover_ai_models,
+    discover_saved_ai_models, fail_closed_credentials, fail_closed_transport, normalized_base_url,
+    protocol_for, save_ai_connection, select_ai_providers, supported_model_ids, test_ai_connection,
 };
 pub use crate::domain::providers::{
-    AiConnection, AiConnectionInput, AiDiscoveryInput, AiGeneration, AiProtocol, AiRevision,
-    AiSelection, AiSelectionInput, AiVersionInput, AuthMode, DEFAULT_AI_NAME, ImageMode,
-    ProviderPreset, SelectionMode, ai_base_url, connection_not_found, credential_unavailable,
-    revision_unavailable, supported_model_protocol, transport_unavailable, unsupported_model,
+    AiConnection, AiConnectionInput, AiDisableInput, AiDiscoveryInput, AiGeneration, AiProtocol,
+    AiRevision, AiSelection, AiSelectionInput, AiVersionInput, AuthMode, DEFAULT_AI_NAME,
+    ImageMode, ProviderPreset, SelectionMode, ai_base_url, connection_not_found,
+    credential_unavailable, revision_unavailable, supported_model_protocol, transport_unavailable,
+    unsupported_model,
 };

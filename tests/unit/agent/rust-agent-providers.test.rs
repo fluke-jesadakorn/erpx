@@ -49,6 +49,8 @@ struct FailClosed {
     connection: Option<AiConnection>,
     revision: Option<AiRevision>,
     selection: Option<AiSelection>,
+    connections: Vec<AiConnection>,
+    usage: Vec<AiUsage>,
 }
 
 impl Default for FailClosed {
@@ -61,6 +63,8 @@ impl Default for FailClosed {
             connection: None,
             revision: None,
             selection: None,
+            connections: Vec::new(),
+            usage: Vec::new(),
         }
     }
 }
@@ -103,6 +107,9 @@ impl AiProviderPorts for FailClosed {
     async fn connection(&mut self, _id: &str) -> Result<Option<AiConnection>, Self::Error> {
         Ok(self.connection.clone())
     }
+    async fn connections(&mut self) -> Result<Vec<AiConnection>, Self::Error> {
+        Ok(self.connections.clone())
+    }
     async fn revision(
         &mut self,
         _connection: &AiConnection,
@@ -112,6 +119,9 @@ impl AiProviderPorts for FailClosed {
     }
     async fn selection(&mut self) -> Result<Option<AiSelection>, Self::Error> {
         Ok(self.selection.clone())
+    }
+    async fn usage(&mut self, _since: i64) -> Result<Vec<AiUsage>, Self::Error> {
+        Ok(self.usage.clone())
     }
     async fn seal_key(&mut self, _connection_id: &str, _key: &str) -> Result<String, Self::Error> {
         Err(credential_unavailable())
@@ -161,6 +171,8 @@ fn revision() -> AiRevision {
         image_model: None,
         text_verified: false,
         image_verified: false,
+        tested_at: None,
+        test_error: None,
         has_credential: true,
     }
 }
@@ -376,4 +388,95 @@ async fn select_custom_requires_tested_active_capability() {
     .unwrap();
     assert_eq!(result, json!({"version": 1}));
     assert_eq!(ports.commits, vec!["ai.settings.save"]);
+}
+
+#[tokio::test]
+async fn overview_returns_the_full_retained_payload() {
+    let mut ports = FailClosed {
+        connections: vec![connection()],
+        revision: Some(revision()),
+        selection: Some(AiSelection {
+            company_id: "company".into(),
+            version: 4,
+            mode: SelectionMode::Custom,
+            text_connection_id: Some("ai-1".into()),
+            image_connection_id: Some("ai-1".into()),
+            image_mode: ImageMode::Custom,
+            home_ai_name: "Workspace AI".into(),
+        }),
+        usage: vec![AiUsage {
+            connection_id: Some("ai-1".into()),
+            model: "model-1".into(),
+            requests: 3,
+            input_tokens: 30,
+            output_tokens: 12,
+            failures: 1,
+        }],
+        ..FailClosed::default()
+    };
+    let overview = ai_provider_overview(&mut ports, true, true, false)
+        .await
+        .unwrap();
+    assert_eq!(overview["deploymentAvailable"], true);
+    assert_eq!(overview["keyStorageReady"], true);
+    assert_eq!(overview["selection"]["mode"], "custom");
+    assert_eq!(overview["selection"]["home_ai_name"], "Workspace AI");
+    assert_eq!(overview["connections"][0]["hasKey"], true);
+    assert_eq!(overview["connections"][0]["disabled"], 0);
+    assert_eq!(overview["connections"][0]["tested_at"], Value::Null);
+    assert_eq!(
+        overview["connections"][0]["active"]["text_model"],
+        "model-1"
+    );
+    assert_eq!(overview["usage"][0]["requests"], 3);
+    assert_eq!(overview["usage"][0]["failures"], 1);
+}
+
+#[tokio::test]
+async fn disable_and_delete_keep_the_retained_use_guard() {
+    let mut ports = FailClosed {
+        connection: Some(connection()),
+        revision: Some(revision()),
+        selection: Some(AiSelection {
+            company_id: "company".into(),
+            version: 1,
+            mode: SelectionMode::Custom,
+            text_connection_id: Some("ai-1".into()),
+            image_connection_id: None,
+            image_mode: ImageMode::Default,
+            home_ai_name: "AI".into(),
+        }),
+        ..FailClosed::default()
+    };
+    let error = disable_ai_connection(
+        &mut ports,
+        "ai-1",
+        &json!({"expectedVersion": 2, "disableUses": false}),
+        "disable-used",
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error.code, "AI_CONNECTION_IN_USE");
+    let disabled = disable_ai_connection(
+        &mut ports,
+        "ai-1",
+        &json!({"expectedVersion": 2, "disableUses": true}),
+        "disable-explicit",
+    )
+    .await
+    .unwrap();
+    assert_eq!(disabled, json!({"id": "ai-1", "version": 3}));
+    let deleted = disable_ai_connection(
+        &mut ports,
+        "ai-1",
+        &json!({"expectedVersion": 3, "remove": true, "disableUses": true}),
+        "delete-connection",
+    )
+    .await
+    .unwrap();
+    assert_eq!(deleted, json!({"id": "ai-1", "version": 4}));
+    assert_eq!(
+        ports.commits,
+        vec!["ai.connection.disable", "ai.connection.delete"]
+    );
 }

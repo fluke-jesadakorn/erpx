@@ -2863,6 +2863,7 @@ async fn assemble_checked(
         let mut support_ticket_portal_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut agent_targets = Vec::new();
+        let mut ai_provider_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut social_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3580,6 +3581,24 @@ async fn assemble_checked(
                         )),
                     ));
                 }
+                ai_provider_targets.push(crate::agent_ai_providers::ai_provider_target(
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                    Arc::new(crate::agent_ai_providers::AiProviderBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::agent_ai_providers::AiProviderService::new(
+                            authorizer.clone(),
+                            crate::agent_ai_providers::AiProviderConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            crate::agent_ai_providers::AiProviderRuntime::from_environment(),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                ));
                 {
                     let support_workspace_backend =
                         Arc::new(crate::support_workspace::SupportWorkspaceBackend::new(
@@ -5419,6 +5438,12 @@ async fn assemble_checked(
         if !agent_targets.is_empty() {
             router = router.merge(
                 erpx_server_agent::public::governance::agent_governance_http_router(agent_targets)
+                    .map_err(|_| "PRIVATE_API_AGENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !ai_provider_targets.is_empty() {
+            router = router.merge(
+                erpx_server_agent::public::providers::ai_provider_http_router(ai_provider_targets)
                     .map_err(|_| "PRIVATE_API_AGENT_CONFIGURATION_INVALID")?,
             );
         }

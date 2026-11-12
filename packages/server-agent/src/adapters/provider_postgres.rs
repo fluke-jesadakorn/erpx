@@ -3,7 +3,7 @@
 //! credential/provider service is enabled. No plaintext credential is ever
 //! written or returned by this adapter.
 use crate::application::providers::{
-    AiActor, AiProviderMutation, AiProviderMutationAction, AiProviderPorts, GenerateKind,
+    AiActor, AiProviderMutation, AiProviderMutationAction, AiProviderPorts, AiUsage, GenerateKind,
     SealedCredential,
 };
 use crate::domain::providers::{
@@ -216,6 +216,29 @@ impl AiProviderPorts for PgAiProvider<'_> {
         )?))
     }
 
+    async fn connections(&mut self) -> Result<Vec<AiConnection>, Self::Error> {
+        let rows = sqlx::query(
+            "SELECT id,company_id,name,version,draft_revision,active_revision,disabled \
+             FROM ai_connections WHERE company_id=$1 AND deleted_at IS NULL ORDER BY created_at,id",
+        )
+        .bind(self.actor.company_id())
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(AiConnection {
+                    id: row.try_get("id")?,
+                    company_id: row.try_get("company_id")?,
+                    name: row.try_get("name")?,
+                    version: row.try_get("version")?,
+                    draft_revision: row.try_get("draft_revision")?,
+                    active_revision: row.try_get("active_revision")?,
+                    disabled: row.try_get::<i64, _>("disabled")? != 0,
+                })
+            })
+            .collect()
+    }
+
     async fn connection(&mut self, id: &str) -> Result<Option<AiConnection>, Self::Error> {
         let row = sqlx::query(
             "SELECT id,company_id,name,version,draft_revision,active_revision,disabled \
@@ -254,7 +277,7 @@ impl AiProviderPorts for PgAiProvider<'_> {
         };
         let row = sqlx::query(
             "SELECT connection_id,revision,base_url,auth_mode,provider_preset,text_protocol,image_protocol,\
-             text_model,image_model,text_verified,image_verified,credential_json IS NOT NULL has_credential \
+             text_model,image_model,text_verified,image_verified,tested_at,test_error,credential_json IS NOT NULL has_credential \
              FROM ai_connection_revisions WHERE connection_id=$1 AND revision=$2",
         )
         .bind(&connection.id)
@@ -278,6 +301,8 @@ impl AiProviderPorts for PgAiProvider<'_> {
                 image_model: row.try_get("image_model")?,
                 text_verified: row.try_get::<i64, _>("text_verified")? != 0,
                 image_verified: row.try_get::<i64, _>("image_verified")? != 0,
+                tested_at: row.try_get("tested_at")?,
+                test_error: row.try_get("test_error")?,
                 has_credential: row.try_get("has_credential")?,
             })),
             None => Ok(None),
@@ -304,6 +329,32 @@ impl AiProviderPorts for PgAiProvider<'_> {
             })),
             None => Ok(None),
         }
+    }
+
+    async fn usage(&mut self, since: i64) -> Result<Vec<AiUsage>, Self::Error> {
+        let rows = sqlx::query(
+            "SELECT connection_id,model,COUNT(*) requests,SUM(input_tokens)::bigint input_tokens,\
+             SUM(output_tokens)::bigint output_tokens,\
+             SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END)::bigint failures \
+             FROM ai_provider_usage WHERE company_id=$1 AND created_at>=$2 \
+             GROUP BY connection_id,model",
+        )
+        .bind(self.actor.company_id())
+        .bind(since)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(AiUsage {
+                    connection_id: row.try_get("connection_id")?,
+                    model: row.try_get("model")?,
+                    requests: row.try_get("requests")?,
+                    input_tokens: row.try_get("input_tokens")?,
+                    output_tokens: row.try_get("output_tokens")?,
+                    failures: row.try_get("failures")?,
+                })
+            })
+            .collect()
     }
 
     async fn seal_key(&mut self, _connection_id: &str, _key: &str) -> Result<String, Self::Error> {
@@ -491,11 +542,44 @@ impl AiProviderPorts for PgAiProvider<'_> {
             AiProviderMutationAction::Disable {
                 connection_id,
                 expected_version,
+                disable_uses,
+                remove,
             } => {
-                let changed = sqlx::query(
-                    "UPDATE ai_connections SET disabled=1,version=version+1,updated_at=$1 \
-                     WHERE id=$2 AND company_id=$3 AND version=$4",
+                let settings = sqlx::query(
+                    "SELECT version FROM ai_company_settings WHERE company_id=$1 FOR UPDATE",
                 )
+                .bind(&company)
+                .fetch_optional(&mut *self.connection)
+                .await?;
+                let settings_version = settings
+                    .as_ref()
+                    .map(|row| row.try_get::<i64, _>("version"))
+                    .transpose()?
+                    .unwrap_or(0);
+                if *disable_uses {
+                    let changed = sqlx::query(
+                        "UPDATE ai_company_settings SET \
+                         mode=CASE WHEN text_connection_id=$1 THEN 'disabled' ELSE mode END,\
+                         image_mode=CASE WHEN image_connection_id=$1 THEN 'disabled' ELSE image_mode END,\
+                         version=version+1,updated_by=$2,updated_at=$3 WHERE company_id=$4 AND version=$5",
+                    )
+                    .bind(connection_id)
+                    .bind(self.actor.user_id())
+                    .bind(now)
+                    .bind(&company)
+                    .bind(settings_version)
+                    .execute(&mut *self.connection)
+                    .await
+                    .map_err(statement_error)?;
+                    if changed.rows_affected() != 1 {
+                        return Err(conflict().into());
+                    }
+                }
+                let changed = sqlx::query(
+                    "UPDATE ai_connections SET disabled=1,deleted_at=$1,version=version+1,updated_at=$2 \
+                     WHERE id=$3 AND company_id=$4 AND version=$5",
+                )
+                .bind(if *remove { Some(now) } else { None })
                 .bind(now)
                 .bind(connection_id)
                 .bind(&company)
@@ -505,6 +589,15 @@ impl AiProviderPorts for PgAiProvider<'_> {
                 .map_err(statement_error)?;
                 if changed.rows_affected() != 1 {
                     return Err(conflict().into());
+                }
+                if *remove {
+                    sqlx::query(
+                        "UPDATE ai_connection_revisions SET credential_json=NULL WHERE connection_id=$1",
+                    )
+                    .bind(connection_id)
+                    .execute(&mut *self.connection)
+                    .await
+                    .map_err(statement_error)?;
                 }
             }
             AiProviderMutationAction::Select {

@@ -5,6 +5,10 @@
 mod fixture;
 
 use erpx_server_agent::public::governance::*;
+use erpx_server_agent::public::providers::{
+    AiActor, PgAiProvider, activate_ai_connection, ai_provider_overview, disable_ai_connection,
+    save_ai_connection, select_ai_providers,
+};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
@@ -615,6 +619,350 @@ async fn agent_governance_persists_catalogue_pool_assignment_and_session_evidenc
         .await
         .unwrap();
         assert_eq!(foreign_agent["id"], "agent-foreign-agent");
+    })
+    .await;
+}
+
+fn ai_owner() -> AiActor {
+    AiActor::new(
+        "h001",
+        command_actor("company", "owner", "assign-owner", "holding_owner"),
+        vec!["holding_owner".into()],
+    )
+}
+
+fn ai_foreign() -> AiActor {
+    AiActor::new(
+        "h001",
+        command_actor("foreign", "owner", "assign-foreign", "holding_owner"),
+        vec!["holding_owner".into()],
+    )
+}
+
+async fn ai_save(
+    pool: &DatabasePool,
+    actor: &AiActor,
+    id: Option<&str>,
+    raw: Value,
+    key: &str,
+) -> Result<Value, PgTransactionError<BusinessError>> {
+    let actor = actor.clone();
+    let id = id.map(str::to_owned);
+    let key = key.to_owned();
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let id = id.clone();
+            let key = key.clone();
+            let raw = raw.clone();
+            Box::pin(async move {
+                let mut ports = PgAiProvider::new(connection, &actor, NOW);
+                save_ai_connection(&mut ports, id.as_deref(), &raw, &key).await
+            })
+        })
+        .await
+}
+
+async fn ai_activate(
+    pool: &DatabasePool,
+    actor: &AiActor,
+    id: &str,
+    raw: Value,
+    key: &str,
+) -> Result<Value, PgTransactionError<BusinessError>> {
+    let actor = actor.clone();
+    let id = id.to_owned();
+    let key = key.to_owned();
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let id = id.clone();
+            let key = key.clone();
+            let raw = raw.clone();
+            Box::pin(async move {
+                let mut ports = PgAiProvider::new(connection, &actor, NOW);
+                activate_ai_connection(&mut ports, &id, &raw, &key).await
+            })
+        })
+        .await
+}
+
+async fn ai_select(
+    pool: &DatabasePool,
+    actor: &AiActor,
+    raw: Value,
+    key: &str,
+) -> Result<Value, PgTransactionError<BusinessError>> {
+    let actor = actor.clone();
+    let key = key.to_owned();
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let key = key.clone();
+            let raw = raw.clone();
+            Box::pin(async move {
+                let mut ports = PgAiProvider::new(connection, &actor, NOW);
+                select_ai_providers(&mut ports, &raw, &key).await
+            })
+        })
+        .await
+}
+
+async fn ai_disable(
+    pool: &DatabasePool,
+    actor: &AiActor,
+    id: &str,
+    raw: Value,
+    key: &str,
+) -> Result<Value, PgTransactionError<BusinessError>> {
+    let actor = actor.clone();
+    let id = id.to_owned();
+    let key = key.to_owned();
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let id = id.clone();
+            let key = key.clone();
+            let raw = raw.clone();
+            Box::pin(async move {
+                let mut ports = PgAiProvider::new(connection, &actor, NOW);
+                disable_ai_connection(&mut ports, &id, &raw, &key).await
+            })
+        })
+        .await
+}
+
+async fn ai_overview(
+    pool: &DatabasePool,
+    actor: &AiActor,
+) -> Result<Value, PgTransactionError<BusinessError>> {
+    let actor = actor.clone();
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            Box::pin(async move {
+                let mut ports = PgAiProvider::new(connection, &actor, NOW);
+                ai_provider_overview(&mut ports, true, true, false).await
+            })
+        })
+        .await
+}
+
+#[tokio::test]
+async fn ai_provider_settings_own_the_retained_overview_and_command_parity() {
+    fixture::with_database(2, |pool| async move {
+        migrate(&pool).await;
+        seed(&pool).await;
+
+        let saved = ai_save(
+            &pool,
+            &ai_owner(),
+            None,
+            json!({
+                "name": "Primary provider",
+                "baseUrl": "https://api.provider.com/v1",
+                "authMode": "none",
+                "textModel": "model-1"
+            }),
+            "provider-save-key",
+        )
+        .await
+        .unwrap();
+        assert_eq!(saved, json!({"id": "ai-provider-save-key", "version": 1}));
+        let replay = ai_save(
+            &pool,
+            &ai_owner(),
+            None,
+            json!({
+                "name": "Primary provider",
+                "baseUrl": "https://api.provider.com/v1",
+                "authMode": "none",
+                "textModel": "model-1"
+            }),
+            "provider-save-key",
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, saved);
+
+        let overview = ai_overview(&pool, &ai_owner()).await.unwrap();
+        assert_eq!(overview["deploymentAvailable"], true);
+        assert_eq!(overview["keyStorageReady"], true);
+        assert_eq!(overview["selection"]["mode"], "deployment");
+        for key in [
+            "id",
+            "company_id",
+            "name",
+            "version",
+            "draft_revision",
+            "active_revision",
+            "disabled",
+            "deleted_at",
+            "connection_id",
+            "revision",
+            "base_url",
+            "auth_mode",
+            "provider_preset",
+            "text_protocol",
+            "image_protocol",
+            "text_model",
+            "image_model",
+            "text_verified",
+            "image_verified",
+            "tested_at",
+            "test_error",
+            "hasKey",
+            "active",
+        ] {
+            assert!(
+                overview["connections"][0].get(key).is_some(),
+                "missing overview field {key}"
+            );
+        }
+        for key in [
+            "company_id",
+            "version",
+            "mode",
+            "text_connection_id",
+            "image_connection_id",
+            "image_mode",
+            "home_ai_name",
+        ] {
+            assert!(
+                overview["selection"].get(key).is_some(),
+                "missing selection field {key}"
+            );
+        }
+        assert_eq!(overview["connections"][0]["hasKey"], false);
+        assert_eq!(overview["connections"][0]["disabled"], 0);
+        assert_eq!(overview["connections"][0]["text_verified"], 0);
+        assert_eq!(overview["connections"][0]["active"], Value::Null);
+
+        sqlx::query(
+            "UPDATE ai_connection_revisions SET text_verified=1,tested_at=$1 WHERE connection_id=$2",
+        )
+        .bind(NOW)
+        .bind("ai-provider-save-key")
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let activated = ai_activate(
+            &pool,
+            &ai_owner(),
+            "ai-provider-save-key",
+            json!({"expectedVersion": 1}),
+            "provider-activate-key",
+        )
+        .await
+        .unwrap();
+        assert_eq!(activated, json!({"id": "ai-provider-save-key", "version": 2}));
+        let selected = ai_select(
+            &pool,
+            &ai_owner(),
+            json!({
+                "expectedVersion": 0,
+                "mode": "custom",
+                "textConnectionId": "ai-provider-save-key"
+            }),
+            "provider-select-key",
+        )
+        .await
+        .unwrap();
+        assert_eq!(selected, json!({"version": 1}));
+        let in_use = ai_disable(
+            &pool,
+            &ai_owner(),
+            "ai-provider-save-key",
+            json!({"expectedVersion": 2, "disableUses": false}),
+            "provider-disable-blocked",
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(code(in_use), "AI_CONNECTION_IN_USE");
+        let disabled = ai_disable(
+            &pool,
+            &ai_owner(),
+            "ai-provider-save-key",
+            json!({"expectedVersion": 2, "disableUses": true}),
+            "provider-disable-key",
+        )
+        .await
+        .unwrap();
+        assert_eq!(disabled, json!({"id": "ai-provider-save-key", "version": 3}));
+        let settings: (String, i64) = sqlx::query_as(
+            "SELECT mode,version FROM ai_company_settings WHERE company_id='company'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(settings, ("disabled".into(), 2));
+
+        let second = ai_save(
+            &pool,
+            &ai_owner(),
+            None,
+            json!({
+                "name": "Delete provider",
+                "baseUrl": "https://api.provider.com/v1",
+                "authMode": "none",
+                "textModel": "model-1"
+            }),
+            "provider-delete-save",
+        )
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE ai_connection_revisions SET credential_json='{\"keyId\":\"v1\"}' WHERE connection_id=$1",
+        )
+        .bind(second["id"].as_str().unwrap())
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let deleted = ai_disable(
+            &pool,
+            &ai_owner(),
+            "ai-provider-delete-save",
+            json!({"expectedVersion": 1, "disableUses": true, "remove": true}),
+            "provider-delete-key",
+        )
+        .await
+        .unwrap();
+        assert_eq!(deleted, json!({"id": "ai-provider-delete-save", "version": 2}));
+        let row: (Option<i64>, i64, Option<String>) = sqlx::query_as(
+            "SELECT c.deleted_at,c.disabled,r.credential_json FROM ai_connections c \
+             JOIN ai_connection_revisions r ON r.connection_id=c.id \
+             WHERE c.id='ai-provider-delete-save'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row, (Some(NOW), 1, None));
+
+        sqlx::query(
+            "INSERT INTO ai_provider_usage(id,company_id,connection_id,revision,model,feature,status,input_tokens,output_tokens,created_at) \
+             VALUES('usage-1','company','ai-provider-save-key',1,'model-1','test','failed',3,2,$1)",
+        )
+        .bind(NOW)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let overview = ai_overview(&pool, &ai_owner()).await.unwrap();
+        assert_eq!(overview["selection"]["mode"], "disabled");
+        assert_eq!(overview["connections"][0]["disabled"], 1);
+        assert_eq!(overview["usage"][0]["requests"], 1);
+        assert_eq!(overview["usage"][0]["failures"], 1);
+        assert_eq!(overview["usage"][0]["input_tokens"], 3);
+
+        let error = ai_activate(
+            &pool,
+            &ai_foreign(),
+            "ai-provider-save-key",
+            json!({"expectedVersion": 3}),
+            "provider-foreign-key",
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(code(error), "AI_CONNECTION_NOT_FOUND");
     })
     .await;
 }

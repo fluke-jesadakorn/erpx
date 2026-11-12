@@ -19,7 +19,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand} from '@erpx/server-workflow/public/commands';
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
-import {aiProviderOverview,aiSnapshotGuard,aiUsageStatement,resolveAiProvider} from "@erpx/server-agent/adapters/ai-providers";
+import {aiProviderOverview,aiSnapshotGuard,aiUsageStatement,resolveAiProvider} from "@erpx/server-agent/adapters/ai-runtime";
 import {generateProviderJson,withAiGatewayScope} from "@erpx/server-agent/adapters/ai-transport";
 import {employeeRequestDetail} from '@erpx/server-records/public/employee-requests-read';
 import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
