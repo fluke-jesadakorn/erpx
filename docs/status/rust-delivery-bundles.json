@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1068,
+    "revision": 1070,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -14625,15 +14625,8 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "integrating",
-        "claim": {
-          "runId": "run-20261112-s",
-          "agentId": "worker-commerce-goods",
-          "claimedAt": "2026-11-12T17:09:40.357Z",
-          "heartbeatAt": "2026-11-12T17:09:40.357Z",
-          "expiresAt": "2026-11-12T17:39:40.357Z",
-          "generation": 44
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "e6d13a645cffe9e6e1f36b0cede9f076b1ed39ed",
         "implementedCommit": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
         "lastPushedSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
@@ -14689,15 +14682,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead: enable native Commerce source, bind fulfillment attachments, retire TS fulfilOrder goods branch, smoke the goods receipt.",
+        "blocker": "handoff",
+        "nextAction": "Lead: dispatch native sales-order goods/mixed fulfillment in server-commerce (fulfillment.rs + order_http), then switch workplace route line 88 to native-only and delete the TS fulfillOrder goods branch plus the public export; purchase receipts are already native.",
         "handoff": {
-          "runId": "run-20261112-d",
-          "agentId": "lead",
-          "at": "2026-11-12T03:47:38.053Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261112-s",
+          "agentId": "worker-commerce-goods",
+          "at": "2026-11-12T17:11:21.442Z",
+          "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "Lead: enable native Commerce source, bind fulfillment attachments, retire TS fulfilOrder goods branch, smoke the goods receipt."
+          "nextAction": "Lead: dispatch native sales-order goods/mixed fulfillment in server-commerce (fulfillment.rs + order_http), then switch workplace route line 88 to native-only and delete the TS fulfillOrder goods branch plus the public export; purchase receipts are already native."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commerce",
@@ -25799,15 +25792,15 @@
         "pending": 29,
         "in_progress": 6,
         "ready_for_integration": 10,
-        "integrating": 1,
+        "integrating": 0,
         "migrated": 56,
-        "blocked": 20,
+        "blocked": 21,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T17:11:05.848Z",
+    "updatedAt": "2026-11-12T17:11:21.443Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
