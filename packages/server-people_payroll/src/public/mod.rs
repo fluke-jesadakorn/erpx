@@ -3,6 +3,7 @@ pub mod invitation_person_link;
 pub mod workforce_reference;
 pub mod workforce;
 pub mod leave;
+pub mod expense;
 
 pub mod finance_journal_names;
 
