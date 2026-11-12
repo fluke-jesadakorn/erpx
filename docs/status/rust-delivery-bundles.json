@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1215,
+    "revision": 1223,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21863,6 +21863,11 @@
           "packages/server-pos/Cargo.toml",
           "packages/server-pos/package.json",
           "packages/feature-pos/**",
+          "scripts/seed/seed-pos-local.ts",
+          "scripts/seed/seed-hospitality-local.ts",
+          "scripts/testing/workflows/verify-pos-development.ts",
+          "tests/support/helpers/engineering-service-hospitality-attachment-owners.ts",
+          "tests/catalogue/engineering-scenarios.json",
           "tests/unit/pos/**",
           "tests/integration/pos/**",
           "tests/provider/pos/**",
@@ -21875,9 +21880,9 @@
         "claim": {
           "runId": "run-20261113-b",
           "agentId": "worker-pos-retire",
-          "claimedAt": "2026-11-12T20:38:25.991Z",
-          "heartbeatAt": "2026-11-12T20:39:07.338Z",
-          "expiresAt": "2026-11-12T21:09:07.338Z",
+          "claimedAt": "2026-11-12T20:54:56.582Z",
+          "heartbeatAt": "2026-11-12T20:54:56.582Z",
+          "expiresAt": "2026-11-12T21:24:56.582Z",
           "generation": 46
         },
         "baseSha": null,
@@ -21912,8 +21917,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "POS KPI 122 -> 112 at 4dca47d4d. Remaining 112 writes: migrate scripts/seed/seed-pos-{local,hospitality-local}.ts, scripts/testing/workflows/verify-pos-development.ts and tests/support/helpers/engineering-service-hospitality-attachment-owners.ts to the native POS client (they keep shift/sale/tender/refund writers alive), then delete those writers; refresh the stale required case in tests/catalogue/engineering-scenarios.json:2060. Command families without any native counterpart (settings/accounting, registers/catalog, kitchen, retry/cancel, settlement, exception, room-charge reversal) still need native implementations.",
-        "handoff": null,
+        "nextAction": "Move the POS seed/workflow/helper callers to the native POS client, delete the shift/sale/tender/refund TS writers they kept alive, refresh the stale required case, and record the owner KPI pair.",
+        "handoff": {
+          "runId": "run-20261113-b",
+          "agentId": "worker-pos-retire",
+          "at": "2026-11-12T20:54:56.494Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Freeze for scope extension: the remaining shift/sale/tender/refund writers are kept alive only by POS seeds/workflow/helper callers."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -28070,22 +28082,110 @@
         "resources": [
           "owner:sales"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-b",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T20:42:36.155Z",
-          "heartbeatAt": "2026-11-12T20:42:36.155Z",
-          "expiresAt": "2026-11-12T21:12:36.155Z",
-          "generation": 46
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "a218389522ecc58f45044e66a0bb0d3d05af101c",
+        "implementedCommit": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+        "lastPushedSha": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+            "note": "Root typecheck passes after deleting the TS price-list write commands."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+            "note": "Test typecheck passes with the direct price-list seeding oracles."
+          },
+          {
+            "command": "bun run test:integration -- --suite=sales.pricing.integration",
+            "result": "passed",
+            "sourceSha": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+            "note": "16/16 Sales pricing/order oracle cases pass; the deleted command-semantics cases are covered by the native Rust suite."
+          },
+          {
+            "command": "bun run test:integration -- --suite=ecommerce.ecommerce.integration",
+            "result": "passed",
+            "sourceSha": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+            "note": "23/23 Ecommerce cases pass with the direct Sales price-list obligation seed."
+          },
+          {
+            "command": "bun run test:unit -- --suite=sales.rust-sales-price-lists.unit",
+            "result": "passed",
+            "sourceSha": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+            "note": "6/6 native Rust price-list command cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=sales.rust-sales-price-lists-http.unit",
+            "result": "passed",
+            "sourceSha": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+            "note": "4/4 native Rust price-list HTTP cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=sales.rust-sales-price-lists-postgres.integration",
+            "result": "passed",
+            "sourceSha": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+            "note": "7/7 native Rust price-list PostgreSQL cases pass including replay, source drift, rollback and guards."
+          },
+          {
+            "command": "retirement:ts-writes: sales",
+            "result": "passed",
+            "sourceSha": "f28b271c096060cfbc0f2755812e9cee49366b5c",
+            "before": 29,
+            "after": 22,
+            "note": "git grep over packages/server-sales/src/**/*.ts: 29 before, 22 after. pricing.ts is removed; the residual is notes (6), followups (4), notifications (3), notification-reconciliation (3) and three purchase-boundary files (2 each), all producer-first.",
+            "residual": [
+              {
+                "path": "packages/server-sales/src/adapters/followup-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner command/read port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/followups.ts",
+                "writes": 4,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner command/read port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notes.ts",
+                "writes": 6,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner command/read port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notification-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner command/read port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notification-reconciliation.ts",
+                "writes": 3,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner command/read port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notifications.ts",
+                "writes": 3,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner command/read port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/pricing-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner command/read port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Pricing batch: delete the native-backed savePriceList/updatePriceList/decidePriceList TS writers, their public exports and the commerce route fallbacks; migrate the pricing oracles to direct native-shape seeding; record Sales KPI 29 -> 22.",
+        "nextAction": "Sales residual: notes/followups/notifications are producer-first (no Rust writer); pricing is native and the TS commands are gone.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -28459,8 +28559,15 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-b",
+          "agentId": "worker-ca-enrollment",
+          "claimedAt": "2026-11-12T20:54:17.233Z",
+          "heartbeatAt": "2026-11-12T20:54:17.233Z",
+          "expiresAt": "2026-11-12T21:24:17.233Z",
+          "generation": 46
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -28577,8 +28684,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "BLOCKED BY ACTIVE CLAIM (2026-11-12 20:53Z): retire.sales.residual-writers (lead) holds packages/feature-sales/**, src/composition/**, tests/catalogue/** and tests/unit/sales/**, which overlap the Batch 1b enrollment paths (feature-sales customer-access, composition, catalogue). Batch 1b needs: native public portal enrollment endpoint (verify_portal_session + reserve/release/accept) in server-customer_authority, composition mount, feature-portal enroll route switch with ERPX_NATIVE_PORTAL_ENROLLMENT_CONFIG fail-closed, delete portal-enrollment.ts (6 writes) + barrels, migrate the enrollment oracle. After the sales-residual claim is handed off or its allowedPaths are narrowed, claim this task and record customer_authority KPI 35->29.",
+        "blocker": null,
+        "nextAction": "Batch 1b: native public portal enrollment endpoint + composition mount + feature-portal route switch, delete portal-enrollment.ts (6), migrate oracle, KPI 35->29.",
         "handoff": {
           "runId": "run-20261113-b",
           "agentId": "worker-ca-portal-commands",
@@ -29061,20 +29168,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 137,
-      "migratedPackets": 70,
+      "migratedPackets": 71,
       "statusCounts": {
         "pending": 26,
         "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 70,
-        "blocked": 24,
+        "migrated": 71,
+        "blocked": 23,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T20:54:09.722Z",
+    "updatedAt": "2026-11-12T20:55:33.245Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
