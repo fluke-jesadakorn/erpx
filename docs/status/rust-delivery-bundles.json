@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 578,
+    "revision": 580,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -12759,29 +12759,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "c5d734cf8895f5a064a1b692f945a516212d19d9",
+        "implementedCommit": "dd392c70c19e127c2c1fe61a1e6514f8364b7523",
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-ecommerce --locked",
+            "result": "passed",
+            "sourceSha": "dd392c70c19e127c2c1fe61a1e6514f8364b7523",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles with the listing port and HTTP router."
+          },
+          {
+            "command": "cargo test -p erpx-server-ecommerce --tests --locked",
+            "result": "passed",
+            "sourceSha": "dd392c70c19e127c2c1fe61a1e6514f8364b7523",
+            "sourceKind": "committed",
+            "note": "42/42 owner cases pass: commands 13, http 6, listing-commands 13, listing-postgres 5, legacy postgres 5; PostgreSQL via ERPX_TEST_ADMIN_URL. Content identical to the compiled pre-commit tree."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Lead: mount ecommerce_listing_router + backend, switch the Next listing branch, retire TS createListing, then rerun the two registered suites after the PMS untracked suite is registered.",
+        "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-ecommerce",
-          "claimedAt": "2026-11-12T01:09:08.839Z",
-          "heartbeatAt": "2026-11-12T01:13:34.854Z",
-          "expiresAt": "2026-11-12T01:43:34.854Z",
-          "generation": 26
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the first inventoried ecommerce packet (migrate.ecommerce.listing-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
-        "handoff": {
-          "runId": "run-20261112-a",
-          "agentId": "worker-ecommerce",
-          "at": "2026-11-12T01:04:54.041Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
-          "nextAction": "Implement the first inventoried ecommerce packet (migrate.ecommerce.listing-commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead."
+          "at": "2026-11-12T01:36:14.623Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: mount ecommerce_listing_router + backend, switch the Next listing branch, retire TS createListing, then rerun the two registered suites after the PMS untracked suite is registered."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-ecommerce",
@@ -16180,8 +16188,8 @@
       "migratedPackets": 20,
       "statusCounts": {
         "pending": 12,
-        "in_progress": 4,
-        "ready_for_integration": 11,
+        "in_progress": 3,
+        "ready_for_integration": 12,
         "integrating": 1,
         "migrated": 20,
         "blocked": 5,
@@ -16190,7 +16198,7 @@
       }
     },
     "lastCoordinatorGeneration": 26,
-    "updatedAt": "2026-11-12T01:31:50.228Z",
+    "updatedAt": "2026-11-12T01:36:14.624Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
