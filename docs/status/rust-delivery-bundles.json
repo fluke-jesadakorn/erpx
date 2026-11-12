@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1214,
+    "revision": 1215,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21881,12 +21881,38 @@
           "generation": 46
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
+        "lastPushedSha": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
+            "before": 122,
+            "after": 112,
+            "note": "18 PosUnit members deleted: the native-only payment.cancel_transfer/refund.reject branches and orphaned members from the basket-edit/split cutover (pos-core.ts 87 -> 77)."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos",
+            "result": "passed",
+            "sourceSha": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
+            "note": "80/80 owner cases after the deletions."
+          },
+          {
+            "command": "bunx tsc -p packages/server-pos/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "4dca47d4dec3f02258537fcb5d70a42f6de60998"
+          },
+          {
+            "command": "vitest integration tests/integration/pos/pos.test.ts",
+            "result": "passed",
+            "sourceSha": "4dca47d4dec3f02258537fcb5d70a42f6de60998",
+            "note": "100/100 executed. The run reports a stale registered case 'preserves line and bill discounts exactly when a quantity is split' that was removed from the file by 904b9cbd1; the catalogue register is outside this packet."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Classify adapters/pos-core.ts writers against the native POS crate; delete only writers whose native command already owns the table and whose TS caller is native-only, move oracles, and record the owner KPI pair.",
+        "nextAction": "POS KPI 122 -> 112 at 4dca47d4d. Remaining 112 writes: migrate scripts/seed/seed-pos-{local,hospitality-local}.ts, scripts/testing/workflows/verify-pos-development.ts and tests/support/helpers/engineering-service-hospitality-attachment-owners.ts to the native POS client (they keep shift/sale/tender/refund writers alive), then delete those writers; refresh the stale required case in tests/catalogue/engineering-scenarios.json:2060. Command families without any native counterpart (settings/accounting, registers/catalog, kitchen, retry/cancel, settlement, exception, room-charge reversal) still need native implementations.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -29048,7 +29074,7 @@
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T20:53:21.890Z",
+    "updatedAt": "2026-11-12T20:54:09.722Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
