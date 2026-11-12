@@ -5685,14 +5685,7 @@
         "Persisted Agent catalog lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        }
-      ],
+      "cases": [],
       "moduleId": "agent",
       "capabilityId": "agent-catalog"
     },
@@ -5705,26 +5698,7 @@
         "Persisted Versions lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "enforces approved source boundaries before a provider attempt and leaves the manual guide available",
-          "proof": "Provider mock is not called outside approved paths; manual guide remains available; no successful turn is persisted for forbidden source."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "keeps retired versions out of new invocations and replays lifecycle commands once",
-          "proof": "Retires approved immutable version, retries same lifecycle key, checks single history receipt and no subsequent provider attempt."
-        }
-      ],
+      "cases": [],
       "moduleId": "agent",
       "capabilityId": "versions"
     },
@@ -5737,26 +5711,7 @@
         "Persisted Assignments lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "enforces approved source boundaries before a provider attempt and leaves the manual guide available",
-          "proof": "Provider mock is not called outside approved paths; manual guide remains available; no successful turn is persisted for forbidden source."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "refuses an in-flight revoked agent assignment and persists failure evidence",
-          "proof": "Revokes assignment while provider is pending; answer is denied and failed evidence remains; successful output is not persisted."
-        }
-      ],
+      "cases": [],
       "moduleId": "agent",
       "capabilityId": "assignments"
     },
@@ -5769,26 +5724,7 @@
         "Persisted Pools & routing lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "replaces eligible pool members atomically, retains revisions and removes the previous routing grant",
-          "proof": "Member replacement retains immutable revisions, revokes old member routing, accepts new member, rejects cross-company/inactive recipients and replays once."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "allows only one concurrent pool replacement from the same version",
-          "proof": "Two simultaneous replacement commands at one expected version produce exactly one success and one new revision."
-        }
-      ],
+      "cases": [],
       "moduleId": "agent",
       "capabilityId": "feature-pools-routing"
     },
@@ -5802,12 +5738,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "retains held evidence across expiry and starts a fresh private session without old history",
-          "proof": "Only owner can inspect history; hold retains immutable evidence; expiry denies old generation and next invocation starts new generation with empty old history; hold/release/expiry receipts replay."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
@@ -5881,30 +5811,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "enforces approved source boundaries before a provider attempt and leaves the manual guide available",
-          "proof": "Provider mock is not called outside approved paths; manual guide remains available; no successful turn is persisted for forbidden source."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "refuses an in-flight revoked agent assignment and persists failure evidence",
-          "proof": "Revokes assignment while provider is pending; answer is denied and failed evidence remains; successful output is not persisted."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "keeps retired versions out of new invocations and replays lifecycle commands once",
-          "proof": "Retires approved immutable version, retries same lifecycle key, checks single history receipt and no subsequent provider attempt."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",

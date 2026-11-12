@@ -948,7 +948,7 @@ const delivery: Record<string, ModuleDelivery> = {
     "api": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
     "service": "packages/server-agent/src/public/agent-governance.ts",
     "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
-    "test": "tests/integration/agent/agent-governance.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+    "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
     "gap": "Recorded 2026-10-03 engineering acceptance covers: Register, suspend and retire agent definitions. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
     "overrides": {
       "versions": {
@@ -958,11 +958,11 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Start, delegate, retry or cancel assignments. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-pools-routing": {
-        "test": "tests/integration/agent/agent-governance.test.ts",
+        "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Register pools, replace members and inspect routing. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-private-sessions": {
-        "test": "tests/integration/agent/agent-governance.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts; tests/integration/shared.requests/guided-intake.test.ts",
+        "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts; tests/integration/shared.requests/guided-intake.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Run private, held or expiring sessions. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-field-suggestions": {
@@ -970,7 +970,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Generate cited owner-authorized field proposal; Review/apply explicit fields and invalidate changed source. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-invocation-evidence": {
-        "test": "tests/integration/agent/agent-governance.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts; tests/integration/shared.requests/guided-intake.test.ts",
+        "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts; tests/integration/shared.requests/guided-intake.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect attributable agent activity. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       }
     }

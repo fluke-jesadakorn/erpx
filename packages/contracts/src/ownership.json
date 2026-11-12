@@ -3691,7 +3691,8 @@
             "tests/unit/agent/ai-protocols.test.ts",
             "tests/integration/agent/ai-gateway.test.ts",
             "tests/integration/agent/ai-providers.test.ts",
-            "tests/integration/agent/agent-governance.test.ts",
+            "tests/integration/agent/rust-agent-governance-postgres.test.rs",
+            "tests/integration/shared.requests/guided-intake.test.ts",
             "tests/integration/agent/workspace-assistant.test.ts",
             "tests/unit/agent/agent-services.test.ts"
           ]

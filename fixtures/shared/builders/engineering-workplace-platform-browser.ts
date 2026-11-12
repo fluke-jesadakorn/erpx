@@ -13,7 +13,6 @@ import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
 import {seedProjectFor} from '../../../tests/integration/projects/project-actual-fixtures';
-import {createAgent,createAgentVersion,createAgentAssignment,changeAgentRecord} from "@erpx/server-agent/public/agent-governance";
 import {prepareGuidedIntake} from "@erpx/server-operations/public/guided-intake";
 import {guidedIntakeInputSchema} from "@erpx/feature-shared/lib/ai/guided-intake";
 import {refreshRecentUsageProjections} from "@erpx/server-commercial/public/usage-projection";
@@ -97,11 +96,13 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
   const post=await postView(input.h001,participant,String(socialPost.id)),workspace=await collaborationWorkspace(participant),exception=await operationsExceptionDetail(participant,String(operationalException.id));
   if(!post.linkedSources.some(source=>source.available&&source.id===showcaseSource.id)||!workspace.relations.some(row=>row.id===relation.id)||!workspace.cards.some(row=>row.id===card.id)||exception.row.source.id!==exceptionSource.id)throw new Error('NATIVE_SHOWCASE_PARTICIPANT_READBACK_REQUIRED');
  }
- const agent=await createAgent(author,{name:'Engineering proposal assistant',purpose:'Propose task fields for explicit human review'},key());
- await changeAgentRecord(reviewer,'agent',String(agent.id),{action:'approve',expectedVersion:1,reason:'Independent fictional catalogue review'},key());
- const prompt='Only propose explicitly supplied task fields. Preserve the source reference and wait for a person to review and submit.';
- const version=await createAgentVersion(author,{agentId:agent.id,prompt,allowedSources:['/home','/staff-tasks']},key());await changeAgentRecord(reviewer,'version',String(version.id),{action:'approve',expectedVersion:1,reason:'Independently reviewed prompt and two allowed source areas'},key());
- const assignment=await createAgentAssignment(author,{agentVersionId:version.id,userId:operator.userId,scopePath:'/'},key());
+ const prompt='Only propose explicitly supplied task fields. Preserve the source reference and wait for a person to review and submit.',agentAt=Date.now(),agentId=`agent-${key()}`,versionId=`agent-version-${key()}`,assignmentId=`agent-assignment-${key()}`;
+ await input.h001.batch([
+  input.h001.prepare("INSERT INTO agent_catalog(id,company_id,name,purpose,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,?,'approved',?,?,1,?,?)").bind(agentId,workplace.company,'Engineering proposal assistant','Propose task fields for explicit human review',author.userId,reviewer.userId,agentAt,agentAt),
+  input.h001.prepare("INSERT INTO agent_versions(id,agent_id,version_number,prompt,allowed_sources_json,prohibited_actions_json,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,1,?,?,'[\"approve\",\"sign\",\"pay\"]','approved',?,?,1,?,?)").bind(versionId,agentId,prompt,'[\"/home\",\"/staff-tasks\"]',author.userId,reviewer.userId,agentAt,agentAt),
+  input.h001.prepare("INSERT INTO agent_assignments(id,company_id,agent_version_id,pool_id,user_id,scope_path,status,created_by,revoked_by,version,created_at,updated_at) VALUES(?,?,?,NULL,?,'/','active',?,NULL,1,?,?)").bind(assignmentId,workplace.company,versionId,operator.userId,author.userId,agentAt,agentAt),
+ ]);
+ const agent={id:agentId},version={id:versionId},assignment={id:assignmentId};
  const proposalId=key(),proposalInput=guidedIntakeInputSchema.parse({message:'Create a Fictional proposal task for human review',contextPath:`/staff-tasks/${proposalSource.id}`});
  let approvedPromptUsed=false;
  const proposal=await prepareGuidedIntake(input.h001,operator,{AI_BASE_URL:'https://opencode.ai/zen/go/v1',AI_MODEL:'muse-spark-1.3-contributor',AI_API_KEY:'declared-no-network-engineering-fixture'},proposalInput,proposalId,async(_endpoint,messages)=>{

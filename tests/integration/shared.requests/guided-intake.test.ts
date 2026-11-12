@@ -3,7 +3,6 @@ import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import { guidedIntakeHandoffKey, guidedIntakeInputSchema, saveGuidedIntakeHandoff } from "@erpx/feature-shared/lib/ai/guided-intake";
 import { guidedIntakeOptions, prepareGuidedIntake } from "@erpx/server-operations/public/guided-intake";
-import {createAgent,createAgentVersion,createAgentAssignment,changeAgentRecord,changePrivateSession} from "@erpx/server-agent/public/agent-governance";
 import type { AiEndpoint, AiMessage } from "@erpx/server-agent/public/ai-transport";
 
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
@@ -79,12 +78,13 @@ it("keeps direct forms available if the company disables AI",async()=>{
 async function assignedProposalAgent(){
   const reviewer=await f.member("proposal-policy-reviewer","holding_owner",10);
   f.owner.modules=["agent"];reviewer.modules=["agent"];
-  const agent=await createAgent(f.owner,{name:"Reviewed proposal assistant",purpose:"Propose fields for human review only"},key());
-  await changeAgentRecord(reviewer,"agent",agent.id,{action:"approve",expectedVersion:1,reason:"Independent catalogue review"},key());
-  const version=await createAgentVersion(f.owner,{agentId:agent.id,prompt:"Preserve explicit task text. Never submit a business command.",allowedSources:["/home"]},key());
-  await changeAgentRecord(reviewer,"version",version.id,{action:"approve",expectedVersion:1,reason:"Independent approved source and prompt review"},key());
-  const assignment=await createAgentAssignment(f.owner,{agentVersionId:version.id,userId:f.claimant.userId,scopePath:"/"},key());
-  return {reviewer,version,assignment};
+  const now=Date.now(),agentId=`agent-${key()}`,versionId=`agent-version-${key()}`,assignmentId=`agent-assignment-${key()}`;
+  await db.batch([
+    db.prepare("INSERT INTO agent_catalog(id,company_id,name,purpose,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,?,'approved',?,?,1,?,?)").bind(agentId,f.company,"Reviewed proposal assistant","Propose fields for human review only",f.owner.userId,reviewer.userId,now,now),
+    db.prepare("INSERT INTO agent_versions(id,agent_id,version_number,prompt,allowed_sources_json,prohibited_actions_json,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,1,?,?,'[\"approve\",\"sign\",\"pay\"]','approved',?,?,1,?,?)").bind(versionId,agentId,"Preserve explicit task text. Never submit a business command.","[\"/home\"]",f.owner.userId,reviewer.userId,now,now),
+    db.prepare("INSERT INTO agent_assignments(id,company_id,agent_version_id,pool_id,user_id,scope_path,status,created_by,revoked_by,version,created_at,updated_at) VALUES(?,?,?,NULL,?,'/','active',?,NULL,1,?,?)").bind(assignmentId,f.company,versionId,f.claimant.userId,f.owner.userId,now,now),
+  ]);
+  return {reviewer,version:{id:versionId},assignment:{id:assignmentId}};
 }
 it("enforces the independently approved Agent prompt and source policy for reviewed field proposals",async()=>{
   const {version}=await assignedProposalAgent(),generate=vi.fn(async(_endpoint:AiEndpoint,messages:AiMessage[])=>{
@@ -98,8 +98,9 @@ it("enforces the independently approved Agent prompt and source policy for revie
   expect(await db.prepare("SELECT count(*) n FROM staff_tasks WHERE company_id=?").bind(f.company).first("n")).toBe(0);
   const row=await db.prepare("SELECT t.private_session_id,e.governance_snapshot_json,e.session_id FROM ai_workspace_turns t JOIN ai_invocation_evidence e ON e.turn_id=t.id WHERE t.id=?").bind(id).first<{private_session_id:string;governance_snapshot_json:string;session_id:string}>();
   expect(JSON.parse(row!.governance_snapshot_json)).toMatchObject({agentVersionId:version.id,allowedSources:["/home"]});expect(row!.session_id).toBe(row!.private_session_id);
-  await changePrivateSession(f.owner,row!.private_session_id,{action:"hold",expectedVersion:1,reason:"Preserve the reviewed private proposal evidence"},key());
-  await changePrivateSession(f.claimant,row!.private_session_id,{action:"expire",expectedVersion:2,reason:"User starts a separate private session"},key());
+  const heldAt=Date.now();
+  await db.prepare("UPDATE ai_private_session_controls SET legal_hold=TRUE,hold_reason=?,version=version+1,updated_at=? WHERE session_id=?").bind("Preserve the reviewed private proposal evidence",heldAt,row!.private_session_id).run();
+  await db.prepare("UPDATE ai_private_session_controls SET status='expired',version=version+1,updated_at=? WHERE session_id=?").bind(heldAt+1,row!.private_session_id).run();
   await expect(prepareGuidedIntake(db,f.claimant,aiEnv,input,id,generate)).rejects.toMatchObject({code:"AI_REQUEST_EXISTS"});expect(generate).toHaveBeenCalledTimes(1);
   const nextId=key();
   expect(await prepareGuidedIntake(db,f.claimant,aiEnv,input,nextId,generate)).toMatchObject({intent:"task"});
@@ -113,7 +114,7 @@ it("enforces the independently approved Agent prompt and source policy for revie
 });
 it("rejects a field proposal when approved Agent governance changes while its provider is working",async()=>{
   const {assignment}=await assignedProposalAgent(),id=key(),generate=vi.fn(async()=>{
-    await changeAgentRecord(f.owner,"assignment",assignment.id,{action:"revoke",expectedVersion:1,reason:"Withdraw this exact source policy during inference"},key());
+    await db.prepare("UPDATE agent_assignments SET status='revoked',revoked_by=?,version=version+1,updated_at=? WHERE id=?").bind(f.owner.userId,Date.now(),assignment.id).run();
     return {result:{intent:"task",summary:"Withdrawn proposal",draft:{title:"Must remain unavailable"},sourceIds:[]},inputTokens:8,outputTokens:4};
   });
   await expect(prepareGuidedIntake(db,f.claimant,aiEnv,guidedIntakeInputSchema.parse({message:"Create a task",contextPath:"/home"}),id,generate)).rejects.toMatchObject({code:"AI_AGENT_CHANGED"});
