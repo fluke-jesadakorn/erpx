@@ -1,6 +1,6 @@
 import { iamApi } from "@erpx/server-identity_access/public/iam-api";
 import { nativeIamAvailable, nativeIamCommand } from "@erpx/server-identity_access/public/native-iam";
-import { ApiError } from "@erpx/server-runtime/public/http";
+import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +26,12 @@ async function handle(
   const native = p.path ? nativePath(p.path) : null;
   if (request.method === "POST" && native) {
     if (!nativeIamAvailable())
-      throw new ApiError(
-        503,
-        "NATIVE_IAM_REQUIRED",
-        "This IAM command requires the native owner service.",
+      return errorResponse(
+        new ApiError(
+          503,
+          "NATIVE_IAM_REQUIRED",
+          "This IAM command requires the native owner service.",
+        ),
       );
     const body = await request.json().catch(() => null);
     const data = await nativeIamCommand(request, p.holdingSlug, native, body);

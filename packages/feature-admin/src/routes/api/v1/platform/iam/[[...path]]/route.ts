@@ -49,12 +49,18 @@ async function handle(
       command.kind === "access-review-start" ||
       command.kind === "access-review-item-decide" ||
       command.kind === "access-review-cancel";
-    if (retiredAccessReview)
-      throw new ApiError(
-        503,
-        "NATIVE_PLATFORM_IAM_REQUIRED",
-        "This Platform IAM command requires the native owner service.",
+    if (retiredAccessReview) {
+      const response = errorResponse(
+        new ApiError(
+          503,
+          "NATIVE_PLATFORM_IAM_REQUIRED",
+          "This Platform IAM command requires the native owner service.",
+        ),
       );
+      for (const [key, value] of Object.entries(responseHeaders))
+        response.headers.set(key, value);
+      return response;
+    }
     return iamApi(request, null, path);
   }
   try {
