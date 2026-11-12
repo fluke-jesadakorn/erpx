@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1198,
+    "revision": 1203,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -28489,6 +28489,65 @@
         "handoff": null,
         "nextAction": "Delete the TS handbook write commands and SQL, migrate the write-semantics tests to native coverage, and record the KPI before/after.",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.journal-reversal-money-dead",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "commerce",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Delete the unreachable journal-reversal-money Finance adapter",
+        "scope": "Delete packages/server-finance/src/adapters/journal-reversal-money.ts: it has no importer, no package export and no test reference after the native finance journal cutover, and its one INSERT is dead. Removal condition: the file is gone and the per-file retirement command returns 0.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/adapters/journal-reversal-money.ts",
+          "scripts/architecture/workspace-relocations.json"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "e687f0cc726c698c8b8e47344dfaaa20a7b55633",
+        "lastPushedSha": "e687f0cc726c698c8b8e47344dfaaa20a7b55633",
+        "checks": [
+          {
+            "command": "kpi:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e687f0cc726c698c8b8e47344dfaaa20a7b55633",
+            "before": 376,
+            "after": 375
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-finance/src/adapters/journal-reversal-money.ts",
+            "result": "passed",
+            "sourceSha": "e687f0cc726c698c8b8e47344dfaaa20a7b55633",
+            "before": 1,
+            "after": 0,
+            "note": "Dead module deleted; no importer, package export or test reference. Per-file target is 0."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Closed: per-file retirement 1 -> 0, owner 376 -> 375. Remaining Finance work is the 375 owner writes by command.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -28497,21 +28556,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 136,
-      "migratedPackets": 68,
+      "totalPackets": 137,
+      "migratedPackets": 69,
       "statusCounts": {
         "pending": 28,
         "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 68,
+        "migrated": 69,
         "blocked": 23,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T20:32:47.344Z",
+    "updatedAt": "2026-11-12T20:37:39.153Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
