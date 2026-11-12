@@ -26,7 +26,7 @@ import {selectWorkRole} from "@erpx/server-work_projection/public/work-role-stor
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,createAttachmentPublication,approveAttachmentPublication} from "@erpx/server-files/public/attachments/service";
 import {savePostDraft,publishPost,postDraftSchema,postView} from '@erpx/server-collaboration/public/social-home';
 import {createMessagingRoom,sendMessagingMessage,roomSchema,messageSchema} from '@erpx/server-collaboration/public/messaging';
-import {createRecordRelation,createActionCard,collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
+import {collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
 import {operationsExceptionDetail} from "@erpx/server-operations/public/operations-exceptions";
 
 type Input={run:string;directory:string;control:PostgresDatabase;h001:PostgresDatabase;h002:PostgresDatabase;h003:PostgresDatabase;h001Files:FileStore;h002Files:FileStore;h003Files:FileStore};
@@ -79,7 +79,18 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
  const brandDraft={id:brandDraftId,status:'draft',version:1};
  const socialDraft=await savePostDraft(input.h001,author,null,postDraftSchema.parse({body:'Fictional delivery team update: the native exception source is ready for human review. Only the selected engineering participants can read this post.',purpose:'handover',audience:{kind:'participants',userIds:[reviewer.userId,operator.userId]},sources:[{kind:'staff_task',id:String(showcaseSource.id),version:1}]}),key()),socialPost=await publishPost(input.h001,author,String(socialDraft.id),1,key());
  const room=await createMessagingRoom(input.h001,author,roomSchema.parse({kind:'group',name:'Fictional delivery review thread',members:[reviewer.userId,operator.userId]}),key()),message=await sendMessagingMessage(input.h001,reviewer,room.id,messageSchema.parse({body:'Independent fictional reviewer: retain the source evidence and confirm the delivery before closing the exception.'}),key());
- const relation=await createRecordRelation(author,{sourceType:'staff_task',sourceId:String(showcaseSource.id),targetType:'staff_task',targetId:String(showcaseTarget.id),relation:'related',reason:'Declared fictional native source relation for the human review handoff'},key()),card=await createActionCard(author,{sourceType:'staff_task',sourceId:String(showcaseSource.id),title:'Fictional delivery review action',ownerId:operator.userId,dueAt:now+3*86400000,reason:'Human-owned action linked to the current native task source'},key());
+ // Native Collaboration owner rows for the all-module showcase; the native
+ // relation/action command suites own authority and transitions, while the
+ // retained workspace read below still has to return these exact rows.
+ const relationKey=key(),relationReason='Declared fictional native source relation for the human review handoff',cardKey=key(),cardReason='Human-owned action linked to the current native task source',cardDueAt=now+3*86400000,[relationSource,relationTarget]=[String(showcaseSource.id),String(showcaseTarget.id)].sort(),relationId=`record-relation-${relationKey}`,cardId=`action-card-${cardKey}`;
+ await input.h001.batch([
+  input.h001.prepare("INSERT INTO collaboration_record_relations(id,company_id,branch_id,department_id,source_type,source_id,source_version,target_type,target_id,target_version,relation,reason,created_by,created_at,updated_at) VALUES(?,?,NULL,NULL,'staff_task',?,1,'staff_task',?,1,'related',?,?,?,?)").bind(relationId,workplace.company,relationSource,relationTarget,relationReason,author.userId,now,now),
+  input.h001.prepare("INSERT INTO collaboration_relation_events VALUES(?,?,1,'create',?,?,'active',?)").bind(`record-relation-event-${relationKey}`,relationId,author.userId,relationReason,now),
+  input.h001.prepare("INSERT INTO collaboration_action_cards(id,company_id,branch_id,department_id,source_type,source_id,source_version,title,owner_id,due_at,created_by,created_at,updated_at) VALUES(?,?,NULL,NULL,'staff_task',?,1,'Fictional delivery review action',?,?,?,?,?)").bind(cardId,workplace.company,String(showcaseSource.id),operator.userId,cardDueAt,author.userId,now,now),
+  input.h001.prepare("INSERT INTO collaboration_action_events VALUES(?,?,1,'create',?,?,'open',?,?,?)").bind(`action-card-event-${cardKey}`,cardId,author.userId,cardReason,operator.userId,cardDueAt,now),
+  input.h001.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'collaboration_action',id,version,'New cross-record action card: review the linked source',updated_at FROM collaboration_action_cards WHERE id=?").bind(`action-card-notice-${cardKey}`,cardId),
+ ]);
+ const relation={id:relationId},card={id:cardId};
  const exceptionSource=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional showcase delivery discrepancy',description:'Separate native source for the preloaded Operations example',projectId:String(showcaseProject.id),assigneeUserId:operator.userId}),key());
  // Operations policy/exception rows are seeded as owner facts here; the native
  // Operations command and its rust-operations-commands-postgres suite own the

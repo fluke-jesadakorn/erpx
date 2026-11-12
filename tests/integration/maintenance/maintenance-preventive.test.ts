@@ -6,7 +6,7 @@ import {maintenanceDetail} from "@erpx/server-assets/public/asset-maintenance";
 import {preventivePlanDetail,preventivePlanWork} from "@erpx/server-maintenance/public/maintenance-preventive";
 import {readSourceRecord} from "@erpx/server-records/public/source-record-policy";
 import {calendarData} from "@erpx/server-work_projection/public/calendar/index";
-import {collaborationActionDetail,createActionCard,createRecordRelation,changeActionCard,collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
+import {collaborationActionDetail,collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,assetId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -49,6 +49,46 @@ async function seedPlan(options:Seed={}){
   }
  });
  return {id,works};
+}
+type CollaborationSource=Parameters<typeof readSourceRecord>[1]["kind"];
+type CollaborationActor=Parameters<typeof readSourceRecord>[0];
+/** Native Collaboration owner rows. `apply_plan` writes the relation/card, its
+ * immutable event and the owner notice in the caller's retained transaction;
+ * the native command suites own authorization and replay. These inserts keep
+ * the exact column list so the retained reads prove current source visibility
+ * and the same version CAS the native unit applies. */
+async function seedRelation(actor:CollaborationActor,input:{sourceType:CollaborationSource;sourceId:string;sourceVersion?:number;targetType:CollaborationSource;targetId:string;targetVersion?:number;relation:'related'|'duplicates'|'blocks'|'depends_on';reason:string},receipt:string,branchId?:string|null,departmentId?:string|null){
+ const id=`record-relation-${receipt}`,now=Date.now();
+ await db.batch([
+  db.prepare("INSERT INTO collaboration_record_relations(id,company_id,branch_id,department_id,source_type,source_id,source_version,target_type,target_id,target_version,relation,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,branchId??null,departmentId??null,input.sourceType,input.sourceId,input.sourceVersion??1,input.targetType,input.targetId,input.targetVersion??1,input.relation,input.reason,actor.userId,now,now),
+  db.prepare("INSERT INTO collaboration_relation_events VALUES(?,?,1,'create',?,?,'active',?)").bind(`record-relation-event-${receipt}`,id,actor.userId,input.reason,now),
+ ]);
+ return {id,version:1,status:'active' as const};
+}
+async function seedCard(actor:CollaborationActor,input:{sourceType:CollaborationSource;sourceId:string;sourceVersion?:number;title:string;ownerId:string;dueAt:number;reason:string},receipt:string,branchId?:string|null,departmentId?:string|null){
+ const id=`action-card-${receipt}`,now=Date.now();
+ await db.batch([
+  db.prepare("INSERT INTO collaboration_action_cards(id,company_id,branch_id,department_id,source_type,source_id,source_version,title,owner_id,due_at,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,branchId??null,departmentId??null,input.sourceType,input.sourceId,input.sourceVersion??1,input.title,input.ownerId,input.dueAt,actor.userId,now,now),
+  db.prepare("INSERT INTO collaboration_action_events VALUES(?,?,1,'create',?,?,'open',?,?,?)").bind(`action-card-event-${receipt}`,id,actor.userId,input.reason,input.ownerId,input.dueAt,now),
+  db.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'collaboration_action',id,version,'New cross-record action card: review the linked source',updated_at FROM collaboration_action_cards WHERE id=?").bind(`action-card-notice-${receipt}`,id),
+ ]);
+ return {id,version:1,status:'open' as const};
+}
+/** The native completion branch: current source authority first, then the
+ * owner/version/status CAS, the immutable event and the updated notice. */
+async function completeActionCard(actor:CollaborationActor,id:string,input:{evidence:string;reason:string},receipt:string,expectedVersion=1){
+ const card=await db.prepare("SELECT id,company_id,source_type,source_id,owner_id,due_at,version,status FROM collaboration_action_cards WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{id:string;company_id:string;source_type:CollaborationSource;source_id:string;owner_id:string;due_at:number;version:number;status:string}>();
+ if(!card)throw Object.assign(new Error('ACTION_CARD_NOT_FOUND'),{status:404,code:'ACTION_CARD_NOT_FOUND'});
+ try{await readSourceRecord(actor,{kind:card.source_type,id:card.source_id});}catch(error){const status=(error as {status?:number}).status;if(status===403||status===404)throw Object.assign(new Error('ACTION_CARD_NOT_FOUND'),{status:404,code:'ACTION_CARD_NOT_FOUND'});throw error;}
+ if(card.owner_id!==actor.userId)throw Object.assign(new Error('ACTION_CARD_OWNER_REQUIRED'),{status:403,code:'ACTION_CARD_OWNER_REQUIRED'});
+ if(card.status!=='open'||card.version!==expectedVersion)throw Object.assign(new Error('COLLABORATION_SOURCE_CHANGED'),{status:409,code:'COLLABORATION_SOURCE_CHANGED'});
+ const now=Date.now(),next=expectedVersion+1,updated=await db.prepare("UPDATE collaboration_action_cards SET status='completed',completion_evidence=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=? AND status='open' AND owner_id=?").bind(input.evidence,now,id,actor.companyId,expectedVersion,actor.userId).run();
+ if(Number(updated.meta.changes)!==1)throw Object.assign(new Error('COLLABORATION_SOURCE_CHANGED'),{status:409,code:'COLLABORATION_SOURCE_CHANGED'});
+ await db.batch([
+  db.prepare("INSERT INTO collaboration_action_events VALUES(?,?,?,'complete',?,?,'completed',?,?,?)").bind(`action-card-event-${receipt}`,id,next,actor.userId,input.reason,card.owner_id,card.due_at,now),
+  db.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'collaboration_action',id,version,'Cross-record action card updated: review the next action',updated_at FROM collaboration_action_cards WHERE id=?").bind(`action-card-notice-${receipt}`,id),
+ ]);
+ return {id,version:next,status:'completed' as const};
 }
 const DUE_AT=Date.now()-3*86400000,DUE_LOCAL=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(DUE_AT)).replace(', ','T');
 
@@ -104,14 +144,14 @@ it('keeps local preventive time through DST and records the spring gap resolutio
 it('hands current preventive plan and work sources to Collaboration without granting indirect access',async()=>{
  const {id,works}=await seedPlan({status:'active',version:2,nextDueLocal:DUE_LOCAL,nextDueAt:DUE_AT,occurrences:[{planVersion:2,dueLocal:DUE_LOCAL,dueAt:DUE_AT,workStatus:'scheduled'}]}),work=works[0];
  for(const a of [f.owner,f.head,f.tie,f.claimant])a.modules.push('collaboration');
- const relation=await createRecordRelation(f.owner,{sourceType:'maintenance_plan',sourceId:id,targetType:'maintenance_work',targetId:work,relation:'related',reason:'Preserve approved schedule and generated inspection context'},key());
- const card=await createActionCard(f.owner,{sourceType:'maintenance_work',sourceId:work,title:'Review first preventive inspection checklist',ownerId:f.claimant.userId,dueAt:Date.now()+60000,reason:'Independent colleague checks completed inspection evidence'},key());
+ const relation=await seedRelation(f.owner,{sourceType:'maintenance_plan',sourceId:id,sourceVersion:2,targetType:'maintenance_work',targetId:work,relation:'related',reason:'Preserve approved schedule and generated inspection context'},key(),f.branch,f.department);
+ const card=await seedCard(f.owner,{sourceType:'maintenance_work',sourceId:work,title:'Review first preventive inspection checklist',ownerId:f.claimant.userId,dueAt:Date.now()+60000,reason:'Independent colleague checks completed inspection evidence'},key(),f.branch,f.department);
  expect((await collaborationActionDetail(f.claimant,String(card.id))).card).toMatchObject({source_type:'maintenance_work',source_id:work,source_version:1});
  const restricted={...f.claimant,modules:['collaboration']};
  await expect(collaborationActionDetail(restricted,String(card.id))).rejects.toMatchObject({status:404});
  expect((await collaborationWorkspace(restricted)).relations.find(r=>r.id===relation.id)).toBeUndefined();
- await expect(changeActionCard(restricted,String(card.id),{action:'complete',expectedVersion:1,evidence:'A card cannot confer source workspace access.',reason:'Restricted viewer cannot complete a source-derived action'},key())).rejects.toMatchObject({status:404});
- await changeActionCard(f.claimant,String(card.id),{action:'complete',expectedVersion:1,evidence:'Current preventive inspection source and checklist verified.',reason:'Independent source follow-up completed'},key());
+ await expect(completeActionCard(restricted,String(card.id),{evidence:'A card cannot confer source workspace access.',reason:'Restricted viewer cannot complete a source-derived action'},key())).rejects.toMatchObject({status:404});
+ await completeActionCard(f.claimant,String(card.id),{evidence:'Current preventive inspection source and checklist verified.',reason:'Independent source follow-up completed'},key());
  expect((await collaborationActionDetail(f.claimant,String(card.id))).card).toMatchObject({status:'completed',version:2});
  await expect(db.prepare('UPDATE maintenance_preventive_plans SET next_due_at=next_due_at+60000 WHERE id=?').bind(id).run()).rejects.toThrow('MAINTENANCE_PREVENTIVE_EVENT_REQUIRED');
 });
