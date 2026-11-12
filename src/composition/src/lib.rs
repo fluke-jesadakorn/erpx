@@ -119,6 +119,8 @@ pub mod support_workspace;
 pub mod collaboration;
 #[cfg(feature = "existing-business")]
 pub mod agent_governance;
+pub mod agent_ai_providers;
+pub mod executive_connections;
 pub mod organization_nodes;
 #[cfg(feature = "existing-business")]
 pub mod organization_access;

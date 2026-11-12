@@ -4968,6 +4968,7 @@
         "packages/server-runtime/src/public/executive/agent-evidence.ts",
         "packages/server-runtime/src/public/executive/brand-evidence.ts",
         "packages/server-runtime/src/public/executive/connections.ts",
+        "packages/server-runtime/src/public/executive/native-connections.ts",
         "packages/server-runtime/src/public/executive/context.ts",
         "packages/server-runtime/src/public/executive/crm-evidence.ts",
         "packages/server-runtime/src/public/executive/evidence.ts",

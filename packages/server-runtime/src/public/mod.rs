@@ -16,5 +16,6 @@ pub mod http_support;
 pub mod module_contracts;
 
 pub mod executive_access;
+pub mod executive_connections;
 
 pub mod native_engineering_roster;

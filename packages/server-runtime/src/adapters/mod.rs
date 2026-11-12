@@ -7,3 +7,6 @@ pub(crate) mod owned_process;
 pub(crate) mod postgres;
 
 pub(crate) mod executive_access;
+pub(crate) mod executive_connection_secret;
+pub(crate) mod executive_connections_http;
+pub(crate) mod executive_connections_postgres;

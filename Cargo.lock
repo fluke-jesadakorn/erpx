@@ -1305,7 +1305,9 @@ name = "erpx-server-runtime"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.23.1",
  "erpx-server-shared",
+ "getrandom 0.4.3",
  "hex",
  "nix",
  "rustix",

@@ -120,6 +120,7 @@
     "./public/executive/access": "./src/public/executive/access.ts",
     "./public/executive/brand-evidence-contract": "./src/public/executive/brand-evidence-contract.ts",
     "./public/executive/connections": "./src/public/executive/connections.ts",
+    "./public/executive/native-connections": "./src/public/executive/native-connections.ts",
     "./public/executive/crm-evidence": "./src/public/executive/crm-evidence.ts",
     "./public/executive/agent-evidence": "./src/public/executive/agent-evidence.ts",
     "./public/executive/evidence-contract": "./src/public/executive/evidence-contract.ts",

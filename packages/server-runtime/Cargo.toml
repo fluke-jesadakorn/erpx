@@ -27,6 +27,8 @@ tokio.workspace = true
 sqlx.workspace = true
 sha2.workspace = true
 hex.workspace = true
+base64.workspace = true
+getrandom.workspace = true
 url.workspace = true
 
 [dev-dependencies]
@@ -89,3 +91,11 @@ path = "../../tests/unit/shared.runtime/rust-outbox-supervisor.test.rs"
 [[test]]
 name = "outbox_supervisor_postgres"
 path = "../../tests/integration/shared.runtime/rust-outbox-supervisor-postgres.test.rs"
+
+[[test]]
+name = "executive_connections"
+path = "../../tests/unit/shared.runtime/rust-executive-connections.test.rs"
+
+[[test]]
+name = "executive_connections_postgres"
+path = "../../tests/integration/shared.executive/rust-executive-connections-postgres.test.rs"
