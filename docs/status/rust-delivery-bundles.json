@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1185,
+    "revision": 1193,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21057,23 +21057,50 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+        "lastPushedSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+        "checks": [
+          {
+            "command": "grep -rn \"fulfillOrder\" packages apps tests fixtures scripts (source only)",
+            "result": "passed",
+            "sourceSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+            "note": "No source references remain; only generated apps/account/.build artifacts and immutable docs/archive history."
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce",
+            "result": "passed",
+            "sourceSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+            "note": "115/115 across all Commerce binaries including sales_delivery 12/12 and sales_delivery_postgres 4/4."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+            "note": "All 21 migrated oracle files typecheck against the native-seeding helper."
+          },
+          {
+            "command": "kpi:ts-writes -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+            "before": 58,
+            "after": 58,
+            "note": "fulfillOrder was orchestration-only (0 literal SQL). The 28 adapter/commerce.ts writes belong to other live commands (save/return/invoice), so this capability cannot produce a write-KPI delta."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Lead: classify the 28 shared adapters/commerce.ts writes by live command (save/return/invoice) into their own retire tasks; the fulfillOrder capability itself is retired with zero literal SQL.",
+        "handoff": {
           "runId": "run-20261113-b",
           "agentId": "worker-commerce-retire",
-          "claimedAt": "2026-11-12T19:48:36.505Z",
-          "heartbeatAt": "2026-11-12T20:22:28.004Z",
-          "expiresAt": "2026-11-12T20:52:28.004Z",
-          "generation": 46
+          "at": "2026-11-12T20:30:18.919Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead: classify the 28 shared adapters/commerce.ts writes by live command (save/return/invoice) into their own retire tasks; the fulfillOrder capability itself is retired with zero literal SQL."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Move the fulfillOrder oracle suites to a native-seeding helper, delete the TS fulfillOrder writer/fallback/exports, switch the service branch to the native completion, and record the owner KPI delta.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -27410,8 +27437,8 @@
         "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "0ae4e2a88caf9a0397937fad90b283ccc1dd6f5b",
-        "lastPushedSha": "0ae4e2a88caf9a0397937fad90b283ccc1dd6f5b",
+        "implementedCommit": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+        "lastPushedSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
         "checks": [
           {
             "command": "cargo check -p erpx-server-commerce",
@@ -27458,6 +27485,32 @@
             "before": 58,
             "after": 58,
             "note": "Route authority switched for sales goods/mixed; the TS fulfillOrder oracle and the service-branch fallback remain and are retained with removalTaskId."
+          },
+          {
+            "command": "grep -rn \"fulfillOrder\" packages apps tests fixtures scripts (source only)",
+            "result": "passed",
+            "sourceSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+            "note": "No source references remain; only generated apps/account/.build artifacts and immutable docs/archive history."
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce",
+            "result": "passed",
+            "sourceSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+            "note": "115/115 across all Commerce binaries including sales_delivery 12/12 and sales_delivery_postgres 4/4."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+            "note": "All 21 migrated oracle files typecheck against the native-seeding helper."
+          },
+          {
+            "command": "kpi:ts-writes -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e823b2e3b7e4295dce889ff9d34bcbd779607649",
+            "before": 58,
+            "after": 58,
+            "note": "fulfillOrder was orchestration-only (0 literal SQL). The 28 adapter/commerce.ts writes belong to other live commands (save/return/invoice), so this capability cannot produce a write-KPI delta."
           }
         ],
         "retainedLegacy": [
@@ -27481,14 +27534,14 @@
           }
         ],
         "blocker": "handoff",
-        "nextAction": "Lead review: native sales goods/mixed delivery is mounted and switched end to end; the service-branch fallback and fulfillOrder oracles move under retire.commerce.commerce.",
+        "nextAction": "Lead: close this cutover (native goods/mixed + service fail-closed, TS fulfillOrder deleted, oracles native-seeded) and track the 28 shared commerce adapter writes under their command-level retire tasks.",
         "handoff": {
           "runId": "run-20261113-b",
-          "agentId": "worker-commerce-delivery",
-          "at": "2026-11-12T19:48:28.113Z",
+          "agentId": "lead",
+          "at": "2026-11-12T20:30:25.474Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Lead review: native sales goods/mixed delivery is mounted and switched end to end; the service-branch fallback and fulfillOrder oracles move under retire.commerce.commerce."
+          "nextAction": "Lead: close this cutover (native goods/mixed + service fail-closed, TS fulfillOrder deleted, oracles native-seeded) and track the 28 shared commerce adapter writes under their command-level retire tasks."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commerce",
@@ -28332,6 +28385,9 @@
           "packages/server-customer_authority/Cargo.toml",
           "packages/server-customer_authority/package.json",
           "packages/feature-customer_authority/**",
+          "packages/feature-portal/**",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-access/**",
           "packages/server-runtime/src/adapters/runtime/jobs.ts",
           "src/composition/src/**",
           "Cargo.lock",
@@ -28343,15 +28399,22 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-b",
+          "agentId": "worker-ca-portal-commands",
+          "claimedAt": "2026-11-12T20:27:27.149Z",
+          "heartbeatAt": "2026-11-12T20:27:27.149Z",
+          "expiresAt": "2026-11-12T20:57:27.149Z",
+          "generation": 46
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 per-file native counterpart audit; start with portal-enrollment/portal-invitations now that delivery is native, then access/duplicates.",
+        "nextAction": "Batch 1 (10 writes): retire portal-enrollment.ts (6) and portal-invitations.ts (4) to native owner commands now that delivery is native. Include the feature-portal enroll route and the feature-sales customer-access route switch, delete the TS writers/barrels, move the enrollment/invitation oracles, and record the owner KPI pair. Keep access/duplicates/portal-support as classified residual.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -28367,18 +28430,18 @@
       "totalPackets": 135,
       "migratedPackets": 68,
       "statusCounts": {
-        "pending": 29,
+        "pending": 28,
         "in_progress": 6,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 68,
-        "blocked": 22,
+        "blocked": 23,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T20:25:33.861Z",
+    "updatedAt": "2026-11-12T20:30:25.474Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
