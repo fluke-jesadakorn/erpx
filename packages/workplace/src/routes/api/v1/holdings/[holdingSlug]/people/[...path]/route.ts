@@ -19,13 +19,13 @@ import { holdingResources } from "../../../../../../../../../../packages/server-
 import {organizationOverview,positionSchema,savePosition,organizationTemplateSchema,saveOrganizationTemplate,applyOrganizationTemplateSchema,applyOrganizationTemplate,installStaffLevels,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
 import { nativeOrganizationChange, nativeOrganizationFailure, nativeOrganizationOverview, nativeOrganizationPositionMoveCommand, nativeOrganizationPositionMoveList, nativeOrganizationWorkspace } from "@erpx/feature-organization/lib/native-organization";
 import { ownedPeoplePayrollRuns, ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
-import { nativePeoplePayrollCommand, peoplePayrollPageContext } from "@erpx/feature-people_payroll/public/native-payroll-summary-page";
+import { nativePeoplePayrollCommand, nativePeoplePayrollFailure, peoplePayrollPageContext } from "@erpx/feature-people_payroll/public/native-payroll-summary-page";
 import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@erpx/server-finance/public/company-business-acceptance";
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@erpx/server-identity_access/public/account-access";
 import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
 import { z } from "zod";
 import {getPayslip,getPayslipExport,listPayslips,issuePostedPayslips,issuePayslipSchema} from "@erpx/server-people_payroll/public/payroll-payslips";
-import { cancelPayrollRun, payrollCancelSchema } from "@erpx/server-people_payroll/public/payroll-cancellation";
+import { payrollCancelSchema } from "@erpx/server-people_payroll/public/payroll-cancellation";
 import { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@erpx/server-people_payroll/public/payroll-adjustments";
 import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryPage,payrollRecoveryAgreement,payrollRecoveryRequestSchema,payrollRecoveryConsentSchema,payrollRecoveryReviewSchema,payrollRecoveryRecognizeSchema} from "@erpx/server-people_payroll/public/payroll-recoveries";
 import { thaiPayrollConfiguration,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema,thaiPayrollProfileDecisionSchema } from "@erpx/server-people_payroll/public/payroll-statutory";
@@ -48,7 +48,6 @@ import {
   createCompensation,
   createCountryPack,
   createEngagement,
-  createPayrollRun,
   createPayGroup,
   createPerson,
   createPaymentBatch,
@@ -64,7 +63,6 @@ import {
   payGroupSchema,
   paymentBatchSchema,
   paymentConfirmationSchema,
-  calculatePayrollRun,
   approvePayrollRun,
   prepareFinalPay,
   finalPayPreparationSchema,
@@ -80,7 +78,6 @@ import {
   payrollAccountMappingSchema,
   savePayrollAccountMapping,
   approvePayrollAccountMapping,
-  postPayroll,
   approvePaymentBatch,
   getPaymentFile,
   listCountryPacks,
@@ -109,6 +106,11 @@ function parsed<T>(result: z.ZodSafeParseResult<T>): T {
   return result.data;
 }
 const legacySupersedeInput = z.object({id:z.string().min(1),expectedVersion:z.number().int().positive()}).strict();
+/** Native People Payroll commands remain authoritative; transport/config failure is 503, never a TS writer. */
+async function payrollCommand(...args: Parameters<typeof nativePeoplePayrollCommand>) {
+  try { return await nativePeoplePayrollCommand(...args); }
+  catch (error) { const failure = nativePeoplePayrollFailure(error); if (failure) throw new ApiError(failure.status, failure.code, failure.message); throw error; }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -264,12 +266,12 @@ export async function POST(request: Request, context: Context) {
     if (p[0] === "time-entries" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await updateTimeEntry(actor,p[1],parsed(timeEntryUpdateSchema.safeParse(input)),id)}));
     if (p[0] === "time-entries" && p[2] === "reject") return Response.json(canonicalDestinationLinks({data:await rejectTimeEntry(actor,p[1],parsed(timeEntryReviewSchema.safeParse(input)),id)}));
     if (p[0] === "time-entries" && p[2] === "approve") { const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)); return Response.json(canonicalDestinationLinks({data:await approveTimeEntry(actor,p[1],data.expectedVersion,id)})); }
-    if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) { const data=parsed(payrollRunSchema.safeParse(input)); const native=await nativePeoplePayrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,"runs",data,id,origin??undefined); if(native!==undefined)return Response.json(canonicalDestinationLinks({data:native}),{status:201}); return Response.json(canonicalDestinationLinks({data:await createPayrollRun(actor,data,id)}),{status:201}); }
+    if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) { const data=parsed(payrollRunSchema.safeParse(input)); const native=await payrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,"runs",data,id,origin??undefined); if(native===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll command service is unavailable."); return Response.json(canonicalDestinationLinks({data:native}),{status:201}); }
     if (p[0] === "payroll" && p[1] === "pay-groups" && p[2] && p[3] === "account-mappings") return Response.json(canonicalDestinationLinks({data:await savePayrollAccountMapping(actor,p[2],parsed(payrollAccountMappingSchema.safeParse(input)),id)}));
     if (p[0] === "payroll" && p[1] === "cost-assignments" && p[2] && p[3] === "verify") return Response.json(canonicalDestinationLinks({data:await verifyPayrollCostAssignment(actor,p[2],parsed(payrollCostVerificationSchema.safeParse(input)),id)}));
     if (p[0] === "payroll" && p[1] === "account-mappings" && p[2] && p[3] === "approve") { const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)); return Response.json(canonicalDestinationLinks({data:await approvePayrollAccountMapping(actor,p[2],data.expectedVersion,id)})); }
-    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "calculate") { const native=await nativePeoplePayrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`runs/${p[2]}/calculate`,{},id,origin??undefined); if(native!==undefined)return Response.json(canonicalDestinationLinks({data:native})); return Response.json(canonicalDestinationLinks({data:await calculatePayrollRun(actor,p[2],id)})); }
-    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "cancel" && p.length === 4) { const data=parsed(payrollCancelSchema.safeParse(input)); const native=await nativePeoplePayrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`runs/${p[2]}/cancel`,data,id,origin??undefined); if(native!==undefined)return Response.json(canonicalDestinationLinks({data:native})); return Response.json(canonicalDestinationLinks({data:await cancelPayrollRun(actor,p[2],data,id)})); }
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "calculate") { const native=await payrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`runs/${p[2]}/calculate`,{},id,origin??undefined); if(native===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll command service is unavailable."); return Response.json(canonicalDestinationLinks({data:native})); }
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "cancel" && p.length === 4) { const data=parsed(payrollCancelSchema.safeParse(input)); const native=await payrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`runs/${p[2]}/cancel`,data,id,origin??undefined); if(native===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll command service is unavailable."); return Response.json(canonicalDestinationLinks({data:native})); }
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "adjustments" && p.length === 4) return Response.json(canonicalDestinationLinks({data:await createPayrollAdjustment(actor,p[2],parsed(payrollAdjustmentCreateSchema.safeParse(input)),id)}),{status:201});
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "adjustment-edit" && p.length === 4) return Response.json(canonicalDestinationLinks({data:await editPayrollAdjustment(actor,p[2],parsed(payrollAdjustmentEditSchema.safeParse(input)),id)}));
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "recoveries" && p.length === 4) return Response.json(canonicalDestinationLinks({data:await requestPayrollRecovery(actor,p[2],parsed(payrollRecoveryRequestSchema.safeParse(input)),id)}),{status:201});
@@ -289,7 +291,7 @@ export async function POST(request: Request, context: Context) {
     if (p[0] === "payroll" && p[1] === "corrections" && p[2] && p[3] === "decide") return Response.json(canonicalDestinationLinks({data:await decidePayrollCorrection(actor,p[2],parsed(payrollCorrectionDecisionSchema.safeParse(input)),id)}));
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "export-review") return Response.json(canonicalDestinationLinks({data:await exportPayrollReview(actor,p[2],id)}));
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "accounting-preview") return Response.json(canonicalDestinationLinks({data:await previewPayrollAccounting(actor,p[2],parsed(payrollPostSchema.safeParse(input)))}));
-    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "post") { const data=parsed(payrollPostSchema.safeParse(input)); const native=await nativePeoplePayrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`runs/${p[2]}/post`,data,id,origin??undefined); if(native!==undefined)return Response.json(canonicalDestinationLinks({data:native})); return Response.json(canonicalDestinationLinks({data:await postPayroll(actor,p[2],data,id)})); }
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "post") { const data=parsed(payrollPostSchema.safeParse(input)); const native=await payrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`runs/${p[2]}/post`,data,id,origin??undefined); if(native===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll command service is unavailable."); return Response.json(canonicalDestinationLinks({data:native})); }
     if (p[0] === "payroll" && p[1] === "advances" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await requestPayrollAdvance(actor,parsed(payrollAdvanceRequestSchema.safeParse(input)),id)}),{status:201});
     if (p[0] === "payroll" && p[1] === "advances" && p[2] && p[3] === "decide") return Response.json(canonicalDestinationLinks({data:await decidePayrollAdvance(actor,p[2],parsed(payrollAdvanceDecisionSchema.safeParse(input)),id)}));
     if (p[0] === "payments" && p[1] === "batches" && p.length === 2) { const data=parsed(paymentBatchSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await createPaymentBatch(actor,data,id)}),{status:201}); }

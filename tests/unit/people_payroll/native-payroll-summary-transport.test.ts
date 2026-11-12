@@ -144,3 +144,40 @@ describe('native People Payroll summary transport',()=>{
   expect(nativePeoplePayrollFailure(new Error('other'))).toBeUndefined();
  });
 });
+
+describe('native People Payroll command transport',()=>{
+ it('posts the bounded command path, Idempotency-Key and exact origin to the configured Holding',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:{id:'run',status:'draft'}}));
+  const client=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),transport);
+  const result=await client.command(incoming(),actor,input,'runs',{payGroupId:'group'},'command-key-1','https://acme.example.com');
+  expect(result).toEqual({id:'run',status:'draft'});
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/people/payroll/runs');
+  expect(headers.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(headers.get('idempotency-key')).toBe('command-key-1');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('content-type')).toBe('application/json');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
+  expect(JSON.parse(body!)).toEqual({payGroupId:'group'});
+ });
+ it('rejects a command outside the owner route shape before any transport',async()=>{
+  const client=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),vi.fn());
+  await expect(client.command(incoming(),actor,input,'runs/run/approve',{},'command-key-1','https://acme.example.com'))
+    .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_REQUEST_INVALID'});
+  await expect(client.command({get:vi.fn().mockReturnValue('other.example.test')} as unknown as Pick<Headers,'get'>,actor,input,
+    'runs',{},'command-key-1','https://acme.example.com'))
+    .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_AUTHORITY_INVALID'});
+ });
+ it('fails closed without the native configuration so the route returns 503 instead of a TS writer',async()=>{
+  const previous=process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;
+  delete process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;
+  const {nativePeoplePayrollCommand}=await import('../../../packages/feature-people_payroll/src/public/native-payroll-summary-page');
+  expect(await nativePeoplePayrollCommand(incoming(),actor,'acme','runs',{},'command-key-1','https://acme.example.com'))
+    .toBeUndefined();
+  expect(await nativePeoplePayrollCommand(incoming(),actor,'acme','runs/run/calculate',{},'command-key-1','https://acme.example.com'))
+    .toBeUndefined();
+  if(previous!==undefined)process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG=previous;
+ });
+});

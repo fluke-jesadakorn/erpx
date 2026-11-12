@@ -14,6 +14,14 @@ use erpx_server_identity_access::public::{
 use erpx_server_people_payroll::public::payroll_summary::{
     PayrollReadActor, PgPayrollRead, payroll_runs, payroll_summary,
 };
+use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
+use erpx_server_commercial::public::purchase_command_boundary::{
+    PurchaseCommandBoundary, PurchaseCommandScope,
+};
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    PurchaseWitness, current_package_catalogue,
+};
 use erpx_server_finance::public::{
     FinanceActor, FinanceCollation, JournalAuthority, JournalDraft, JournalError, JournalStatus,
     PgJournalPreparation, PgJournalStore, embedded_currency_rules, prepare_journal,
@@ -282,6 +290,173 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
     }
 }
 
+const PAYROLL_PURCHASE_CAPABILITY: &str = "people.payroll";
+
+/// `ERPX_PEOPLE_PACKAGE_ENFORCEMENT` mirrors the retained development rollout
+/// switch. Invalid values fail closed; non-local environments may not enable
+/// enforcement. Disabled mode keeps the native command path unguarded exactly
+/// like the retired TypeScript wrapper.
+fn payroll_purchase_mode() -> Result<PackageEnforcementMode, BusinessError> {
+    let raw = std::env::var("ERPX_PEOPLE_PACKAGE_ENFORCEMENT")
+        .unwrap_or_else(|_| "disabled".to_owned());
+    let mode = match raw.as_str() {
+        "disabled" => PackageEnforcementMode::Disabled,
+        "shadow" => PackageEnforcementMode::Shadow,
+        "enforced" => PackageEnforcementMode::Enforced,
+        _ => {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "PACKAGE_ENFORCEMENT_CONFIGURATION",
+                "Package enforcement is unavailable.",
+            ));
+        }
+    };
+    if mode != PackageEnforcementMode::Disabled
+        && std::env::var("ERPX_ENVIRONMENT").as_deref() != Ok("local")
+    {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "PACKAGE_ENFORCEMENT_ENVIRONMENT",
+            "Package enforcement is unavailable in this environment.",
+        ));
+    }
+    Ok(mode)
+}
+
+fn payroll_purchase_forbidden() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "PACKAGE_CAPABILITY_CHANGED",
+        "Payroll package access changed. Reload and review before retrying.",
+    )
+}
+
+/// Begin the retained purchase-command boundary before any payroll run effect.
+/// A replay is admitted under `history`, matching the retired TypeScript
+/// `withPayrollPurchasedCommand` purpose switch.
+#[allow(clippy::too_many_arguments)]
+async fn begin_payroll_purchase(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    actor_id: &str,
+    key: &erpx_server_shared::public::CommandKey,
+    operation: &str,
+    record_id: &str,
+    purpose: CapabilityPurpose,
+) -> Result<Option<PurchaseCommandBoundary>, Error> {
+    let mode = payroll_purchase_mode()?;
+    if mode == PackageEnforcementMode::Disabled {
+        return Ok(None);
+    }
+    let replayed: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM command_receipts WHERE command_id=$1 AND operation=$2 \
+         AND record_id=$3 AND actor_id=$4 AND authority_json::jsonb->>'companyId'=$5)",
+    )
+    .bind(key.as_str())
+    .bind(operation)
+    .bind(record_id)
+    .bind(actor_id)
+    .bind(company.as_str())
+    .fetch_one(&mut *connection)
+    .await?;
+    let purpose = if replayed {
+        CapabilityPurpose::History
+    } else {
+        purpose
+    };
+    let catalogue = current_package_catalogue()?;
+    let mut boundary = PurchaseCommandBoundary::new(
+        mode,
+        key.as_str(),
+        PurchaseCommandScope {
+            company_id: company.clone(),
+            capability: PAYROLL_PURCHASE_CAPABILITY.to_owned(),
+            purpose,
+        },
+    )?;
+    if let Some(active) = boundary.as_mut() {
+        active.begin(connection, holding, &catalogue).await?;
+    }
+    Ok(boundary)
+}
+
+/// Close the boundary after the owner effects; shadow telemetry never fails the
+/// command.
+async fn complete_payroll_purchase(
+    boundary: Option<PurchaseCommandBoundary>,
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+) -> Result<(), Error> {
+    let Some(mut boundary) = boundary else {
+        return Ok(());
+    };
+    let catalogue = current_package_catalogue()?;
+    let receipt = boundary.complete(connection, holding, &catalogue).await?;
+    if let Some(observation) = receipt.observation {
+        write_purchase_shadow_checked_observation(&mut std::io::stderr(), &observation);
+    }
+    Ok(())
+}
+
+/// Bounded purchase inspection for the native run detail read. Returns the
+/// witness so the caller can revalidate after the owner read. Disabled mode
+/// keeps the pre-existing read contract.
+async fn payroll_read_witness(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    now: erpx_server_shared::public::TimestampMillis,
+) -> Result<Option<PurchaseWitness>, Error> {
+    let mode = payroll_purchase_mode()?;
+    if mode == PackageEnforcementMode::Disabled {
+        return Ok(None);
+    }
+    let catalogue = current_package_catalogue()?;
+    let mut reader = PgCompanyPurchaseReader::new(
+        holding.clone(),
+        company.clone(),
+        connection,
+        &catalogue,
+    );
+    let inspection = reader
+        .inspect(
+            &PurchaseRequest {
+                capabilities: vec![PAYROLL_PURCHASE_CAPABILITY.to_owned()],
+                purpose: CapabilityPurpose::History,
+                mode,
+            },
+            now,
+        )
+        .await
+        .map_err(business)?;
+    let allowed = inspection.access.iter().any(|access| {
+        access.capability == PAYROLL_PURCHASE_CAPABILITY && access.allowed_by_mode
+    });
+    if !allowed {
+        return Err(payroll_purchase_forbidden().into());
+    }
+    Ok(Some(inspection.witness))
+}
+
+async fn revalidate_payroll_witness(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    witness: Option<PurchaseWitness>,
+    now: erpx_server_shared::public::TimestampMillis,
+) -> Result<(), Error> {
+    let Some(witness) = witness else {
+        return Ok(());
+    };
+    let catalogue = current_package_catalogue()?;
+    PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, &catalogue)
+        .revalidate(&witness, now)
+        .await
+        .map_err(business)?;
+    Ok(())
+}
+
 fn payroll_command_actor(
     current: &AuthorizedWorkContext,
 ) -> Result<PayrollCommandActor, BusinessError> {
@@ -510,15 +685,43 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                         }
                         let actor = payroll_command_actor(current)?;
                         let now = clock.now();
-                        let mut repository = PgPayrollCommand::new(connection, &actor);
                         let data = match kind {
                             PayrollCommandHttpKind::Create => {
                                 let key = command_key(key)?;
-                                create_payroll_run(&actor, &body, &key, &mut repository, now).await?
+                                let boundary = begin_payroll_purchase(
+                                    connection,
+                                    &holding,
+                                    &company,
+                                    actor.user_id.as_str(),
+                                    &key,
+                                    erpx_server_people_payroll::public::payroll_run::CREATE_OPERATION,
+                                    &format!("payrun-{}", key.as_str()),
+                                    CapabilityPurpose::NewWork,
+                                )
+                                .await?;
+                                let mut repository = PgPayrollCommand::new(&mut *connection, &actor);
+                                let data =
+                                    create_payroll_run(&actor, &body, &key, &mut repository, now)
+                                        .await?;
+                                drop(repository);
+                                complete_payroll_purchase(boundary, connection, &holding).await?;
+                                data
                             }
                             PayrollCommandHttpKind::Calculate { run_id } => {
                                 let key = command_key(key)?;
-                                calculate_payroll_run(
+                                let boundary = begin_payroll_purchase(
+                                    connection,
+                                    &holding,
+                                    &company,
+                                    actor.user_id.as_str(),
+                                    &key,
+                                    erpx_server_people_payroll::public::payroll_run::CALCULATE_OPERATION,
+                                    &run_id,
+                                    CapabilityPurpose::SettleExisting,
+                                )
+                                .await?;
+                                let mut repository = PgPayrollCommand::new(&mut *connection, &actor);
+                                let data = calculate_payroll_run(
                                     &actor,
                                     &run_id,
                                     &body,
@@ -526,11 +729,26 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                                     &mut repository,
                                     now,
                                 )
-                                .await?
+                                .await?;
+                                drop(repository);
+                                complete_payroll_purchase(boundary, connection, &holding).await?;
+                                data
                             }
                             PayrollCommandHttpKind::Cancel { run_id } => {
                                 let key = command_key(key)?;
-                                cancel_payroll_run(
+                                let boundary = begin_payroll_purchase(
+                                    connection,
+                                    &holding,
+                                    &company,
+                                    actor.user_id.as_str(),
+                                    &key,
+                                    erpx_server_people_payroll::public::payroll_run::CANCEL_OPERATION,
+                                    &run_id,
+                                    CapabilityPurpose::SettleExisting,
+                                )
+                                .await?;
+                                let mut repository = PgPayrollCommand::new(&mut *connection, &actor);
+                                let data = cancel_payroll_run(
                                     &actor,
                                     &run_id,
                                     &body,
@@ -538,15 +756,30 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                                     &mut repository,
                                     now,
                                 )
-                                .await?
+                                .await?;
+                                drop(repository);
+                                complete_payroll_purchase(boundary, connection, &holding).await?;
+                                data
                             }
                             PayrollCommandHttpKind::Post { run_id } => {
                                 let key = command_key(key)?;
+                                let boundary = begin_payroll_purchase(
+                                    connection,
+                                    &holding,
+                                    &company,
+                                    actor.user_id.as_str(),
+                                    &key,
+                                    erpx_server_people_payroll::public::payroll_run::POST_OPERATION,
+                                    &run_id,
+                                    CapabilityPurpose::SettleExisting,
+                                )
+                                .await?;
+                                let mut repository = PgPayrollCommand::new(&mut *connection, &actor);
                                 let mut journal = PayrollJournalBridge {
                                     current,
                                     clock: clock.as_ref(),
                                 };
-                                post_payroll(
+                                let data = post_payroll(
                                     &actor,
                                     &run_id,
                                     &body,
@@ -555,10 +788,33 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                                     &mut journal,
                                     now,
                                 )
-                                .await?
+                                .await?;
+                                drop(repository);
+                                complete_payroll_purchase(boundary, connection, &holding).await?;
+                                data
                             }
                             PayrollCommandHttpKind::Detail { run_id } => {
-                                payroll_run_detail(&actor, &run_id, &mut repository, now).await?
+                                let witness = payroll_read_witness(
+                                    connection,
+                                    &holding,
+                                    &company,
+                                    now,
+                                )
+                                .await?;
+                                let mut repository = PgPayrollCommand::new(&mut *connection, &actor);
+                                let data =
+                                    payroll_run_detail(&actor, &run_id, &mut repository, now)
+                                        .await?;
+                                drop(repository);
+                                revalidate_payroll_witness(
+                                    connection,
+                                    &holding,
+                                    &company,
+                                    witness,
+                                    now,
+                                )
+                                .await?;
+                                data
                             }
                         };
                         Ok(PayrollCommandHttpResponse {

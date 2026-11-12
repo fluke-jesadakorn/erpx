@@ -54,15 +54,15 @@ path = "../../tests/unit/people_payroll/rust-payroll-accounting.test.rs"
 
 [[test]]
 name = "payroll_run_command"
-path = "../../tests/unit/people_payroll/rust-payroll-run-command.rs"
+path = "../../tests/unit/people_payroll/rust-payroll-run-command.test.rs"
 
 [[test]]
 name = "payroll_run_http"
-path = "../../tests/unit/people_payroll/rust-payroll-run-http.rs"
+path = "../../tests/unit/people_payroll/rust-payroll-run-http.test.rs"
 
 [[test]]
 name = "payroll_run_postgres"
-path = "../../tests/integration/people_payroll/rust-payroll-run-postgres.rs"
+path = "../../tests/integration/people_payroll/rust-payroll-run-postgres.test.rs"
 
 [[test]]
 name = "payroll_summary"
