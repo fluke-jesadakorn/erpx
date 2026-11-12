@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1262,
+    "revision": 1264,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-c",
       "agentId": "lead",
       "startedAt": "2026-11-12T21:18:48.018Z",
-      "heartbeatAt": "2026-11-12T21:57:18.288Z",
-      "expiresAt": "2026-11-12T22:27:18.288Z",
+      "heartbeatAt": "2026-11-12T22:03:04.755Z",
+      "expiresAt": "2026-11-12T22:33:04.755Z",
       "generation": 47,
       "tokenHash": "91a1002fa2a1a47f0b2fca58abc16158516e2acc4bf018d2c5fa1d969162a3a1"
     },
@@ -22536,8 +22536,8 @@
           "runId": "run-20261113-c",
           "agentId": "worker-workflow-retire",
           "claimedAt": "2026-11-12T21:38:26.941Z",
-          "heartbeatAt": "2026-11-12T21:57:18.288Z",
-          "expiresAt": "2026-11-12T22:27:18.288Z",
+          "heartbeatAt": "2026-11-12T22:03:04.755Z",
+          "expiresAt": "2026-11-12T22:33:04.755Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29451,8 +29451,8 @@
           "runId": "run-20261113-c",
           "agentId": "lead",
           "claimedAt": "2026-11-12T21:18:59.466Z",
-          "heartbeatAt": "2026-11-12T21:57:18.288Z",
-          "expiresAt": "2026-11-12T22:27:18.288Z",
+          "heartbeatAt": "2026-11-12T22:03:04.755Z",
+          "expiresAt": "2026-11-12T22:33:04.755Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29469,7 +29469,7 @@
           "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
           "nextAction": "Implement the collaboration-side native draft/publish/edit/report/upload commands with Rust unit+PG tests, then hand off the three caller switches (operations caller waits for its active claim to release)."
         },
-        "nextAction": "Native social client + beta/posts/pms route cutovers pushed at c54ed1392 (drafts, publish, post edit/retract/report/appreciate/follow/comment, uploads). Remaining live TS writers: server-operations handover publishHandover still calls savePostDraft/publishPost and needs a native handover command (sources/recipients/receipt); beta-api hide moderation and agent-replies remain TS. Add those native commands, switch the last callers, then delete the TS social-home writer/barrels and record Collaboration KPI before/after.",
+        "nextAction": "Native ModeratePost pushed at 21acc72db (unit 13/13, PG 9/9). Wiring can_hide_posts in src/composition/src/collaboration.rs is BLOCKED by the active retire.customer_authority.remaining-writers claim on src/composition/src/**; removalTaskId=retire.customer_authority.remaining-writers. Native handover publish (server-operations publishHandover -> savePostDraft/publishPost) still needs a handover command with sources/recipients/receipt; handover remains TS. After composition wiring + handover, switch the last callers and delete the TS social-home writer/barrels with Collaboration KPI before/after.",
         "scopeRefinementRequired": false
       },
       {
@@ -29516,8 +29516,8 @@
           "runId": "run-20261113-c",
           "agentId": "worker-ca-access-duplicates",
           "claimedAt": "2026-11-12T21:23:12.405Z",
-          "heartbeatAt": "2026-11-12T21:57:18.288Z",
-          "expiresAt": "2026-11-12T22:27:18.288Z",
+          "heartbeatAt": "2026-11-12T22:03:04.755Z",
+          "expiresAt": "2026-11-12T22:33:04.755Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29596,7 +29596,7 @@
       }
     },
     "lastCoordinatorGeneration": 47,
-    "updatedAt": "2026-11-12T21:57:18.323Z",
+    "updatedAt": "2026-11-12T22:03:04.796Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
