@@ -553,16 +553,6 @@ export type CommerceUnit<Effect> = {
         attachmentId: string;
         id: string;
     }): Promise<Record<string, unknown> | null>;
-    prepareCommerceFulfillments2(facts: {
-        fulfillment: string;
-        id: string;
-        fact2: string;
-        date: string;
-        userId: string;
-        fact5: number;
-        fact6: string | null;
-        completionMode: "goods" | "service" | "mixed";
-    }): Effect;
     readCommerceOrderLines2(facts: {
         lineId: string;
         id: string;
@@ -606,16 +596,6 @@ export type CommerceUnit<Effect> = {
         fact1: number;
         warehouse_id: string | number | null;
         product_id: string | number | null;
-    }): Effect;
-    prepareCommerceFulfillmentLines1(facts: {
-        fact0: string;
-        fulfillment: string;
-        id: string | number | null;
-        qty: number;
-        cost: number;
-        subtotal: number;
-        tax: number;
-        stockCurrency: string;
     }): Effect;
     prepareInventoryLots3(facts: {
         lotId: string;
@@ -669,10 +649,6 @@ export type CommerceUnit<Effect> = {
         disposition: "available" | "quarantine";
         qualityHoldId: string | null;
     }): Effect;
-    prepareCommerceOrderLines4(facts: {
-        qty: number;
-        id: string | number | null;
-    }): Effect;
     prepareCommerceStockMoves1(facts: {
         fact0: string;
         warehouse_id: string | number | null;
@@ -681,39 +657,6 @@ export type CommerceUnit<Effect> = {
         fact4: number;
         fact5: number;
         fact6: number;
-    }): Effect;
-    prepareCommerceGoodsValuations1(facts: {
-        fulfillment: string;
-        companyId: string;
-        chart_id: string | number | null;
-        journal: string;
-        fact4: string;
-        fact5: string;
-        stockCurrency: string;
-        date: string;
-        micros: number;
-        sourceRateId: string | null;
-        targetRateId: string | null;
-        usedLatestFallback: boolean;
-        documentSubtotal: number;
-        value: number;
-        userId: string;
-        fact15: number;
-    }): Effect;
-    prepareCommerceFulfillmentEvidence1(facts: {
-        fulfillment: string;
-        attachmentId: string;
-        userId: string;
-        fact3: number;
-    }): Effect;
-    prepareCommerceFulfillments3(facts: {
-        journal: string;
-        fulfillment: string;
-    }): Effect;
-    prepareCommerceOrders6(facts: {
-        id: string;
-        fact1: number;
-        id2: string;
     }): Effect;
     readCommerceFulfillments5(facts: {
         fulfillmentId: string;
