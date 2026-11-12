@@ -684,6 +684,50 @@ pub async fn apply_plan(
             .await?;
             Ok(expected.clone())
         }
+        OwnerPlan::SaveDraft {
+            id,
+            author_id,
+            company_id,
+            branch_id,
+            department_id,
+            body,
+            version,
+            audience_kind,
+            audience_id,
+            participants_json,
+            sources_json,
+            purpose,
+            mentions_json,
+            content_json,
+            rich_content_json,
+        } => {
+            let updated = sqlx::query(
+                "INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,version,created_at,updated_at,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,mentions_json,content_json,rich_content_json) VALUES($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT(id) DO UPDATE SET body=excluded.body,version=excluded.version,updated_at=excluded.updated_at,department_id=excluded.department_id,audience_kind=excluded.audience_kind,audience_id=excluded.audience_id,participants_json=excluded.participants_json,sources_json=excluded.sources_json,purpose=excluded.purpose,mentions_json=excluded.mentions_json,content_json=excluded.content_json,rich_content_json=excluded.rich_content_json WHERE social_post_drafts.version=$17",
+            )
+            .bind(id)
+            .bind(author_id)
+            .bind(company_id)
+            .bind(branch_id)
+            .bind(body)
+            .bind(version)
+            .bind(now)
+            .bind(department_id)
+            .bind(audience_kind)
+            .bind(audience_id)
+            .bind(participants_json)
+            .bind(sources_json)
+            .bind(purpose)
+            .bind(mentions_json)
+            .bind(content_json)
+            .bind(rich_content_json)
+            .bind(version - 1)
+            .execute(&mut *c)
+            .await?;
+            if updated.rows_affected() != 1 {
+                return Err(changed());
+            }
+            Ok(expected.clone())
+        }
     };
     let receipt = result?;
     if receipt != expected {
@@ -716,6 +760,7 @@ async fn image(c: &mut PgConnection, key: &str) -> Result<Option<String>, Error>
         "post" => "SELECT to_jsonb(p)::text FROM social_posts p WHERE p.id=$1",
         "comment" => "SELECT to_jsonb(p)::text FROM social_comments p WHERE p.id=$1",
         "notice" => "SELECT to_jsonb(p)::text FROM staff_notifications p WHERE p.id=$1",
+        "draft" => "SELECT to_jsonb(p)::text FROM social_post_drafts p WHERE p.id=$1",
         "report" => {
             let (post_id, reporter_id) = id.split_once(':').ok_or_else(changed)?;
             return Ok(sqlx::query_scalar(
@@ -822,6 +867,12 @@ pub async fn retain_effects(
                 format!("report:{post_id}:{reporter_id}"),
             )
             .await?;
+        }
+        OwnerPlan::SaveDraft { id, .. } => {
+            if receipt.id != *id {
+                return Err(changed());
+            }
+            capture(c, &mut images, format!("draft:{id}")).await?;
         }
     }
     Ok(CurrentSocialEffects {

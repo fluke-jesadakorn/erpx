@@ -12,8 +12,8 @@ use crate::adapters::social::{
 };
 use crate::application::social::{Access, SocialUnit};
 use crate::domain::social::{
-    Change, CommentSnapshot, FeedCursor, FollowTarget, OwnerPlan, PostSnapshot, Receipt,
-    SocialActor, comment_not_found, post_not_found,
+    Change, CommentSnapshot, DraftSnapshot, FeedCursor, FollowTarget, OwnerPlan, PostSnapshot,
+    Receipt, SocialActor, comment_not_found, post_not_found,
 };
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, UserId,
@@ -260,6 +260,7 @@ impl<'c> PgSocialUnit<'c> {
                 ..
             } => "social.topic.follow",
             Change::ReportPost { .. } => "social.post.report",
+            Change::SavePostDraft { .. } => "social.draft.save",
         }
     }
 
@@ -280,6 +281,9 @@ impl<'c> PgSocialUnit<'c> {
                 ..
             } => crate::domain::social::normalize_tag(target_id)?,
             Change::ReportPost { post_id, .. } => post_id.clone(),
+            Change::SavePostDraft { id, .. } => id
+                .clone()
+                .unwrap_or_else(|| format!("post-draft-{}", key.as_str())),
         })
     }
 
@@ -415,6 +419,24 @@ impl SocialUnit for PgSocialUnit<'_> {
         self.post(id).await?.ok_or_else(|| post_not_found().into())
     }
 
+    async fn draft(&mut self, id: &str) -> Result<Option<DraftSnapshot>, Error> {
+        let row = sqlx::query(
+            "SELECT id,author_id,company_id,version,published_post_id FROM social_post_drafts WHERE id=$1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *self.connection)
+        .await?;
+        row.map(|row| {
+            Ok(DraftSnapshot {
+                id: row.try_get(0)?,
+                author_id: row.try_get(1)?,
+                company_id: row.try_get(2)?,
+                version: row.try_get(3)?,
+                published_post_id: row.try_get(4)?,
+            })
+        })
+        .transpose()
+    }
     async fn comment(&mut self, id: &str, post_id: &str) -> Result<CommentSnapshot, Error> {
         read_comment(&mut *self.connection, id, post_id)
             .await?
@@ -529,6 +551,11 @@ impl SocialUnit for PgSocialUnit<'_> {
                 "social_post",
                 "Report workplace update",
                 "social.post.reported",
+            ),
+            OwnerPlan::SaveDraft { .. } => (
+                "social_post",
+                "Save workplace draft",
+                "social.draft.saved",
             ),
         };
         let value = serde_json::to_value(&receipt).map_err(|_| {

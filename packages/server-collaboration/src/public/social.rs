@@ -11,8 +11,8 @@ pub use crate::adapters::social_pg::{
 };
 pub use crate::application::social::{Access, SocialUnit, authorize_read, execute};
 pub use crate::domain::social::{
-    Audience, Change, CommentSnapshot, CommentState, FeedCursor, FollowTarget, LinkedRecord,
-    LinkedRecordInput, Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot, PostState,
-    Receipt, SocialActor, hashtags, normalize_tag, normalize_tags, plan_receipt, post_not_found,
-    post_tags, text,
+    Audience, Change, CommentSnapshot, CommentState, DraftSnapshot, FeedCursor, FollowTarget,
+    LinkedRecord, LinkedRecordInput, Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot,
+    PostState, Receipt, SocialActor, hashtags, normalize_tag, normalize_tags, plan_receipt,
+    post_not_found, post_tags, text,
 };

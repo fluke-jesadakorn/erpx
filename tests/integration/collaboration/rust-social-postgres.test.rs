@@ -31,6 +31,7 @@ fn operation(change: &Change) -> &'static str {
             ..
         } => "social.topic.follow",
         Change::ReportPost { .. } => "social.post.report",
+        Change::SavePostDraft { .. } => "social.draft.save",
     }
 }
 
@@ -42,6 +43,7 @@ fn record_id(key: &str, change: &Change) -> String {
         Change::SetReaction { post_id, .. } => post_id.clone(),
         Change::SetFollow { target_id, .. } => target_id.clone(),
         Change::ReportPost { post_id, .. } => post_id.clone(),
+        Change::SavePostDraft { id, .. } => id.clone().unwrap_or_else(|| format!("post-draft-{key}")),
     }
 }
 
@@ -199,6 +201,24 @@ impl SocialUnit for Harness<'_> {
             .await?
             .ok_or_else(|| post_not_found().into())
     }
+    async fn draft(&mut self, id: &str) -> Result<Option<DraftSnapshot>, Error> {
+        let row = sqlx::query(
+            "SELECT id,author_id,company_id,version,published_post_id FROM social_post_drafts WHERE id=$1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *self.c)
+        .await?;
+        row.map(|row| {
+            Ok(DraftSnapshot {
+                id: row.try_get(0)?,
+                author_id: row.try_get(1)?,
+                company_id: row.try_get(2)?,
+                version: row.try_get(3)?,
+                published_post_id: row.try_get(4)?,
+            })
+        })
+        .transpose()
+    }
     async fn comment(&mut self, id: &str, post_id: &str) -> Result<CommentSnapshot, Error> {
         read_comment(self.c, id, post_id).await?.ok_or_else(|| {
             BusinessError::new(
@@ -267,6 +287,7 @@ fn decode_receipt(raw: &str) -> Result<Receipt, Error> {
         Some("unfollowed") => "unfollowed",
         Some("tombstoned") => "tombstoned",
         Some("reported") => "reported",
+        Some("draft") => "draft",
         _ => return Err(changed()),
     };
     let id = value["id"]
@@ -852,6 +873,85 @@ async fn reports_are_idempotent_per_reporter_and_replay_without_duplicates() {
         .await
         .unwrap_err();
         assert!(matches!(missing, PgTransactionError::Business(e) if e.code == "POST_NOT_FOUND"));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn drafts_save_update_replay_and_company_scope() {
+    fixture::with_database(5, |pool| async move {
+        setup(&pool).await;
+        let draft = |id: Option<String>, body: &str, expected_version: i64| Change::SavePostDraft {
+            id,
+            body: body.into(),
+            audience_kind: Some("branch".into()),
+            audience_id: Some("branch-a".into()),
+            participants: vec![],
+            sources_json: "[]".into(),
+            purpose: "update".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+            expected_version,
+        };
+        let created = run(
+            &pool,
+            "author",
+            "company",
+            "social-draft-0401",
+            draft(None, "Draft", 1),
+        )
+        .await
+        .unwrap();
+        assert_eq!((created.id.as_str(), created.version, created.status), ("post-draft-social-draft-0401", 1, "draft"));
+        let row: (String, String, String, i64) = sqlx::query_as(
+            "SELECT author_id,audience_kind,audience_id,version FROM social_post_drafts WHERE id=$1",
+        )
+        .bind(&created.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row, ("author".into(), "branch".into(), "branch-a".into(), 1));
+        let replay = run(
+            &pool,
+            "author",
+            "company",
+            "social-draft-0401",
+            draft(None, "Draft", 1),
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, created);
+        let updated = run(
+            &pool,
+            "author",
+            "company",
+            "social-draft-0402",
+            draft(Some(created.id.clone()), "Updated", 1),
+        )
+        .await
+        .unwrap();
+        assert_eq!(updated.version, 2);
+        let stale = run(
+            &pool,
+            "author",
+            "company",
+            "social-draft-0403",
+            draft(Some(created.id.clone()), "Stale", 1),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(stale, PgTransactionError::Business(e) if e.code == "VERSION_CONFLICT"));
+        let foreign = run(
+            &pool,
+            "other-author",
+            "other",
+            "social-draft-0404",
+            draft(Some(created.id.clone()), "Foreign", 2),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(foreign, PgTransactionError::Business(e) if e.code == "DRAFT_NOT_FOUND"));
     })
     .await;
 }

@@ -10,6 +10,8 @@ pub const MAX_SAFE_VERSION: i64 = 9_007_199_254_740_991;
 pub const MAX_POST_BODY: usize = 3000;
 pub const MAX_COMMENT_BODY: usize = 10_000;
 pub const MAX_REPORT_REASON: usize = 2000;
+pub const MAX_DRAFT_BODY: usize = 30_000;
+pub const MAX_DRAFT_PARTICIPANTS: usize = 20;
 pub const MAX_TAGS: usize = 5;
 pub const MAX_MENTIONS: usize = 20;
 
@@ -231,6 +233,19 @@ pub enum Change {
         post_id: String,
         reason: String,
     },
+    SavePostDraft {
+        id: Option<String>,
+        body: String,
+        audience_kind: Option<String>,
+        audience_id: Option<String>,
+        participants: Vec<String>,
+        sources_json: String,
+        purpose: String,
+        mentions: Vec<MentionInput>,
+        content_json: Option<String>,
+        rich_content_json: Option<String>,
+        expected_version: i64,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -287,6 +302,32 @@ pub enum OwnerPlan {
         reporter_id: String,
         reason: String,
     },
+    SaveDraft {
+        id: String,
+        author_id: String,
+        company_id: String,
+        branch_id: Option<String>,
+        department_id: Option<String>,
+        body: String,
+        version: i64,
+        audience_kind: Option<String>,
+        audience_id: Option<String>,
+        participants_json: String,
+        sources_json: String,
+        purpose: String,
+        mentions_json: String,
+        content_json: Option<String>,
+        rich_content_json: Option<String>,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DraftSnapshot {
+    pub id: String,
+    pub author_id: String,
+    pub company_id: String,
+    pub version: i64,
+    pub published_post_id: Option<String>,
 }
 
 fn invalid() -> BusinessError {
@@ -306,6 +347,14 @@ pub fn post_not_found() -> BusinessError {
         FailureKind::NotFound,
         "POST_NOT_FOUND",
         "The update is unavailable in this work scope.",
+    )
+}
+
+pub fn draft_not_found() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "DRAFT_NOT_FOUND",
+        "The draft is unavailable in this work scope.",
     )
 }
 
@@ -567,6 +616,11 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             id: post_id.clone(),
             version: 1,
             status: "reported",
+        },
+        OwnerPlan::SaveDraft { id, version, .. } => Receipt {
+            id: id.clone(),
+            version: *version,
+            status: "draft",
         },
     })
 }

@@ -4,9 +4,10 @@
 //! exact readable person/record targets. This module never opens, commits or
 //! retries a transaction and never invents an access result or mention label.
 use crate::domain::social::{
-    Change, CommentSnapshot, CommentState, FollowTarget, MAX_COMMENT_BODY, MAX_POST_BODY,
+    Change, CommentSnapshot, CommentState, DraftSnapshot, FollowTarget, MAX_COMMENT_BODY,
+    MAX_DRAFT_BODY, MAX_DRAFT_PARTICIPANTS, MAX_POST_BODY,
     MAX_REPORT_REASON, Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot, Receipt, SocialActor, comment_not_found,
-    normalize_tags, plan_receipt, post_not_found, post_tags, require_audience, require_comment_edit,
+    draft_not_found, normalize_tags, plan_receipt, post_not_found, post_tags, require_audience, require_comment_edit,
     require_comment_removal, require_published_post, text, validate_expected_version,
     validate_mentions,
 };
@@ -35,6 +36,11 @@ pub trait SocialUnit: Send {
         id: &str,
         post_id: &str,
     ) -> impl Future<Output = Result<CommentSnapshot, Self::Error>> + Send;
+    /// Resolve the current author's retained draft for update/publish.
+    fn draft(
+        &mut self,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<DraftSnapshot>, Self::Error>> + Send;
     /// Resolve a current Company-readable person; composition supplies the label.
     fn resolve_person(
         &mut self,
@@ -289,6 +295,75 @@ pub async fn execute<P: SocialUnit>(
                     post_id,
                     reporter_id: actor.user_id.clone(),
                     reason,
+                });
+            }
+            Change::SavePostDraft {
+                id,
+                body,
+                audience_kind,
+                audience_id,
+                participants,
+                sources_json,
+                purpose,
+                mentions: mention_inputs,
+                content_json,
+                rich_content_json,
+                expected_version,
+            } => {
+                validate_expected_version(expected_version)?;
+                let body = text(&body, 0, MAX_DRAFT_BODY)?;
+                if participants.len() > MAX_DRAFT_PARTICIPANTS
+                    || participants.iter().any(|user| !(1..=160).contains(&user.len()))
+                    || sources_json.len() > 20_000
+                    || !sources_json.trim_start().starts_with('[')
+                {
+                    return Err(invalid().into());
+                }
+                if let Some(kind) = audience_kind.as_deref() {
+                    if !matches!(
+                        kind,
+                        "company" | "branch" | "department" | "participants" | "team" | "project"
+                    ) {
+                        return Err(invalid().into());
+                    }
+                }
+                let mentions = mentions(p, &mention_inputs).await?;
+                let record_id = id
+                    .clone()
+                    .unwrap_or_else(|| format!("post-draft-{}", key.as_str()));
+                let version = match &id {
+                    Some(current_id) => {
+                        let draft = p.draft(current_id).await?.ok_or_else(draft_not_found)?;
+                        if draft.author_id != actor.user_id
+                            || draft.company_id != actor.company_id
+                            || draft.published_post_id.is_some()
+                        {
+                            return Err(draft_not_found().into());
+                        }
+                        if draft.version != expected_version {
+                            return Err(conflict().into());
+                        }
+                        expected_version + 1
+                    }
+                    None => 1,
+                };
+                plan = Some(OwnerPlan::SaveDraft {
+                    id: record_id,
+                    author_id: actor.user_id.clone(),
+                    company_id: actor.company_id.clone(),
+                    branch_id: actor.branch_id.clone(),
+                    department_id: actor.department_id.clone(),
+                    body,
+                    version,
+                    audience_kind,
+                    audience_id,
+                    participants_json: serde_json::to_string(&participants)
+                        .map_err(|_| invalid())?,
+                    sources_json,
+                    purpose,
+                    mentions_json: serde_json::to_string(&mentions).map_err(|_| invalid())?,
+                    content_json,
+                    rich_content_json,
                 });
             }
         }

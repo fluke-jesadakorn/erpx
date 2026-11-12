@@ -143,6 +143,102 @@ pub fn decode_social_command(
             post_id: post(post_id)?,
             reason: text(raw, "reason")?.to_owned(),
         },
+        "social.draft.save" => {
+            let mut audience_kind = None;
+            let mut audience_id = None;
+            let mut participants = Vec::new();
+            match raw.get("audience") {
+                None | Some(Value::Null) => {
+                    match raw.get("branchId") {
+                        Some(Value::Null) => audience_kind = Some("company".to_owned()),
+                        Some(Value::String(value)) if !value.is_empty() => {
+                            audience_kind = Some("branch".to_owned());
+                            audience_id = Some(value.clone());
+                        }
+                        None => {}
+                        _ => return Err(invalid()),
+                    }
+                }
+                Some(Value::Object(audience)) => {
+                    let kind = audience
+                        .get("kind")
+                        .and_then(Value::as_str)
+                        .ok_or_else(invalid)?;
+                    match kind {
+                        "company" => audience_kind = Some("company".to_owned()),
+                        "branch" | "department" | "team" | "project" => {
+                            audience_kind = Some(kind.to_owned());
+                            audience_id = Some(
+                                audience
+                                    .get("id")
+                                    .and_then(Value::as_str)
+                                    .filter(|value| !value.is_empty())
+                                    .ok_or_else(invalid)?
+                                    .to_owned(),
+                            );
+                        }
+                        "participants" => {
+                            audience_kind = Some("participants".to_owned());
+                            participants = audience
+                                .get("userIds")
+                                .and_then(Value::as_array)
+                                .ok_or_else(invalid)?
+                                .iter()
+                                .map(|value| {
+                                    value
+                                        .as_str()
+                                        .filter(|value| !value.is_empty())
+                                        .map(str::to_owned)
+                                        .ok_or_else(invalid)
+                                })
+                                .collect::<Result<Vec<_>, _>>()?;
+                        }
+                        _ => return Err(invalid()),
+                    }
+                }
+                _ => return Err(invalid()),
+            }
+            let sources = match raw.get("sources") {
+                None | Some(Value::Null) => Vec::new(),
+                Some(Value::Array(items)) if items.len() <= 5 => items.clone(),
+                _ => return Err(invalid()),
+            };
+            let purpose = optional_text(raw, "purpose")?.unwrap_or("update");
+            if !matches!(purpose, "update" | "plan" | "blocker" | "handover" | "announcement") {
+                return Err(invalid());
+            }
+            let expected_version = match raw.get("expectedVersion") {
+                None | Some(Value::Null) => 1,
+                Some(value) => value.as_i64().ok_or_else(invalid)?,
+            };
+            Change::SavePostDraft {
+                id: optional_text(raw, "id")?.map(str::to_owned),
+                body: raw
+                    .get("body")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+                audience_kind,
+                audience_id,
+                participants,
+                sources_json: serde_json::to_string(&sources).map_err(|_| invalid())?,
+                purpose: purpose.to_owned(),
+                mentions: mentions(raw)?,
+                content_json: raw
+                    .get("content")
+                    .filter(|value| !value.is_null())
+                    .map(serde_json::to_string)
+                    .transpose()
+                    .map_err(|_| invalid())?,
+                rich_content_json: raw
+                    .get("richContent")
+                    .filter(|value| !value.is_null())
+                    .map(serde_json::to_string)
+                    .transpose()
+                    .map_err(|_| invalid())?,
+                expected_version,
+            }
+        }
         _ => return Err(invalid()),
     };
     Ok(DecodedSocialCommand {

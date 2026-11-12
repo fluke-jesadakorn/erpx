@@ -1,9 +1,9 @@
 //! Native Social command sequencing with a caller-owned unit. PostgreSQL
 //! persistence, Company isolation and readback live in the integration target.
 use erpx_server_collaboration::public::social::{
-    Access, Audience, Change, CommentSnapshot, CommentState, FollowTarget, MentionInput,
-    MentionKind, OwnerPlan, PostSnapshot, PostState, Receipt, SocialActor, SocialUnit, execute,
-    hashtags, normalize_tag, normalize_tags, post_not_found, post_tags, text,
+    Access, Audience, Change, CommentSnapshot, CommentState, DraftSnapshot, FollowTarget,
+    MentionInput, MentionKind, OwnerPlan, PostSnapshot, PostState, Receipt, SocialActor,
+    SocialUnit, execute, hashtags, normalize_tag, normalize_tags, post_not_found, post_tags, text,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use std::collections::BTreeMap;
@@ -13,6 +13,7 @@ struct Unit {
     replay: Option<Receipt>,
     posts: BTreeMap<String, PostSnapshot>,
     comments: BTreeMap<String, CommentSnapshot>,
+    drafts: BTreeMap<String, DraftSnapshot>,
     people: BTreeMap<String, String>,
     records: BTreeMap<String, String>,
     applied: Option<OwnerPlan>,
@@ -59,6 +60,7 @@ impl Unit {
             replay: None,
             posts: BTreeMap::from([("post-1".into(), post)]),
             comments: BTreeMap::from([("comment-1".into(), comment)]),
+            drafts: BTreeMap::new(),
             people: BTreeMap::from([("person-1".into(), "Person One".into())]),
             records: BTreeMap::from([(
                 "people_payroll/leave-1".into(),
@@ -79,6 +81,9 @@ impl SocialUnit for Unit {
     }
     async fn post(&mut self, id: &str) -> Result<PostSnapshot, BusinessError> {
         self.posts.get(id).cloned().ok_or_else(post_not_found)
+    }
+    async fn draft(&mut self, id: &str) -> Result<Option<DraftSnapshot>, BusinessError> {
+        Ok(self.drafts.get(id).cloned())
     }
     async fn comment(
         &mut self,
@@ -397,6 +402,113 @@ async fn report_requires_a_published_readable_post_and_bounded_reason() {
     .await
     .unwrap_err();
     assert_eq!(empty.code, "SOCIAL_INPUT_INVALID");
+}
+
+#[tokio::test]
+async fn saves_and_updates_a_draft_with_version_replay_and_author_scope() {
+    let mut unit = Unit::new();
+    let created = execute(
+        &mut unit,
+        &key(),
+        Change::SavePostDraft {
+            id: None,
+            body: " Draft ".into(),
+            audience_kind: Some("branch".into()),
+            audience_id: Some("branch".into()),
+            participants: vec![],
+            sources_json: "[]".into(),
+            purpose: "update".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+            expected_version: 1,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        (created.id.as_str(), created.version, created.status),
+        ("post-draft-social-command-0001", 1, "draft")
+    );
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::SaveDraft { body, version, .. } => {
+            assert_eq!(body, "Draft");
+            assert_eq!(*version, 1);
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    unit.drafts.insert(
+        created.id.clone(),
+        DraftSnapshot {
+            id: created.id.clone(),
+            author_id: "user".into(),
+            company_id: "company".into(),
+            version: 1,
+            published_post_id: None,
+        },
+    );
+    let updated = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0002").unwrap(),
+        Change::SavePostDraft {
+            id: Some(created.id.clone()),
+            body: "Updated".into(),
+            audience_kind: Some("branch".into()),
+            audience_id: Some("branch".into()),
+            participants: vec![],
+            sources_json: "[]".into(),
+            purpose: "update".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+            expected_version: 1,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(updated.version, 2);
+    unit.drafts.get_mut(&created.id).unwrap().version = 2;
+    let stale = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0003").unwrap(),
+        Change::SavePostDraft {
+            id: Some(created.id.clone()),
+            body: "Stale".into(),
+            audience_kind: None,
+            audience_id: None,
+            participants: vec![],
+            sources_json: "[]".into(),
+            purpose: "update".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+            expected_version: 1,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(stale.code, "VERSION_CONFLICT");
+    unit.drafts.get_mut(&created.id).unwrap().published_post_id = Some("post".into());
+    let gone = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0004").unwrap(),
+        Change::SavePostDraft {
+            id: Some(created.id.clone()),
+            body: "Gone".into(),
+            audience_kind: None,
+            audience_id: None,
+            participants: vec![],
+            sources_json: "[]".into(),
+            purpose: "update".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+            expected_version: 2,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(gone.code, "DRAFT_NOT_FOUND");
 }
 
 #[tokio::test]
