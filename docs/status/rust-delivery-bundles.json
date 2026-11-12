@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1174,
+    "revision": 1180,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-b",
       "agentId": "lead",
       "startedAt": "2026-11-12T19:21:40.531Z",
-      "heartbeatAt": "2026-11-12T19:43:37.866Z",
-      "expiresAt": "2026-11-12T20:13:37.866Z",
+      "heartbeatAt": "2026-11-12T20:06:11.950Z",
+      "expiresAt": "2026-11-12T20:36:11.950Z",
       "generation": 46,
       "tokenHash": "da5d2711ad0b6538842db9c48a2aa2cc4a1b0ac7be2d601a7d5a055ba6421fed"
     },
@@ -21062,8 +21062,8 @@
           "runId": "run-20261113-b",
           "agentId": "worker-commerce-retire",
           "claimedAt": "2026-11-12T19:48:36.505Z",
-          "heartbeatAt": "2026-11-12T19:48:36.505Z",
-          "expiresAt": "2026-11-12T20:18:36.505Z",
+          "heartbeatAt": "2026-11-12T20:06:11.950Z",
+          "expiresAt": "2026-11-12T20:36:11.950Z",
           "generation": 46
         },
         "baseSha": null,
@@ -21116,8 +21116,8 @@
           "runId": "run-20261113-b",
           "agentId": "worker-portal-invitation",
           "claimedAt": "2026-11-12T19:44:19.232Z",
-          "heartbeatAt": "2026-11-12T19:44:19.232Z",
-          "expiresAt": "2026-11-12T20:14:19.232Z",
+          "heartbeatAt": "2026-11-12T20:06:11.950Z",
+          "expiresAt": "2026-11-12T20:36:11.950Z",
           "generation": 46
         },
         "baseSha": null,
@@ -21394,8 +21394,8 @@
           "runId": "run-20261113-b",
           "agentId": "worker-operations",
           "claimedAt": "2026-11-12T19:21:40.653Z",
-          "heartbeatAt": "2026-11-12T19:43:37.866Z",
-          "expiresAt": "2026-11-12T20:13:37.866Z",
+          "heartbeatAt": "2026-11-12T20:06:11.950Z",
+          "expiresAt": "2026-11-12T20:36:11.950Z",
           "generation": 46
         },
         "baseSha": null,
@@ -27129,8 +27129,8 @@
           "runId": "run-20261113-b",
           "agentId": "worker-billing-invoice",
           "claimedAt": "2026-11-12T19:21:40.623Z",
-          "heartbeatAt": "2026-11-12T19:43:37.866Z",
-          "expiresAt": "2026-11-12T20:13:37.866Z",
+          "heartbeatAt": "2026-11-12T20:06:11.950Z",
+          "expiresAt": "2026-11-12T20:36:11.950Z",
           "generation": 46
         },
         "baseSha": null,
@@ -28100,6 +28100,110 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "learning",
+        "workflowIds": [
+          "learning/assignments"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "retire.learning.assignment-create",
+        "title": "Retire the TypeScript Learning assignment-create writer",
+        "scope": "The native Learning assignment-create command is already dispatched by feature-learn's native command route. Delete the TS assignment-create adapter/application path and public exports, fail the route's assignment-create branch closed without the native config, and seed assignments directly in fixtures. The direct seeding helper lands in tests/support/helpers/learning-courses.ts; cross-owner fixture call sites are tests/integration/shared.executive/executive-canvas.test.ts, tests/integration/people_payroll/people-evaluation.test.ts, tests/support/helpers/engineering-finance-people-attachment-owners.ts and fixtures/finance/builders/engineering-money-people-browser.ts. Those helper/fixture paths overlap other active claims, so they are recorded here as committed edits rather than claimed. Expected Learning KPI 12 -> 10.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "packages/feature-learn/**",
+          "tests/integration/learning/**",
+          "tests/integration/shared.executive/executive-canvas.test.ts",
+          "tests/integration/people_payroll/people-evaluation.test.ts",
+          "tests/unit/learning/learning-talent-services.test.ts"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "32315c3459bfcc99f3c057ccbaafdee046a3c2fc",
+        "implementedCommit": "04ab4d6305f02160cf76b38b7c7f2b270436c069",
+        "lastPushedSha": "04ab4d6305f02160cf76b38b7c7f2b270436c069",
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "04ab4d6305f02160cf76b38b7c7f2b270436c069",
+            "note": "Root typecheck passes after deleting the TS assignment-create path."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "04ab4d6305f02160cf76b38b7c7f2b270436c069",
+            "note": "No errors in the changed Learning/People/Executive/fixture test paths. The only reported errors are pre-existing WIP in tests/integration/customer_authority/customer-access.test.ts and tests/integration/sales/sales-customer-notifications.test.ts, owned by other active workers."
+          },
+          {
+            "command": "bun run test:unit -- --suite=learning.rust-learning.unit",
+            "result": "passed",
+            "sourceSha": "04ab4d6305f02160cf76b38b7c7f2b270436c069",
+            "note": "25/25 native Learning owner cases pass, including assignment_creation_requires_published_course_and_eligible_placement."
+          },
+          {
+            "command": "bun run test:unit -- --suite=learning.rust-learning-http.unit",
+            "result": "passed",
+            "sourceSha": "04ab4d6305f02160cf76b38b7c7f2b270436c069",
+            "note": "3/3 native HTTP cases pass including assignment-create forwarding."
+          },
+          {
+            "command": "bun run test:integration -- --suite=learning.rust-learning-postgres.integration",
+            "result": "passed",
+            "sourceSha": "04ab4d6305f02160cf76b38b7c7f2b270436c069",
+            "note": "14/14 native PostgreSQL cases pass, including assignment_creation_requires_current_published_course_and_eligible_worker."
+          },
+          {
+            "command": "retirement:ts-writes: learning",
+            "result": "passed",
+            "sourceSha": "04ab4d6305f02160cf76b38b7c7f2b270436c069",
+            "before": 12,
+            "after": 10,
+            "note": "git grep over packages/server-learning/src/**/*.ts: 12 before, 10 after. The TS learning.learning.integration oracle now runs 18/20; the 2 failures are the pre-existing native work-role selectWorkRole next/headers() outside request scope environment failure in the zero-worker account fixture, unrelated to assignment create.",
+            "residual": [
+              {
+                "path": "packages/server-learning/src/adapters/learning.ts",
+                "writes": 4,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/learning-eligibility.ts",
+                "writes": 1,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Learning residual: assignment change/eligibility writers remain TS; assignment-create is native and the TS writer is gone.",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -28108,21 +28212,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 133,
-      "migratedPackets": 66,
+      "totalPackets": 134,
+      "migratedPackets": 67,
       "statusCounts": {
         "pending": 28,
         "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 66,
+        "migrated": 67,
         "blocked": 22,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T19:59:54.489Z",
+    "updatedAt": "2026-11-12T20:17:03.840Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
