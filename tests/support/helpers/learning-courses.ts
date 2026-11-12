@@ -73,6 +73,80 @@ export async function publishCourseSeed(
   ]);
 }
 
+export type LearningAssignmentDraft = {
+  courseId: string;
+  courseVersion: number;
+  learnerId: string;
+  dueDate: string;
+  reason: string;
+};
+
+/** Native-shape assignment seeding for integration fixtures. The production
+ * assignment-create command is served by the native Learning router, which
+ * resolves the learner's active placement and emits the assignment notice. */
+export async function createAssignmentSeed(
+  database: SqlDatabase,
+  actor: {
+    companyId: string;
+    userId: string;
+    branchId?: string | null;
+    departmentId?: string | null;
+  },
+  input: LearningAssignmentDraft,
+  commandKey: string,
+) {
+  const id = `learning-assignment-${commandKey}`,
+    now = Date.now(),
+    person = await database
+      .prepare(
+        `SELECT p.id,e.branch_id,e.department_id FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id
+         WHERE p.company_id=? AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active'
+           AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)
+           AND p.user_id=? ORDER BY p.id,e.id LIMIT 1`,
+      )
+      .bind(
+        actor.companyId,
+        actor.branchId ?? null,
+        actor.branchId ?? null,
+        actor.departmentId ?? null,
+        actor.departmentId ?? null,
+        input.learnerId,
+      )
+      .first<{ id: string; branch_id: string; department_id: string | null }>();
+  if (!person?.branch_id)
+    throw new Error("LEARNING_ASSIGNMENT_SEED_PLACEMENT_REQUIRED");
+  await database.batch([
+    database
+      .prepare(
+        "INSERT INTO learning_assignments(id,company_id,branch_id,department_id,course_id,course_version,learner_id,due_date,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        id,
+        actor.companyId,
+        person.branch_id,
+        person.department_id,
+        input.courseId,
+        input.courseVersion,
+        input.learnerId,
+        input.dueDate,
+        actor.userId,
+        now,
+        now,
+      ),
+    database
+      .prepare(
+        "INSERT INTO learning_assignment_events VALUES(?,?,1,'assign',?,?, 'assigned',?)",
+      )
+      .bind(`learning-assignment-event-${commandKey}`, id, actor.userId, input.reason, now),
+    database
+      .prepare(
+        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,learner_id,'learning_assignment',id,version,'New learning assignment: review course and due date',updated_at FROM learning_assignments WHERE id=?",
+      )
+      .bind(`learning-assignment-notice-${commandKey}`, id),
+  ]);
+  return { id, status: "assigned" as const, version: 1 };
+}
+
 export async function retireCourseSeed(
   database: SqlDatabase,
   courseId: string,

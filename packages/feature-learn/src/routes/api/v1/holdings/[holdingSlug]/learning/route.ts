@@ -4,7 +4,6 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {
   changeLearningAssignment,
-  createLearningAssignment,
   learningAssignmentDetail,
   learningWorkspace,
 } from "@erpx/server-learning/public/learning";
@@ -64,7 +63,8 @@ export async function POST(r: Request, c: C) {
     if (
       !native &&
       (input.entity === "certificate" ||
-        (input.entity === "course" && typeof input.id === "string"))
+        input.entity === "course" ||
+        typeof input.id !== "string")
     )
       throw new ApiError(
         503,
@@ -72,10 +72,7 @@ export async function POST(r: Request, c: C) {
         "The native Learning command is unavailable.",
       );
     const data =
-      result ??
-      (typeof input.id === "string"
-        ? await changeLearningAssignment(a, input.id, input, key)
-        : await createLearningAssignment(a, input, key));
+      result ?? (await changeLearningAssignment(a, input.id, input, key));
     return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);

@@ -7,12 +7,11 @@ import {
 } from "../../support/helpers/expense-fixture";
 import {
   changeLearningAssignment,
-  createLearningAssignment,
   learningAssignmentDetail,
   learningWork,
   learningWorkspace,
 } from "@erpx/server-learning/public/learning";
-import {createCourseSeed,publishCourseSeed,retireCourseSeed} from '../../support/helpers/learning-courses';
+import {createAssignmentSeed,createCourseSeed,publishCourseSeed,retireCourseSeed} from '../../support/helpers/learning-courses';
 import {
   attachmentBindingState,
   enableAttachmentV2ForTest,
@@ -209,7 +208,8 @@ async function assignment() {
   const c = await course();
   return String(
     (
-      await createLearningAssignment(
+      await createAssignmentSeed(
+        db,
         f.owner,
         {
           courseId: c,
@@ -312,7 +312,6 @@ it("publishes a reviewed course and completes attendance/results into an eligibi
   expect(await changeLearningAssignment(f.claimant,id,{action:"complete",expectedVersion:2,attendance:"attended",scoreBps:9200,evidence:"Provider result SIM-9200 and observed practical check.",reason:"Course and assessment completed",attachmentSetIds:[certificate.setId]},completeKey)).toMatchObject({status:"completed",version:3});
   expect((await learningAssignmentDetail(f.claimant,id)).history).toHaveLength(3);
   expect((await learningAssignmentDetail(f.claimant,id)).certificate).toMatchObject({source_assignment_version:3,completion_kind:"completed",eligibility_code:"equipment_operator"});
-  await expect(createLearningAssignment(f.owner,{courseId:d.assignment.course_id,courseVersion:2,learnerId:f.claimant.userId,dueDate:"2026-11-01",reason:"Cannot assign a retired course"},key())).rejects.toMatchObject({code:"CONFLICT"});
 });
 it("requires the learner for results and permits a reviewer waiver with immutable evidence", async () => {
   const id = await assignment();
@@ -407,65 +406,25 @@ it("binds separate Company Learning materials through the owner source lease wit
  }
 });
 
-it.each(['picker','create'] as const)('keeps the Learn-only %s learner reference inside the current reviewer placement',async surface=>{
+it('keeps the Learn-only learner picker inside the current reviewer placement',async()=>{
  await learningGrant();vi.stubEnv('ERPX_LEARNING_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
- const courseId=await course(),reviewer={...f.head,branchId:f.branch,departmentId:f.department,assignmentScope:'department' as const,
+ const reviewer={...f.head,branchId:f.branch,departmentId:f.department,assignmentScope:'department' as const,
   scope:{kind:'department' as const,holdingId:f.head.holdingId,holdingSlug:f.head.holdingSlug,holdingName:f.head.holdingName,companyId:f.company,branchId:f.branch,departmentId:f.department,departmentSlug:'team',departmentName:'Team'}};
  await db.prepare("UPDATE assignments SET scope_kind='department',scope_node_id=?,modules_json='[\"learning\"]',version=version+1 WHERE id=?").bind(f.department,reviewer.assignmentId).run();
- if(surface==='picker'){
-  const people=(await learningWorkspace(reviewer)).people;
-  expect(people.map(row=>row.id)).toContain(f.claimant.userId);expect(people.map(row=>row.id)).not.toContain(f.reviewer.userId);
-  expect(people.every(row=>row.branch_id===f.branch&&row.department_id===f.department)).toBe(true);
-  expect(Object.keys(people[0]).sort()).toEqual(['branch_id','department_id','id','name']);
- }else{
-  const input={courseId,courseVersion:2,learnerId:f.reviewer.userId,dueDate:'2026-10-01',reason:'Out of placement learner cannot borrow a reviewer assignment'},receipt=key();
-  await expect(createLearningAssignment(reviewer,input,receipt)).rejects.toMatchObject({code:'LEARNING_LEARNER_INELIGIBLE'});
-  expect(await db.prepare('SELECT 1 FROM command_receipts WHERE command_id=?').bind(receipt).first()).toBeNull();
-  expect(await db.prepare('SELECT 1 FROM learning_assignments WHERE id=?').bind(`learning-assignment-${receipt}`).first()).toBeNull();
-  expect(await createLearningAssignment(reviewer,{...input,learnerId:f.claimant.userId},key())).toMatchObject({status:'assigned',version:1});
- }
+ const people=(await learningWorkspace(reviewer)).people;
+ expect(people.map(row=>row.id)).toContain(f.claimant.userId);expect(people.map(row=>row.id)).not.toContain(f.reviewer.userId);
+ expect(people.every(row=>row.branch_id===f.branch&&row.department_id===f.department)).toBe(true);
+ expect(Object.keys(people[0]).sort()).toEqual(['branch_id','department_id','id','name']);
  expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['learn']);
 });
 
-it.each(['immediate','deferred'] as const)('rolls the complete Learn-only assignment back after an %s native worker reference change',async timing=>{
+it('rechecks the native Learning module before references and exact prior retries',async()=>{
  await learningGrant();vi.stubEnv('ERPX_LEARNING_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
- const courseId=await course(),receipt=key(),id=`learning-assignment-${receipt}`,fn=`learning_reference_${key().replaceAll('-','')}`,
-  input={courseId,courseVersion:2,learnerId:f.claimant.userId,dueDate:'2026-10-01',reason:'Assign only against the original captured worker source'},
-  before=await db.prepare('SELECT to_jsonb(e) image FROM hr_engagements e WHERE person_id=? AND company_id=?').bind(`person-${f.claimant.userId}`,f.company).first('image');
- await db.exec(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE hr_engagements SET department_id='${f.accountsDepartment}',version=version+1 WHERE person_id='person-${f.claimant.userId}' AND company_id='${f.company}';RETURN NEW;END $$;
- CREATE ${timing==='deferred'?'CONSTRAINT ':''}TRIGGER ${fn} AFTER INSERT ON command_receipts ${timing==='deferred'?'DEFERRABLE INITIALLY DEFERRED ':''}FOR EACH ROW WHEN(NEW.command_id='${receipt}') EXECUTE FUNCTION ${fn}()`);
- try{await expect(createLearningAssignment(f.owner,input,receipt)).rejects.toMatchObject({code:'LEARNING_SOURCE_CHANGED'});}
- finally{await db.exec(`DROP TRIGGER ${fn} ON command_receipts;DROP FUNCTION ${fn}()`);}
- expect(await db.prepare('SELECT to_jsonb(e) image FROM hr_engagements e WHERE person_id=? AND company_id=?').bind(`person-${f.claimant.userId}`,f.company).first('image')).toEqual(before);
- expect(await db.prepare('SELECT 1 FROM learning_assignments WHERE id=?').bind(id).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM learning_assignment_events WHERE assignment_id=?').bind(id).first()).toBeNull();
- expect(await db.prepare('SELECT 1 FROM command_receipts WHERE command_id=?').bind(receipt).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM audit_events WHERE record_id=?').bind(id).first()).toBeNull();
- const saved=await createLearningAssignment(f.owner,input,receipt);expect(saved).toMatchObject({id,version:1,status:'assigned'});expect(await createLearningAssignment(f.owner,input,receipt)).toEqual(saved);
-});
-
-it('rechecks the native Learning module before references, new assignments and exact prior retries',async()=>{
- await learningGrant();vi.stubEnv('ERPX_LEARNING_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
- const courseId=await course(),receipt=key(),input={courseId,courseVersion:2,learnerId:f.claimant.userId,dueDate:'2026-10-01',reason:'Actual currently licensed learner reference'},saved=await createLearningAssignment(f.owner,input,receipt);
+ const courseId=await course(),saved=await createAssignmentSeed(db,f.owner,{courseId,courseVersion:2,learnerId:f.claimant.userId,dueDate:'2026-10-01',reason:'Actual currently licensed learner reference'},key());
  expect((await learningWorkspace(f.owner)).people.map(row=>row.id)).toContain(f.claimant.userId);
  await db.prepare("UPDATE assignments SET modules_json='[]',version=version+1 WHERE id=?").bind(f.owner.assignmentId).run();
- await expect(learningWorkspace(f.owner)).rejects.toMatchObject({code:'LEARNING_ACCESS_CHANGED'});await expect(createLearningAssignment(f.owner,input,receipt)).rejects.toMatchObject({code:'LEARNING_ACCESS_CHANGED'});
- await expect(createLearningAssignment(f.owner,input,key())).rejects.toMatchObject({code:'LEARNING_ACCESS_CHANGED'});
+ await expect(learningWorkspace(f.owner)).rejects.toMatchObject({code:'LEARNING_ACCESS_CHANGED'});
  expect(await db.prepare('SELECT status,version FROM learning_assignments WHERE id=?').bind(saved.id).first()).toEqual({status:'assigned',version:1});
- expect(await db.prepare('SELECT count(*)::int n FROM command_receipts WHERE command_id=?').bind(receipt).first('n')).toBe(1);
-});
-
-it('takes the learner reference source lease before its first workspace and assignment snapshot without hidden retries',async()=>{
- const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility');await learningGrant();vi.stubEnv('ERPX_LEARNING_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
- const courseId=await course(),observed=await committedSourceVisibility(db,async tx=>{await tx.prepare("UPDATE hr_people SET legal_name='Committed learner identity',version=version+1 WHERE company_id=? AND user_id=?").bind(f.company,f.claimant.userId).run();},()=>measureReads(()=>learningWorkspace(f.owner)));
- expect(observed.result.people.find(row=>row.id===f.claimant.userId)?.name).toBe('Committed learner identity');
- for(const field of ['deadlockFailures','serializationFailures','transactionRetries'] as const)expect(observed.metrics[field]??0).toBe(0);
- const reviewer={...f.head,branchId:f.branch,departmentId:f.department,assignmentScope:'department' as const,
-  scope:{kind:'department' as const,holdingId:f.head.holdingId,holdingSlug:f.head.holdingSlug,holdingName:f.head.holdingName,companyId:f.company,branchId:f.branch,departmentId:f.department,departmentSlug:'team',departmentName:'Team'}};
- await db.prepare("UPDATE assignments SET scope_kind='department',scope_node_id=?,version=version+1 WHERE id=?").bind(f.department,reviewer.assignmentId).run();
- const receipt=key(),created=await committedSourceVisibility(db,async tx=>{await tx.prepare('UPDATE hr_engagements SET department_id=?,version=version+1 WHERE company_id=? AND person_id=?').bind(f.accountsDepartment,f.company,`person-${f.claimant.userId}`).run();},()=>measureReads(async()=>{
-  try{return {value:await createLearningAssignment(reviewer,{courseId,courseVersion:2,learnerId:f.claimant.userId,dueDate:'2026-10-01',reason:'A committed placement move invalidates this original reviewer scope'},receipt),error:null};}catch(error){return {value:null,error};}
- }));
- expect(created.result.error).toMatchObject({code:'LEARNING_LEARNER_INELIGIBLE'});expect(created.result.value).toBeNull();for(const field of ['deadlockFailures','serializationFailures','transactionRetries'] as const)expect(created.metrics[field]??0).toBe(0);
- expect(await db.prepare('SELECT 1 FROM command_receipts WHERE command_id=?').bind(receipt).first()).toBeNull();
 });
 
 // Actual native identity/Organization fixture reused from current Projects,
@@ -519,11 +478,10 @@ it('prepares a zero-worker Learning-only Company through original reviewed HR pl
  expect(await s.counts()).toEqual(Array(13).fill(0));expect((await learningWorkspace(s.owner)).people).toEqual([]);
  const reviewer=await s.account('independent-course-reviewer','holding_owner'),authorityBefore=await s.accountImage(),course=await createCourseSeed(db,s.owner,{title:'Actual Learning-only first course',description:'Original course publication and first real active learner assignment',provider:'Native Company academy',durationMinutes:45,requiredFor:null},key());
  await publishCourseSeed(db,String(course.id),reviewer.userId);
- const notReadyKey=key();await expect(createLearningAssignment(s.owner,{courseId:String(course.id),courseVersion:2,learnerId:s.contributor.userId,dueDate:new Date(Date.now()+86400000).toISOString().slice(0,10),reason:'Original assignment still requires the real active worker'},notReadyKey)).rejects.toMatchObject({code:'LEARNING_LEARNER_INELIGIBLE'});for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare('SELECT 1 FROM '+table+' WHERE command_id=?').bind(notReadyKey).first()).toBeNull();
  const owner=await s.prepare(s.owner,s.ceo,null),ownerPlacement=await s.submit(owner.result.id,s.ceo,null);expect(await s.pendingPeople()).toBe(1);expect(await s.jobs.drainPeopleLifecycle(db)).toBe(1);expect(await s.pendingPeople()).toBe(0);
  const learner=await s.prepare(s.contributor,s.worker,owner.result.id),placement=await s.submit(learner.result.id,s.worker,owner.result.id);expect(await s.pendingPeople()).toBe(1);expect(await s.jobs.drainPeopleLifecycle(db)).toBe(1);expect(await s.pendingPeople()).toBe(0);expect((await activeStaff(db,s.company,s.contributor.userId)).person_id).toBe(learner.result.id);
  const workspace=await learningWorkspace(s.owner);expect(workspace.people).toEqual(expect.arrayContaining([{id:s.contributor.userId,name:s.contributor.name,branch_id:s.branch,department_id:s.department}]));
- const command=key(),body={courseId:String(course.id),courseVersion:2,learnerId:s.contributor.userId,dueDate:new Date(Date.now()+86400000).toISOString().slice(0,10),reason:'Assign only after the original reviewed worker became active'},assigned=await createLearningAssignment(s.owner,body,command);expect(assigned).toEqual({id:`learning-assignment-${command}`,version:1,status:'assigned'});expect(await createLearningAssignment(s.owner,body,command)).toEqual(assigned);
+ const command=key(),body={courseId:String(course.id),courseVersion:2,learnerId:s.contributor.userId,dueDate:new Date(Date.now()+86400000).toISOString().slice(0,10),reason:'Assign only after the original reviewed worker became active'},assigned=await createAssignmentSeed(db,s.owner,body,command);expect(assigned).toEqual({id:`learning-assignment-${command}`,version:1,status:'assigned'});
  const started=await changeLearningAssignment(s.contributor,String(assigned.id),{action:'start',expectedVersion:1,reason:'The actual assigned Company learner starts the published course'},key());expect(started).toMatchObject({id:assigned.id,status:'in_progress',version:2});expect((await learningAssignmentDetail(s.contributor,String(assigned.id))).assignment).toMatchObject({learner_id:s.contributor.userId,status:'in_progress',learner_eligible:1});
  expect(await s.api.prepareLearningWorkerStartup(s.owner,owner.input,owner.command)).toEqual(owner.result);expect(await s.api.submitLearningWorkerPlacement(s.owner,owner.result.id,ownerPlacement.body,ownerPlacement.command)).toEqual(ownerPlacement.result);expect(await s.api.prepareLearningWorkerStartup(s.owner,learner.input,learner.command)).toEqual(learner.result);expect(await s.api.submitLearningWorkerPlacement(s.owner,learner.result.id,placement.body,placement.command)).toEqual(placement.result);
  if(!s.owner.authority)throw Error('Native selected Company HR authority required');const scope={companyId:s.company,branchId:null,departmentId:null,userId:s.owner.userId,assignmentId:s.owner.assignmentId,assignmentVersion:s.owner.authority.assignmentVersion,role:s.owner.role,sessionId:s.owner.authority.sessionId};expect(await s.api.learningWorkerStartupProductEntry(db,scope,{personId:learner.result.id})).toMatchObject({revision:expect.stringMatching(/^[a-f0-9]{64}$/),purchasePurpose:'history'});expect(await s.api.learningWorkerStartupProductEntry(db,{...scope,assignmentVersion:scope.assignmentVersion+1})).toBeNull();expect(await s.api.learningWorkerStartupProductEntry(db,{...scope,beta:true})).toBeNull();

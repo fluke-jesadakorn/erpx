@@ -1,5 +1,5 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import {createCourseSeed,publishCourseSeed} from './learning-courses';
+import {createAssignmentSeed,createCourseSeed,publishCourseSeed} from './learning-courses';
 import { expenseDb as db, expenseFixture, key } from "./expense-fixture";
 import {seedFinanceJournal} from './finance-journal-seed';
 import {createLease,createLoan,createParty,createRevenueContract,importBankStatement,createInvoice,invoiceSchema,partySchema,postInvoice,createPayment,approvePayment,releasePayment,confirmPayment,reconcileBankTransaction} from '@erpx/server-finance/public/finance';
@@ -8,7 +8,7 @@ import { createAccrualSchedule,accrualScheduleSchema } from "@erpx/server-financ
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {executeCommand} from '@erpx/server-workflow/public/commands';
 import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';
-import { createLearningAssignment,changeLearningAssignment } from "@erpx/server-learning/public/learning";
+import {changeLearningAssignment} from "@erpx/server-learning/public/learning";
 import { requestPayrollCorrection,payrollCorrectionRequestSchema,updateTimeEntry,timeEntryUpdateSchema } from "@erpx/server-people_payroll/public/people-payroll";
 import {createOvertime,commandOvertime} from '@erpx/server-people_payroll/public/overtime';
 import { overtimeDetailsSchema,overtimeCommandSchema } from "@erpx/feature-people_payroll/lib/overtime";
@@ -98,7 +98,7 @@ export async function financePeopleAttachmentOwner(tuple:AttachmentOwnerTuple):P
  if(tuple.targetType==="learning_course"||tuple.targetType==="learning_assignment"){
   const course=await createCourseSeed(db,actor,{title:"Synthetic training",description:reason,provider:"Fixture academy",durationMinutes:30,requiredFor:null},key());
   if(tuple.targetType==="learning_course")return standard(String(course.id),"learning_courses");
-  await publishCourseSeed(db,String(course.id),f.tie.userId);const assignment=await createLearningAssignment(actor,{courseId:String(course.id),courseVersion:2,learnerId:f.claimant.userId,dueDate:"2026-10-31",reason},key());
+  await publishCourseSeed(db,String(course.id),f.tie.userId);const assignment=await createAssignmentSeed(db,actor,{courseId:String(course.id),courseVersion:2,learnerId:f.claimant.userId,dueDate:"2026-10-31",reason},key());
   if(tuple.componentKind==="record")return standard(String(assignment.id),"learning_assignments");
   await changeLearningAssignment(f.claimant,String(assignment.id),{action:"start",expectedVersion:1,reason},key());return {...standard(String(assignment.id),"learning_assignments",2),actor:f.claimant,componentRef:"completion",bindingType:"learning_completion",bindAction:(setId,command)=>changeLearningAssignment(f.claimant,String(assignment.id),{action:"complete",expectedVersion:2,attendance:"attended",scoreBps:9200,evidence:reason,reason,attachmentSetIds:[setId]},command)};
  }

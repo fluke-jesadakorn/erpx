@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { createChangeLearningCourse, createLearningAssignment, createChangeLearningAssignment, createLearningDetail, createLearningExecutiveEvidence, createLearningWorkspace, createLearningWork, type LearningCommandPorts, type LearningWorkspace } from "@erpx/server-learning/application/learning";
+import { createChangeLearningCourse, createChangeLearningAssignment, createLearningDetail, createLearningExecutiveEvidence, createLearningWorkspace, createLearningWork, type LearningCommandPorts, type LearningWorkspace } from "@erpx/server-learning/application/learning";
 import { createLearningBenefitConsumption, createValidateBenefitLearning, createRevokeLearningCertificate } from "@erpx/server-learning/application/eligibility";
 import { learningActionAllowed, learningWorkItems, type LearningAssignment } from "@erpx/server-learning/domain/learning";
 import type { LearningCertificate } from "@erpx/server-learning/domain/eligibility";
@@ -19,13 +19,10 @@ const certificate: LearningCertificate = { id: "certificate", handoff_id: "hando
 const election = { id: "election", person_id: "person", learning_certificate_id: "certificate", effective_from: "2026-10-06", plan_id: "plan" };
 
 describe("Learning lifecycle with injected owner ports", () => {
-  it("keeps course and assignment source checks before their existing receipt lookup", async () => {
+  it("keeps course source checks before their existing receipt lookup", async () => {
     const ports = { ...common(), course: vi.fn(async () => null), prepare: vi.fn(async () => mutation) };
     await expect(createChangeLearningCourse(ports)(actor, "course", { action: "publish", expectedVersion: 1, reason: "Approved course" }, "key")).rejects.toMatchObject({ code: "LEARNING_COURSE_NOT_FOUND" });
     expect(ports.replay).not.toHaveBeenCalled();
-    const assignPorts = { ...common(), person: vi.fn(async () => null), prepare: vi.fn(async () => mutation) };
-    await expect(createLearningAssignment(assignPorts)(actor, { courseId: "course", courseVersion: 1, learnerId: "learner", dueDate: "2026-10-10", reason: "Required safety" }, "key")).rejects.toMatchObject({ code: "LEARNING_LEARNER_INELIGIBLE" });
-    expect(assignPorts.replay).not.toHaveBeenCalled();
   });
   it("requires reviewer authority for a waiver even when its receipt already exists", async () => {
     const ports = { ...common(), assignment: vi.fn(async () => assignment), attachment: vi.fn(async () => mutation), prepare: vi.fn(async () => mutation) };
