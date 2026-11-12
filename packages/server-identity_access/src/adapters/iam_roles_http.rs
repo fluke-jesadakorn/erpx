@@ -57,6 +57,14 @@ pub struct IamRolesReviewsHttpRequest<'a> {
     pub command: IamRolesReviewsHttpCommand,
 }
 
+/// Platform ingress has no Holding slug: the registered Host identifies the
+/// Platform Company and the backend resolves the Platform assignment itself.
+pub struct IamPlatformRolesReviewsHttpRequest<'a> {
+    pub host: &'a str,
+    pub headers: &'a HeaderMap,
+    pub command: IamRolesReviewsHttpCommand,
+}
+
 #[derive(Clone, Debug)]
 pub struct IamRolesReviewsHttpResponse {
     /// Owner data. The backend adds the validated current context.
@@ -77,6 +85,16 @@ pub trait IamRolesReviewsHttpBackend: Send + Sync {
         &'a self,
         request: IamRolesReviewsHttpRequest<'a>,
     ) -> IamRolesReviewsHttpFuture<'a, IamRolesReviewsHttpResponse>;
+
+    /// The same command/response contract for the Platform namespace. Holding
+    /// backends keep the fail-closed default; the Platform composition backend
+    /// resolves the Platform actor and executes the owner handlers.
+    fn execute_platform<'a>(
+        &'a self,
+        _request: IamPlatformRolesReviewsHttpRequest<'a>,
+    ) -> IamRolesReviewsHttpFuture<'a, IamRolesReviewsHttpResponse> {
+        Box::pin(async { Err(missing()) })
+    }
 }
 
 pub struct IamRolesReviewsHttpTarget {
@@ -88,8 +106,22 @@ pub struct IamRolesReviewsHttpTarget {
     pub backend: Arc<dyn IamRolesReviewsHttpBackend>,
 }
 
+/// Registered Platform Host target. There is no Holding slug in the path; the
+/// composition backend supplies the Platform Company/assignment actor.
+pub struct IamPlatformRolesReviewsHttpTarget {
+    pub host: String,
+    /// Exact browser origin for this registered Platform Host, for example
+    /// `https://erpx-internal.jesadakorn.com`.
+    pub origin: String,
+    pub backend: Arc<dyn IamRolesReviewsHttpBackend>,
+}
+
 struct IamRolesReviewsHttpState {
     targets: BTreeMap<(String, String), IamRolesReviewsHttpTarget>,
+}
+
+struct IamPlatformRolesReviewsHttpState {
+    targets: BTreeMap<String, IamPlatformRolesReviewsHttpTarget>,
 }
 
 fn missing() -> BusinessError {
@@ -102,6 +134,19 @@ fn configuration_invalid() -> BusinessError {
     BusinessError::invalid(
         "IAM_ROLES_REVIEWS_HTTP_CONFIGURATION_INVALID",
         "Use exact distinct registered Holding targets.",
+    )
+}
+fn platform_configuration_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "IAM_PLATFORM_ROLES_REVIEWS_HTTP_CONFIGURATION_INVALID",
+        "Use exact distinct registered Platform Host targets.",
+    )
+}
+fn origin_forbidden() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "ORIGIN_FORBIDDEN",
+        "Use the application origin.",
     )
 }
 fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
@@ -187,6 +232,19 @@ fn target<'a>(
         .get(&(host.to_owned(), slug.to_owned()))
         .ok_or_else(missing)
 }
+fn platform_target<'a>(
+    state: &'a IamPlatformRolesReviewsHttpState,
+    headers: &HeaderMap,
+) -> Result<&'a IamPlatformRolesReviewsHttpTarget, BusinessError> {
+    let host = unique_header(headers, header::HOST)?
+        .filter(|value| !value.is_empty())
+        .ok_or_else(missing)?;
+    let target = state.targets.get(host).ok_or_else(missing)?;
+    if unique_header(headers, header::ORIGIN)? != Some(target.origin.as_str()) {
+        return Err(origin_forbidden());
+    }
+    Ok(target)
+}
 fn ensure_no_query(request: &Request) -> Result<(), BusinessError> {
     match request.uri().query() {
         None | Some("") => Ok(()),
@@ -259,6 +317,152 @@ pub fn iam_roles_reviews_http_router(
         .with_state(Arc::new(IamRolesReviewsHttpState {
             targets: configured,
         })))
+}
+
+/// Platform namespace ingress for the same five owner commands. Paths carry no
+/// Holding slug and the exact browser origin is required on every command.
+pub fn iam_platform_roles_reviews_http_router(
+    targets: Vec<IamPlatformRolesReviewsHttpTarget>,
+) -> Result<Router, BusinessError> {
+    let mut configured = BTreeMap::new();
+    for target in targets {
+        if target.host.is_empty()
+            || !valid_origin(&target.origin)
+            || target.origin.strip_prefix("https://") != Some(target.host.as_str())
+            || configured.insert(target.host.clone(), target).is_some()
+        {
+            return Err(platform_configuration_invalid());
+        }
+    }
+    Ok(Router::new()
+        .route("/api/v1/platform/iam/roles", post(platform_save_role))
+        .route(
+            "/api/v1/platform/iam/reviews/{review_id}/decide",
+            post(platform_decide_review),
+        )
+        .route(
+            "/api/v1/platform/iam/access-reviews",
+            post(platform_start_access_review),
+        )
+        .route(
+            "/api/v1/platform/iam/access-review-items/{item_id}/decide",
+            post(platform_decide_access_review_item),
+        )
+        .route(
+            "/api/v1/platform/iam/access-reviews/{campaign_id}/cancel",
+            post(platform_cancel_access_review),
+        )
+        .with_state(Arc::new(IamPlatformRolesReviewsHttpState {
+            targets: configured,
+        })))
+}
+
+async fn platform_dispatch(
+    state: &IamPlatformRolesReviewsHttpState,
+    request: Request,
+    build: impl FnOnce(Value, String) -> Result<IamRolesReviewsHttpCommand, BusinessError>,
+) -> Response {
+    let result = async move {
+        let target = platform_target(state, request.headers())?;
+        ensure_no_query(&request)?;
+        let key = strict_key(request.headers())?;
+        let headers = request.headers().clone();
+        let body = strict_body(request).await?;
+        let command = build(body, key)?;
+        target
+            .backend
+            .execute_platform(IamPlatformRolesReviewsHttpRequest {
+                host: &target.host,
+                headers: &headers,
+                command,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn platform_save_role(
+    State(state): State<Arc<IamPlatformRolesReviewsHttpState>>,
+    request: Request,
+) -> Response {
+    platform_dispatch(&state, request, |body, key| {
+        Ok(IamRolesReviewsHttpCommand::SaveRole {
+            input: serde_json::from_value(body).map_err(|_| malformed())?,
+            idempotency_key: key,
+        })
+    })
+    .await
+}
+
+async fn platform_decide_review(
+    State(state): State<Arc<IamPlatformRolesReviewsHttpState>>,
+    Path(review_id): Path<String>,
+    request: Request,
+) -> Response {
+    if !valid_id(&review_id) {
+        return error_response(missing());
+    }
+    platform_dispatch(&state, request, move |body, key| {
+        Ok(IamRolesReviewsHttpCommand::DecideReview {
+            review_id,
+            input: serde_json::from_value(body).map_err(|_| malformed())?,
+            idempotency_key: key,
+        })
+    })
+    .await
+}
+
+async fn platform_start_access_review(
+    State(state): State<Arc<IamPlatformRolesReviewsHttpState>>,
+    request: Request,
+) -> Response {
+    platform_dispatch(&state, request, |body, key| {
+        Ok(IamRolesReviewsHttpCommand::StartAccessReview {
+            input: serde_json::from_value(body).map_err(|_| malformed())?,
+            idempotency_key: key,
+        })
+    })
+    .await
+}
+
+async fn platform_decide_access_review_item(
+    State(state): State<Arc<IamPlatformRolesReviewsHttpState>>,
+    Path(item_id): Path<String>,
+    request: Request,
+) -> Response {
+    if !valid_id(&item_id) {
+        return error_response(missing());
+    }
+    platform_dispatch(&state, request, move |body, key| {
+        Ok(IamRolesReviewsHttpCommand::DecideAccessReviewItem {
+            item_id,
+            input: serde_json::from_value(body).map_err(|_| malformed())?,
+            idempotency_key: key,
+        })
+    })
+    .await
+}
+
+async fn platform_cancel_access_review(
+    State(state): State<Arc<IamPlatformRolesReviewsHttpState>>,
+    Path(campaign_id): Path<String>,
+    request: Request,
+) -> Response {
+    if !valid_id(&campaign_id) {
+        return error_response(missing());
+    }
+    platform_dispatch(&state, request, move |body, key| {
+        Ok(IamRolesReviewsHttpCommand::CancelAccessReview {
+            campaign_id,
+            input: serde_json::from_value(body).map_err(|_| malformed())?,
+            idempotency_key: key,
+        })
+    })
+    .await
 }
 
 async fn save_role(

@@ -253,10 +253,11 @@ pub async fn save_role<R: IamRolesReviewRepository>(
     input: &RoleSaveInput,
     now: i64,
 ) -> Result<Value, R::Error> {
-    actor.require("iam.roles.manage", now)?;
+    let permission = actor.scoped_permission("iam.roles.manage");
+    actor.require(&permission, now)?;
     actor.require_management_scope()?;
     let input = crate::domain::iam_roles::validate_role_save(input.clone(), actor, catalog)?;
-    require_current(repository, actor, "iam.roles.manage", now).await?;
+    require_current(repository, actor, &permission, now).await?;
     let identity = role_save_identity(actor, key.as_str(), &input);
     let hash = repository.digest(&identity).await?;
     if !valid_hash(&hash) {
@@ -366,12 +367,13 @@ pub async fn decide_review<R: IamRolesReviewRepository>(
     input: &ReviewDecisionInput,
     now: i64,
 ) -> Result<Value, R::Error> {
-    actor.require("iam.review", now)?;
+    let permission = actor.scoped_permission("iam.review");
+    actor.require(&permission, now)?;
     let input = input.clone().validate()?;
     if RecordId::new(review_id.to_owned()).is_err() {
         return Err(review_not_found().into());
     }
-    require_current(repository, actor, "iam.review", now).await?;
+    require_current(repository, actor, &permission, now).await?;
     let identity = review_decision_identity(actor, key.as_str(), review_id, &input);
     let hash = repository.digest(&identity).await?;
     if !valid_hash(&hash) {
@@ -414,9 +416,9 @@ pub async fn decide_review<R: IamRolesReviewRepository>(
             .proposer_authority(actor, assignment_id, &review.created_by, now)
             .await?
             .ok_or_else(proposer_authority_revoked)?;
-        let permission = required_permission(&review.kind);
+        let permission = actor.scoped_permission(required_permission(&review.kind));
         if !repository
-            .role_allows(actor, &proposer.role, permission)
+            .role_allows(actor, &proposer.role, &permission)
             .await?
         {
             return Err(proposer_authority_revoked().into());
@@ -477,7 +479,8 @@ pub async fn start_access_review<R: IamRolesReviewRepository>(
 ) -> Result<Value, R::Error> {
     actor.require_holding_review(now)?;
     let input = input.clone().validate(now)?;
-    require_current(repository, actor, "iam.review", now).await?;
+    let permission = actor.scoped_permission("iam.review");
+    require_current(repository, actor, &permission, now).await?;
     let identity = campaign_start_identity(actor, key.as_str(), &input);
     let hash = repository.digest(&identity).await?;
     if !valid_hash(&hash) {
@@ -541,7 +544,8 @@ pub async fn decide_access_review_item<R: IamRolesReviewRepository>(
     if RecordId::new(item_id.to_owned()).is_err() {
         return Err(access_review_item_not_found().into());
     }
-    require_current(repository, actor, "iam.review", now).await?;
+    let permission = actor.scoped_permission("iam.review");
+    require_current(repository, actor, &permission, now).await?;
     let identity = campaign_decision_identity(actor, key.as_str(), item_id, &input);
     let hash = repository.digest(&identity).await?;
     if !valid_hash(&hash) {
@@ -593,7 +597,7 @@ pub async fn decide_access_review_item<R: IamRolesReviewRepository>(
             .revocation_guard(actor, &item.user_id, now)
             .await?;
         if facts.recovery_member {
-            actor.require("iam.recovery", now)?;
+            actor.require(&actor.scoped_permission("iam.recovery"), now)?;
         }
         ensure_revocation_allowed(actor, &assignment, &facts)?;
         Some(AccessRevocation {
@@ -649,7 +653,8 @@ pub async fn cancel_access_review_campaign<R: IamRolesReviewRepository>(
     if RecordId::new(campaign_id.to_owned()).is_err() {
         return Err(access_review_campaign_not_found().into());
     }
-    require_current(repository, actor, "iam.review", now).await?;
+    let permission = actor.scoped_permission("iam.review");
+    require_current(repository, actor, &permission, now).await?;
     let identity = campaign_cancel_identity(actor, key.as_str(), campaign_id, &input);
     let hash = repository.digest(&identity).await?;
     if !valid_hash(&hash) {

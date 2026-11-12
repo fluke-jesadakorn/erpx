@@ -331,10 +331,10 @@ impl IamRoleActor {
 
     /// Access certification never runs on the platform namespace.
     pub fn require_holding_review(&self, now: i64) -> Result<(), BusinessError> {
-        self.require("iam.review", now)?;
         if self.platform {
             return Err(holding_review_required());
         }
+        self.require(&self.scoped_permission("iam.review"), now)?;
         if self.scope_kind != "holding" {
             return Err(scope_forbidden());
         }
@@ -347,6 +347,16 @@ impl IamRoleActor {
                 .person_user_ids
                 .iter()
                 .any(|alias| alias.as_str() == user_id)
+    }
+
+    /// Platform commands are gated by the Platform permission namespace; the
+    /// Holding namespace keeps its unprefixed customer permission names.
+    pub fn scoped_permission(&self, permission: &str) -> String {
+        if self.platform && !permission.starts_with("platform.") {
+            format!("platform.{permission}")
+        } else {
+            permission.to_owned()
+        }
     }
 
     pub fn authority_json(&self) -> String {

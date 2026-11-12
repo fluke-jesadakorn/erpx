@@ -126,6 +126,7 @@ pub mod organization_nodes_http;
 pub mod organization_setup;
 pub mod people_payroll;
 pub mod platform_administration;
+pub mod platform_iam;
 pub mod pms;
 pub mod pos;
 pub mod procurement;

@@ -89759,6 +89759,109 @@
       }
     },
     {
+      "id": "identity_access.iam-platform-roles-reviews-http.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/identity_access/rust-platform-iam-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Platform IAM ingress must retain Host-only targets, exact Origin, strict command keys/bodies and owner error mapping."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "iam_platform_roles_reviews_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-identity_access/Cargo.toml"
+      ]
+    },
+    {
+      "id": "identity_access.iam-platform-roles-reviews.integration",
+      "lane": "integration",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access",
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/identity_access/rust-platform-iam-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Platform IAM role commands must retain the Platform Company/scope, catalogue delegation, serializable Control receipts/audit and replay."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "iam_platform_roles_reviews_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-identity_access/Cargo.toml"
+      ]
+    },
+    {
+      "id": "identity_access.native-platform-iam-transport.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access",
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/identity_access/native-platform-iam-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Platform IAM transport must preserve the exact Platform Host, session cookie, work/Platform selectors, bounded responses and fail-closed configuration."
+      },
+      "framework": "vitest",
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/contracts",
+        "@erpx/feature-platform_administration"
+      ]
+    },
+    {
       "id": "talent.rust-talent-candidate-privacy.unit",
       "lane": "unit",
       "owner": "talent",

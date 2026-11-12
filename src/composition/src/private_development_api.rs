@@ -2606,6 +2606,7 @@ async fn assemble_checked(
     let mut platform_administration_targets = Vec::new();
         let mut platform_projection_targets = Vec::new();
     let mut platform_executive_targets = Vec::new();
+    let mut platform_iam_targets = Vec::new();
     for (i, holding) in config.holdings.iter().enumerate() {
         let Some(companies) = config
             .platform_administration_companies
@@ -2677,6 +2678,37 @@ async fn assemble_checked(
                     backend: platform_backend.clone(),
                 },
             );
+            let platform_iam_backend = Arc::new(crate::platform_iam::PlatformIamBackend::new(
+                config.policy.clone(),
+                Arc::new(FinanceJournalReadScopeHeaders),
+                Arc::new(crate::platform_iam::PlatformIamService::new(
+                    Arc::new(
+                        HoldingWorkAuthorizer::new(
+                            pools[0].clone(),
+                            pools[i + 1].clone(),
+                            holding.registration.holding_id.clone(),
+                            (*config.policy).clone(),
+                            clock.clone(),
+                            config.holdings_registry.clone(),
+                        )
+                        .map_err(|_| "PRIVATE_API_PLATFORM_IAM_CONFIGURATION_INVALID")?,
+                    ),
+                    crate::platform_iam::PlatformIamConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        holding.registration.slug.clone(),
+                        company.clone(),
+                        pools[0].clone(),
+                    ),
+                    Arc::new(SharedClock(clock.clone())),
+                )),
+            ));
+            platform_iam_targets.push(
+                erpx_server_identity_access::public::iam_roles_http::IamPlatformRolesReviewsHttpTarget {
+                    host: holding.host.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: platform_iam_backend,
+                },
+            );
         }
     }
     if !platform_administration_targets.is_empty() {
@@ -2701,6 +2733,14 @@ async fn assemble_checked(
                 platform_executive_targets,
             )
             .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
+        );
+    }
+    if !platform_iam_targets.is_empty() {
+        router = router.merge(
+            erpx_server_identity_access::public::iam_roles_http::iam_platform_roles_reviews_http_router(
+                platform_iam_targets,
+            )
+            .map_err(|_| "PRIVATE_API_PLATFORM_IAM_CONFIGURATION_INVALID")?,
         );
     }
     if let Some(grants) = &config.commercial_package_grants {

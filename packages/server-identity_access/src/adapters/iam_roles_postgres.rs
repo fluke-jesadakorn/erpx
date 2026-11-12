@@ -34,11 +34,26 @@ fn parse_strings(value: String) -> Result<Vec<String>, sqlx::Error> {
 
 pub struct PgIamRolesReviews<'c> {
     connection: &'c mut PgConnection,
+    /// Platform commands keep their roles/reviews in the Control database and
+    /// therefore write Control receipts/audit without a Holding outbox.
+    platform: bool,
 }
 
 impl<'c> PgIamRolesReviews<'c> {
     pub fn new(connection: &'c mut PgConnection) -> Self {
-        Self { connection }
+        Self {
+            connection,
+            platform: false,
+        }
+    }
+
+    /// The caller must pass a serializable Control transaction and a Platform
+    /// actor. Holding callers keep [`Self::new`].
+    pub fn new_platform(connection: &'c mut PgConnection) -> Self {
+        Self {
+            connection,
+            platform: true,
+        }
     }
 
     async fn ready(&mut self) -> Result<(), Error> {
@@ -153,6 +168,44 @@ impl<'c> PgIamRolesReviews<'c> {
         now: i64,
     ) -> Result<(), Error> {
         let authority = actor.authority_json();
+        if self.platform {
+            let envelope = json!({
+                "result": serde_json::from_str::<Value>(result_json)
+                    .map_err(|_| readback_invalid())?,
+                "operation": operation,
+                "recordId": record_id,
+                "authority": serde_json::from_str::<Value>(&authority)
+                    .map_err(|_| readback_invalid())?,
+            });
+            let receipt = sqlx::query(
+                "INSERT INTO iam_receipts(id,company_id,actor_id,request_hash,result,created_at) \
+                 VALUES($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT(id) DO NOTHING",
+            )
+            .bind(key)
+            .bind(actor.company_id.as_str())
+            .bind(actor.user_id.as_str())
+            .bind(request_hash)
+            .bind(envelope.to_string())
+            .bind(now)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            if receipt != 1 {
+                return Err(idempotency_conflict().into());
+            }
+            return self
+                .audit(
+                    actor,
+                    key,
+                    operation,
+                    record_type,
+                    record_id,
+                    record_version,
+                    evidence,
+                    now,
+                )
+                .await;
+        }
         let receipt = sqlx::query(
             "INSERT INTO command_receipts\
              (command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) \
@@ -229,6 +282,9 @@ impl<'c> PgIamRolesReviews<'c> {
         .bind(now)
         .execute(&mut *self.connection)
         .await?;
+        if self.platform {
+            return Ok(());
+        }
         sqlx::query(
             "INSERT INTO audit_events\
              (id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,\
@@ -645,6 +701,37 @@ impl IamRolesReviewRepository for PgIamRolesReviews<'_> {
     ) -> IamRolesFuture<'a, Option<IamReceiptSnapshot>, Self::Error> {
         Box::pin(async move {
             self.ready().await?;
+            if self.platform {
+                let row = sqlx::query(
+                    "SELECT request_hash,result,actor_id FROM iam_receipts WHERE id=$1",
+                )
+                .bind(key)
+                .fetch_optional(&mut *self.connection)
+                .await?;
+                let snapshot = row
+                    .map(|row| {
+                        let envelope: Value = row.try_get("result")?;
+                        let Some(operation) = envelope["operation"].as_str() else {
+                            return Ok::<_, sqlx::Error>(None);
+                        };
+                        let Some(record_id) = envelope["recordId"].as_str() else {
+                            return Ok(None);
+                        };
+                        let Some(result) = envelope.get("result") else {
+                            return Ok(None);
+                        };
+                        Ok(Some(IamReceiptSnapshot {
+                            request_hash: row.try_get("request_hash")?,
+                            result_json: result.to_string(),
+                            operation: operation.to_owned(),
+                            actor_id: row.try_get("actor_id")?,
+                            record_id: record_id.to_owned(),
+                            authority_json: envelope["authority"].to_string(),
+                        }))
+                    })
+                    .transpose()?;
+                return Ok(snapshot.flatten());
+            }
             let row = sqlx::query(
                 "SELECT request_hash,result_json,operation,actor_id,record_id,authority_json \
                  FROM command_receipts WHERE command_id=$1",
