@@ -312,6 +312,80 @@ impl MarketingAssetCreateInput {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MarketingAssetReviewInput {
+    pub action: String,
+    pub expected_version: i64,
+    pub reason: String,
+}
+
+impl MarketingAssetReviewInput {
+    pub fn validate(&self) -> Result<MarketingAssetAction, BusinessError> {
+        if !(1..=9_007_199_254_740_991).contains(&self.expected_version)
+            || !valid_text(&self.reason, 3, TEXT_LIMIT)
+        {
+            return Err(invalid(
+                "MARKETING_ASSET_ACTION_INVALID",
+                "Review the Marketing asset decision.",
+            ));
+        }
+        match self.action.as_str() {
+            "activate" => Ok(MarketingAssetAction::Activate),
+            "reject" => Ok(MarketingAssetAction::Reject),
+            "retire" => Ok(MarketingAssetAction::Retire),
+            _ => Err(invalid(
+                "INVALID_MARKETING_TRANSITION",
+                "Choose a supported Marketing asset action.",
+            )),
+        }
+    }
+
+    pub fn reason(&self) -> String {
+        js_trim(&self.reason).to_owned()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MarketingAssetAction {
+    Activate,
+    Reject,
+    Retire,
+}
+
+impl MarketingAssetAction {
+    pub fn operation(self) -> &'static str {
+        match self {
+            Self::Activate => "marketing.asset.activate",
+            Self::Reject => "marketing.asset.reject",
+            Self::Retire => "marketing.asset.retire",
+        }
+    }
+
+    /// Independent review is required for activation and rejection. A creator
+    /// may retire their own active asset, matching the retained owner rule.
+    pub fn requires_independent_review(self) -> bool {
+        !matches!(self, Self::Retire)
+    }
+
+    /// Exact source status accepted by this transition.
+    pub fn expected_status(self) -> &'static str {
+        match self {
+            Self::Activate | Self::Reject => "draft",
+            Self::Retire => "active",
+        }
+    }
+
+    /// Exact status persisted by this transition.
+    pub fn status(self) -> &'static str {
+        match self {
+            Self::Activate => "active",
+            Self::Reject => "rejected",
+            Self::Retire => "retired",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MarketingLeadCandidateInput {
     pub form_id: String,
     pub form_version: i64,
@@ -463,6 +537,46 @@ impl MarketingAssetProfile {
                 .ok()
                 .is_none_or(|value| !value.is_object())
             || serde_json::from_str::<serde_json::Value>(&self.preview_json)
+                .ok()
+                .is_none_or(|value| !value.is_object())
+        {
+            return Err(source_invalid());
+        }
+        Ok(())
+    }
+}
+
+/// Locked owner row used by the asset review transition. `created_by` is the
+/// independent-review witness and is not exposed by the profile read.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MarketingAssetReviewRow {
+    pub id: String,
+    pub company_id: String,
+    pub kind: String,
+    pub name: String,
+    pub status: String,
+    pub version: i64,
+    pub configuration_json: String,
+    pub created_by: String,
+}
+
+impl MarketingAssetReviewRow {
+    pub fn validate(&self, actor: &MarketingLeadActor) -> Result<(), BusinessError> {
+        if self.company_id != actor.company_id
+            || !valid_id(&self.id)
+            || !matches!(
+                self.kind.as_str(),
+                "form" | "content" | "domain" | "provider"
+            )
+            || !valid_text(&self.name, 2, NAME_LIMIT)
+            || !matches!(
+                self.status.as_str(),
+                "draft" | "active" | "rejected" | "retired"
+            )
+            || self.version < 1
+            || !valid_id(&self.created_by)
+            || self.configuration_json.len() > MAX_JSON
+            || serde_json::from_str::<serde_json::Value>(&self.configuration_json)
                 .ok()
                 .is_none_or(|value| !value.is_object())
         {
@@ -815,6 +929,27 @@ pub fn candidate_changed() -> BusinessError {
     conflict(
         "MARKETING_CANDIDATE_CHANGED",
         "The lead candidate changed. Reload and retry.",
+    )
+}
+
+pub fn asset_not_found() -> BusinessError {
+    not_found(
+        "MARKETING_ASSET_NOT_FOUND",
+        "Marketing asset not found in this workspace.",
+    )
+}
+
+pub fn asset_changed() -> BusinessError {
+    conflict(
+        "MARKETING_ASSET_CHANGED",
+        "The Marketing asset changed. Reload and retry.",
+    )
+}
+
+pub fn independent_asset_review_required() -> BusinessError {
+    conflict(
+        "MARKETING_INDEPENDENT_REVIEW_REQUIRED",
+        "A different reviewer must decide this Marketing asset.",
     )
 }
 

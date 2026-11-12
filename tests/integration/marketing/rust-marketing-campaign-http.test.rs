@@ -548,3 +548,567 @@ mod lead_http {
         server.abort();
     }
 }
+
+mod lead_command_http {
+    use super::http;
+    use erpx_server_marketing::public::lead_candidate_command_http::{
+        MarketingAssetReviewHttpRequest, MarketingCommandHttpRequest,
+        MarketingLeadCommandHttpBackend, MarketingLeadCommandHttpFuture,
+        MarketingLeadCommandHttpRequest, MarketingLeadCommandHttpTarget,
+        marketing_lead_command_http_router,
+    };
+    use erpx_server_runtime::public::http_support::{serde_json, serve};
+    use erpx_server_shared::public::{BusinessError, FailureKind};
+    use serde_json::Value;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum Seen {
+        Campaign {
+            key: String,
+            body: Value,
+        },
+        Candidate {
+            key: String,
+            body: Value,
+        },
+        Asset {
+            key: String,
+            body: Value,
+        },
+        Review {
+            asset: String,
+            key: String,
+            body: Value,
+        },
+        Engagement {
+            candidate: String,
+            key: String,
+        },
+    }
+
+    struct Probe {
+        seen: Arc<Mutex<Vec<Seen>>>,
+        fail: Option<BusinessError>,
+    }
+
+    impl Probe {
+        fn record(&self, seen: Seen) -> Result<Value, BusinessError> {
+            self.seen.lock().unwrap().push(seen);
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            Ok(serde_json::json!({
+                "data": {"id": "receipt-1", "status": "draft", "version": 1}
+            }))
+        }
+    }
+
+    impl MarketingLeadCommandHttpBackend for Probe {
+        fn record_engagement<'a>(
+            &'a self,
+            request: MarketingLeadCommandHttpRequest<'a>,
+        ) -> MarketingLeadCommandHttpFuture<'a> {
+            Box::pin(async move {
+                self.record(Seen::Engagement {
+                    candidate: request.candidate_id.into(),
+                    key: request.key.as_str().into(),
+                })
+            })
+        }
+
+        fn create_campaign<'a>(
+            &'a self,
+            request: MarketingCommandHttpRequest<'a>,
+        ) -> MarketingLeadCommandHttpFuture<'a> {
+            Box::pin(async move {
+                self.record(Seen::Campaign {
+                    key: request.key.as_str().into(),
+                    body: request.body.clone(),
+                })
+            })
+        }
+
+        fn create_candidate<'a>(
+            &'a self,
+            request: MarketingCommandHttpRequest<'a>,
+        ) -> MarketingLeadCommandHttpFuture<'a> {
+            Box::pin(async move {
+                self.record(Seen::Candidate {
+                    key: request.key.as_str().into(),
+                    body: request.body.clone(),
+                })
+            })
+        }
+
+        fn create_asset<'a>(
+            &'a self,
+            request: MarketingCommandHttpRequest<'a>,
+        ) -> MarketingLeadCommandHttpFuture<'a> {
+            Box::pin(async move {
+                self.record(Seen::Asset {
+                    key: request.key.as_str().into(),
+                    body: request.body.clone(),
+                })
+            })
+        }
+
+        fn review_asset<'a>(
+            &'a self,
+            request: MarketingAssetReviewHttpRequest<'a>,
+        ) -> MarketingLeadCommandHttpFuture<'a> {
+            Box::pin(async move {
+                self.record(Seen::Review {
+                    asset: request.asset_id.into(),
+                    key: request.key.as_str().into(),
+                    body: request.body.clone(),
+                })
+            })
+        }
+    }
+
+    fn target(backend: Arc<Probe>, host: &str, holding: &str) -> MarketingLeadCommandHttpTarget {
+        MarketingLeadCommandHttpTarget {
+            host: host.into(),
+            holding_slug: holding.into(),
+            origin: format!("https://{host}"),
+            backend,
+        }
+    }
+
+    fn post(
+        path: &str,
+        host: &str,
+        key: Option<&str>,
+        origin: Option<&str>,
+        body: &Value,
+    ) -> String {
+        let mut headers = format!("POST {path} HTTP/1.1\r\nHost: {host}\r\n");
+        if let Some(key) = key {
+            headers.push_str(&format!("Idempotency-Key: {key}\r\n"));
+        }
+        if let Some(origin) = origin {
+            headers.push_str(&format!("Origin: {origin}\r\n"));
+        }
+        let body = body.to_string();
+        format!(
+            "{headers}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+    }
+
+    #[tokio::test]
+    async fn native_command_routes_forward_normalized_create_and_review_bodies() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let backend = Arc::new(Probe {
+            seen: seen.clone(),
+            fail: None,
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let router =
+            marketing_lead_command_http_router(vec![target(backend, "acme.example.test", "acme")])
+                .unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+
+        let (status, body, raw) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/campaigns",
+                "acme.example.test",
+                Some("campaign-browser"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({
+                    "entity": "campaign",
+                    "action": "create",
+                    "code": " AUTUMN2 ",
+                    "name": " Autumn follow-up "
+                }),
+            ),
+        )
+        .await;
+        assert_eq!(status, 200, "{body}");
+        assert!(raw.contains("private, no-store"));
+        assert!(raw.contains("no-referrer"));
+        assert!(raw.contains("nosniff"));
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/leads",
+                "acme.example.test",
+                Some("candidate-browser"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({
+                    "entity": "candidate",
+                    "formId": "form-company",
+                    "formVersion": 1,
+                    "branchId": "branch",
+                    "contactName": "Synthetic candidate",
+                    "contactDetail": "synthetic@example.test",
+                    "consentEvidence": "Signed web consent",
+                    "attribution": {"campaign": "AUTUMN", "source": "web"},
+                    "brief": "Requested a call"
+                }),
+            ),
+        )
+        .await;
+        assert_eq!(status, 200, "{body}");
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/assets",
+                "acme.example.test",
+                Some("asset-browser"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({
+                    "entity": "asset",
+                    "kind": "form",
+                    "name": "Lead form",
+                    "configuration": {"consentRequired": true},
+                    "preview": {"headline": "Talk to us"}
+                }),
+            ),
+        )
+        .await;
+        assert_eq!(status, 200, "{body}");
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/assets/marketing-form-1/changes",
+                "acme.example.test",
+                Some("asset-review-browser"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({
+                    "entity": "asset",
+                    "id": "marketing-form-1",
+                    "action": "activate",
+                    "expectedVersion": 1,
+                    "reason": "Reviewed the exact asset decision."
+                }),
+            ),
+        )
+        .await;
+        assert_eq!(status, 200, "{body}");
+
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            &[
+                Seen::Campaign {
+                    key: "campaign-browser".into(),
+                    body: serde_json::json!({"code": "AUTUMN2", "name": "Autumn follow-up"})
+                },
+                Seen::Candidate {
+                    key: "candidate-browser".into(),
+                    body: serde_json::json!({
+                        "formId": "form-company",
+                        "formVersion": 1,
+                        "branchId": "branch",
+                        "contactName": "Synthetic candidate",
+                        "contactDetail": "synthetic@example.test",
+                        "consentEvidence": "Signed web consent",
+                        "attribution": {"campaign": "AUTUMN", "source": "web"},
+                        "brief": "Requested a call"
+                    })
+                },
+                Seen::Asset {
+                    key: "asset-browser".into(),
+                    body: serde_json::json!({
+                        "kind": "form",
+                        "name": "Lead form",
+                        "configurationJson": "{\"consentRequired\":true}",
+                        "previewJson": "{\"headline\":\"Talk to us\"}"
+                    })
+                },
+                Seen::Review {
+                    asset: "marketing-form-1".into(),
+                    key: "asset-review-browser".into(),
+                    body: serde_json::json!({
+                        "action": "activate",
+                        "expectedVersion": 1,
+                        "reason": "Reviewed the exact asset decision."
+                    })
+                }
+            ]
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn native_command_routes_reject_retained_non_native_and_hostile_transport() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let backend = Arc::new(Probe {
+            seen: seen.clone(),
+            fail: None,
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let router =
+            marketing_lead_command_http_router(vec![target(backend, "acme.example.test", "acme")])
+                .unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/campaigns",
+                "acme.example.test",
+                Some("campaign-link-cost"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({
+                    "action": "link-cost",
+                    "campaignId": "campaign-autumn",
+                    "journalLineId": "line-1",
+                    "evidence": "Posted cost evidence"
+                }),
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "MARKETING_COMMAND_NOT_NATIVE");
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/assets/marketing-form-1/changes",
+                "acme.example.test",
+                Some("asset-invalid-action"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({
+                    "action": "publish",
+                    "expectedVersion": 1,
+                    "reason": "Retained action"
+                }),
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "INVALID_MARKETING_TRANSITION");
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/assets/marketing-form-1/changes",
+                "acme.example.test",
+                Some("asset-wrong-id"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({
+                    "entity": "asset",
+                    "id": "marketing-form-2",
+                    "action": "activate",
+                    "expectedVersion": 1,
+                    "reason": "Reviewed the exact asset decision."
+                }),
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "MARKETING_COMMAND_NOT_NATIVE");
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/campaigns",
+                "acme.example.test",
+                None,
+                Some("https://acme.example.test"),
+                &serde_json::json!({"code": "AUTUMN2", "name": "Autumn follow-up"}),
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "COMMAND_KEY_REQUIRED");
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/campaigns",
+                "acme.example.test",
+                Some("campaign-origin"),
+                Some("https://other.example.test"),
+                &serde_json::json!({"code": "AUTUMN2", "name": "Autumn follow-up"}),
+            ),
+        )
+        .await;
+        assert_eq!(status, 403);
+        assert_eq!(body["error"]["code"], "ORIGIN_FORBIDDEN");
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/campaigns?query=1",
+                "acme.example.test",
+                Some("campaign-query"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({"code": "AUTUMN2", "name": "Autumn follow-up"}),
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "MARKETING_COMMAND_REQUEST_INVALID");
+
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/campaigns",
+                "other.example.test",
+                Some("campaign-target"),
+                Some("https://other.example.test"),
+                &serde_json::json!({"code": "AUTUMN2", "name": "Autumn follow-up"}),
+            ),
+        )
+        .await;
+        assert_eq!(status, 404);
+        assert_eq!(body["error"]["code"], "NOT_FOUND");
+
+        let oversized = "x".repeat(17 * 1024);
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/marketing/campaigns",
+                "acme.example.test",
+                Some("campaign-oversized"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({
+                    "code": "AUTUMN2",
+                    "name": oversized
+                }),
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "BODY_TOO_LARGE");
+
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "rejected transport and non-native actions must not reach the backend"
+        );
+
+        let failing = Arc::new(Probe {
+            seen: Arc::new(Mutex::new(Vec::new())),
+            fail: Some(BusinessError::new(
+                FailureKind::Conflict,
+                "MARKETING_ASSET_CHANGED",
+                "The Marketing asset changed.",
+            )),
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let fail_addr = listener.local_addr().unwrap();
+        let router =
+            marketing_lead_command_http_router(vec![target(failing, "acme.example.test", "acme")])
+                .unwrap();
+        let fail_server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+        let (status, body, _) = http(
+            fail_addr,
+            post(
+                "/api/v1/holdings/acme/marketing/assets/marketing-form-1/changes",
+                "acme.example.test",
+                Some("asset-failing"),
+                Some("https://acme.example.test"),
+                &serde_json::json!({
+                    "action": "activate",
+                    "expectedVersion": 1,
+                    "reason": "Reviewed the exact asset decision."
+                }),
+            ),
+        )
+        .await;
+        assert_eq!(status, 409);
+        assert_eq!(body["error"]["code"], "MARKETING_ASSET_CHANGED");
+
+        server.abort();
+        fail_server.abort();
+    }
+
+    struct EngagementOnly;
+
+    impl MarketingLeadCommandHttpBackend for EngagementOnly {
+        fn record_engagement<'a>(
+            &'a self,
+            _request: MarketingLeadCommandHttpRequest<'a>,
+        ) -> MarketingLeadCommandHttpFuture<'a> {
+            Box::pin(async {
+                Err(BusinessError::new(
+                    FailureKind::NotFound,
+                    "NOT_FOUND",
+                    "Not found.",
+                ))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn unmounted_create_and_review_commands_fail_closed_without_a_typescript_fallback() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let router = marketing_lead_command_http_router(vec![MarketingLeadCommandHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend: Arc::new(EngagementOnly),
+        }])
+        .unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+        for (path, body) in [
+            (
+                "/api/v1/holdings/acme/marketing/campaigns",
+                serde_json::json!({"code": "AUTUMN2", "name": "Autumn follow-up"}),
+            ),
+            (
+                "/api/v1/holdings/acme/marketing/leads",
+                serde_json::json!({
+                    "formId": "form-company",
+                    "formVersion": 1,
+                    "branchId": "branch",
+                    "contactName": "Synthetic candidate",
+                    "contactDetail": "synthetic@example.test",
+                    "consentEvidence": "Signed web consent",
+                    "attribution": {},
+                    "brief": "Requested a call"
+                }),
+            ),
+            (
+                "/api/v1/holdings/acme/marketing/assets",
+                serde_json::json!({
+                    "kind": "content",
+                    "name": "Draft content",
+                    "configuration": {},
+                    "preview": {}
+                }),
+            ),
+            (
+                "/api/v1/holdings/acme/marketing/assets/marketing-form-1/changes",
+                serde_json::json!({
+                    "action": "activate",
+                    "expectedVersion": 1,
+                    "reason": "Reviewed the exact asset decision."
+                }),
+            ),
+        ] {
+            let (status, body, _) = http(
+                addr,
+                post(
+                    path,
+                    "acme.example.test",
+                    Some("unmounted-command"),
+                    Some("https://acme.example.test"),
+                    &body,
+                ),
+            )
+            .await;
+            assert_eq!(status, 503, "{path}: {body}");
+            assert_eq!(body["error"]["code"], "MARKETING_COMMAND_NOT_MOUNTED");
+        }
+        server.abort();
+    }
+}

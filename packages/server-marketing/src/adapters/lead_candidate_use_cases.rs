@@ -6,15 +6,17 @@
 //! writes only its own tables and hands the CRM child to the public CRM port in
 //! the same transaction. Files/CRM/Commerce SQL is never reached here.
 use crate::domain::lead_candidate::{
-    MarketingAssetProfile, MarketingAssetProfiles, MarketingCampaignCreateInput,
-    MarketingCampaignReadback, MarketingCandidateReadback, MarketingCommandReceipt,
-    MarketingCrmLeadRequest, MarketingCrmLeadResult, MarketingEngagementRow,
-    MarketingFormAssetFacts, MarketingLeadAction, MarketingLeadActionInput, MarketingLeadActor,
-    MarketingLeadCandidateInput, MarketingLeadCandidateRow, MarketingLeadDetail,
+    MarketingAssetAction, MarketingAssetProfile, MarketingAssetProfiles, MarketingAssetReviewInput,
+    MarketingAssetReviewRow, MarketingCampaignCreateInput, MarketingCampaignReadback,
+    MarketingCandidateReadback, MarketingCommandReceipt, MarketingCrmLeadRequest,
+    MarketingCrmLeadResult, MarketingEngagementRow, MarketingFormAssetFacts, MarketingLeadAction,
+    MarketingLeadActionInput, MarketingLeadActor, MarketingLeadCandidateInput,
+    MarketingLeadCandidateRow, MarketingLeadDetail, asset_changed, asset_not_found,
     campaign_code_taken, candidate_changed, candidate_not_found, crm_request,
     form_configuration_allows_capture, form_not_ready, form_readiness_port_required,
-    form_requires_files_readiness, idempotency_conflict, independent_review_required, js_trim,
-    permission_required, readback_invalid, request_invalid, source_invalid,
+    form_requires_files_readiness, idempotency_conflict, independent_asset_review_required,
+    independent_review_required, js_trim, permission_required, readback_invalid, request_invalid,
+    source_invalid,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, TimestampMillis};
@@ -115,6 +117,40 @@ pub trait MarketingLeadRepository {
         company: &'a str,
         id: &'a str,
     ) -> PgWorkFuture<'a, Option<MarketingAssetProfile>, BusinessError>;
+
+    fn asset_review_row<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        company: &'a str,
+        id: &'a str,
+        lock: bool,
+    ) -> PgWorkFuture<'a, Option<MarketingAssetReviewRow>, BusinessError>;
+
+    #[allow(clippy::too_many_arguments)]
+    fn asset_review<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        actor: &'a MarketingLeadActor,
+        id: &'a str,
+        expected_version: i64,
+        expected_status: &'a str,
+        status: &'a str,
+        now: i64,
+    ) -> PgWorkFuture<'a, bool, BusinessError>;
+
+    #[allow(clippy::too_many_arguments)]
+    fn insert_asset_event<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        id: &'a str,
+        asset_id: &'a str,
+        version: i64,
+        action: &'a str,
+        actor_id: &'a str,
+        reason: &'a str,
+        status: &'a str,
+        now: i64,
+    ) -> PgWorkFuture<'a, bool, BusinessError>;
 
     fn campaign_readback<'a>(
         &'a mut self,
@@ -574,7 +610,7 @@ pub async fn create_asset<R: MarketingLeadRepository + ?Sized>(
     repository: &mut R,
     c: &mut PgConnection,
     now: TimestampMillis,
-) -> Result<MarketingAssetProfile, PgTransactionError<BusinessError>> {
+) -> Result<MarketingCommandReceipt, PgTransactionError<BusinessError>> {
     actor.require_write(now)?;
     input.validate()?;
     let id = format!("marketing-{}-{key}", input.kind);
@@ -600,14 +636,27 @@ pub async fn create_asset<R: MarketingLeadRepository + ?Sized>(
     )
     .await?;
     if let Some(prior) = start.prior {
-        return repository
-            .asset_readback(c, &actor.company_id, &prior.id)
-            .await?
-            .ok_or_else(readback_invalid)
-            .map_err(Into::into);
+        return Ok(prior);
     }
     if !repository
         .asset_create(c, &id, actor, input, now.get())
+        .await?
+    {
+        return Err(source_invalid().into());
+    }
+    let event_id = format!("marketing-asset-event-{key}");
+    if !repository
+        .insert_asset_event(
+            c,
+            &event_id,
+            &id,
+            1,
+            "create",
+            &actor.user_id,
+            "Asset drafted for independent review",
+            "draft",
+            now.get(),
+        )
         .await?
     {
         return Err(source_invalid().into());
@@ -649,7 +698,131 @@ pub async fn create_asset<R: MarketingLeadRepository + ?Sized>(
         now,
     )
     .await?;
-    Ok(readback)
+    Ok(receipt)
+}
+
+/// Review one draft/active Marketing asset. Activation and rejection require a
+/// different reviewer; retirement may be performed by the creator. Form
+/// activation keeps the retained consent and Files-readiness gates and fails
+/// closed when the Files-owned readiness port is not bound.
+pub async fn review_asset<R: MarketingLeadRepository + ?Sized>(
+    actor: &MarketingLeadActor,
+    asset_id: &str,
+    input: &MarketingAssetReviewInput,
+    key: &str,
+    repository: &mut R,
+    c: &mut PgConnection,
+    now: TimestampMillis,
+) -> Result<MarketingCommandReceipt, PgTransactionError<BusinessError>> {
+    actor.require_write(now)?;
+    let action = input.validate()?;
+    let operation = action.operation();
+    let identity = serde_json::json!({
+        "operation": operation,
+        "actor": actor.user_id,
+        "company": actor.company_id,
+        "asset": asset_id,
+        "action": input.action,
+        "expectedVersion": input.expected_version,
+        "reason": input.reason,
+    })
+    .to_string();
+    let start = begin(
+        repository, c, actor, key, &identity, operation, asset_id, now,
+    )
+    .await?;
+    if let Some(prior) = start.prior {
+        return Ok(prior);
+    }
+    let row = repository
+        .asset_review_row(c, &actor.company_id, asset_id, true)
+        .await?
+        .ok_or_else(asset_not_found)?;
+    row.validate(actor)?;
+    if action.requires_independent_review() && row.created_by == actor.user_id {
+        return Err(independent_asset_review_required().into());
+    }
+    if row.status != action.expected_status() || row.version != input.expected_version {
+        return Err(asset_changed().into());
+    }
+    if action == MarketingAssetAction::Activate && row.kind == "form" {
+        if !form_configuration_allows_capture(&row.configuration_json)? {
+            return Err(crate::domain::lead_candidate::invalid(
+                "MARKETING_CONSENT_REQUIRED",
+                "Lead capture forms must require consent before activation.",
+            )
+            .into());
+        }
+        if form_requires_files_readiness(&row.configuration_json)? {
+            return Err(form_readiness_port_required().into());
+        }
+    }
+    let status = action.status();
+    if !repository
+        .asset_review(
+            c,
+            actor,
+            asset_id,
+            input.expected_version,
+            action.expected_status(),
+            status,
+            now.get(),
+        )
+        .await?
+    {
+        return Err(asset_changed().into());
+    }
+    let version = input.expected_version + 1;
+    let reason = input.reason();
+    let event_id = format!("marketing-asset-event-{key}");
+    if !repository
+        .insert_asset_event(
+            c,
+            &event_id,
+            asset_id,
+            version,
+            &input.action,
+            &actor.user_id,
+            &reason,
+            status,
+            now.get(),
+        )
+        .await?
+    {
+        return Err(source_invalid().into());
+    }
+    let readback = repository
+        .asset_readback(c, &actor.company_id, asset_id)
+        .await?
+        .ok_or_else(readback_invalid)?;
+    readback.validate(actor)?;
+    if readback.status != status || readback.version != version {
+        return Err(readback_invalid().into());
+    }
+    let receipt = MarketingCommandReceipt {
+        id: asset_id.into(),
+        status: status.into(),
+        version,
+        crm_lead_id: None,
+        code: None,
+        name: Some(readback.name),
+    };
+    finish(
+        repository,
+        c,
+        actor,
+        key,
+        operation,
+        "marketing_asset",
+        asset_id,
+        status,
+        version,
+        &start.request_hash,
+        &receipt,
+        now,
+    )
+    .await?;
+    Ok(receipt)
 }
 
 pub async fn record_engagement<R: MarketingLeadRepository + ?Sized>(

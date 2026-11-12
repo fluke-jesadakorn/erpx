@@ -719,11 +719,11 @@ mod lead_candidate_commands {
     use super::fixture;
     use super::setup;
     use erpx_server_marketing::public::lead_candidate::{
-        MarketingCampaignCreateInput, MarketingCrmHandoffPort, MarketingCrmLeadRequest,
-        MarketingCrmLeadResult, MarketingLeadActionInput, MarketingLeadActor,
-        MarketingLeadCandidateInput, PgMarketingLead, asset_profiles, create_asset,
-        create_campaign, create_candidate, handoff_candidate, lead_candidates, lead_detail,
-        record_engagement,
+        MarketingAssetReviewInput, MarketingCampaignCreateInput, MarketingCrmHandoffPort,
+        MarketingCrmLeadRequest, MarketingCrmLeadResult, MarketingLeadActionInput,
+        MarketingLeadActor, MarketingLeadCandidateInput, PgMarketingLead, asset_profiles,
+        create_asset, create_campaign, create_candidate, handoff_candidate, lead_candidates,
+        lead_detail, record_engagement, review_asset,
     };
     use erpx_server_runtime::public::postgres::{
         PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
@@ -1567,7 +1567,7 @@ mod lead_candidate_commands {
                     configuration_json: "{}".into(),
                     preview_json: "{\"headline\":\"Draft\"}".into(),
                 };
-            let profile = PgUnitOfWork::new(pool.clone())
+            let receipt = PgUnitOfWork::new(pool.clone())
                 .run::<_, BusinessError, _>(TransactionOptions::default(), {
                     let actor = actor.clone();
                     let content = content.clone();
@@ -1583,9 +1583,10 @@ mod lead_candidate_commands {
                 })
                 .await
                 .unwrap();
-            assert_eq!(profile.id, "marketing-content-asset-content");
-            assert_eq!(profile.status, "draft");
-            assert_eq!(profile.version, 1);
+            assert_eq!(receipt.id, "marketing-content-asset-content");
+            assert_eq!(receipt.status, "draft");
+            assert_eq!(receipt.version, 1);
+            assert_eq!(receipt.name.as_deref(), Some("Approved content draft"));
             let replay = PgUnitOfWork::new(pool.clone())
                 .run::<_, BusinessError, _>(TransactionOptions::default(), {
                     let actor = actor.clone();
@@ -1602,7 +1603,7 @@ mod lead_candidate_commands {
                 })
                 .await
                 .unwrap();
-            assert_eq!(replay, profile);
+            assert_eq!(replay, receipt);
 
             let form = erpx_server_marketing::public::lead_candidate::MarketingAssetCreateInput {
                 kind: "form".into(),
@@ -1659,15 +1660,233 @@ mod lead_candidate_commands {
                 .map_err(business)
                 .unwrap_err();
             assert_eq!(denied.code, "MARKETING_CONSENT_REQUIRED");
-            let assets: (i64, i64) = sqlx::query_as(
+            let assets: (i64, i64, i64) = sqlx::query_as(
                 "SELECT (SELECT count(*) FROM marketing_assets \
                    WHERE id IN ('marketing-content-asset-content','marketing-form-asset-form')),\
-                 (SELECT count(*) FROM command_receipts WHERE command_id='asset-content')",
+                 (SELECT count(*) FROM command_receipts WHERE command_id='asset-content'),\
+                 (SELECT count(*) FROM marketing_asset_events \
+                   WHERE asset_id IN ('marketing-content-asset-content','marketing-form-asset-form') \
+                   AND action='create')",
             )
             .fetch_one(pool.raw())
             .await
             .unwrap();
-            assert_eq!(assets, (2, 1));
+            assert_eq!(assets, (2, 1, 2));
+        })
+        .await;
+    }
+
+    async fn review_once(
+        pool: &erpx_server_runtime::public::postgres::DatabasePool,
+        actor: MarketingLeadActor,
+        asset: &str,
+        action: &str,
+        expected_version: i64,
+        key: &str,
+    ) -> Result<
+        erpx_server_marketing::public::lead_candidate::MarketingCommandReceipt,
+        PgTransactionError<BusinessError>,
+    > {
+        let asset = asset.to_owned();
+        let action = action.to_owned();
+        let key = key.to_owned();
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), move |c| {
+                let actor = actor.clone();
+                let asset = asset.clone();
+                let action = action.clone();
+                let key = key.clone();
+                Box::pin(async move {
+                    let mut repository = PgMarketingLead;
+                    review_asset(
+                        &actor,
+                        &asset,
+                        &MarketingAssetReviewInput {
+                            action,
+                            expected_version,
+                            reason: "Reviewed the exact Marketing asset decision.".into(),
+                        },
+                        &key,
+                        &mut repository,
+                        c,
+                        NOW,
+                    )
+                    .await
+                })
+            })
+            .await
+    }
+
+    #[tokio::test]
+    async fn asset_review_is_independent_versioned_and_records_events_and_receipts() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            add_iam(&pool).await;
+            sqlx::raw_sql(
+                "INSERT INTO marketing_assets(id,company_id,kind,name,configuration_json,preview_json,status,created_by,reviewed_by,version,created_at,updated_at) VALUES \
+                 ('domain-reject','company','domain','Rejected domain','{}','{}','draft','owner',NULL,1,10,10),\
+                 ('domain-wrong','company','domain','Versioned domain','{}','{}','draft','owner',NULL,1,10,10),\
+                 ('form-refs','company','form','Files form draft','{\"consentRequired\":true,\"contentAssetId\":\"content-1\"}','{}','draft','owner',NULL,1,10,10),\
+                 ('form-noconsent','company','form','No consent draft','{}','{}','draft','owner',NULL,1,10,10)",
+            )
+            .execute(pool.raw())
+            .await
+            .unwrap();
+
+            let reviewer = lead_actor("reviewer", "assignment-reviewer");
+            let owner = lead_actor("owner", "assignment-owner");
+
+            let activated = review_once(
+                &pool,
+                reviewer.clone(),
+                "domain-1",
+                "activate",
+                1,
+                "asset-activate",
+            )
+            .await
+            .unwrap();
+            assert_eq!(activated.id, "domain-1");
+            assert_eq!(activated.status, "active");
+            assert_eq!(activated.version, 2);
+            let row: (String, Option<String>, i64) = sqlx::query_as(
+                "SELECT status,reviewed_by,version FROM marketing_assets WHERE id='domain-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(row, ("active".into(), Some("reviewer".into()), 2));
+            let event: (String, String, String, i64) = sqlx::query_as(
+                "SELECT action,status,actor_id,version FROM marketing_asset_events \
+                 WHERE asset_id='domain-1' AND version=2",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                event,
+                ("activate".into(), "active".into(), "reviewer".into(), 2)
+            );
+            let evidence: (i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM command_receipts WHERE command_id='asset-activate'),\
+                 (SELECT count(*) FROM audit_events WHERE command_id='asset-activate'),\
+                 (SELECT count(*) FROM outbox_events WHERE command_id='asset-activate')",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(evidence, (1, 1, 1));
+
+            let replay = review_once(
+                &pool,
+                reviewer.clone(),
+                "domain-1",
+                "activate",
+                1,
+                "asset-activate",
+            )
+            .await
+            .unwrap();
+            assert_eq!(replay, activated);
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM marketing_asset_events WHERE asset_id='domain-1'",
+                )
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+                1
+            );
+
+            let independent = review_once(
+                &pool,
+                owner.clone(),
+                "domain-reject",
+                "activate",
+                1,
+                "asset-independent",
+            )
+            .await
+            .map_err(business)
+            .unwrap_err();
+            assert_eq!(independent.code, "MARKETING_INDEPENDENT_REVIEW_REQUIRED");
+
+            let rejected = review_once(
+                &pool,
+                reviewer.clone(),
+                "domain-reject",
+                "reject",
+                1,
+                "asset-reject",
+            )
+            .await
+            .unwrap();
+            assert_eq!(rejected.status, "rejected");
+            assert_eq!(rejected.version, 2);
+
+            let retired = review_once(
+                &pool,
+                owner.clone(),
+                "domain-1",
+                "retire",
+                2,
+                "asset-retire",
+            )
+            .await
+            .unwrap();
+            assert_eq!(retired.status, "retired");
+            assert_eq!(retired.version, 3);
+
+            let stale = review_once(
+                &pool,
+                reviewer.clone(),
+                "domain-wrong",
+                "activate",
+                2,
+                "asset-stale",
+            )
+            .await
+            .map_err(business)
+            .unwrap_err();
+            assert_eq!(stale.code, "MARKETING_ASSET_CHANGED");
+
+            let readiness = review_once(
+                &pool,
+                reviewer.clone(),
+                "form-refs",
+                "activate",
+                1,
+                "asset-form-refs",
+            )
+            .await
+            .map_err(business)
+            .unwrap_err();
+            assert_eq!(readiness.code, "MARKETING_FORM_READINESS_PORT_REQUIRED");
+            let consent = review_once(
+                &pool,
+                reviewer.clone(),
+                "form-noconsent",
+                "activate",
+                1,
+                "asset-form-consent",
+            )
+            .await
+            .map_err(business)
+            .unwrap_err();
+            assert_eq!(consent.code, "MARKETING_CONSENT_REQUIRED");
+
+            let foreign = review_once(
+                &pool,
+                reviewer,
+                "content-foreign",
+                "activate",
+                1,
+                "asset-foreign",
+            )
+            .await
+            .map_err(business)
+            .unwrap_err();
+            assert_eq!(foreign.code, "MARKETING_ASSET_NOT_FOUND");
         })
         .await;
     }

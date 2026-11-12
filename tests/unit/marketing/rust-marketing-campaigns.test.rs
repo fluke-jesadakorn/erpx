@@ -846,3 +846,170 @@ mod lead_candidate_facts {
         assert!(request.source.len() <= 2_000);
     }
 }
+
+mod asset_review_facts {
+    use super::NOW;
+    use erpx_server_marketing::public::lead_candidate::{
+        MarketingAssetAction, MarketingAssetReviewInput, MarketingAssetReviewRow,
+        MarketingLeadActor,
+    };
+    use erpx_server_shared::public::RecordId;
+
+    fn actor(user: &str) -> MarketingLeadActor {
+        MarketingLeadActor {
+            user_id: user.into(),
+            company_id: "company".into(),
+            branch_id: Some(RecordId::new("branch").unwrap()),
+            department_id: None,
+            assignment_id: "assignment".into(),
+            role: Some("sales_manager".into()),
+            authority_revision: Some(1),
+            assignment_version: Some(1),
+            permissions: vec!["records.read".into(), "records.write".into()],
+            modules: vec!["marketing".into()],
+            expires_at: NOW.get() + 60_000,
+        }
+    }
+
+    fn review(action: &str) -> MarketingAssetReviewInput {
+        MarketingAssetReviewInput {
+            action: action.into(),
+            expected_version: 1,
+            reason: "  Reviewed the exact asset decision.  ".into(),
+        }
+    }
+
+    fn row() -> MarketingAssetReviewRow {
+        MarketingAssetReviewRow {
+            id: "marketing-form-1".into(),
+            company_id: "company".into(),
+            kind: "form".into(),
+            name: "Lead form".into(),
+            status: "draft".into(),
+            version: 1,
+            configuration_json: "{\"consentRequired\":true}".into(),
+            created_by: "owner".into(),
+        }
+    }
+
+    #[test]
+    fn review_actions_map_to_exact_operations_statuses_and_transitions() {
+        let cases = [
+            (
+                "activate",
+                MarketingAssetAction::Activate,
+                "marketing.asset.activate",
+                "draft",
+                "active",
+                true,
+            ),
+            (
+                "reject",
+                MarketingAssetAction::Reject,
+                "marketing.asset.reject",
+                "draft",
+                "rejected",
+                true,
+            ),
+            (
+                "retire",
+                MarketingAssetAction::Retire,
+                "marketing.asset.retire",
+                "active",
+                "retired",
+                false,
+            ),
+        ];
+        for (raw, action, operation, expected, status, independent) in cases {
+            let input = review(raw);
+            assert_eq!(input.validate().unwrap(), action);
+            assert_eq!(input.reason(), "Reviewed the exact asset decision.");
+            assert_eq!(action.operation(), operation);
+            assert_eq!(action.expected_status(), expected);
+            assert_eq!(action.status(), status);
+            assert_eq!(action.requires_independent_review(), independent);
+        }
+    }
+
+    #[test]
+    fn review_input_rejects_unknown_actions_versions_and_unbounded_reasons() {
+        for action in ["publish", "", "Activate"] {
+            assert_eq!(
+                review(action).validate().unwrap_err().code,
+                "INVALID_MARKETING_TRANSITION"
+            );
+        }
+        for expected_version in [0, -1] {
+            let mut input = review("activate");
+            input.expected_version = expected_version;
+            assert_eq!(
+                input.validate().unwrap_err().code,
+                "MARKETING_ASSET_ACTION_INVALID"
+            );
+        }
+        for reason in ["  ", "ab", &"x".repeat(3_001)] {
+            let mut input = review("activate");
+            input.reason = reason.into();
+            assert_eq!(
+                input.validate().unwrap_err().code,
+                "MARKETING_ASSET_ACTION_INVALID"
+            );
+        }
+    }
+
+    #[test]
+    fn review_body_is_exact_camel_case_and_rejects_unknown_fields() {
+        let input: MarketingAssetReviewInput = serde_json::from_value(serde_json::json!({
+            "action": "activate",
+            "expectedVersion": 2,
+            "reason": "Reviewed the exact asset decision."
+        }))
+        .unwrap();
+        assert_eq!(input.expected_version, 2);
+        assert!(
+            serde_json::from_value::<MarketingAssetReviewInput>(serde_json::json!({
+                "action": "activate",
+                "expectedVersion": 2,
+                "reason": "Reviewed the exact asset decision.",
+                "status": "active"
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<MarketingAssetReviewInput>(serde_json::json!({
+                "action": "activate",
+                "expected_version": 2,
+                "reason": "Reviewed the exact asset decision."
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn review_row_preserves_company_kind_status_and_creator_witnesses() {
+        row().validate(&actor("reviewer")).unwrap();
+        let mut foreign = row();
+        foreign.company_id = "foreign".into();
+        assert_eq!(
+            foreign.validate(&actor("reviewer")).unwrap_err().code,
+            "MARKETING_SOURCE_INVALID"
+        );
+        for status in ["pending", "", "ACTIVE"] {
+            let mut changed = row();
+            changed.status = status.into();
+            assert_eq!(
+                changed.validate(&actor("reviewer")).unwrap_err().code,
+                "MARKETING_SOURCE_INVALID"
+            );
+        }
+        let mut kind = row();
+        kind.kind = "unknown".into();
+        assert!(kind.validate(&actor("reviewer")).is_err());
+        let mut creator = row();
+        creator.created_by = String::new();
+        assert!(creator.validate(&actor("reviewer")).is_err());
+        let mut configuration = row();
+        configuration.configuration_json = "[]".into();
+        assert!(configuration.validate(&actor("reviewer")).is_err());
+    }
+}

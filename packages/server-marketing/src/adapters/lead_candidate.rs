@@ -10,7 +10,7 @@ use crate::adapters::lead_candidate_use_cases::{
     MarketingStoredReceipt,
 };
 use crate::domain::lead_candidate::{
-    ASSET_LIMIT, CANDIDATE_LIMIT, HISTORY_LIMIT, MarketingAssetProfile,
+    ASSET_LIMIT, CANDIDATE_LIMIT, HISTORY_LIMIT, MarketingAssetProfile, MarketingAssetReviewRow,
     MarketingCampaignCreateInput, MarketingCampaignReadback, MarketingCandidateReadback,
     MarketingEngagementRow, MarketingFormAssetFacts, MarketingLeadActor,
     MarketingLeadCandidateInput, MarketingLeadCandidateRow,
@@ -280,6 +280,107 @@ impl MarketingLeadRepository for PgMarketingLead {
                 })
             })
             .transpose()
+        })
+    }
+
+    fn asset_review_row<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        company: &'a str,
+        id: &'a str,
+        lock: bool,
+    ) -> PgWorkFuture<'a, Option<MarketingAssetReviewRow>, BusinessError> {
+        Box::pin(async move {
+            PgMarketingLead::ready(c).await?;
+            let sql = if lock {
+                "SELECT id,company_id,kind,name,status,version,configuration_json,created_by \
+                 FROM marketing_assets WHERE id=$1 AND company_id=$2 FOR UPDATE"
+            } else {
+                "SELECT id,company_id,kind,name,status,version,configuration_json,created_by \
+                 FROM marketing_assets WHERE id=$1 AND company_id=$2"
+            };
+            let row = sqlx::query(sql)
+                .bind(id)
+                .bind(company)
+                .fetch_optional(&mut *c)
+                .await?;
+            row.map(|row| {
+                Ok::<_, Error>(MarketingAssetReviewRow {
+                    id: row.try_get("id")?,
+                    company_id: row.try_get("company_id")?,
+                    kind: row.try_get("kind")?,
+                    name: row.try_get("name")?,
+                    status: row.try_get("status")?,
+                    version: row.try_get("version")?,
+                    configuration_json: row.try_get("configuration_json")?,
+                    created_by: row.try_get("created_by")?,
+                })
+            })
+            .transpose()
+        })
+    }
+
+    fn asset_review<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        actor: &'a MarketingLeadActor,
+        id: &'a str,
+        expected_version: i64,
+        expected_status: &'a str,
+        status: &'a str,
+        now: i64,
+    ) -> PgWorkFuture<'a, bool, BusinessError> {
+        Box::pin(async move {
+            PgMarketingLead::ready(c).await?;
+            let changed = sqlx::query(
+                "UPDATE marketing_assets SET status=$3,reviewed_by=$4,version=version+1,updated_at=$5 \
+                 WHERE id=$1 AND company_id=$2 AND status=$6 AND version=$7",
+            )
+            .bind(id)
+            .bind(&actor.company_id)
+            .bind(status)
+            .bind(&actor.user_id)
+            .bind(now)
+            .bind(expected_status)
+            .bind(expected_version)
+            .execute(&mut *c)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+
+    fn insert_asset_event<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        id: &'a str,
+        asset_id: &'a str,
+        version: i64,
+        action: &'a str,
+        actor_id: &'a str,
+        reason: &'a str,
+        status: &'a str,
+        now: i64,
+    ) -> PgWorkFuture<'a, bool, BusinessError> {
+        Box::pin(async move {
+            PgMarketingLead::ready(c).await?;
+            let changed = sqlx::query(
+                "INSERT INTO marketing_asset_events\
+                 (id,asset_id,version,action,actor_id,reason,status,created_at) \
+                 VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING",
+            )
+            .bind(id)
+            .bind(asset_id)
+            .bind(version)
+            .bind(action)
+            .bind(actor_id)
+            .bind(reason)
+            .bind(status)
+            .bind(now)
+            .execute(&mut *c)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
         })
     }
 
