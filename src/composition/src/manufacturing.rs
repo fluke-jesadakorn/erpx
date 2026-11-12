@@ -39,9 +39,12 @@ use erpx_server_manufacturing::public::specification::{
     SpecificationHttpCommand, SpecificationHttpFuture, SpecificationHttpRequest,
     SpecificationHttpResponse, create_specification, review_specification,
 };
+use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
+use erpx_server_commercial::public::purchase_command_boundary::{
+    PurchaseCommandBoundary, PurchaseCommandScope,
+};
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
-    PurchaseWitness, current_package_catalogue,
+    CapabilityPurpose, PackageEnforcementMode, current_package_catalogue,
 };
 use erpx_server_planning::public::planning_http::{
     PlanningHttpBackend, PlanningHttpFuture, PlanningHttpRequest, PlanningHttpResponse,
@@ -500,16 +503,15 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
                             SpecificationHttpCommand::Create { body, .. } => {
                                 let request: SpecificationCreateRequest = decode_specification(body)?;
                                 let record_id = format!("mfg-spec-{}", key.as_str());
-                                let witness = admit_specification(
+                                let boundary = begin_specification_purchase(
                                     connection,
                                     &holding,
                                     &company,
-                                    &actor,
+                                    &actor.user_id,
                                     &key,
                                     erpx_server_manufacturing::public::specification::CREATE_OPERATION,
                                     &record_id,
                                     CapabilityPurpose::NewWork,
-                                    now,
                                 )
                                 .await?;
                                 let data = {
@@ -517,12 +519,8 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
                                     create_specification(&mut repository, &actor, &key, request, now)
                                         .await?
                                 };
-                                if let Some(witness) = &witness {
-                                    revalidate_specification(
-                                        connection, &holding, &company, witness, now,
-                                    )
+                                complete_specification_purchase(boundary, connection, &holding)
                                     .await?;
-                                }
                                 Ok::<Value, PgTransactionError<BusinessError>>(data)
                             }
                             SpecificationHttpCommand::Review {
@@ -538,16 +536,15 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
                                         CapabilityPurpose::SettleExisting
                                     }
                                 };
-                                let witness = admit_specification(
+                                let boundary = begin_specification_purchase(
                                     connection,
                                     &holding,
                                     &company,
-                                    &actor,
+                                    &actor.user_id,
                                     &key,
                                     action.operation(),
                                     &specification_id,
                                     purpose,
-                                    now,
                                 )
                                 .await?;
                                 let data = {
@@ -562,12 +559,8 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
                                     )
                                     .await?
                                 };
-                                if let Some(witness) = &witness {
-                                    revalidate_specification(
-                                        connection, &holding, &company, witness, now,
-                                    )
+                                complete_specification_purchase(boundary, connection, &holding)
                                     .await?;
-                                }
                                 Ok::<Value, PgTransactionError<BusinessError>>(data)
                             }
                         }?;
@@ -632,20 +625,19 @@ fn manufacturing_purchase_mode() -> Result<PackageEnforcementMode, BusinessError
     Ok(mode)
 }
 
-/// Inspect the current Company purchase before the owner effect. A replay is
-/// admitted under `history`, matching the retained command boundary.
+/// Begin the native purchase-command boundary before any owner effect. A
+/// replay is admitted under `history`, matching the retained command boundary.
 #[allow(clippy::too_many_arguments)]
-async fn admit_specification(
+async fn begin_specification_purchase(
     connection: &mut PgConnection,
     holding: &HoldingId,
     company: &CompanyId,
-    actor: &BomActor,
+    actor_id: &str,
     key: &erpx_server_shared::public::CommandKey,
     operation: &str,
     record_id: &str,
     purpose: CapabilityPurpose,
-    now: TimestampMillis,
-) -> Result<Option<PurchaseWitness>, Error> {
+) -> Result<Option<PurchaseCommandBoundary>, Error> {
     let mode = manufacturing_purchase_mode()?;
     if mode == PackageEnforcementMode::Disabled {
         return Ok(None);
@@ -657,8 +649,8 @@ async fn admit_specification(
     .bind(key.as_str())
     .bind(operation)
     .bind(record_id)
-    .bind(&actor.user_id)
-    .bind(actor.company_id.as_str())
+    .bind(actor_id)
+    .bind(company.as_str())
     .fetch_one(&mut *connection)
     .await?;
     let purpose = if replayed {
@@ -666,34 +658,37 @@ async fn admit_specification(
     } else {
         purpose
     };
-    let catalogue = current_package_catalogue()?;
-    let mut reader =
-        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, &catalogue);
-    let inspection = reader
-        .inspect(
-            &PurchaseRequest {
-                capabilities: vec!["manufacturing.bom".to_owned()],
-                purpose,
-                mode,
-            },
-            now,
-        )
-        .await?;
-    Ok(Some(inspection.require_allowed()?.clone()))
+    let mut boundary = PurchaseCommandBoundary::new(
+        mode,
+        key.as_str(),
+        PurchaseCommandScope {
+            company_id: company.clone(),
+            capability: "manufacturing.bom".to_owned(),
+            purpose,
+        },
+    )?;
+    if let Some(active) = boundary.as_mut() {
+        let catalogue = current_package_catalogue()?;
+        active.begin(connection, holding, &catalogue).await?;
+    }
+    Ok(boundary)
 }
 
-/// Revalidate the admission witness before the owner unit commits.
-async fn revalidate_specification(
+/// Close the boundary after the owner effects; shadow telemetry never fails the
+/// command.
+async fn complete_specification_purchase(
+    boundary: Option<PurchaseCommandBoundary>,
     connection: &mut PgConnection,
     holding: &HoldingId,
-    company: &CompanyId,
-    witness: &PurchaseWitness,
-    now: TimestampMillis,
 ) -> Result<(), Error> {
+    let Some(mut boundary) = boundary else {
+        return Ok(());
+    };
     let catalogue = current_package_catalogue()?;
-    let mut reader =
-        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, &catalogue);
-    reader.revalidate(witness, now).await?;
+    let receipt = boundary.complete(connection, holding, &catalogue).await?;
+    if let Some(observation) = receipt.observation {
+        write_purchase_shadow_checked_observation(&mut std::io::stderr(), &observation);
+    }
     Ok(())
 }
 
