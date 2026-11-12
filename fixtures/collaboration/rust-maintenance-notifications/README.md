@@ -13,9 +13,8 @@ notification/Inbox after-images. `retiredSources` records the deleted source ide
 replacement and the removal condition. The retained `sql`/`parameters` fields are historical
 statement text; nothing executes them.
 
-`scripts/testing/fixtures/generate-collaboration-notifications-oracle.ts` still pins the deleted
-source bytes and is owed to the testing-tools owner; until it is retired or rewritten, the corpus
-must not be regenerated.
+The retired generator script has been deleted; the corpus below keeps the historical
+source bytes pinned by `retiredSources` and is frozen evidence, not regenerated.
 
 This is native data compatibility evidence. The native owner source is mandatory and has no
 production default. PostgreSQL component tests use an explicitly synthetic source to verify the
