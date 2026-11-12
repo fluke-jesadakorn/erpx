@@ -208,9 +208,6 @@ pub async fn prepare<P: TicketPortalPorts>(
             .await?;
         return Ok(prior);
     }
-    let expected = ports
-        .snapshot(&[format!("support-portal-{key}")], Some(&input.ticket_id))
-        .await?;
     let plan =
         crate::domain::ticket_portal::plan_prepare(actor, &input, &ticket, key, ports.now())?;
     let PortalPlan::Prepare { result, .. } = &plan else {
@@ -229,6 +226,9 @@ pub async fn prepare<P: TicketPortalPorts>(
             &wire,
             &result,
         )
+        .await?;
+    let expected = ports
+        .snapshot(&[format!("support-portal-{key}")], Some(&input.ticket_id))
         .await?;
     ports
         .guard(
@@ -290,9 +290,6 @@ pub async fn decide<P: TicketPortalPorts>(
             .await?;
         return Ok(prior);
     }
-    let expected = ports
-        .snapshot(&[id.to_owned()], Some(&binding.ticket_id))
-        .await?;
     let ticket = ports.ticket(actor, &binding.ticket_id).await?;
     let plan = crate::domain::ticket_portal::plan_decision(
         actor,
@@ -311,6 +308,9 @@ pub async fn decide<P: TicketPortalPorts>(
     let result = to_value(result)?;
     ports
         .apply(actor, key, &operation, &plan, &wire, &result)
+        .await?;
+    let expected = ports
+        .snapshot(&[id.to_owned()], Some(&binding.ticket_id))
         .await?;
     ports
         .guard(
@@ -371,9 +371,6 @@ pub async fn respond<P: TicketPortalPorts>(
             .await?;
         return Ok(prior);
     }
-    let expected = ports
-        .snapshot(&[id.to_owned()], Some(&binding.ticket_id))
-        .await?;
     let current = ports.current_response(id).await?;
     let plan = crate::domain::ticket_portal::plan_response(
         actor,
@@ -399,6 +396,9 @@ pub async fn respond<P: TicketPortalPorts>(
             &wire,
             &result,
         )
+        .await?;
+    let expected = ports
+        .snapshot(&[id.to_owned()], Some(&binding.ticket_id))
         .await?;
     ports
         .guard(
