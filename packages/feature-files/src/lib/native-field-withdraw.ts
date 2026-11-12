@@ -1,7 +1,7 @@
 import {contextGeneration,contextIsSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh';
 import {createFieldWithdrawal} from '../application/field-withdrawal';
-import {withdrawAttachmentLink} from './attachment-client';
+import {requestAttachmentWithdrawal} from './attachment-client';
 
 const boundary=()=>typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');
 const validBoundary=(n:HTMLElement)=>[n.dataset.workUser,n.dataset.workRevision,n.dataset.workCompany,n.dataset.workAssignment,n.dataset.workAssignmentVersion].every(value=>typeof value==='string'&&value.length>0);
@@ -9,7 +9,7 @@ const identity=(n:HTMLElement)=>JSON.stringify([n.dataset.workUser,n.dataset.wor
 const withdrawal=createFieldWithdrawal({
  context:()=>{const node=boundary();return node?{identity:identity(node),generation:contextGeneration(),valid:validBoundary(node)&&node.isConnected&&node.dataset.workStale!=='true'&&!contextIsSwitching()}:null;},
  key:()=>crypto.randomUUID(),
- withdraw:attempt=>withdrawAttachmentLink(attempt.base,attempt.linkId,attempt.reason,attempt.key,'caller'),
+ withdraw:attempt=>requestAttachmentWithdrawal(attempt.base,attempt.linkId,attempt.reason,attempt.key,'caller'),
  acknowledge:()=>{window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form:null,formEditVersion:null}}));announceWorkChange();},
 });
 export const registerFieldWithdrawalOwner=withdrawal.register;

@@ -393,24 +393,6 @@ export function repository(db: SqlDatabase) {
             linkId: string;
             companyId: string;
         }) => { return db.prepare("SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=? FOR UPDATE").bind(facts.linkId, facts.companyId).first<Record<string, unknown>>(); },
-        stepAttachmentLinks47: (facts: {
-            now: number;
-            userId: string;
-            text: string;
-            linkId: string;
-            companyId: string;
-        }) => { return db.prepare("UPDATE attachment_links l SET state='withdrawn',withdrawn_at=?,withdrawn_by=?,withdrawal_reason=? FROM attachment_sets s WHERE l.id=? AND l.set_id=s.id AND s.company_id=? AND l.state='draft'").bind(facts.now, facts.userId, facts.text, facts.linkId, facts.companyId); },
-        stepAttachmentEvents48: (facts: {
-            arg1: string;
-            companyId: string;
-            attachment_id: unknown;
-            linkId: string;
-            set_id: unknown;
-            userId: string;
-            arg7: "link.withdrawn";
-            arg8: string;
-            now: number;
-        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING").bind(facts.arg1, facts.companyId, facts.attachment_id, facts.linkId, facts.set_id, facts.userId, facts.arg7, facts.arg8, facts.now); },
         lock49: (facts: {
             arg1: string;
         }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },

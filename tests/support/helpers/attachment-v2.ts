@@ -1,5 +1,8 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { createHash } from "node:crypto";
+import { ApiError } from "@erpx/server-runtime/public/http";
 
 type SeedAttachmentSetInput = {
   targetType: string;
@@ -138,4 +141,149 @@ export async function attachmentBindingState(db: SqlDatabase, setId: string) {
 
 export function enableAttachmentV2ForTest() {
   process.env.ERPX_ATTACHMENTS_V2 = "true";
+}
+
+type WithdrawSeedOptions = {
+  /** Owner-record authority the native composition port would enforce. */
+  authorize?: (
+    database: SqlDatabase,
+    facts: {
+      targetType: string;
+      targetId: string;
+      purposeKey: string;
+      componentKind: string;
+      createdBy: string;
+    },
+  ) => Promise<void>;
+  /** Map a persistence failure raised by a deferred owner assertion. */
+  failure?: (error: unknown) => unknown;
+  /** Refuse an already-open arbitrary transaction for an owner that requires
+   * its own Files unit, preserving the native command's transaction boundary. */
+  requireOwnedUnit?: string;
+  /** Re-check the owner source after deferred effects. The former TypeScript
+   * writer flushed `SET CONSTRAINTS ALL IMMEDIATE`; a native owner command
+   * performs the equivalent source check in its own authority port. */
+  after?: (database: SqlDatabase) => Promise<void>;
+};
+
+/**
+ * Native Files withdrawal oracle. This performs the same staged-link state
+ * change and audit event as the Rust owner command so domain tests can retire
+ * the former TypeScript writer without inventing a second production path.
+ * Owner-record authority is supplied by the caller through `authorize`.
+ */
+export async function withdrawSeededAttachment(
+  db: SqlDatabase,
+  actor: WorkContext,
+  linkId: string,
+  reason: string,
+  idempotencyKey: string,
+  options: WithdrawSeedOptions = {},
+): Promise<{ id: string; state: "withdrawn" }> {
+  const text = reason.trim();
+  if (text.length < 3 || text.length > 1000)
+    throw new ApiError(422, "WITHDRAWAL_REASON_REQUIRED", "Explain why this file is being withdrawn.");
+  if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(idempotencyKey))
+    throw new ApiError(422, "COMMAND_KEY_REQUIRED", "A valid Idempotency-Key is required.");
+  if (options.requireOwnedUnit && !isTransactionalSqlDatabase(db))
+    throw new ApiError(409, options.requireOwnedUnit, "This file command requires its own owner transaction.");
+  const run = async (database: SqlDatabase): Promise<{ id: string; state: "withdrawn" }> => {
+    try {
+      const row = await database
+        .prepare(
+          `SELECT l.state,l.created_by,l.withdrawn_by,l.withdrawal_reason,s.state set_state,
+             s.target_type,s.target_id,s.purpose_key,s.component_kind,s.company_id
+           FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id
+           WHERE l.id=? AND s.company_id=?`,
+        )
+        .bind(linkId, actor.companyId)
+        .first<{
+          state: string;
+          created_by: string;
+          withdrawn_by: string | null;
+          withdrawal_reason: string | null;
+          set_state: string;
+          target_type: string;
+          target_id: string;
+          purpose_key: string;
+          component_kind: string;
+          company_id: string;
+        }>();
+      if (!row) throw new ApiError(404, "ATTACHMENT_LINK_NOT_FOUND", "File link not found.");
+      if (row.state === "bound")
+        throw new ApiError(409, "BOUND_ATTACHMENT_IMMUTABLE", "Bound evidence cannot be withdrawn. Add a correction instead.");
+      if (row.created_by !== actor.userId)
+        throw new ApiError(403, "ATTACHMENT_WITHDRAW_FORBIDDEN", "Only the person who staged this file may withdraw it.");
+      await options.authorize?.(database, {
+        targetType: row.target_type,
+        targetId: row.target_id,
+        purposeKey: row.purpose_key,
+        componentKind: row.component_kind,
+        createdBy: row.created_by,
+      });
+      if (row.target_type === "leave_request") {
+        const leave = await database
+          .prepare("SELECT state,created_by,version FROM leave_requests WHERE id=? AND company_id=?")
+          .bind(row.target_id, actor.companyId)
+          .first<{ state: string; created_by: string; version: number }>();
+        const editable =
+          leave !== null &&
+          leave.created_by === actor.userId &&
+          ["draft", "rejected", "pending_approval"].includes(leave.state);
+        if (!editable)
+          throw new ApiError(
+            403,
+            "LEAVE_EVIDENCE_REQUESTER_REQUIRED",
+            "Only the requester can add or withdraw leave evidence before final approval.",
+          );
+      }
+      if (row.state === "withdrawn") {
+        if (row.withdrawn_by === actor.userId && row.withdrawal_reason === text)
+          return { id: linkId, state: "withdrawn" as const };
+        throw new ApiError(409, "IDEMPOTENCY_CONFLICT", "This file was withdrawn with a different command.");
+      }
+      if (row.state !== "draft")
+        throw new ApiError(409, "ATTACHMENT_LINK_LOCKED", "This file link is closed.");
+      if (row.set_state !== "draft")
+        throw new ApiError(409, "ATTACHMENT_SET_LOCKED", "This file set is already bound or closed.");
+      const now = Date.now();
+      const updated = await database
+        .prepare(
+          "UPDATE attachment_links l SET state='withdrawn',withdrawn_at=?,withdrawn_by=?,withdrawal_reason=? FROM attachment_sets s WHERE l.id=? AND l.set_id=s.id AND s.company_id=? AND l.state='draft'",
+        )
+        .bind(now, actor.userId, text, linkId, actor.companyId)
+        .run();
+      if (updated.meta.changes !== 1)
+        throw new ApiError(409, "ATTACHMENT_LINK_LOCKED", "This file link is closed.");
+      const eventId = `attachment-withdraw-${createHash("sha256").update(`${actor.companyId}\0${linkId}\0${idempotencyKey}`).digest("hex").slice(0, 32)}`;
+      await database
+        .prepare(
+          "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) SELECT ?,s.company_id,l.attachment_id,l.id,l.set_id,?,'link.withdrawn',?,? FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=? ON CONFLICT(id) DO NOTHING",
+        )
+        .bind(eventId, actor.userId, JSON.stringify({ reason: text }), now, linkId, actor.companyId)
+        .run();
+      const intact = await database
+        .prepare(
+          "SELECT EXISTS(SELECT 1 FROM attachment_events WHERE id=? AND company_id=? AND link_id=? AND actor_id=? AND action='link.withdrawn' AND details_json=? AND created_at=?)",
+        )
+        .bind(eventId, actor.companyId, linkId, actor.userId, JSON.stringify({ reason: text }), now)
+        .first<boolean>();
+      if (!intact)
+        throw new ApiError(409, "ATTACHMENT_LINK_LOCKED", "This file link is closed.");
+      if (options.after) {
+        await database.prepare("SET CONSTRAINTS ALL IMMEDIATE").run();
+        await options.after(database);
+      }
+      return { id: linkId, state: "withdrawn" as const };
+    } catch (error) {
+      const mapped = options.failure?.(error);
+      throw mapped ?? error;
+    }
+  };
+  try {
+    return isTransactionalSqlDatabase(db) ? await db.transaction(run) : await run(db);
+  } catch (error) {
+    const mapped = options.failure?.(error);
+    throw mapped ?? error;
+  }
 }

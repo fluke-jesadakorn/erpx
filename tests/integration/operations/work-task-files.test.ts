@@ -143,7 +143,7 @@ it.each(['disabled','enforced'] as const)('retains the original denied Task read
   const fault=`work_denied_${key().replaceAll('-','')}`,effect=kind==='source'?`UPDATE staff_tasks SET title='Late denied source' WHERE id='${id}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.manager.assignmentId}'`;
   await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${evidence.linkId}' AND NEW.outcome='denied') EXECUTE FUNCTION ${fault}()`);
   try{await expect(attachmentContent(db,files,f.manager,evidence.linkId,'original')).rejects.toMatchObject({code:'WORK_TASK_FILE_READ_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${fault} ON attachment_access_events;DROP FUNCTION ${fault}()`);}
-  expect(await audits()).toBe(0);expect(await db.prepare('SELECT title FROM staff_tasks WHERE id=?').bind(id).first('title')).toBe('Original ordinary Work with private evidence');
+  expect(await audits()).toBe(0);expect(await db.prepare('SELECT title FROM staff_tasks WHERE id=?').bind(id).first<string>('title')).toBe('Original ordinary Work with private evidence');
   expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.manager.assignmentId).first()).toEqual({revoked_at:null,version:1});
  }
  await expect(attachmentContent(db,files,f.manager,evidence.linkId,'original')).rejects.toMatchObject({status:404});expect(await audits()).toBe(1);expect(gets).toBe(0);
@@ -163,7 +163,7 @@ it.each(['disabled','enforced'] as const)('retains actual quarantine and missing
   const count=()=>db.prepare("SELECT count(*)::int n FROM attachment_access_events WHERE link_id=? AND outcome='denied' AND reason=?").bind(evidence.linkId,unavailable.code).first<number>('n'),fault=`work_unavailable_${key().replaceAll('-','')}`;
   await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE staff_tasks SET title='Late unavailable Task source' WHERE id='${id}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${evidence.linkId}' AND NEW.outcome='denied') EXECUTE FUNCTION ${fault}()`);
   try{await expect(attachmentContent(db,env.H001_FILES,f.head,evidence.linkId,'original')).rejects.toMatchObject({code:'WORK_TASK_FILE_READ_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${fault} ON attachment_access_events;DROP FUNCTION ${fault}()`);}
-  expect(await count()).toBe(0);expect(await db.prepare('SELECT title FROM staff_tasks WHERE id=?').bind(id).first('title')).toBe('Original ordinary Work with private evidence');
+  expect(await count()).toBe(0);expect(await db.prepare('SELECT title FROM staff_tasks WHERE id=?').bind(id).first<string>('title')).toBe('Original ordinary Work with private evidence');
   await expect(attachmentContent(db,env.H001_FILES,f.head,evidence.linkId,'original')).rejects.toMatchObject({status:unavailable.status,code:unavailable.code});expect(await count()).toBe(1);
   expect(await db.prepare("SELECT count(*)::int n FROM attachment_access_events WHERE link_id=? AND outcome='allowed'").bind(evidence.linkId).first('n')).toBe(0);
  }

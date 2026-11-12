@@ -413,6 +413,16 @@ class TransactionDatabase implements SqlDatabase {
     const queries = await this.pool.query(sql);
     return { count: Array.isArray(queries) ? queries.length : 1, duration: performance.now() - start };
   }
+  /** An owner unit that already holds this serializable transaction cannot
+   * open the pool-level object-lock transaction. Take the same ordered object
+   * locks for the rest of this unit; PostgreSQL releases them at commit or
+   * rollback, so byte cleanup still serializes with competing uploads. */
+  async withObjectLocks<T>(company: string, keys: string[], action: (tx: SqlDatabase) => Promise<T>): Promise<T> {
+    const ordered=[...new Set(keys)].sort();
+    if(!company || company.length>200 || !ordered.length || ordered.length>100 || ordered.some(key=>!key || key.length>4096)) throw new Error('INVALID_OBJECT_LOCK_SET');
+    for(const key of ordered) await this.pool.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`attachment-object:${company}:${key}`]);
+    return action(this);
+  }
 }
 
 class SessionDatabase extends TransactionDatabase {

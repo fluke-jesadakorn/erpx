@@ -28,9 +28,6 @@ export type FrontPmsAttachmentRepository = {
     createAttachmentSet: DropDatabase<typeof import("@erpx/server-files/public/attachments/service").createAttachmentSet>;
     listAttachmentSets: DropDatabase<typeof import("@erpx/server-files/public/attachments/service").listAttachmentSets>;
     reserveAttachmentFile: DropDatabase<typeof import("@erpx/server-files/public/attachments/service").reserveAttachmentFile>;
-    /** Retained compatibility wiring only. Front withdrawal uses the native
-     * Files route and never falls back to this writer. */
-    withdrawAttachmentLink?: DropDatabase<typeof import("@erpx/server-files/public/attachments/service").withdrawAttachmentLink>;
 };
 export function createFrontPmsAttachments<Reply>(ports: {
     repository(actor: WorkContext): Promise<FrontPmsAttachmentRepository>;

@@ -237,3 +237,71 @@ fn field_record_binding_requires_current_draft_and_available_sources() {
     set.state = "bound".into();
     assert!(prepare(&set, 3).is_err());
 }
+
+#[test]
+fn generic_remove_command_normalizes_exactly_once_and_rejects_native_owner_targets() {
+    use erpx_server_files::public::attachment_command::{
+        has_native_owner_command, normalize_withdrawal_reason, valid_command_key,
+        withdrawal_event_id,
+    };
+    assert_eq!(
+        normalize_withdrawal_reason("\u{00a0}\u{3000}duplicate upload\u{feff}").unwrap(),
+        "duplicate upload"
+    );
+    for invalid in ["", "  x ", "ab"] {
+        assert_eq!(
+            normalize_withdrawal_reason(invalid).unwrap_err().code,
+            "WITHDRAWAL_REASON_REQUIRED",
+            "{invalid:?}"
+        );
+    }
+    assert_eq!(
+        normalize_withdrawal_reason(&"a".repeat(1001))
+            .unwrap_err()
+            .code,
+        "WITHDRAWAL_REASON_REQUIRED"
+    );
+    assert_eq!(
+        normalize_withdrawal_reason(&"a".repeat(1000))
+            .unwrap()
+            .len(),
+        1000
+    );
+    // JavaScript length counts UTF-16 units, not Unicode scalar values.
+    assert!(normalize_withdrawal_reason("😀").is_err());
+    assert_eq!(
+        normalize_withdrawal_reason(&"😀".repeat(500)).unwrap(),
+        "😀".repeat(500)
+    );
+    assert!(normalize_withdrawal_reason(&"😀".repeat(501)).is_err());
+
+    assert!(valid_command_key("withdraw-key-1"));
+    assert!(valid_command_key("a.b:c_d-9"));
+    assert!(!valid_command_key("short"));
+    assert!(!valid_command_key("has space"));
+    assert!(!valid_command_key("with/withdraw"));
+
+    let first = withdrawal_event_id("company", "link-1", "withdraw-key-1");
+    assert_eq!(
+        first,
+        withdrawal_event_id("company", "link-1", "withdraw-key-1")
+    );
+    assert_ne!(
+        first,
+        withdrawal_event_id("company", "link-1", "withdraw-key-2")
+    );
+    assert!(first.starts_with("attachment-withdraw-"));
+    assert_eq!(first.len(), "attachment-withdraw-".len() + 32);
+
+    for owner in [
+        "field_service_visit",
+        "project",
+        "finance_journal",
+        "finance_payment",
+    ] {
+        assert!(has_native_owner_command(owner), "{owner}");
+    }
+    for generic in ["legal_item", "messaging_room", "holding_brand", "asset"] {
+        assert!(!has_native_owner_command(generic), "{generic}");
+    }
+}

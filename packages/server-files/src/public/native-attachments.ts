@@ -947,6 +947,77 @@ export function createNativeAttachmentCommandClient(
   };
 }
 
+/** POST one external-customer withdraw through the verified portal route. The
+ *  opaque product cookie is the only identity; a missing configuration or an
+ *  invalid native receipt fails closed and never falls back to the TS writer. */
+export function createNativePortalAttachmentCommandClient(
+  raw: NativeAttachmentConfiguration,
+  transport: NativeAttachmentCommandTransport = directCommandHttp,
+) {
+  const config = configuration(raw);
+  return {
+    withdraw: async (
+      incoming: Pick<Headers, 'get'>,
+      holdingSlug: string,
+      linkId: string,
+      input: { reason: string; key: string },
+      signal?: AbortSignal,
+    ): Promise<NativeAttachmentStatusRow> => {
+      const host = incoming.get('host');
+      const holding = host ? config.holdings.get(host) : undefined;
+      if (!host || !holding || holding.holdingSlug !== holdingSlug)
+        return failure('NATIVE_ATTACHMENT_COMMAND_AUTHORITY_INVALID', 403);
+      if (!identifier(linkId) || linkId.includes('/') || linkId.includes('\\'))
+        return failure('NATIVE_ATTACHMENT_COMMAND_REQUEST_INVALID', 422);
+      const reason = input.reason.trim();
+      if (reason.length < 3 || reason.length > 1000)
+        return failure('NATIVE_ATTACHMENT_COMMAND_REQUEST_INVALID', 422);
+      if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(input.key))
+        return failure('COMMAND_KEY_REQUIRED', 422);
+      const origin = incoming.get('origin');
+      if (!origin) return failure('ORIGIN_FORBIDDEN', 403);
+      const headers = new Headers({
+        host,
+        accept: 'application/json',
+        origin,
+        'content-type': 'application/json',
+        'idempotency-key': input.key,
+      });
+      const cookie = incoming.get('cookie');
+      if (cookie) {
+        if (new TextEncoder().encode(cookie).length > 8192)
+          return failure('NATIVE_ATTACHMENT_COMMAND_COOKIE_LIMIT', 503);
+        headers.set('cookie', cookie);
+      }
+      const url = new URL(
+        `/api/customer-portal/${encodeURIComponent(holdingSlug)}/attachments/attachment-links/${encodeURIComponent(linkId)}/withdraw`,
+        config.base,
+      );
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), config.timeout);
+      const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+      const response = await transport(
+        url,
+        headers,
+        JSON.stringify({ reason }),
+        combined,
+      )
+        .catch((error: unknown) => {
+          if (error instanceof NativeAttachmentReadError) throw error;
+          return failure('NATIVE_ATTACHMENT_COMMAND_UNAVAILABLE', 503);
+        })
+        .finally(() => clearTimeout(timer));
+      const value = await boundedJson(response);
+      if (!exact(value, ['data']))
+        return failure('NATIVE_ATTACHMENT_COMMAND_RESPONSE_INVALID', 503);
+      const row = status(value.data, linkId);
+      if (row.linkState !== 'withdrawn' || row.withdrawnAt === null)
+        return failure('NATIVE_ATTACHMENT_COMMAND_RESPONSE_INVALID', 503);
+      return row;
+    },
+  };
+}
+
 /** Fresh bounded socket for one exact native command. */
 export function directCommandHttp(
   url: URL,

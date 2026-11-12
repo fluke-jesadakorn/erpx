@@ -18,8 +18,8 @@ import {
   createAttachmentSet,
   linkExistingAttachment,
   reserveAttachmentFile,
-  withdrawAttachmentLink,
 } from "@erpx/server-files/public/attachments/service";
+import { withdrawSeededAttachment } from "../../support/helpers/attachment-v2";
 
 const db = env.H001_DB;
 const key = () => crypto.randomUUID();
@@ -133,7 +133,7 @@ describe("Leave attachment serialization", () => {
     }, key())).rejects.toMatchObject({ status: 403, code: "LEAVE_EVIDENCE_REQUESTER_REQUIRED" });
     await expect(linkExistingAttachment(db, requester, set.id, { sourceLinkId: "unreachable-source" }, key()))
       .rejects.toMatchObject({ status: 403, code: "LEAVE_EVIDENCE_REQUESTER_REQUIRED" });
-    await expect(withdrawAttachmentLink(db, requester, reservation.attachmentLinkId, "Final approval already recorded", key()))
+    await expect(withdrawSeededAttachment(db, requester, reservation.attachmentLinkId, "Final approval already recorded", key()))
       .rejects.toMatchObject({ status: 403, code: "LEAVE_EVIDENCE_REQUESTER_REQUIRED" });
     await expect(completeAttachmentUpload(db, env.H001_FILES, requester, reservation.uploadIntentId, pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength)))
       .rejects.toMatchObject({ status: 403, code: "LEAVE_EVIDENCE_REQUESTER_REQUIRED" });

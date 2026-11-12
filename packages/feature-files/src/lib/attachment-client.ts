@@ -335,7 +335,7 @@ export async function attachmentStatus(base: string, linkId: string) {
   return envelope<AttachmentStatusDto>(response);
 }
 
-export async function withdrawAttachmentLink(
+export async function requestAttachmentWithdrawal(
   base: string,
   linkId: string,
   reason: string,

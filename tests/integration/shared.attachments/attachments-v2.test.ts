@@ -14,7 +14,8 @@ vi.mock("@erpx/server-files/public/attachments/preview",()=>({
   sanitizedAttachmentPreview:async(_bytes:Uint8Array,mediaType:string)=>mediaType.startsWith("image/")?{bytes:new Uint8Array([82,73,70,70,4,0,0,0,87,69,66,80]),mediaType:"image/webp" as const}:null,
 }));
 
-import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload,withdrawAttachmentLink } from "@erpx/server-files/public/attachments/service";
+import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload } from "@erpx/server-files/public/attachments/service";
+import {withdrawSeededAttachment} from "../../support/helpers/attachment-v2";
 import {postView,publishPost,savePostDraft,type PostContent} from '@erpx/server-collaboration/public/social-home';
 import { listBrandProfiles } from "@erpx/server-brand/public/branding";
 import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
@@ -59,7 +60,7 @@ async function cleanupFileFixture(){
   const product=`product-${key()}`;
   await db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,price_minor) VALUES(?,?,?,?,100)").bind(product,companyA,`SKU-${key()}`,"Single-pool cleanup product").run();
   const set=await createAttachmentSet(db,actorA,{targetType:"product",targetId:product,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
-  await withdrawAttachmentLink(db,actorA,file.attachmentLinkId,"Owning transaction cleanup fixture",key());
+  await withdrawSeededAttachment(db,actorA,file.attachmentLinkId,"Owning transaction cleanup fixture",key());
   await db.prepare("UPDATE attachment_links SET expires_at=? WHERE id=?").bind(Date.now()-1,file.attachmentLinkId).run();
   const keys=(await db.prepare("SELECT object_key FROM attachment_storage_ledger WHERE attachment_id=? ORDER BY object_key").bind(file.sourceId).all<{object_key:string}>()).results.map(row=>row.object_key);
   return {...file,keys};
@@ -236,7 +237,7 @@ describe("canonical attachment lifecycle",()=>{
     expect(uploaded.state).toBe("quarantined");expect(await drainAttachmentScans(db,env.H001_FILES,uploaded.sourceId)).toBe(true);
     await expect(attachmentLinkStatus(db,actorB,reserved.attachmentLinkId)).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
     await expect(attachmentContent(db,env.H001_FILES,actorB,reserved.attachmentLinkId,"original")).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
-    await expect(withdrawAttachmentLink(db,actorB,reserved.attachmentLinkId,"foreign withdrawal",key())).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
+    await expect(withdrawSeededAttachment(db,actorB,reserved.attachmentLinkId,"foreign withdrawal",key())).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
     await expect(prepareAttachmentBinding(db,actorB,{attachmentSetIds:[set.id],bindingContract:{targetType:"product",bindingType:"record_document",contexts:[{purposeKey:"product_image",componentKind:"record",componentRef:null}]},targetId:productA,expectedTargetVersion:1,commandId:key(),bindingId:productA})).rejects.toMatchObject({status:404,code:"ATTACHMENT_SET_NOT_FOUND"});
     const bindingCommand=key(),bindingTables=["commerce_products","attachment_sets","attachment_links","attachments","upload_intents","attachment_events","attachment_storage_ledger","command_assertions","command_receipts","audit_events","outbox_events"];
     const bindingSnapshot=async()=>Object.fromEntries(await Promise.all(bindingTables.map(async table=>[table,(await db.prepare(`SELECT to_jsonb(snapshot) row FROM ${table} snapshot ORDER BY to_jsonb(snapshot)::text`).all<{row:unknown}>()).results.map(result=>result.row)])));
@@ -270,11 +271,11 @@ describe("canonical attachment lifecycle",()=>{
     expect(await db.prepare("SELECT supersedes_link_id FROM attachment_links WHERE id=?").bind(correction.attachmentLinkId).first("supersedes_link_id")).toBe(reserved.attachmentLinkId);
     const withdrawKey=key();
     const withdrawn=await Promise.all([
-      withdrawAttachmentLink(db,actorA,correction.attachmentLinkId,"Replace incorrect image",withdrawKey),
-      withdrawAttachmentLink(db,actorA,correction.attachmentLinkId,"Replace incorrect image",withdrawKey),
+      withdrawSeededAttachment(db,actorA,correction.attachmentLinkId,"Replace incorrect image",withdrawKey),
+      withdrawSeededAttachment(db,actorA,correction.attachmentLinkId,"Replace incorrect image",withdrawKey),
     ]);
     expect(withdrawn[0]).toEqual(withdrawn[1]);
-    await expect(withdrawAttachmentLink(db,actorA,correction.attachmentLinkId,"Different reason",key())).rejects.toMatchObject({status:409,code:"IDEMPOTENCY_CONFLICT"});
+    await expect(withdrawSeededAttachment(db,actorA,correction.attachmentLinkId,"Different reason",key())).rejects.toMatchObject({status:409,code:"IDEMPOTENCY_CONFLICT"});
 
     const hiddenDraft=await createAttachmentSet(db,actorA,{targetType:"product",targetId:productA,componentKind:"record",purposeKey:"specification",expectedTargetVersion:2},key());
     const hiddenReserved=await reserveAttachmentFile(db,actorA,hiddenDraft.id,{filename:"hidden.png",mediaType:"image/png",bytes:png.byteLength},key());
@@ -395,7 +396,7 @@ describe("canonical attachment lifecycle",()=>{
     const preservedProduct=`product-${key()}`,legalItem=`legal-item-${key()}`,legalHold=`legal-hold-${key()}`;
     await db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,price_minor) VALUES(?,?,?,?,100)").bind(preservedProduct,companyA,`SKU-${key()}`,"Legally preserved product").run();
     const preservedSet=await createAttachmentSet(db,actorA,{targetType:"product",targetId:preservedProduct,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key()),preserved=await availableProductFile(preservedSet.id),preservedObjectKey=String(await db.prepare("SELECT object_key FROM attachments WHERE id=?").bind(preserved.sourceId).first("object_key"));
-    await withdrawAttachmentLink(db,actorA,preserved.attachmentLinkId,"Legal preservation fixture",key());
+    await withdrawSeededAttachment(db,actorA,preserved.attachmentLinkId,"Legal preservation fixture",key());
     await db.batch([
       db.prepare("UPDATE attachment_links SET expires_at=? WHERE id=?").bind(Date.now(),preserved.attachmentLinkId),
       db.prepare("INSERT INTO legal_items(id,company_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,owner_id,created_by,state,created_at,updated_at) VALUES(?,?,'matter','Attachment preservation','','restricted','TH','TH','th','THB','Asia/Bangkok','normal',?,?,'archived',?,?)").bind(legalItem,companyA,actorA.userId,actorA.userId,Date.now(),Date.now()),
@@ -423,8 +424,8 @@ describe("canonical attachment lifecycle",()=>{
     const firstSet=await createAttachmentSet(db,actorA,{targetType:"product",targetId:sharedProduct,componentKind:"record",purposeKey:"product_image",expectedTargetVersion:1},key()),shared=await availableProductFile(firstSet.id);
     const secondSet=await createAttachmentSet(db,actorA,{targetType:"product",targetId:sharedProduct,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key()),reused={attachmentLinkId:`attachment-link-${key()}`};
     await db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,?,?)").bind(reused.attachmentLinkId,secondSet.id,shared.sourceId,actorA.userId,Date.now(),Date.now()+7*24*60*60_000).run();
-    await withdrawAttachmentLink(db,actorA,shared.attachmentLinkId,"Shared retention test",key());
-    await withdrawAttachmentLink(db,actorA,reused.attachmentLinkId,"Shared retention test",key());
+    await withdrawSeededAttachment(db,actorA,shared.attachmentLinkId,"Shared retention test",key());
+    await withdrawSeededAttachment(db,actorA,reused.attachmentLinkId,"Shared retention test",key());
     const boundary=Date.now();
     await db.batch([
       db.prepare("UPDATE attachment_links SET expires_at=? WHERE id IN (?,?)").bind(boundary,shared.attachmentLinkId,reused.attachmentLinkId),
@@ -551,7 +552,7 @@ describe("canonical attachment lifecycle",()=>{
     await db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,price_minor) VALUES(?,?,?,?,100)").bind(cleanupProduct,companyA,`SKU-${key()}`,"Cleanup race product").run();
     const set=await createAttachmentSet(db,actorA,{targetType:"product",targetId:cleanupProduct,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
     const storedKeys=await db.prepare("SELECT object_key,preview_object_key FROM attachments WHERE id=?").bind(file.sourceId).first<{object_key:string;preview_object_key:string|null}>(),objectKey=storedKeys!.object_key;
-    await withdrawAttachmentLink(db,actorA,file.attachmentLinkId,"Cleanup ordering fixture",key());
+    await withdrawSeededAttachment(db,actorA,file.attachmentLinkId,"Cleanup ordering fixture",key());
     await db.prepare("UPDATE attachment_links SET expires_at=? WHERE id=?").bind(Date.now(),file.attachmentLinkId).run();
     const failingFiles=new Proxy(env.H001_FILES,{
       get(target,property,receiver){

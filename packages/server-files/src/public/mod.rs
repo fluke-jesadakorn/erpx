@@ -8,6 +8,7 @@ pub mod preview;
 
 pub mod attachment_command;
 pub mod attachment_http;
+pub mod portal_attachment_http;
 pub mod attachment_read;
 pub mod attachment_scan;
 

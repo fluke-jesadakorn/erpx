@@ -18,6 +18,17 @@ use erpx_server_files::public::attachment_read::{
     AttachmentListFilter, AttachmentReader, AttachmentTarget, AttachmentTargetAuthority,
     AttachmentTargetScope, PostgresAttachmentRead, attachment_link_status, list_attachment_sets,
 };
+use erpx_server_files::public::portal_attachment_http::{
+    PortalAttachmentHttpBackend, PortalAttachmentHttpFuture, PortalAttachmentHttpReply,
+    PortalAttachmentHttpWithdrawRequest,
+};
+use erpx_server_customer_authority::public::portal_session::{
+    PgPortalEnrollment, PortalCustomerRequest, PortalSessionEvidence, PortalSessionFuture,
+    PortalSessionVerifier, resolve_portal_customer,
+};
+use erpx_server_identity_access::public::portal_session::{
+    PortalSessionReadRequest, verify_portal_session,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::{parse_inbound_account_request, unique_request_header},
@@ -29,7 +40,9 @@ use erpx_server_identity_access::public::{
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_server_runtime::public::postgres::{
+    DatabasePool, PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
+};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId,
 };
@@ -78,17 +91,40 @@ impl HoldingWorkSourcePreparation for FilesSources {
 #[derive(Clone)]
 pub struct FilesConfiguration {
     holding: HoldingId,
+    holding_slug: String,
     company: CompanyId,
 }
 
 impl FilesConfiguration {
-    pub fn new(holding: HoldingId, company: CompanyId) -> Self {
-        Self { holding, company }
+    pub fn new(holding: HoldingId, holding_slug: String, company: CompanyId) -> Self {
+        Self {
+            holding,
+            holding_slug,
+            company,
+        }
+    }
+
+    pub fn holding(&self) -> &HoldingId {
+        &self.holding
+    }
+
+    pub fn holding_slug(&self) -> &str {
+        &self.holding_slug
     }
 
     pub fn company(&self) -> &CompanyId {
         &self.company
     }
+}
+
+/// Private Customer portal transport facts for the native Files withdraw. The
+/// Control pool verifies the opaque product session; the Holding pool owns the
+/// customer binding, the Files rows and their one Serializable transaction.
+#[derive(Clone)]
+pub struct PortalFilesRuntime {
+    control: DatabasePool,
+    holding: DatabasePool,
+    environment: String,
 }
 
 fn context(current: &AuthorizedWorkContext) -> Value {
@@ -306,6 +342,7 @@ pub struct FilesService<C> {
     authorizer: Arc<HoldingWorkAuthorizer>,
     configuration: FilesConfiguration,
     clock: Arc<C>,
+    portal: Option<PortalFilesRuntime>,
 }
 
 impl<C: Clock + Send + Sync + 'static> FilesService<C> {
@@ -318,7 +355,25 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
             authorizer,
             configuration,
             clock,
+            portal: None,
         }
+    }
+
+    /// Attach the exact Control/Holding pools used by the external Customer
+    /// portal. The portal session is verified here; no staff header or account
+    /// cookie can reach this path.
+    pub fn with_portal(
+        mut self,
+        control: DatabasePool,
+        holding: DatabasePool,
+        environment: String,
+    ) -> Self {
+        self.portal = Some(PortalFilesRuntime {
+            control,
+            holding,
+            environment,
+        });
+        self
     }
 
     pub fn company(&self) -> &CompanyId {
@@ -662,6 +717,334 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
             )
             .await
     }
+
+    fn portal_cookie_token(headers: &HeaderMap) -> Result<String, BusinessError> {
+        let raw = headers
+            .get("cookie")
+            .and_then(|value| value.to_str().ok())
+            .ok_or_else(portal_session_required)?;
+        raw.split(';')
+            .filter_map(|part| part.trim().split_once('='))
+            .find(|(name, _)| *name == "__Host-erpx-product")
+            .map(|(_, value)| value.to_owned())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(portal_session_required)
+    }
+
+    /// Withdraw one staged external-customer file through the verified portal
+    /// product session. The session, the exact customer binding and the Files
+    /// link commit in one serializable Holding transaction; a missing native
+    /// portal runtime or a changed binding fails closed.
+    pub async fn portal_withdraw(
+        &self,
+        host: &str,
+        headers: &HeaderMap,
+        link_id: String,
+        reason: String,
+        command_key: String,
+    ) -> Result<AttachmentReadHttpReply, Error> {
+        let portal = self
+            .portal
+            .as_ref()
+            .ok_or_else(|| PgTransactionError::Business(portal_unavailable()))?;
+        let token = Self::portal_cookie_token(headers)?;
+        let normalized = normalize_withdrawal(&reason, &command_key)?;
+        let now = self.clock.now().get();
+        let environment = portal.environment.clone();
+        let holding_id = self.configuration.holding().as_str().to_owned();
+        let holding_slug = self.configuration.holding_slug().to_owned();
+        let request = PortalCustomerRequest {
+            token: &token,
+            audience: Some(host),
+            environment: &environment,
+            holding_id: &holding_id,
+            holding_slug: &holding_slug,
+        };
+        let mut control = portal
+            .control
+            .raw()
+            .acquire()
+            .await
+            .map_err(|_| PgTransactionError::Business(portal_unavailable()))?;
+        let mut holding = portal
+            .holding
+            .raw()
+            .acquire()
+            .await
+            .map_err(|_| PgTransactionError::Business(portal_unavailable()))?;
+        let (proof, expires_at) = {
+            let mut verifier = PortalSessionVerifierImpl {
+                connection: &mut control,
+                expires_at: 0,
+            };
+            let mut enrollment = PgPortalEnrollment::new(&mut holding);
+            let proof = resolve_portal_customer(&mut verifier, &mut enrollment, &request, now)
+                .await
+                .map_err(|error| match error {
+                    PgTransactionError::Business(error) => error,
+                    PgTransactionError::Persistence(_) => portal_unavailable(),
+                })?;
+            (proof, verifier.expires_at)
+        };
+        drop(holding);
+        drop(control);
+        if expires_at <= now || proof.holding_id.as_deref() != Some(holding_id.as_str()) {
+            return Err(PgTransactionError::Business(portal_session_required()));
+        }
+        let company = self.configuration.company.clone();
+        let user_id = proof.user_id;
+        let email = proof.email;
+        let normalized_reason = normalized.reason;
+        let normalized_key = normalized.command_key;
+        PgUnitOfWork::new(portal.holding.clone())
+            .run(
+                TransactionOptions::default(),
+                move |connection| {
+                    let company = company.clone();
+                    let user_id = user_id.clone();
+                    let email = email.clone();
+                    let link_id = link_id.clone();
+                    let normalized_reason = normalized_reason.clone();
+                    let normalized_key = normalized_key.clone();
+                    Box::pin(async move {
+                        let binding: Option<String> = sqlx::query_scalar(
+                            "SELECT s.target_id FROM attachment_links l \
+                             JOIN attachment_sets s ON s.id=l.set_id \
+                             WHERE l.id=$1 AND s.company_id=$2 \
+                             AND s.target_type='customer_access_binding'",
+                        )
+                        .bind(&link_id)
+                        .bind(company.as_str())
+                        .fetch_optional(&mut *connection)
+                        .await?;
+                        let binding =
+                            binding.ok_or_else(|| PgTransactionError::Business(portal_missing()))?;
+                        let authority = PortalWithdrawAuthority {
+                            company_id: company.as_str(),
+                            user_id: &user_id,
+                            email: &email,
+                            now,
+                        };
+                        withdraw_attachment(
+                            connection,
+                            &authority,
+                            WithdrawAttachmentRequest {
+                                actor_id: &user_id,
+                                company_id: company.as_str(),
+                                link_id: &link_id,
+                                reason: &normalized_reason,
+                                command_key: &normalized_key,
+                                now,
+                            },
+                        )
+                        .await?;
+                        let reader = AttachmentReader::new(
+                            user_id,
+                            company.clone(),
+                            None,
+                            None,
+                            expires_at,
+                        )
+                        .map_err(PgTransactionError::Business)?;
+                        let mut ports = PostgresAttachmentRead::new(PortalAttachmentReadAuthority {
+                            company_id: company,
+                            binding_id: binding,
+                        });
+                        let view = attachment_link_status(
+                            connection,
+                            &ports,
+                            &reader,
+                            &link_id,
+                            false,
+                            now,
+                        )
+                        .await?;
+                        let data = serde_json::to_value(view)
+                            .map_err(|_| PgTransactionError::Business(portal_unavailable()))?;
+                        Ok(AttachmentReadHttpReply {
+                            data,
+                            context: Value::Object(Default::default()),
+                        })
+                    })
+                },
+            )
+            .await
+            .map_err(|error| match error {
+                PgTransactionError::Business(error) => PgTransactionError::Business(error),
+                PgTransactionError::Persistence(_) => {
+                    PgTransactionError::Business(portal_unavailable())
+                }
+            })
+    }
+}
+
+fn portal_session_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unauthenticated,
+        "CUSTOMER_PORTAL_SESSION_REQUIRED",
+        "Sign in to the customer portal.",
+    )
+}
+
+fn portal_unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "CUSTOMER_PORTAL_FILES_UNAVAILABLE",
+        "The customer portal file service is unavailable.",
+    )
+}
+
+fn portal_missing() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "ATTACHMENT_LINK_NOT_FOUND",
+        "File link not found.",
+    )
+}
+
+fn portal_forbidden() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "CUSTOMER_PORTAL_ATTACHMENT_FORBIDDEN",
+        "This customer file cannot be changed by the current sign-in.",
+    )
+}
+
+fn portal_changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "CUSTOMER_PORTAL_ATTACHMENT_CHANGED",
+        "The original customer document or file authority changed.",
+    )
+}
+
+/// The session verifier proves the opaque product session with the Control
+/// Authority and retains its exact expiry for the Holding reader.
+struct PortalSessionVerifierImpl<'c> {
+    connection: &'c mut PgConnection,
+    expires_at: i64,
+}
+
+impl PortalSessionVerifier for PortalSessionVerifierImpl<'_> {
+    type Error = PgTransactionError<BusinessError>;
+
+    fn verify_session<'a>(
+        &'a mut self,
+        request: &'a PortalCustomerRequest<'_>,
+        now: i64,
+    ) -> PortalSessionFuture<'a, Option<PortalSessionEvidence>, Self::Error> {
+        Box::pin(async move {
+            let read = PortalSessionReadRequest {
+                token: request.token,
+                audience: request.audience,
+                environment: request.environment,
+            };
+            let proof = verify_portal_session(&mut *self.connection, &read, now).await?;
+            if let Some(proof) = &proof {
+                self.expires_at = proof.expires_at;
+            }
+            Ok(proof.map(|proof| PortalSessionEvidence {
+                session_id: proof.session_id,
+                user_id: proof.user_id,
+                email: proof.email,
+                email_verified: proof.email_verified,
+                authenticated_at: proof.authenticated_at,
+                expires_at: proof.expires_at,
+            }))
+        })
+    }
+}
+
+/// External-customer authority for one Files draft. The Customer Authority
+/// binding must still be approved, unexpired and owned by the verified session
+/// identity, and the link must still belong to that exact binding.
+struct PortalWithdrawAuthority<'a> {
+    company_id: &'a str,
+    user_id: &'a str,
+    email: &'a str,
+    now: i64,
+}
+
+impl PortalWithdrawAuthority<'_> {
+    fn current<'b>(
+        &'b self,
+        connection: &'b mut PgConnection,
+        target: &'b WithdrawTarget<'b>,
+    ) -> PgWorkFuture<'b, (), BusinessError> {
+        Box::pin(async move {
+            if target.company_id != self.company_id
+                || target.target_type != "customer_access_binding"
+            {
+                return Err(portal_missing().into());
+            }
+            if target.created_by != self.user_id {
+                return Err(portal_forbidden().into());
+            }
+            let current: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM customer_access_bindings binding \
+                 JOIN customer_access_identities identity ON identity.binding_id=binding.id \
+                 WHERE binding.id=$1 AND binding.company_id=$2 AND binding.status='approved' \
+                 AND binding.expires_at>$3 AND identity.user_id=$4 AND identity.email=$5 \
+                 AND binding.email=$5)",
+            )
+            .bind(target.target_id)
+            .bind(self.company_id)
+            .bind(self.now)
+            .bind(self.user_id)
+            .bind(self.email)
+            .fetch_one(&mut *connection)
+            .await?;
+            if !current {
+                return Err(portal_changed().into());
+            }
+            Ok(())
+        })
+    }
+}
+
+impl AttachmentWithdrawAuthority for PortalWithdrawAuthority<'_> {
+    fn authorize_withdraw<'c>(
+        &'c self,
+        connection: &'c mut PgConnection,
+        target: &'c WithdrawTarget<'c>,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        self.current(connection, target)
+    }
+
+    fn revalidate_withdraw<'c>(
+        &'c self,
+        connection: &'c mut PgConnection,
+        target: &'c WithdrawTarget<'c>,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        self.current(connection, target)
+    }
+}
+
+/// The portal status read is confined to the exact customer binding that owned
+/// the withdrawn link. Staff branch/department scope never applies.
+struct PortalAttachmentReadAuthority {
+    company_id: CompanyId,
+    binding_id: String,
+}
+
+impl AttachmentTargetAuthority for PortalAttachmentReadAuthority {
+    fn authorize_read<'a>(
+        &'a self,
+        _: &'a mut PgConnection,
+        reader: &'a AttachmentReader,
+        target: &'a AttachmentTarget<'a>,
+    ) -> PgWorkFuture<'a, AttachmentTargetScope, BusinessError> {
+        Box::pin(async move {
+            if reader.company_id() != &self.company_id
+                || target.target_type != "customer_access_binding"
+                || target.target_id != self.binding_id.as_str()
+            {
+                return Err(portal_missing().into());
+            }
+            AttachmentTargetScope::new(self.company_id.clone(), None, None, 1)
+                .map_err(Into::into)
+        })
+    }
 }
 
 pub struct FilesBackend<C> {
@@ -806,6 +1189,28 @@ impl<C: Clock + Send + Sync + 'static> AttachmentReadHttpBackend for FilesBacken
                 )
                 .await
                 .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PortalAttachmentHttpBackend for FilesBackend<C> {
+    fn withdraw<'a>(
+        &'a self,
+        request: PortalAttachmentHttpWithdrawRequest<'a>,
+    ) -> PortalAttachmentHttpFuture<'a, PortalAttachmentHttpReply> {
+        Box::pin(async move {
+            let reply = self
+                .service
+                .portal_withdraw(
+                    request.host,
+                    request.headers,
+                    request.link_id.to_owned(),
+                    request.reason.to_owned(),
+                    request.command_key.to_owned(),
+                )
+                .await
+                .map_err(business)?;
+            Ok(PortalAttachmentHttpReply { data: reply.data })
         })
     }
 }

@@ -192,8 +192,6 @@ function unit(db: SqlDatabase, inheritedPurchases: readonly SupportAttachmentPur
         writeAttachmentAccessEvents44: facts => repository(db).writeAttachmentAccessEvents44(facts),
         readAttachmentLinks45: facts => repository(db).readAttachmentLinks45(facts),
         readAttachmentLinks46: facts => repository(db).readAttachmentLinks46(facts),
-        stepAttachmentLinks47: facts => repository(db).stepAttachmentLinks47(facts),
-        stepAttachmentEvents48: facts => repository(db).stepAttachmentEvents48(facts),
         lock49: facts => repository(db).lock49(facts),
         readAttachmentEvents50: facts => repository(db).readAttachmentEvents50(facts),
         readAttachmentSets51: facts => repository(db).readAttachmentSets51(facts),
@@ -365,18 +363,16 @@ export async function portalAttachmentMetadataReadForRequest(db:SqlDatabase,acto
         return result;
     });
 }
-/** The three existing Portal staging commands retain their original receipts
- * and transaction; the status returned after withdrawal is read before commit. */
+/** The two retained Portal staging commands keep their original receipts and
+ * transaction. External-customer withdrawal is owned by the native portal
+ * route; the retained branch fails closed and never writes through TypeScript. */
 export async function portalAttachmentCommandForRequest(db:SqlDatabase,actor:WorkContext,command:PortalAttachmentMetadataCommand,request:Pick<AttachmentRequestBoundary,'sourceLocks'|'assertCurrent'>){
     if(!isTransactionalSqlDatabase(db))throw new ApiError(503,'ATTACHMENT_REQUEST_TRANSACTION_REQUIRED','A file request requires its complete fresh native transaction.');
-    let status:Awaited<ReturnType<typeof service.attachmentLinkStatus>>|undefined;
-    const boundary:AttachmentRequestBoundary={...request,entered:false,...(command.kind==='withdraw'?{projectResult:async(database:SqlDatabase)=>{status=await service.attachmentLinkStatus(unit(database),actor,command.linkId);}}:{})};
+    if(command.kind==='withdraw')throw new ApiError(503,'NATIVE_ATTACHMENT_WRITER_REQUIRED','The native customer file command is required.');
+    const boundary:AttachmentRequestBoundary={...request,entered:false};
     const context=unit(db, [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], boundary);
     if(command.kind==='create')return service.createAttachmentSet(context,actor,command.input,command.key);
-    if(command.kind==='reserve')return service.reserveAttachmentFile(context,actor,command.setId,command.input,command.key);
-    await service.withdrawAttachmentLink(context,actor,command.linkId,command.reason,command.key);
-    if(!status)throw new Error('PORTAL_WITHDRAWAL_RESULT_REQUIRED');
-    return status;
+    return service.reserveAttachmentFile(context,actor,command.setId,command.input,command.key);
 }
 /** A request's final assertion runs in the original metadata transaction,
  * so the application's existing object compensation still catches failure.
@@ -452,7 +448,6 @@ export async function attachmentContent(db: SqlDatabase, files: FileStore, actor
     // flush deferred Finance or Legal effects.
     return read(db);
 }
-export function withdrawAttachmentLink(db: SqlDatabase, actor: WorkContext, linkId: string, reason: string, idempotencyKey: string,options?:{compatibilityAdapter?:boolean}) { return options?service.withdrawAttachmentLink(unit(db), actor, linkId, reason, idempotencyKey,options):service.withdrawAttachmentLink(unit(db), actor, linkId, reason, idempotencyKey); }
 export function attestAttachmentSetSanitized(db: SqlDatabase, actor: WorkContext, setId: string, input: {
     confirmed: boolean;
     note: string;

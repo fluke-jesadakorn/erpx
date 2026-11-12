@@ -11,6 +11,7 @@ pub use crate::application::attachment_command::{
 };
 pub use crate::domain::attachment_command::{
     MAX_COMMAND_KEY_BYTES, MAX_WITHDRAWAL_REASON_UNITS, MIN_COMMAND_KEY_BYTES,
-    MIN_WITHDRAWAL_REASON_UNITS, WithdrawalDecision, has_native_owner_command,
-    normalize_withdrawal_reason, valid_command_key, withdrawal_decision, withdrawal_event_id,
+    MIN_WITHDRAWAL_REASON_UNITS, WithdrawOwnerAccess, WithdrawalDecision, has_native_owner_command,
+    normalize_withdrawal_reason, valid_command_key, withdraw_owner_access, withdrawal_decision,
+    withdrawal_event_id,
 };

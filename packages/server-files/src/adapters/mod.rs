@@ -13,6 +13,7 @@ pub mod attachment_command_postgres;
 pub mod attachment_read_postgres;
 pub mod attachment_read_use_cases;
 pub mod attachment_http;
+pub mod portal_attachment_http;
 pub mod postgres_attachment_scan;
 
 pub mod postgres_attachment_scan_receipt;

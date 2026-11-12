@@ -40,7 +40,7 @@ import {
   uploadAttachmentBytes,
   validateGenericAttachment,
   validateFieldAttachment,
-  withdrawAttachmentLink,
+  requestAttachmentWithdrawal,
 } from "@erpx/feature-files/lib/attachment-client";
 import {fieldWithdrawalScope,pendingFieldWithdrawal,registerFieldWithdrawalOwner,retryFieldWithdrawal,submitFieldWithdrawal,subscribeFieldWithdrawal} from "@erpx/feature-files/lib/native-field-withdraw";
 import {pendingFieldBind,registerFieldBindOwner,retryFieldBind,submitFieldBind,subscribeFieldBind} from "@erpx/feature-files/lib/native-field-bind";
@@ -661,7 +661,7 @@ function AttachmentPanelContent({ appearance = "legacy",
     }
   }
 
-  async function applyWithdrawal(status: Awaited<ReturnType<typeof withdrawAttachmentLink>>,originalReason:string) {
+  async function applyWithdrawal(status: Awaited<ReturnType<typeof requestAttachmentWithdrawal>>,originalReason:string) {
     if(!mounted.current||setRef.current?.id!==status.setId)return;
     patchLink(status.linkId,{sourceState:status.sourceState,linkState:status.linkState,localState:undefined});
     invalidateSanitizationAttestation();retryUploads.current.delete(status.linkId);
@@ -673,7 +673,7 @@ function AttachmentPanelContent({ appearance = "legacy",
     const id=withdrawId,draftReason=withdrawReason,reason=draftReason.trim(),selected=(nativeFiles);
     setActivity(true);setError("");
     try {
-      const status=selected?await submitFieldWithdrawal({scope:withdrawalScope,base,linkId:id,setId:setRef.current?.id??'',reason,draftReason}):await withdrawAttachmentLink(base,id,reason,crypto.randomUUID());
+      const status=selected?await submitFieldWithdrawal({scope:withdrawalScope,base,linkId:id,setId:setRef.current?.id??'',reason,draftReason}):await requestAttachmentWithdrawal(base,id,reason,crypto.randomUUID());
       await applyWithdrawal(status,draftReason);
     } catch(cause){if(mounted.current)setError(cause instanceof Error?cause.message:"Unable to withdraw this file.");}
     finally{setActivity(false);}

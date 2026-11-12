@@ -2915,6 +2915,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut sales_price_lists_targets = Vec::new();
         let mut files_targets = Vec::new();
+        let mut portal_attachment_targets = Vec::new();
         let mut procurement_targets = Vec::new();
         let mut procurement_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -4586,23 +4587,40 @@ async fn assemble_checked(
                         backend: records_backend.clone(),
                     },
                 );
+                let files_backend = Arc::new(crate::files::FilesBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(
+                        crate::files::FilesService::new(
+                            authorizer.clone(),
+                            crate::files::FilesConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                holding.registration.slug.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )
+                        .with_portal(
+                            pools[0].clone(),
+                            pools[i + 1].clone(),
+                            config.environment.clone(),
+                        ),
+                    ),
+                ));
                 files_targets.push(
                     erpx_server_files::public::attachment_http::AttachmentReadHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::files::FilesBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::files::FilesService::new(
-                                authorizer.clone(),
-                                crate::files::FilesConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        backend: files_backend.clone(),
+                    },
+                );
+                portal_attachment_targets.push(
+                    erpx_server_files::public::portal_attachment_http::PortalAttachmentHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: files_backend,
                     },
                 );
                 let people_payroll_backend =
@@ -5714,6 +5732,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_files::public::attachment_http::attachment_read_router(files_targets)
                     .map_err(|_| "PRIVATE_API_FILES_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !portal_attachment_targets.is_empty() {
+            router = router.merge(
+                erpx_server_files::public::portal_attachment_http::portal_attachment_http_router(
+                    portal_attachment_targets,
+                )
+                .map_err(|_| "PRIVATE_API_FILES_CONFIGURATION_INVALID")?,
             );
         }
         if !procurement_targets.is_empty() {

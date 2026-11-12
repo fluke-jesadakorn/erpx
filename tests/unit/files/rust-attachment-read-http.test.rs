@@ -1,8 +1,13 @@
 //! Actual owner-local HTTP router tests for the native Files attachment read.
 use erpx_server_files::public::attachment_http::{
-    AttachmentReadHttpBackend, AttachmentReadHttpFuture, AttachmentReadHttpListRequest,
-    AttachmentReadHttpReply, AttachmentReadHttpStatusRequest, AttachmentReadHttpTarget,
-    attachment_read_router,
+    AttachmentCommandHttpWithdrawRequest, AttachmentReadHttpBackend, AttachmentReadHttpFuture,
+    AttachmentReadHttpListRequest, AttachmentReadHttpReply, AttachmentReadHttpStatusRequest,
+    AttachmentReadHttpTarget, attachment_read_router,
+};
+use erpx_server_files::public::portal_attachment_http::{
+    PortalAttachmentHttpBackend, PortalAttachmentHttpFuture, PortalAttachmentHttpReply,
+    PortalAttachmentHttpTarget, PortalAttachmentHttpWithdrawRequest,
+    portal_attachment_http_router,
 };
 use erpx_server_runtime::public::http_support::{serde_json, serve};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -68,6 +73,32 @@ impl AttachmentReadHttpBackend for Probe {
             })
         })
     }
+    fn withdraw<'a>(
+        &'a self,
+        request: AttachmentCommandHttpWithdrawRequest<'a>,
+    ) -> AttachmentReadHttpFuture<'a, AttachmentReadHttpReply> {
+        Box::pin(async move {
+            self.seen.lock().unwrap().push(format!(
+                "withdraw|{}|{}|{}|{}|{}",
+                request.host,
+                request.holding_slug,
+                request.link_id,
+                request.reason,
+                request.command_key
+            ));
+            if self.fail {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "ATTACHMENT_LINK_LOCKED",
+                    "Synthetic closed file.",
+                ));
+            }
+            Ok(AttachmentReadHttpReply {
+                data: serde_json::json!({"linkId": request.link_id, "linkState": "withdrawn"}),
+                context: serde_json::json!({"userId": "actor"}),
+            })
+        })
+    }
 }
 
 struct Noop;
@@ -87,6 +118,18 @@ impl AttachmentReadHttpBackend for Noop {
     fn status<'a>(
         &'a self,
         _: AttachmentReadHttpStatusRequest<'a>,
+    ) -> AttachmentReadHttpFuture<'a, AttachmentReadHttpReply> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::NotFound,
+                "NOT_FOUND",
+                "Not found.",
+            ))
+        })
+    }
+    fn withdraw<'a>(
+        &'a self,
+        _: AttachmentCommandHttpWithdrawRequest<'a>,
     ) -> AttachmentReadHttpFuture<'a, AttachmentReadHttpReply> {
         Box::pin(async {
             Err(BusinessError::new(
@@ -164,6 +207,29 @@ fn get(path: &str, host: &str) -> String {
     format!(
         "GET {path} HTTP/1.1\r\nHost: {host}\r\nCookie: erpx=session\r\nConnection: close\r\n\r\n"
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn post(
+    path: &str,
+    host: &str,
+    origin: Option<&str>,
+    key: Option<&str>,
+    content_type: &str,
+    body: &str,
+) -> String {
+    let mut request = format!("POST {path} HTTP/1.1\r\nHost: {host}\r\nCookie: erpx=session\r\n");
+    if let Some(origin) = origin {
+        request.push_str(&format!("Origin: {origin}\r\n"));
+    }
+    if let Some(key) = key {
+        request.push_str(&format!("Idempotency-Key: {key}\r\n"));
+    }
+    request.push_str(&format!(
+        "Content-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    ));
+    request
 }
 
 fn target(
@@ -315,4 +381,335 @@ async fn router_rejects_unknown_scope_query_versions_bodies_and_paths() {
     assert_eq!(status, 404);
 
     assert!(seen.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn router_forwards_one_bounded_withdraw_with_exact_key_and_origin() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = attachment_read_router(vec![
+        target("acme.example.test", "acme", seen.clone(), false),
+        target("fail.example.test", "fail", seen.clone(), true),
+    ])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, body, headers) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/attachment-links/link-1/withdraw",
+            "acme.example.test",
+            Some("https://acme.example.test"),
+            Some("withdraw-key-1"),
+            "application/json",
+            r#"{"reason":"duplicate upload"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["linkState"], "withdrawn");
+    assert_eq!(body["context"]["userId"], "actor");
+    assert!(headers.contains("cache-control: private, no-store"));
+    assert!(headers.contains("referrer-policy: no-referrer"));
+    assert!(headers.contains("x-content-type-options: nosniff"));
+    assert_eq!(
+        *seen.lock().unwrap(),
+        vec!["withdraw|acme.example.test|acme|link-1|duplicate upload|withdraw-key-1".to_string()]
+    );
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/fail/attachment-links/link-2/withdraw",
+            "fail.example.test",
+            Some("https://fail.example.test"),
+            Some("withdraw-key-2"),
+            "application/json; charset=utf-8",
+            r#"{"reason":"duplicate upload"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 409);
+    assert_eq!(body["error"]["code"], "ATTACHMENT_LINK_LOCKED");
+}
+
+#[tokio::test]
+async fn router_rejects_unsafe_or_incomplete_withdraw_requests_before_the_backend() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = attachment_read_router(vec![target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+        false,
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let path = "/api/v1/holdings/acme/attachment-links/link-1/withdraw";
+    for (origin, key, content_type, body, expected) in [
+        (
+            None,
+            Some("withdraw-key-1"),
+            "application/json",
+            r#"{"reason":"duplicate upload"}"#,
+            403,
+        ),
+        (
+            Some("https://other.example.test"),
+            Some("withdraw-key-1"),
+            "application/json",
+            r#"{"reason":"duplicate upload"}"#,
+            403,
+        ),
+        (
+            Some("https://acme.example.test"),
+            None,
+            "application/json",
+            r#"{"reason":"duplicate upload"}"#,
+            422,
+        ),
+        (
+            Some("https://acme.example.test"),
+            Some("short"),
+            "application/json",
+            r#"{"reason":"duplicate upload"}"#,
+            422,
+        ),
+        (
+            Some("https://acme.example.test"),
+            Some("withdraw-key-1"),
+            "text/plain",
+            r#"{"reason":"duplicate upload"}"#,
+            422,
+        ),
+        (
+            Some("https://acme.example.test"),
+            Some("withdraw-key-1"),
+            "application/json",
+            r#"{"reason":"ok","extra":true}"#,
+            422,
+        ),
+        (
+            Some("https://acme.example.test"),
+            Some("withdraw-key-1"),
+            "application/json",
+            r#"{"reason":4}"#,
+            422,
+        ),
+        (
+            Some("https://acme.example.test"),
+            Some("withdraw-key-1"),
+            "application/json",
+            "",
+            422,
+        ),
+    ] {
+        let (status, body, _) = http(
+            addr,
+            post(path, "acme.example.test", origin, key, content_type, body),
+        )
+        .await;
+        assert_eq!(status, expected, "{origin:?} {key:?} {content_type} {body}");
+        if expected == 403 {
+            assert_eq!(body["error"]["code"], "ORIGIN_FORBIDDEN");
+        }
+    }
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/attachment-links/link-1/withdraw?reason=x",
+            "acme.example.test",
+            Some("https://acme.example.test"),
+            Some("withdraw-key-1"),
+            "application/json",
+            r#"{"reason":"duplicate upload"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/other/attachment-links/link-1/withdraw",
+            "acme.example.test",
+            Some("https://acme.example.test"),
+            Some("withdraw-key-1"),
+            "application/json",
+            r#"{"reason":"duplicate upload"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            path,
+            "other.example.test",
+            Some("https://acme.example.test"),
+            Some("withdraw-key-1"),
+            "application/json",
+            r#"{"reason":"duplicate upload"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+
+    assert!(seen.lock().unwrap().is_empty());
+}
+
+struct PortalProbe {
+    seen: Arc<Mutex<Vec<String>>>,
+}
+
+impl PortalAttachmentHttpBackend for PortalProbe {
+    fn withdraw<'a>(
+        &'a self,
+        request: PortalAttachmentHttpWithdrawRequest<'a>,
+    ) -> PortalAttachmentHttpFuture<'a, PortalAttachmentHttpReply> {
+        Box::pin(async move {
+            self.seen.lock().unwrap().push(format!(
+                "portal|{}|{}|{}|{}|{}|{}",
+                request.host,
+                request.holding_slug,
+                request.link_id,
+                request.reason,
+                request.command_key,
+                request
+                    .headers
+                    .get("cookie")
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or("")
+            ));
+            Ok(PortalAttachmentHttpReply {
+                data: serde_json::json!({
+                    "linkId": request.link_id,
+                    "linkState": "withdrawn",
+                    "withdrawnAt": 30
+                }),
+            })
+        })
+    }
+}
+
+fn portal_target(
+    host: &str,
+    slug: &str,
+    seen: Arc<Mutex<Vec<String>>>,
+) -> PortalAttachmentHttpTarget {
+    PortalAttachmentHttpTarget {
+        host: host.into(),
+        holding_slug: slug.into(),
+        origin: format!("https://{host}"),
+        backend: Arc::new(PortalProbe { seen }),
+    }
+}
+
+#[test]
+fn portal_router_requires_distinct_exact_holdings() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let target = || portal_target("acme.example.test", "acme", seen.clone());
+    assert!(portal_attachment_http_router(vec![target()]).is_ok());
+    assert!(portal_attachment_http_router(vec![target(), target()]).is_err());
+    assert!(
+        portal_attachment_http_router(vec![PortalAttachmentHttpTarget {
+            origin: "http://acme.example.test".into(),
+            ..target()
+        }])
+        .is_err()
+    );
+    assert!(
+        portal_attachment_http_router(vec![PortalAttachmentHttpTarget {
+            holding_slug: "Acme".into(),
+            ..target()
+        }])
+        .is_err()
+    );
+    assert!(
+        portal_attachment_http_router(vec![PortalAttachmentHttpTarget {
+            host: String::new(),
+            ..target()
+        }])
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn portal_router_forwards_only_the_exact_origin_key_and_bounded_reason() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = portal_attachment_http_router(vec![portal_target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let path = "/api/customer-portal/acme/attachments/attachment-links/link-1/withdraw";
+    let body = r#"{"reason":"Replace the incorrect photo"}"#;
+    for (origin, key, content_type) in [
+        (None, Some("withdraw-001"), "application/json"),
+        (
+            Some("https://foreign.example.test"),
+            Some("withdraw-001"),
+            "application/json",
+        ),
+        (Some("https://acme.example.test"), Some("short"), "application/json"),
+        (
+            Some("https://acme.example.test"),
+            Some("withdraw-001"),
+            "text/plain",
+        ),
+    ] {
+        let (status, _, _) = http(addr, post(path, "acme.example.test", origin, key, content_type, body)).await;
+        assert_eq!(status, if origin.is_none() || origin == Some("https://foreign.example.test") { 403 } else { 422 });
+    }
+    let (status, _, _) = http(
+        addr,
+        post(path, "other.example.test", Some("https://other.example.test"), Some("withdraw-001"), "application/json", body),
+    )
+    .await;
+    assert_eq!(status, 404);
+    let (status, _, _) = http(
+        addr,
+        post(path, "acme.example.test", Some("https://acme.example.test"), Some("withdraw-001"), "application/json", "{}"),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert!(seen.lock().unwrap().is_empty());
+    let (status, body, headers) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            Some("https://acme.example.test"),
+            Some("withdraw-001"),
+            "application/json; charset=utf-8",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["linkId"], "link-1");
+    assert_eq!(body["data"]["linkState"], "withdrawn");
+    assert!(headers.contains("cache-control: private, no-store"));
+    assert!(headers.contains("referrer-policy: no-referrer"));
+    assert_eq!(
+        *seen.lock().unwrap(),
+        vec![
+            "portal|acme.example.test|acme|link-1|Replace the incorrect photo|withdraw-001|erpx=session"
+        ]
+    );
 }
