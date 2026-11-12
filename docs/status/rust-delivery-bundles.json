@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1129,
+    "revision": 1134,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-a",
       "agentId": "lead",
       "startedAt": "2026-11-12T18:22:56.884Z",
-      "heartbeatAt": "2026-11-12T18:28:33.393Z",
-      "expiresAt": "2026-11-12T18:58:33.393Z",
+      "heartbeatAt": "2026-11-12T18:37:12.751Z",
+      "expiresAt": "2026-11-12T19:07:12.751Z",
       "generation": 45,
       "tokenHash": "01987380ea47a5bf01d44d35646397fdf3229687e8b239e208cad2e332c2f456"
     },
@@ -21365,8 +21365,8 @@
           "runId": "run-20261113-a",
           "agentId": "worker-operations",
           "claimedAt": "2026-11-12T18:23:13.159Z",
-          "heartbeatAt": "2026-11-12T18:28:33.393Z",
-          "expiresAt": "2026-11-12T18:58:33.393Z",
+          "heartbeatAt": "2026-11-12T18:37:12.751Z",
+          "expiresAt": "2026-11-12T19:07:12.751Z",
           "generation": 45
         },
         "baseSha": null,
@@ -21563,7 +21563,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/organization.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "BLOCKED ON NATIVE PRODUCERS: levels/templates were retired at 88d60afba. Remaining writer is savePosition (position insert/update plus roster-exit effects) with no native position-save command; organization drafts and presentation reads also remain TS. Build the native position command and a drafts producer before further deletion.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -21901,8 +21901,8 @@
           "runId": "run-20261113-a",
           "agentId": "worker-sales-native",
           "claimedAt": "2026-11-12T18:24:11.923Z",
-          "heartbeatAt": "2026-11-12T18:28:33.393Z",
-          "expiresAt": "2026-11-12T18:58:33.393Z",
+          "heartbeatAt": "2026-11-12T18:37:12.751Z",
+          "expiresAt": "2026-11-12T19:07:12.751Z",
           "generation": 45
         },
         "baseSha": null,
@@ -22181,7 +22181,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/approval-planning.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "BLOCKED ON A NATIVE PRODUCER: native staff-work task/detail/revise/transition/delegate commands are mounted and authoritative, but the retained staff-task comments/attachments paths still call staff-api and consume approvalView/taskRoute/closeApprovals from adapters/approval-planning.ts. Port those retained read/comment/attachment consumers to native staff-work endpoints first, then delete the 18 TS writer statements.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -26985,8 +26985,8 @@
           "runId": "run-20261113-a",
           "agentId": "worker-billing-invoice",
           "claimedAt": "2026-11-12T18:23:13.128Z",
-          "heartbeatAt": "2026-11-12T18:28:33.393Z",
-          "expiresAt": "2026-11-12T18:58:33.393Z",
+          "heartbeatAt": "2026-11-12T18:37:12.751Z",
+          "expiresAt": "2026-11-12T19:07:12.751Z",
           "generation": 45
         },
         "baseSha": null,
@@ -27149,9 +27149,8 @@
         "allowedPaths": [
           "packages/server-commerce/src/**",
           "packages/server-commerce/Cargo.toml",
-          "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+          "packages/server-commerce/package.json",
           "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**",
-          "src/composition/src/commerce.rs",
           "tests/unit/commerce/**",
           "tests/integration/commerce/**",
           "tests/integration/shared.commerce/**"
@@ -27159,15 +27158,22 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-a",
+          "agentId": "worker-commerce-delivery",
+          "claimedAt": "2026-11-12T18:35:14.687Z",
+          "heartbeatAt": "2026-11-12T18:37:12.751Z",
+          "expiresAt": "2026-11-12T19:07:12.751Z",
+          "generation": 45
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Read the Inventory stock_issue seam and Finance CommerceGoodsKind::Delivery contracts, then implement the Commerce sales delivery use case + Pg repository + HTTP handler and switch the workplace route; no TS fallback.",
+        "nextAction": "Implement the native sales delivery use case in server-commerce over the Inventory stock_issue seam and Finance Delivery goods journal, mount it in order_http for goods/mixed fulfill, then (after the sales lane releases feature-sales/composition) switch the client and workplace route and delete the TS fulfillOrder goods branch.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commerce",
@@ -27369,8 +27375,8 @@
       "totalPackets": 128,
       "migratedPackets": 62,
       "statusCounts": {
-        "pending": 29,
-        "in_progress": 6,
+        "pending": 28,
+        "in_progress": 7,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 62,
@@ -27380,7 +27386,7 @@
       }
     },
     "lastCoordinatorGeneration": 45,
-    "updatedAt": "2026-11-12T18:28:33.394Z",
+    "updatedAt": "2026-11-12T18:37:12.752Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
