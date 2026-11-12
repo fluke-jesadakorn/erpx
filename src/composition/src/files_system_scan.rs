@@ -30,6 +30,7 @@ type DatabaseIdentityRow = (String, i64, String, String, String, String, Option<
 /// Explicit trusted operator configuration, not an HTTP/Actor DTO. The same
 /// registry is used at startup and in every short phase. No ambient .env load,
 /// database creation, migration, pool+label adoption or production fallback.
+#[derive(Clone)]
 pub struct DevelopmentFilesScanConfiguration {
     control: RuntimeDatabase,
     holding: RuntimeDatabase,
@@ -214,6 +215,35 @@ impl<C: Clock + Send + Sync + 'static> DevelopmentFilesScanTransactions<C> {
                 Ok(RecordId::new(source).ok())
             })
         }).await
+    }
+
+    /// Select one pending generic (non-Field) attachment scan owned by the
+    /// project attachment pipeline. Claims still reacquire every witness.
+    pub async fn next_project_candidate(&self) -> Result<Option<RecordId>, Error> {
+        if self.field_only {
+            return Err(unavailable().into());
+        }
+        let company = self.state.scope.company_id.as_str().to_owned();
+        let now = self.state.clock.now().get();
+        self.phase(move |c| {
+            let company = company.clone();
+            Box::pin(async move {
+                let row: Option<String> = sqlx::query_scalar(
+                    "SELECT j.attachment_id FROM attachment_scan_attempts j \
+                     JOIN attachments a ON a.id=j.attachment_id \
+                     WHERE a.company_id=$1 AND a.owner_type='project' \
+                     AND j.state IN ('pending','running') AND j.created_at<=$2 \
+                     AND (j.claim_until IS NULL OR j.claim_until<$2) \
+                     ORDER BY j.created_at,j.id LIMIT 1",
+                )
+                .bind(&company)
+                .bind(now)
+                .fetch_optional(&mut *c)
+                .await?;
+                Ok(row.and_then(|id| RecordId::new(id).ok()))
+            })
+        })
+        .await
     }
 
     /// Run one database-only cleanup phase against the current leased Holding.

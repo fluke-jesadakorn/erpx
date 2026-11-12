@@ -77,10 +77,16 @@ pub async fn run_field_files_workers<C: Clock + Send + Sync + 'static>(
         for worker in &workers {
             let candidate = tokio::select! {
                 _ = &mut shutdown => break 'worker,
-                result = worker.next_field_candidate() => match result {
+                result = async {
+                    if worker.is_field_only() {
+                        worker.next_field_candidate().await
+                    } else {
+                        worker.next_project_candidate().await
+                    }
+                } => match result {
                     Ok(Some(value)) => value,
                     Ok(None) => continue,
-                    Err(_) => { eprintln!("field files candidate unavailable"); continue; },
+                    Err(_) => { eprintln!("files scan candidate unavailable"); continue; },
                 },
             };
             let next = worker.run_next(Some(&candidate));

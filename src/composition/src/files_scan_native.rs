@@ -27,6 +27,7 @@ type Error = PgTransactionError<BusinessError>;
 
 /// Trusted explicit provider configuration. No Deserialize, ambient .env,
 /// fallback decoder, arbitrary URL, caller filesystem path or runtime activation.
+#[derive(Clone)]
 pub struct NativeFilesScanConfiguration {
     pub files_roots: BTreeMap<String, PathBuf>,
     pub temporary_root: PathBuf,
@@ -64,6 +65,18 @@ impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
         }
         self.transactions.next_field_candidate().await
     }
+    pub fn is_field_only(&self) -> bool {
+        self.field_only
+    }
+
+    /// Select one pending project attachment scan for this worker scope.
+    pub async fn next_project_candidate(&self) -> Result<Option<RecordId>, Error> {
+        if self.field_only {
+            return Err(unavailable().into());
+        }
+        self.transactions.next_project_candidate().await
+    }
+
     pub async fn run_next(
         &self,
         source_filter: Option<&RecordId>,
@@ -179,6 +192,16 @@ pub async fn assemble_native_field_files_scan<C: Clock + Send + Sync + 'static>(
     clock: Arc<C>,
 ) -> Result<NativeFilesScanWorker<C>, Error> {
     assemble_native_files_scan(databases, providers, clock, true).await
+}
+
+/// Generic (non-Field) scan worker. It claims the project attachment pipeline
+/// only; Field workers keep their explicit field-only partition.
+pub async fn assemble_native_project_files_scan<C: Clock + Send + Sync + 'static>(
+    databases: DevelopmentFilesScanConfiguration,
+    providers: NativeFilesScanConfiguration,
+    clock: Arc<C>,
+) -> Result<NativeFilesScanWorker<C>, Error> {
+    assemble_native_files_scan(databases, providers, clock, false).await
 }
 
 async fn assemble_native_files_scan<C: Clock + Send + Sync + 'static>(

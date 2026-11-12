@@ -7,7 +7,7 @@ use crate::{
     },
     field_files_runtime_configuration::parse_field_files_runtime_configuration,
     field_upload_http::{FieldUploadTarget, field_upload_router},
-    files_scan_native::NativeFilesScanWorker,
+    files_scan_native::{NativeFilesScanWorker, assemble_native_project_files_scan},
     files_scan_worker::{
         FieldFilesScanTarget, assemble_field_files_scan_workers, run_field_files_workers,
     },
@@ -79,6 +79,7 @@ pub(super) async fn assemble(
     let mut grouped: BTreeMap<HoldingId, (BTreeSet<CompanyId>, std::path::PathBuf, Vec<usize>)> =
         BTreeMap::new();
     let mut scan_targets = Vec::new();
+    let mut project_scan_targets = Vec::new();
     for t in targets {
         let h = config
             .holdings
@@ -109,14 +110,31 @@ pub(super) async fn assemble(
         )
         .map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?;
         scan_targets.push(FieldFilesScanTarget {
+            databases: databases.clone(),
+            providers: t.providers.clone(),
+        });
+        project_scan_targets.push(FieldFilesScanTarget {
             databases,
             providers: t.providers,
         });
     }
     let clock = Arc::new(SharedClock(clock));
-    let workers = assemble_field_files_scan_workers(scan_targets, clock.clone())
+    let mut workers = assemble_field_files_scan_workers(scan_targets, clock.clone())
         .await
         .map_err(|_| "FIELD_FILES_WORKER_UNAVAILABLE")?;
+    for target in project_scan_targets {
+        match assemble_native_project_files_scan(target.databases, target.providers, clock.clone())
+            .await
+        {
+            Ok(worker) => workers.push(worker),
+            Err(_) => {
+                for worker in workers {
+                    worker.close().await;
+                }
+                return Err("PROJECT_FILES_WORKER_UNAVAILABLE");
+            }
+        }
+    }
     let result = (|| {
         let catalogue =
             Arc::new(current_package_catalogue().map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?);
