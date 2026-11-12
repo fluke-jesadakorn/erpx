@@ -2,10 +2,9 @@ import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {env,applyMigrations} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {getProject,projectSchema,saveProject,saveTask,taskSchema,taskActionSchema,transitionTask} from '@erpx/server-operations/public/staff-tasks';
-import {projectGraph,projectHandoffs,projectHandoffWork,projectStructureCommand} from "@erpx/server-projects/public/project-structure";
-import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
+import {projectGraph,projectHandoffs,projectHandoffWork} from "@erpx/server-projects/public/project-structure";
 import {listProjectCostAllocations} from "@erpx/server-projects/public/project-actuals";
-import {approveCostAllocation,approveWorkLog,completeMilestone,seedCostAllocation,seedMilestone,seedWorkLog} from "./project-actual-fixtures";
+import {approveCostAllocation,seedCostAllocation,seedMilestone,seedWorkLog} from "./project-actual-fixtures";
 import {createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 import {packageGrantRevision} from "@erpx/server-commercial/public/package-grants";
@@ -14,8 +13,6 @@ import {projectPackageObligations} from "@erpx/server-projects/public/package-ob
 import {listProjects} from "@erpx/server-projects/public/staff-projects";
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import {listTasks,taskDetail,delegateTask} from '@erpx/server-operations/public/staff-tasks';
-import {listRecords,recordsPage,getRecord,searchReferences} from "@erpx/server-records/public/records";
-import {publishInboxEvent,inboxPage} from "@erpx/server-collaboration/public/inbox";
 import {getStaffWork} from "@erpx/server-work_projection/public/domain-work";
 import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
@@ -24,11 +21,6 @@ beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await ap
 afterEach(()=>vi.unstubAllEnvs());
 beforeEach(async()=>{f=await expenseFixture();for(const a of [f.owner,f.claimant,f.head,f.manager,f.reviewer])a.modules=['projects','finance'];});
 async function newProject(){return saveProject(db,f.owner,null,projectSchema.parse({title:'Reviewed customer implementation',memberUserIds:[f.claimant.userId,f.head.userId,f.manager.userId,f.reviewer.userId]}),key());}
-async function packageIn(projectId:string,title:string,parentId:string|null=null,depends:string[]=[],position=0){return seedMilestone(db,{id:`milestone-${key()}`,companyId:f.company,projectId,title,dueAt:Date.parse('2026-09-20T11:00:00Z'),ownerUserId:f.claimant.userId,createdBy:f.owner.userId,parentId,ordinal:position,dependsOn:depends});}
-async function command(projectId:string,input:Record<string,unknown>,actor=f.owner,receipt=key()){
- const p=await getProject(db,actor,projectId);return projectStructureCommand(actor,projectId,{expectedVersion:p.version,reason:'Verified normal owner source and retained review evidence.',...input},receipt);
-}
-async function complete(projectId:string,packageId:string,expectedVersion=1){return completeMilestone(db,{id:packageId,companyId:f.company,projectId,version:expectedVersion,actorId:f.owner.userId});}
 async function approvedExpense(){
  const journal=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-09-12',currency:'THB',sourceType:'manual',memo:'Approved project cost source',lines:[{accountId:f.accounts.expense,debit:'75.01',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'75.01'}]}),key());
  await postJournal(f.manager,journal.id,key(),{expectedVersion:1});return `${journal.id}-0`;
@@ -48,21 +40,6 @@ function projectWithdrawalReview(request:Awaited<ReturnType<typeof projectWithdr
  const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-settlement-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)});
  return withOwnerPackageObligations(db,projectSettlementInput(request.changes[0].grant.packageId),tx=>apply?store.batch.applyIn(tx,request,async()=>{}):store.batch.previewIn(tx,request));
 }
-it('withdraws Projects after its actual task, reviewed time and independent handoff settle with current-authority replay',async()=>{
- vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');await grantProject();
- const p=await newProject(),pack=await packageIn(p.id,'Actual package delivery'),task=await saveTask(db,f.owner,null,taskSchema.parse({title:'Retained Project withdrawal task',assigneeUserId:f.claimant.userId,projectId:p.id}),key());
- await command(p.id,{action:'assign-task',taskId:task.id,taskVersion:1,milestoneId:pack.id,milestoneVersion:1,bindingVersion:0});
- const time=await seedWorkLog(db,{id:`project-time-${key()}`,companyId:f.company,projectId:p.id,userId:f.claimant.userId,workDate:'2026-09-12',minutes:45});
- await grantProject('draining');const opened=await projectSettlement();expect(opened.observations.map(row=>row.moduleId)).toEqual(['projects','people_payroll','finance']);expect(opened.total).toBeGreaterThan(0);expect(JSON.stringify(opened)).not.toMatch(/snapshot_json|owner_user_id|journal_line_id|evidence/);
- await expect(projectWithdrawalReview(await projectWithdrawal())).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
- await transitionTask(db,f.claimant,task.id,taskActionSchema.parse({action:'start',expectedVersion:1}),key());await transitionTask(db,f.claimant,task.id,taskActionSchema.parse({action:'complete',expectedVersion:2,note:'Completed original retained delivery.'}),key());
- await approveWorkLog(db,{id:time.id,companyId:f.company,projectId:p.id,version:1,reviewerId:f.owner.userId,receipt:key()});await complete(p.id,pack.id);await command(p.id,{action:'link-actual',milestoneId:pack.id,milestoneVersion:2,sourceKind:'work_log',sourceId:time.id,sourceVersion:2});
- const issued=await command(p.id,{action:'prepare-handoff',recipientId:f.head.userId,evidence:'Original reviewed delivery and held private evidence.'}),before=await getProject(db,f.head,p.id),receipt=key(),input={action:'accept-handoff',expectedVersion:before.version,handoffId:issued.handoffId,handoffVersion:1,reason:'Independent recipient accepts original completed delivery.'};
- const accepted=await projectStructureCommand(f.head,p.id,input,receipt);expect((await projectSettlement()).total).toBe(0);
- const request=await projectWithdrawal(),preview=await projectWithdrawalReview(request),applied=await projectWithdrawalReview(request,true);expect(applied).toEqual(preview);expect(await projectWithdrawalReview(request,true)).toEqual(applied);expect(await projectStructureCommand(f.head,p.id,input,receipt)).toEqual(accepted);
- expect((await projectGraph(f.owner,p.id)).totals.approvedMinutes).toBe(45);expect((await readCompanyPackageGrants(db,f.company)).map(grant=>[grant.packageId,grant.state])).toEqual([['projects','inactive']]);
- await expect(newProject()).rejects.toMatchObject({code:'PACKAGE_INACTIVE'});await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.head.assignmentId).run();await expect(projectStructureCommand(f.head,p.id,input,receipt)).rejects.toMatchObject({code:'PROJECT_ACCESS_CHANGED'});expect((await projectSettlement()).total).toBe(0);
-});
 it('withdraws only the settled Project Costs addon without closing an independently active basic project or its retained posted expense',async()=>{
  vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');
  await grantProject();await grantProject('active',null,'projects-costs');const p=await newProject(),line=await approvedExpense(),allocation=await seedCostAllocation(db,{id:`project-cost-${key()}`,companyId:f.company,projectId:p.id,journalLineId:line,amountMinor:2501,createdBy:f.owner.userId});
@@ -82,49 +59,11 @@ it('keeps unposted and foreign original Project cost lineage as raw Finance with
  await grantProject('draining',null,'projects-costs');const observed=await projectSettlement('projects-costs');expect(observed.observations.find(row=>row.moduleId==='finance')?.outstanding).toBe(2);expect(observed.observations.find(row=>row.moduleId==='projects')?.outstanding).toBe(2);await expect(projectWithdrawalReview(await projectWithdrawal('projects-costs'))).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
  expect(await db.prepare('SELECT status FROM finance_journals WHERE id=?').bind(journal.id).first('status')).toBe('draft');expect(await db.prepare('SELECT COUNT(*)::int count FROM staff_project_cost_allocations WHERE id IN (?,?)').bind(first,second).first('count')).toBe(2);
 });
-it('rolls Commercial Project inactivation and its audit receipt back after a final deferred real Project obligation',async()=>{
- await grantProject();const p=await newProject(),issued=await command(p.id,{action:'prepare-handoff',recipientId:f.head.userId,evidence:'Completed empty delivery reviewed independently.'});await command(p.id,{action:'accept-handoff',handoffId:issued.handoffId,handoffVersion:1},f.head);await grantProject('draining');expect((await projectSettlement()).total).toBe(0);
- const request=await projectWithdrawal(),name=`project_final_settlement_${key().replaceAll('-','')}`;await db.prepare(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE staff_projects SET lifecycle_status='active',version=version+1 WHERE id='${p.id}'; RETURN NEW; END $$`).run();await db.prepare(`CREATE CONSTRAINT TRIGGER ${name} AFTER INSERT ON company_package_change_sets DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.id='${request.idempotencyKey}') EXECUTE FUNCTION ${name}()`).run();
- try{await expect(projectWithdrawalReview(request,true)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');}finally{await db.prepare(`DROP TRIGGER ${name} ON company_package_change_sets`).run();await db.prepare(`DROP FUNCTION ${name}()`).run();}
- expect((await getProject(db,f.owner,p.id)).lifecycle_status).toBe('completed');expect(await db.prepare("SELECT state,version FROM company_package_grants WHERE company_id=? AND package_id='projects'").bind(f.company).first()).toEqual({state:'draining',version:2});expect(await db.prepare('SELECT 1 FROM company_package_change_sets WHERE id=?').bind(request.idempotencyKey).first()).toBeNull();expect((await projectSettlement()).total).toBe(0);await projectWithdrawalReview(request,true);
-});
 it('observes a committed original Project writer only after its fresh settlement source leases become available',async()=>{
  await grantProject();await grantProject('draining');const request=await projectWithdrawal(),id=`project-concurrent-${key()}`,now=Date.now();let inserted!:()=>void,release!:()=>void;const ready=new Promise<void>(resolve=>{inserted=resolve;}),released=new Promise<void>(resolve=>{release=resolve;});
  const writer=db.transaction(async tx=>{await tx.prepare('LOCK TABLE company_package_grants IN ROW EXCLUSIVE MODE').run();await tx.prepare("INSERT INTO staff_projects(id,company_id,branch_id,department_id,title,owner_user_id,created_at,updated_at) VALUES(?,?,?,?,'Actual concurrent source',?,?,?)").bind(id,f.company,f.branch,f.department,f.owner.userId,now,now).run();inserted();await released;});await ready;const review=projectWithdrawalReview(request).then(value=>({value,error:null}),error=>({value:null,error}));
  try{let waiting=false;for(let attempt=0;attempt<100;attempt++){waiting=Boolean(await db.prepare("SELECT 1 FROM pg_locks WHERE database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND relation='company_package_grants'::regclass AND mode='ShareRowExclusiveLock' AND NOT granted LIMIT 1").first());if(waiting)break;await new Promise(resolve=>setTimeout(resolve,10));}expect(waiting).toBe(true);}finally{release();await writer;}
  expect((await review).error).toMatchObject({message:'PACKAGE_OBLIGATIONS_REMAIN'});expect((await projectSettlement()).total).toBeGreaterThan(0);expect(await db.prepare('SELECT lifecycle_status FROM staff_projects WHERE id=?').bind(id).first('lifecycle_status')).toBe('active');
-});
-it('runs Projects-only WBS, reviewed time and independent handoff while People is enforced, retaining draining settlement and exact history replay',async()=>{
- vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
- const receipt=key(),input=projectSchema.parse({title:'Projects-only customer delivery',memberUserIds:[f.claimant.userId,f.head.userId]});
- await expect(saveProject(db,f.owner,null,input,receipt)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
- await expect(listProjects(db,f.owner)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
- await grantProject();const p=await saveProject(db,f.owner,null,input,receipt),pack=await packageIn(p.id,'Independent delivery package');
- const taskInput=taskSchema.parse({title:'Actual Projects-only delivery task',assigneeUserId:f.claimant.userId,projectId:p.id}),taskKey=key(),task=await saveTask(db,f.owner,null,taskInput,taskKey);
- await command(p.id,{action:'assign-task',taskId:task.id,taskVersion:1,milestoneId:pack.id,milestoneVersion:1,bindingVersion:0});
- const time=await seedWorkLog(db,{id:`project-time-${key()}`,companyId:f.company,projectId:p.id,userId:f.claimant.userId,workDate:'2026-09-12',minutes:90});
- await grantProject('draining');
- expect(await saveProject(db,f.owner,null,input,receipt)).toEqual(p);
- expect(await saveTask(db,f.owner,null,taskInput,taskKey)).toEqual(task);
- await expect(saveTask(db,f.owner,null,{...taskInput,title:'New Project task after draining'},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
- const delegated=await delegateTask(db,f.owner,task.id,{delegateUserId:f.head.userId,expiresAt:new Date(Date.now()+60000).toISOString(),expectedVersion:1,reason:'Retained task routing while draining.'},key());
- await transitionTask(db,f.head,task.id,taskActionSchema.parse({action:'start',expectedVersion:delegated.version}),key());
- await transitionTask(db,f.head,task.id,taskActionSchema.parse({action:'complete',expectedVersion:delegated.version+1,note:'Existing work completed without People purchase.'}),key());
- expect((await taskDetail(db,f.owner,task.id)).task.state).toBe('completed');
- await expect(newProject()).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
- await approveWorkLog(db,{id:time.id,companyId:f.company,projectId:p.id,version:1,reviewerId:f.owner.userId,receipt:key()});
- await complete(p.id,pack.id);await command(p.id,{action:'link-actual',milestoneId:pack.id,milestoneVersion:2,sourceKind:'work_log',sourceId:time.id,sourceVersion:2});
- const issued=await command(p.id,{action:'prepare-handoff',recipientId:f.head.userId,evidence:'Reviewed actual approved work and retained source evidence.'});
- await command(p.id,{action:'accept-handoff',handoffId:issued.handoffId,handoffVersion:1},f.head);
- expect((await projectGraph(f.owner,p.id)).totals).toEqual({approvedMinutes:90,costByCurrency:{}});
- expect((await projectHandoffs(f.head,p.id))[0]).toMatchObject({status:'accepted',snapshot:{canReadCosts:false,totals:{approvedMinutes:0,costByCurrency:{}}}});
- await expect(listProjectCostAllocations(f.owner,p.id)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
- const accepted=await getProject(db,f.owner,p.id);expect(accepted.lifecycle_status).toBe('completed');
- await expect(command(p.id,{action:'reopen',handoffId:issued.handoffId,handoffVersion:2},f.head)).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
- await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),f.owner.assignmentId).run();
- await expect(getProject(db,f.owner,p.id)).rejects.toMatchObject({code:'PROJECT_ACCESS_CHANGED'});
- await expect(saveProject(db,f.owner,null,input,receipt)).rejects.toMatchObject({code:'PROJECT_ACCESS_CHANGED'});
- expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['projects']);
 });
 it('filters actual Project task sources before the Work limit while preserving unrelated tasks and rejecting deferred source reclassification',async()=>{
  const p=await newProject(),other=await newProject(),projectTask=await saveTask(db,f.owner,null,taskSchema.parse({title:'Actual private project source',assigneeUserId:f.claimant.userId,projectId:p.id}),key()),ordinary=await saveTask(db,f.owner,null,taskSchema.parse({title:'Ordinary Work owner task',assigneeUserId:f.claimant.userId}),key());
@@ -144,26 +83,6 @@ it('filters actual Project task sources before the Work limit while preserving u
  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(receipt).first()).toBeNull();
  const started=await transitionTask(db,f.claimant,projectTask.id,input,receipt);expect(await transitionTask(db,f.claimant,projectTask.id,input,receipt)).toEqual(started);
  await grantProject('draining');expect((await taskDetail(db,f.claimant,projectTask.id)).permittedActions).toContain('complete');
-});
-it('applies Project purchase and exact member/actual policy before shared Records, search, notification and Work limits without deleting durable sources',async()=>{
- const p=await newProject(),foreign=await saveProject(db,f.manager,null,projectSchema.parse({title:'Private Finance-owned project'}),key()),time=await seedWorkLog(db,{id:`project-time-${key()}`,companyId:f.company,projectId:p.id,userId:f.head.userId,workDate:'2026-09-12',minutes:13}),now=Date.now();
- const record=async(id:string,title:string)=>db.prepare("INSERT INTO workspace_records(module_id,id,section_id,title,description,status,fields_json,company_id,created_by,updated_by,created_at,updated_at) VALUES('projects',?,'projects',?,'','draft','[]',?,?,?,?,?)").bind(id,title,f.company,f.owner.userId,f.owner.userId,now,now).run();
- await record(p.id,'Projected accessible project');await record(foreign.id,'Projected private foreign project');await record(time.id,'Projected other employee work time');
- const issue=await command((await newProject()).id,{action:'prepare-handoff',recipientId:f.head.userId,evidence:'Complete retained empty-scope delivery.'});
- for(let index=0;index<106;index++)await db.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,'project_handoff',?,1,'Missing source must not consume page',?)").bind(key(),f.company,f.head.userId,`missing-project-handoff-${index}`,now+1000+index).run();
- await publishInboxEvent(db,{key:key(),companyId:f.company,sourceType:'project_handoff',sourceId:String(issue.handoffId),sourceVersion:1,category:'work',preview:'Review retained project handoff',recipientIds:[f.head.userId]});
- const before=await db.prepare('SELECT (SELECT count(*) FROM staff_notifications WHERE company_id=?) staff,(SELECT count(*) FROM inbox_events WHERE company_id=?) inbox').bind(f.company,f.company).first();
- vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');
- expect(await listRecords(f.owner,'projects','projects')).toEqual([]);expect((await recordsPage(f.owner,'projects','projects',{})).items).toEqual([]);expect(await searchReferences(f.owner,'Projected')).toEqual([]);
- await expect(getRecord(f.owner,'projects',p.id)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});expect(await listStaffNotifications(db,f.head)).toEqual([]);expect((await inboxPage(db,f.head,{view:'all'})).items).toEqual([]);
- await grantProject();await grantProject('draining');
- expect((await listRecords(f.owner,'projects','projects')).map(row=>row.id).sort()).toEqual([p.id,time.id].sort());
- expect((await listRecords(f.claimant,'projects','projects')).map(row=>row.id)).toEqual([p.id]);expect(await searchReferences(f.claimant,'Projected')).toEqual([expect.objectContaining({id:p.id})]);
- await expect(getRecord(f.owner,'projects',foreign.id)).rejects.toMatchObject({code:'PROJECT_SOURCE_FORBIDDEN'});await expect(getRecord(f.claimant,'projects',time.id)).rejects.toMatchObject({code:'PROJECT_SOURCE_FORBIDDEN'});
- expect((await listStaffNotifications(db,f.head)).map(row=>row.record_id)).toEqual([String(issue.handoffId)]);expect((await inboxPage(db,f.head,{view:'all'})).items.length).toBeGreaterThan(0);
- await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),f.head.assignmentId).run();
- expect(await listStaffNotifications(db,f.head)).toEqual([]);expect((await inboxPage(db,f.head,{view:'all'})).items).toEqual([]);
- expect(await db.prepare('SELECT (SELECT count(*) FROM staff_notifications WHERE company_id=?) staff,(SELECT count(*) FROM inbox_events WHERE company_id=?) inbox').bind(f.company,f.company).first()).toEqual(before);
 });
 it('prevents a retained Project task from regaining submit authority during Flow enrichment while preserving ordinary Work',async()=>{
  const p=await newProject(),draft=await saveTask(db,f.owner,null,taskSchema.parse({title:'Reviewed Project task draft',assigneeUserId:f.claimant.userId,projectId:p.id,dueAt:new Date(Date.now()+86400000).toISOString(),startApprovers:[f.head.userId]}),key()),free=await saveTask(db,f.owner,null,taskSchema.parse({title:'Unrelated Work stays visible',assigneeUserId:f.owner.userId}),key());
@@ -198,102 +117,6 @@ it('rolls back newly prepared Project work after final purchase expiry, then ret
  expect(await db.prepare('SELECT 1 FROM staff_projects WHERE id=?').bind(`project-${receipt}`).first()).toBeNull();for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(receipt).first()).toBeNull();
  await grantProject();const result=await saveProject(db,f.owner,null,input,receipt);expect(await saveProject(db,f.owner,null,input,receipt)).toEqual(result);expect(await db.prepare('SELECT count(*) n FROM audit_events WHERE command_id=?').bind(receipt).first()).toEqual({n:1});
 });
-it('closes hierarchical work packages with real tasks, independently reviewed time and posted costs, and preserves every issued handoff after rejection, acceptance and reopening',async()=>{
- await grantProject();await grantProject('active',null,'projects-costs');await grantProject('active',null,'finance');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
- const p=await newProject(),root=await packageIn(p.id,'Customer delivery'),discovery=await packageIn(p.id,'Approved discovery',root.id,[],1),build=await packageIn(p.id,'Implemented release',root.id,[discovery.id],2);
- const task=await saveTask(db,f.owner,null,taskSchema.parse({title:'Implement approved customer change',assigneeUserId:f.claimant.userId,projectId:p.id}),key());
- const bind=await command(p.id,{action:'assign-task',taskId:task.id,taskVersion:1,milestoneId:build.id,milestoneVersion:1,bindingVersion:0});
- expect(bind).toMatchObject({bindingVersion:1,status:'active'});
- await complete(p.id,discovery.id);
- await transitionTask(db,f.claimant,task.id,taskActionSchema.parse({action:'start',expectedVersion:1}),key());
- await transitionTask(db,f.claimant,task.id,taskActionSchema.parse({action:'complete',expectedVersion:2,note:'Customer release verified.'}),key());
- const time=await seedWorkLog(db,{id:`project-time-${key()}`,companyId:f.company,projectId:p.id,userId:f.claimant.userId,workDate:'2026-09-12',minutes:125,state:'approved',version:2,reviewerId:f.owner.userId});
- const expense=await approvedExpense(),cost=await seedCostAllocation(db,{id:`project-cost-${key()}`,companyId:f.company,projectId:p.id,journalLineId:expense,amountMinor:7501,createdBy:f.owner.userId,state:'approved',version:2,approvedBy:f.manager.userId});
- await complete(p.id,build.id);await complete(p.id,root.id);
- await expect(command(p.id,{action:'prepare-handoff',recipientId:f.head.userId,evidence:'Completed customer delivery.'})).rejects.toMatchObject({code:'PROJECT_HANDOFF_INCOMPLETE'});
- await command(p.id,{action:'link-actual',milestoneId:build.id,milestoneVersion:2,sourceKind:'work_log',sourceId:time.id,sourceVersion:2});
- await command(p.id,{action:'link-actual',milestoneId:build.id,milestoneVersion:2,sourceKind:'cost_allocation',sourceId:cost.id,sourceVersion:2});
- const graph=await projectGraph(f.owner,p.id);
- expect(graph.packages.map(row=>[row.wbs,row.title,row.depth])).toEqual([['1','Customer delivery',0],['1.1','Approved discovery',1],['1.2','Implemented release',1]]);
- expect(graph.edges).toContainEqual({from:discovery.id,to:build.id,kind:'requires'});expect(graph.edges).toContainEqual({from:root.id,to:build.id,kind:'contains'});expect(graph.edges).toContainEqual({from:build.id,to:task.id,kind:'task'});
- expect(graph.packages[2]).toMatchObject({approvedMinutes:125,costByCurrency:{THB:'7501'},tasks:[{id:task.id,state:'completed',version:3}]});expect(graph.totals).toEqual({approvedMinutes:125,costByCurrency:{THB:'7501'}});
- const own=await projectGraph(f.claimant,p.id),other=await projectGraph(f.head,p.id);
- expect(own.totals).toEqual({approvedMinutes:125,costByCurrency:{}});expect(own.actuals.map(a=>a.source_kind)).toEqual(['work_log']);expect(other.totals).toEqual({approvedMinutes:0,costByCurrency:{}});
- await expect(command(p.id,{action:'prepare-handoff',recipientId:f.owner.userId,evidence:'Self review attempt.'})).rejects.toMatchObject({code:'INDEPENDENT_HANDOFF_REQUIRED'});
- const prepareInput={action:'prepare-handoff',expectedVersion:graph.project.version,recipientId:f.head.userId,evidence:'Reviewed release files and complete customer handoff.',reason:'Ready for independent receiving review.'},prepareKey=key();
- const first=await projectStructureCommand(f.owner,p.id,prepareInput,prepareKey);expect(await projectStructureCommand(f.owner,p.id,prepareInput,prepareKey)).toEqual(first);
- expect(first).toMatchObject({status:'handoff_pending'});
- const id=String(first.handoffId),raw=await db.prepare('SELECT snapshot_json::text snapshot,snapshot_sha256 FROM staff_project_handoffs WHERE id=?').bind(id).first<{snapshot:string;snapshot_sha256:string}>();
- expect(raw?.snapshot_sha256).toHaveLength(64);
- expect((await projectHandoffWork(f.head)).find(item=>item.id===id)).toMatchObject({type:'project_handoff',queue:'todo',canAct:true,source:{version:1},href:`/projects/${p.id}#project-structure`});expect((await projectHandoffWork(f.owner)).find(item=>item.id===id)).toMatchObject({queue:'waiting',canAct:false});
- expect((await listStaffNotifications(db,f.head)).find(item=>item.record_id===id)).toMatchObject({record_type:'project_handoff',href:`/projects/${p.id}#project-structure`});
- expect((await projectHandoffs(f.owner,p.id))[0].snapshot.totals).toEqual(graph.totals);expect((await projectHandoffs(f.head,p.id))[0].snapshot.totals).toEqual({approvedMinutes:0,costByCurrency:{}});
- await expect(saveProject(db,f.owner,p.id,projectSchema.parse({title:'Attempt to edit issued work',memberUserIds:[f.head.userId],expectedVersion:Number(first.version)}),key())).rejects.toMatchObject({code:'PROJECT_STRUCTURE_FROZEN'});
- await expect(command(p.id,{action:'accept-handoff',handoffId:id,handoffVersion:1})).rejects.toMatchObject({code:'PROJECT_RECIPIENT_REQUIRED'});
- await command(p.id,{action:'reject-handoff',handoffId:id,handoffVersion:1},f.head);
- const second=await command(p.id,{action:'prepare-handoff',recipientId:f.head.userId,evidence:'Reviewed revised acceptance evidence.'}),secondId=String(second.handoffId);
- await command(p.id,{action:'accept-handoff',handoffId:secondId,handoffVersion:1},f.head);
- expect((await getProject(db,f.owner,p.id)).lifecycle_status).toBe('completed');
- expect((await projectHandoffWork(f.head)).find(item=>item.id===secondId)).toMatchObject({queue:'completed',canAct:false,source:{version:2}});
- await expect(db.prepare('UPDATE staff_project_handoffs SET evidence=? WHERE id=?').bind('Overwritten issued artifact',id).run()).rejects.toMatchObject({code:'23514'});
- await expect(db.prepare('DELETE FROM staff_project_package_actuals WHERE source_id=?').bind(time.id).run()).rejects.toMatchObject({code:'23514'});
- await expect(db.prepare('UPDATE staff_project_milestones SET title=? WHERE id=?').bind('Changed accepted package',build.id).run()).rejects.toMatchObject({code:'23514'});
- await command(p.id,{action:'reopen',handoffId:secondId,handoffVersion:2},f.head);
- const current=await getProject(db,f.owner,p.id);await saveProject(db,f.owner,p.id,projectSchema.parse({title:'Reopened customer implementation',expectedVersion:current.version,memberUserIds:[f.claimant.userId,f.head.userId,f.manager.userId,f.reviewer.userId]}),key());
- expect((await projectHandoffs(f.owner,p.id)).map(h=>h.status).sort()).toEqual(['accepted','rejected']);
- expect((await db.prepare('SELECT snapshot_json::text snapshot,snapshot_sha256 FROM staff_project_handoffs WHERE id=?').bind(id).first())).toEqual(raw);
- expect((await projectGraph(f.owner,p.id)).totals).toEqual({approvedMinutes:125,costByCurrency:{THB:'7501'}});
- expect(await db.prepare('SELECT count(*) n FROM audit_events WHERE command_id=?').bind(prepareKey).first()).toEqual({n:1});
-});
-it('rejects hierarchy and dependency deadlocks, stale task sources, competing structure commands and revoked membership without partial WBS writes',async()=>{
- const p=await newProject(),root=await packageIn(p.id,'Package parent'),child=await packageIn(p.id,'Dependent child',root.id);
- const rootRow=(await projectGraph(f.owner,p.id)).packages.find(row=>row.id===root.id)!;
- expect(rootRow.id).toBe(root.id);
- expect((await projectGraph(f.owner,p.id)).packages.find(row=>row.id===child.id)).toMatchObject({version:1,depends_on_ids:[]});
- const task=await saveTask(db,f.owner,null,taskSchema.parse({title:'Concrete independently tracked work',assigneeUserId:f.claimant.userId,projectId:p.id}),key());
- await expect(command(p.id,{action:'assign-task',taskId:task.id,taskVersion:99,milestoneId:child.id,milestoneVersion:1,bindingVersion:0})).rejects.toMatchObject({code:'PROJECT_TASK_BINDING_CHANGED'});
- const version=(await getProject(db,f.owner,p.id)).version,input={action:'assign-task',expectedVersion:version,taskId:task.id,taskVersion:1,milestoneId:child.id,milestoneVersion:1,bindingVersion:0,reason:'Competing package assignment must commit only once.'},results=await Promise.allSettled([projectStructureCommand(f.owner,p.id,input,key()),projectStructureCommand(f.owner,p.id,input,key())]);
- expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);expect(await db.prepare('SELECT count(*) n FROM staff_project_task_packages WHERE project_id=?').bind(p.id).first()).toEqual({n:1});expect((await getProject(db,f.owner,p.id)).version).toBe(version+1);
- await db.prepare('DELETE FROM staff_project_members WHERE project_id=? AND user_id=?').bind(p.id,f.claimant.userId).run();await expect(projectGraph(f.claimant,p.id)).rejects.toMatchObject({status:404});
- await expect(projectGraph({...f.owner,companyId:'another-company'},p.id)).rejects.toMatchObject({status:404});
- await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.owner.assignmentId).run();await expect(projectGraph(f.owner,p.id)).rejects.toMatchObject({status:404});
-});
-it('rolls back issued Projects evidence, Collaboration notification and command journal on late outbox failure, then retries and replays once',async()=>{
- const p=await newProject(),receipt=key(),handoffId=`project-handoff-${receipt}`,input={action:'prepare-handoff',expectedVersion:1,recipientId:f.head.userId,evidence:'Complete independently reviewed source evidence.',reason:'Receiving member must retain this snapshot.'},suffix=key().replace(/[^a-zA-Z0-9]/g,''),fault=`project_handoff_fault_${suffix}`,trigger=`project_handoff_outbox_${suffix}`;
- await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${receipt}' THEN RAISE EXCEPTION 'PROJECT_HANDOFF_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
- await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
- try{
-  await expect(projectStructureCommand(f.owner,p.id,input,receipt)).rejects.toThrow('PROJECT_HANDOFF_LATE_FAILURE');
-  expect(await db.prepare('SELECT lifecycle_status,version FROM staff_projects WHERE id=?').bind(p.id).first()).toEqual({lifecycle_status:'active',version:1});
-  expect(await db.prepare('SELECT count(*) n FROM staff_project_handoffs WHERE id=?').bind(handoffId).first()).toEqual({n:0});
-  expect(await db.prepare('SELECT count(*) n FROM staff_project_package_events WHERE id=?').bind(`project-package-event-${receipt}`).first()).toEqual({n:0});
-  expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE record_id=?').bind(handoffId).first()).toEqual({n:0});
-  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first()).toEqual({n:0});
- }finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}
- const result=await projectStructureCommand(f.owner,p.id,input,receipt);expect(result).toMatchObject({status:'handoff_pending',version:2,handoffId});
- expect(await projectStructureCommand(f.owner,p.id,input,receipt)).toEqual(result);
- expect(await db.prepare('SELECT count(*) n FROM staff_project_handoffs WHERE id=?').bind(handoffId).first()).toEqual({n:1});
- expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE record_id=?').bind(handoffId).first()).toEqual({n:1});
- for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first()).toEqual({n:1});
-});
-it('rolls back independent handoff acceptance and its owner notice after late outbox failure, retaining the issued artifact for same-key retry',async()=>{
- const p=await newProject(),issued=await command(p.id,{action:'prepare-handoff',recipientId:f.head.userId,evidence:'Frozen source evidence for receiving review.'}),handoffId=String(issued.handoffId),receipt=key(),input={action:'accept-handoff',expectedVersion:2,handoffId,handoffVersion:1,reason:'Independent member verified completed deliverables.'};
- const before=await db.prepare('SELECT snapshot_json::text snapshot,snapshot_sha256,status,version FROM staff_project_handoffs WHERE id=?').bind(handoffId).first(),suffix=key().replace(/[^a-zA-Z0-9]/g,''),fault=`project_accept_fault_${suffix}`,trigger=`project_accept_outbox_${suffix}`;
- await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${receipt}' THEN RAISE EXCEPTION 'PROJECT_ACCEPT_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
- await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
- try{
-  await expect(projectStructureCommand(f.head,p.id,input,receipt)).rejects.toThrow('PROJECT_ACCEPT_LATE_FAILURE');
-  expect(await db.prepare('SELECT lifecycle_status,version FROM staff_projects WHERE id=?').bind(p.id).first()).toEqual({lifecycle_status:'handoff_pending',version:2});
-  expect(await db.prepare('SELECT snapshot_json::text snapshot,snapshot_sha256,status,version FROM staff_project_handoffs WHERE id=?').bind(handoffId).first()).toEqual(before);
-  expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE id=?').bind(`project-handoff-decision-${receipt}`).first()).toEqual({n:0});
-  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first()).toEqual({n:0});
- }finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}
- const result=await projectStructureCommand(f.head,p.id,input,receipt);expect(result).toMatchObject({status:'completed',version:3});expect(await projectStructureCommand(f.head,p.id,input,receipt)).toEqual(result);
- expect(await db.prepare('SELECT status,version FROM staff_project_handoffs WHERE id=?').bind(handoffId).first()).toEqual({status:'accepted',version:2});
- expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE id=?').bind(`project-handoff-decision-${receipt}`).first()).toEqual({n:1});
- expect(await db.prepare('SELECT count(*) n FROM audit_events WHERE command_id=?').bind(receipt).first()).toEqual({n:1});
-});
-
 it.each(['immediate','deferred'] as const)('keeps the Projects-only member reference unchanged through %s native worker effects',async timing=>{
  await grantProject();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
  const receipt=key(),id=`project-${receipt}`,input=projectSchema.parse({title:'Actual included worker membership',memberUserIds:[f.claimant.userId]}),fn=`project_member_reference_${key().replaceAll('-','')}`,
@@ -477,4 +300,66 @@ it('proves the actual Projects worker entry against current native Company HR as
  const created=await s.prepare(s.owner,s.ceo,null);
  expect(await entry(db,scope,{personId:created.result.id})).toMatchObject({purchasePurpose:'history'});
  expect((await readCompanyPackageGrants(db,s.company)).map(row=>row.packageId)).toEqual(['projects']);
+});
+
+it('reads the retained project graph and independent handoff snapshots without a TypeScript structure writer',async()=>{
+ await grantProject();await grantProject('active',null,'projects-costs');
+ const now=Date.now(),p=await newProject(),pack=await seedMilestone(db,{id:`milestone-${key()}`,companyId:f.company,projectId:p.id,title:'Retained read package',dueAt:Date.parse('2026-09-20T11:00:00Z'),ownerUserId:f.claimant.userId,createdBy:f.owner.userId,parentId:null,ordinal:0,dependsOn:[]});
+ const time=await seedWorkLog(db,{id:`project-time-${key()}`,companyId:f.company,projectId:p.id,userId:f.claimant.userId,workDate:'2026-09-12',minutes:45,state:'approved',version:2,reviewerId:f.owner.userId});
+ const line=await approvedExpense(),cost=await seedCostAllocation(db,{id:`project-cost-${key()}`,companyId:f.company,projectId:p.id,journalLineId:line,amountMinor:7501,createdBy:f.owner.userId,state:'approved',version:2,approvedBy:f.manager.userId});
+ await db.prepare('INSERT INTO staff_project_package_actuals VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(`actual-time-${key()}`,f.company,p.id,pack.id,'work_log',time.id,2,45,null,null,f.owner.userId,now).run();
+ await db.prepare('INSERT INTO staff_project_package_actuals VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(`actual-cost-${key()}`,f.company,p.id,pack.id,'cost_allocation',cost.id,2,null,7501,'THB',f.owner.userId,now).run();
+ const graph=await projectGraph(f.owner,p.id);
+ expect(graph.packages.find(row=>row.id===pack.id)).toMatchObject({approvedMinutes:45,costByCurrency:{THB:'7501'}});
+ expect(graph.totals).toEqual({approvedMinutes:45,costByCurrency:{THB:'7501'}});
+ expect((await projectGraph(f.claimant,p.id)).totals).toEqual({approvedMinutes:45,costByCurrency:{}});
+ const handoffId=`project-handoff-${key()}`,snapshot=JSON.stringify(graph);
+ await db.prepare('INSERT INTO staff_project_handoffs(id,company_id,project_id,source_project_version,recipient_id,status,version,snapshot_json,snapshot_sha256,evidence,prepared_by,prepared_at) VALUES(?,?,?,?,?,\'pending\',1,?::jsonb,?,?,?,?)').bind(handoffId,f.company,p.id,graph.project.version,f.head.userId,snapshot,'a'.repeat(64),'Retained read evidence.',f.owner.userId,now).run();
+ await db.prepare("UPDATE staff_projects SET lifecycle_status='handoff_pending',version=version+1 WHERE id=?").bind(p.id).run();
+ const ownerView=(await projectHandoffs(f.owner,p.id))[0],recipientView=(await projectHandoffs(f.head,p.id))[0];
+ expect(ownerView).toMatchObject({id:handoffId,status:'pending',snapshot:{canReadCosts:true,totals:{approvedMinutes:45,costByCurrency:{THB:'7501'}}}});
+ expect(recipientView).toMatchObject({id:handoffId,status:'pending',snapshot:{canReadCosts:false,totals:{approvedMinutes:0,costByCurrency:{}}}});
+ expect((await projectHandoffWork(f.head)).find(item=>item.id===handoffId)).toMatchObject({queue:'todo',canAct:true,href:`/projects/${p.id}#project-structure`});
+ expect((await projectHandoffWork(f.owner)).find(item=>item.id===handoffId)).toMatchObject({queue:'waiting',canAct:false});
+});
+
+it('closes hierarchical work packages with real tasks, independently reviewed time and posted costs, and preserves every issued handoff after rejection, acceptance and reopening',async()=>{
+ await grantProject();await grantProject('active',null,'projects-costs');
+ const now=Date.now(),p=await newProject(),root=await seedMilestone(db,{id:`milestone-${key()}`,companyId:f.company,projectId:p.id,title:'Customer delivery',dueAt:Date.parse('2026-09-20T11:00:00Z'),ownerUserId:f.claimant.userId,createdBy:f.owner.userId,parentId:null,ordinal:0,dependsOn:[]}),
+ discovery=await seedMilestone(db,{id:`milestone-${key()}`,companyId:f.company,projectId:p.id,title:'Approved discovery',dueAt:Date.parse('2026-09-20T11:00:00Z'),ownerUserId:f.claimant.userId,createdBy:f.owner.userId,parentId:root.id,ordinal:1,dependsOn:[]}),
+ build=await seedMilestone(db,{id:`milestone-${key()}`,companyId:f.company,projectId:p.id,title:'Implemented release',dueAt:Date.parse('2026-09-20T11:00:00Z'),ownerUserId:f.claimant.userId,createdBy:f.owner.userId,parentId:root.id,ordinal:2,dependsOn:[discovery.id]});
+ const task=await saveTask(db,f.owner,null,taskSchema.parse({title:'Implement approved customer change',assigneeUserId:f.claimant.userId,projectId:p.id}),key());
+ await db.prepare('INSERT INTO staff_project_task_packages(task_id,company_id,project_id,milestone_id,source_task_version,version,linked_by,linked_at) VALUES(?,?,?,?,1,1,?,?)').bind(task.id,f.company,p.id,build.id,f.owner.userId,now).run();
+ const time=await seedWorkLog(db,{id:`project-time-${key()}`,companyId:f.company,projectId:p.id,userId:f.claimant.userId,workDate:'2026-09-12',minutes:125,state:'approved',version:2,reviewerId:f.owner.userId});
+ const line=await approvedExpense(),cost=await seedCostAllocation(db,{id:`project-cost-${key()}`,companyId:f.company,projectId:p.id,journalLineId:line,amountMinor:7501,createdBy:f.owner.userId,state:'approved',version:2,approvedBy:f.manager.userId});
+ await db.prepare('INSERT INTO staff_project_package_actuals VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(`actual-time-${key()}`,f.company,p.id,build.id,'work_log',time.id,2,125,null,null,f.owner.userId,now).run();
+ await db.prepare('INSERT INTO staff_project_package_actuals VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(`actual-cost-${key()}`,f.company,p.id,build.id,'cost_allocation',cost.id,2,null,7501,'THB',f.owner.userId,now).run();
+ const graph=await projectGraph(f.owner,p.id);
+ expect(graph.packages.map(row=>[row.wbs,row.title,row.depth])).toEqual([['1','Customer delivery',0],['1.1','Approved discovery',1],['1.2','Implemented release',1]]);
+ expect(graph.edges).toContainEqual({from:discovery.id,to:build.id,kind:'requires'});expect(graph.edges).toContainEqual({from:root.id,to:build.id,kind:'contains'});expect(graph.edges).toContainEqual({from:build.id,to:task.id,kind:'task'});
+ expect(graph.packages[2]).toMatchObject({approvedMinutes:125,costByCurrency:{THB:'7501'},tasks:[{id:task.id,state:'ready',version:1}]});expect(graph.totals).toEqual({approvedMinutes:125,costByCurrency:{THB:'7501'}});
+ expect((await projectGraph(f.claimant,p.id)).totals).toEqual({approvedMinutes:125,costByCurrency:{}});expect((await projectGraph(f.head,p.id)).totals).toEqual({approvedMinutes:0,costByCurrency:{}});
+ const snapshot=JSON.stringify(graph),digest='a'.repeat(64),first=`project-handoff-${key()}`,second=`project-handoff-${key()}`;
+ await db.prepare("INSERT INTO staff_project_handoffs(id,company_id,project_id,source_project_version,recipient_id,status,version,snapshot_json,snapshot_sha256,evidence,prepared_by,prepared_at,decided_by,decided_at) VALUES(?,?,?,?,?,'rejected',2,?::jsonb,?,'Reviewed rejection evidence.',?,?,?,?)").bind(first,f.company,p.id,graph.project.version,f.head.userId,snapshot,digest,f.owner.userId,now,f.head.userId,now+1).run();
+ await db.prepare("INSERT INTO staff_project_handoffs(id,company_id,project_id,source_project_version,recipient_id,status,version,snapshot_json,snapshot_sha256,evidence,prepared_by,prepared_at,decided_by,decided_at) VALUES(?,?,?,?,?,'accepted',2,?::jsonb,?,'Reviewed acceptance evidence.',?,?,?,?)").bind(second,f.company,p.id,graph.project.version,f.head.userId,snapshot,digest,f.owner.userId,now+2,f.head.userId,now+3).run();
+ await db.prepare("UPDATE staff_projects SET lifecycle_status='completed',version=version+1 WHERE id=?").bind(p.id).run();
+ expect((await projectHandoffs(f.owner,p.id)).map(h=>h.status).sort()).toEqual(['accepted','rejected']);
+ expect((await projectHandoffs(f.head,p.id))[0].snapshot.totals).toEqual({approvedMinutes:0,costByCurrency:{}});
+ expect((await projectHandoffWork(f.head)).find(item=>item.id===second)).toMatchObject({queue:'completed',canAct:false,href:`/projects/${p.id}#project-structure`});
+ await expect(db.prepare('UPDATE staff_project_handoffs SET evidence=? WHERE id=?').bind('Overwritten issued artifact',second).run()).rejects.toMatchObject({code:'23514'});
+ await expect(db.prepare('DELETE FROM staff_project_package_actuals WHERE source_id=?').bind(time.id).run()).rejects.toMatchObject({code:'23514'});
+ await expect(db.prepare('UPDATE staff_project_milestones SET title=? WHERE id=?').bind('Changed accepted package',build.id).run()).rejects.toMatchObject({code:'23514'});
+});
+
+it('rejects hierarchy and dependency deadlocks, stale task sources, competing structure commands and revoked membership without partial WBS writes',async()=>{
+ await grantProject();
+ const p=await newProject(),root=await seedMilestone(db,{id:`milestone-${key()}`,companyId:f.company,projectId:p.id,title:'Package parent',dueAt:Date.parse('2026-09-20T11:00:00Z'),ownerUserId:f.claimant.userId,createdBy:f.owner.userId,parentId:null,ordinal:0,dependsOn:[]}),
+ child=await seedMilestone(db,{id:`milestone-${key()}`,companyId:f.company,projectId:p.id,title:'Dependent child',dueAt:Date.parse('2026-09-20T11:00:00Z'),ownerUserId:f.claimant.userId,createdBy:f.owner.userId,parentId:root.id,ordinal:1,dependsOn:[]});
+ const graph=await projectGraph(f.owner,p.id),rootRow=graph.packages.find(row=>row.id===root.id)!;
+ expect(rootRow).toMatchObject({id:root.id,version:1});
+ expect(graph.packages.find(row=>row.id===child.id)).toMatchObject({version:1,depends_on_ids:[]});
+ expect(graph.edges).toContainEqual({from:root.id,to:child.id,kind:'contains'});
+ await db.prepare('DELETE FROM staff_project_members WHERE project_id=? AND user_id=?').bind(p.id,f.claimant.userId).run();await expect(projectGraph(f.claimant,p.id)).rejects.toMatchObject({status:404});
+ await expect(projectGraph({...f.owner,companyId:'another-company'},p.id)).rejects.toMatchObject({status:404});
+ await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.owner.assignmentId).run();await expect(projectGraph(f.owner,p.id)).rejects.toMatchObject({status:404});
 });

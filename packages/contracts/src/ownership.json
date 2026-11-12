@@ -544,7 +544,6 @@
             "packages/server-identity_access/src/adapters/platform-owner-projection-sources.ts",
             "packages/server-identity_access/src/adapters/pms-command-facts.ts",
             "packages/server-identity_access/src/adapters/pms-hospitality-setup-facts.ts",
-            "packages/server-identity_access/src/adapters/pms-social-event-recipients.ts",
             "packages/server-identity_access/src/adapters/pms-source-authorization.ts",
             "packages/server-identity_access/src/adapters/pms-source-recipients.ts",
             "packages/server-identity_access/src/adapters/pos-core-facts.ts",
@@ -2391,12 +2390,10 @@
           "id": "queue-policy",
           "migration": "clean",
           "source": [
-            "packages/server-operations/src/adapters/queue-policy.ts",
             "packages/server-operations/src/application/queue-policy.ts",
             "packages/server-operations/src/domain/queue-policy.ts"
           ],
           "regression": [
-            "tests/integration/operations/operations-exceptions.test.ts",
             "tests/unit/shared.architecture/remaining-owner-applications.test.ts"
           ]
         },
@@ -2418,7 +2415,6 @@
             "packages/server-operations/src/adapters/people-lifecycle-worker-effects.ts",
             "packages/server-operations/src/adapters/project-read-projections.ts",
             "packages/server-operations/src/adapters/project-structure-sources.ts",
-            "packages/server-operations/src/adapters/queue-policy.ts",
             "packages/server-operations/src/adapters/responsibilities.ts",
             "packages/server-operations/src/adapters/routines.ts",
             "packages/server-operations/src/adapters/staff-facts.ts",
@@ -2457,8 +2453,7 @@
             "tests/integration/operations/staff-migration.test.ts",
             "tests/integration/operations/handover.test.ts",
             "tests/integration/shared.requests/guided-intake.test.ts",
-            "tests/integration/operations/staff-task-alerts.test.ts",
-            "tests/integration/operations/operations-exceptions.test.ts"
+            "tests/integration/operations/staff-task-alerts.test.ts"
           ]
         }
       ]
@@ -3770,7 +3765,6 @@
             "packages/server-collaboration/src/adapters/legal-hold-notifications.ts",
             "packages/server-collaboration/src/adapters/legal-law-source-notifications.ts",
             "packages/server-collaboration/src/adapters/legal-reminder-notifications.ts",
-            "packages/server-collaboration/src/adapters/maintenance-notifications.ts",
             "packages/server-collaboration/src/adapters/messaging-files.ts",
             "packages/server-collaboration/src/adapters/messaging-owner-projections.ts",
             "packages/server-collaboration/src/adapters/messaging.ts",
@@ -3787,10 +3781,8 @@
             "packages/server-collaboration/src/adapters/people-roster-facts.ts",
             "packages/server-collaboration/src/adapters/people-roster-position-notifications.ts",
             "packages/server-collaboration/src/adapters/pms-home-read-facts.ts",
-            "packages/server-collaboration/src/adapters/pms-social-event-facts.ts",
             "packages/server-collaboration/src/adapters/pms-source-authorization.ts",
             "packages/server-collaboration/src/adapters/profile-posts.ts",
-            "packages/server-collaboration/src/adapters/project-structure-sources.ts",
             "packages/server-collaboration/src/adapters/quality-notifications.ts",
             "packages/server-collaboration/src/adapters/records-ai-usage-projection.ts",
             "packages/server-collaboration/src/adapters/rfq-notifications.ts",
@@ -3950,7 +3942,6 @@
             "packages/server-pms/src/adapters/pms/read-repository.ts",
             "packages/server-pms/src/adapters/pms/record-details.ts",
             "packages/server-pms/src/adapters/pms/reports.ts",
-            "packages/server-pms/src/adapters/pms/social-events.ts",
             "packages/server-pms/src/adapters/pms/source-policy.ts",
             "packages/server-pms/src/adapters/pms/source-query.ts",
             "packages/server-pms/src/adapters/pms/source.ts",
@@ -3974,7 +3965,6 @@
             "packages/server-pms/src/application/read-repository.ts",
             "packages/server-pms/src/application/record-details.ts",
             "packages/server-pms/src/application/reports.ts",
-            "packages/server-pms/src/application/social-events.ts",
             "packages/server-pms/src/application/source.ts",
             "packages/server-pms/src/application/staff-booking-changes.ts",
             "packages/server-pms/src/domain/booking.ts",
@@ -3983,7 +3973,6 @@
             "packages/server-pms/src/domain/pms-model.ts",
             "packages/server-pms/src/domain/pms.ts",
             "packages/server-pms/src/domain/reports.ts",
-            "packages/server-pms/src/domain/social-events.ts",
             "packages/server-pms/src/domain/source.ts",
             "packages/server-pms/src/domain/stored-record.ts",
             "packages/server-pms/src/adapters/entrypoint-queries.ts",
@@ -4410,7 +4399,6 @@
             "packages/server-workflow/src/adapters/commands.ts",
             "packages/server-workflow/src/adapters/operations-guided-intake-facts.ts",
             "packages/server-workflow/src/adapters/legal-portal-journal.ts",
-            "packages/server-workflow/src/adapters/pms-social-event-facts.ts",
             "packages/server-workflow/src/adapters/approval-participant-projection.ts",
             "packages/server-workflow/src/adapters/people-lifecycle-facts.ts",
             "packages/server-workflow/src/adapters/people-lifecycle-worker-effects.ts",
