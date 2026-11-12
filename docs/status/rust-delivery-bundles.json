@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 649,
+    "revision": 650,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -13851,7 +13851,7 @@
           "expiresAt": "2026-11-12T04:44:11.999Z",
           "generation": 30
         },
-        "baseSha": "00e855b6fb8582a069089391f27a788c99c0e385",
+        "baseSha": "b005aaf3dde3d4f8707e89177c7ea5dd8404ddaf",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -14064,11 +14064,26 @@
             "command": "cargo test -p erpx-server-pms --test pms_report_projection_postgres -- --test-threads=1",
             "result": "passed",
             "sourceSha": "4192326d1b5a6a24c731ef36af0b72171e028d31"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "d4a29556f90f2f332b0cdd0b67c538c246acbed5"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_reservation",
+            "result": "passed",
+            "sourceSha": "d4a29556f90f2f332b0cdd0b67c538c246acbed5"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_reservation_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "d4a29556f90f2f332b0cdd0b67c538c246acbed5"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "PMS dashboard/report reads implemented + mounted 4192326d1 (unit 15/15, PG 5/5): range/entries routes, occupancy/ADR/RevPAR/flow/balances over PMS-owned facts; Finance-backed balances and booking pace/channels omitted for their owner ports. Catalogue/structure currently red on an external POS WIP (3 unregistered pos test files), not PMS. Remaining pms packets: reservations/booking, guest cashier/stock, night-audit mount (guard+posting ports), reports/settings residuals.",
+        "nextAction": "Staff reservation create/change/cancel pushed d4a29556f (unit 15/15, PG 5/5) and mounted at POST /pms/reservation; Finance party/funding paths fail closed with explicit port codes. Remaining pms: guest cashier/minibar-linen stock, night-audit guard+posting mount, public booking/payment/email/provider, reports/settings residuals. NOTE: shared worktree currently fails erpx-service compile on another worker-in-flight src/composition/pos.rs (not in this commit); pushed tree does not contain that WIP.",
         "handoff": {
           "runId": "run-20261112-d",
           "agentId": "worker-pms",
@@ -16802,7 +16817,7 @@
       }
     },
     "lastCoordinatorGeneration": 30,
-    "updatedAt": "2026-11-12T04:38:27.595Z",
+    "updatedAt": "2026-11-12T04:42:23.344Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
