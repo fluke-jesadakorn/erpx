@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 986,
+    "revision": 993,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T14:28:27.094Z",
-      "expiresAt": "2026-11-12T14:58:27.094Z",
+      "heartbeatAt": "2026-11-12T14:56:25.099Z",
+      "expiresAt": "2026-11-12T15:26:25.099Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -13960,8 +13960,8 @@
           "runId": "run-20261112-r",
           "agentId": "lead",
           "claimedAt": "2026-11-12T13:53:12.437Z",
-          "heartbeatAt": "2026-11-12T14:28:27.094Z",
-          "expiresAt": "2026-11-12T14:58:27.094Z",
+          "heartbeatAt": "2026-11-12T14:56:25.099Z",
+          "expiresAt": "2026-11-12T15:26:25.099Z",
           "generation": 43
         },
         "baseSha": null,
@@ -19973,8 +19973,8 @@
           "runId": "run-20261112-r",
           "agentId": "lead",
           "claimedAt": "2026-11-12T13:38:46.765Z",
-          "heartbeatAt": "2026-11-12T14:28:27.094Z",
-          "expiresAt": "2026-11-12T14:58:27.094Z",
+          "heartbeatAt": "2026-11-12T14:56:25.099Z",
+          "expiresAt": "2026-11-12T15:26:25.099Z",
           "generation": 43
         },
         "baseSha": null,
@@ -22311,7 +22311,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Support TypeScript SQL writers",
-        "scope": "Classify the 12 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: ticket-portal 5, ticket-portal-customer 5, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Classify the 7 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them batch by batch: ticket-portal-customer 5, support-evidence-planning 1, attachment-purchases 1. Each batch needs a complete native counterpart and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -22335,7 +22335,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for the remaining Support writer files, then retire the smallest complete native-backed file first and record the owner KPI pair.",
+        "nextAction": "Audit the native customer ticket-portal projection/ack path (keeping the file-preview gap explicit), then retire the smallest complete native-backed file and record the owner KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -23927,7 +23927,6 @@
           "packages/server-support/src/**",
           "packages/feature-support/**",
           "src/composition/src/**",
-          "fixtures/**",
           "tests/support/**",
           "tests/unit/support/**",
           "tests/integration/support/**",
@@ -23937,15 +23936,99 @@
         "resources": [
           "owner:support"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "5babffe3384911a563cb808be22d7d3e02630669",
+        "lastPushedSha": "5babffe3384911a563cb808be22d7d3e02630669",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/ticket-portal.ts",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669",
+            "before": 5,
+            "after": 0,
+            "note": "The TS prepare/decide/publish writers, their public barrel exports and the package route branches are deleted; the native Support ticket-portal router is the only staff command authority."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669",
+            "before": 2627,
+            "after": 2622,
+            "note": "Global write KPI moved by the five retired staff ticket-portal statements."
+          },
+          {
+            "command": "cargo test -p erpx-service --features existing-business --test ticket_portal_postgres",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669",
+            "note": "New native PostgreSQL workflow oracle: prepare, independent decision, response, customer projection, acknowledgement, replay and receipts. It also exposed and fixed the post-effect guard snapshot ordering in application/ticket_portal.rs."
+          },
+          {
+            "command": "cargo test -p erpx-server-support --test ticket_portal_rules",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669",
+            "note": "6/6 native rules and HTTP ingress contract."
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669"
+          },
+          {
+            "command": "bunx tsc -p packages/feature-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/support/support-services.test.ts",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669",
+            "note": "48/48; the staff route unit test now asserts native client delegation instead of the deleted TS writers."
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669",
+            "note": "Catalogue valid; the new suite is support.rust-ticket-portal-postgres.integration and the committed manifest has 1185 suites (working tree 1188 includes peer WIP)."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5babffe3384911a563cb808be22d7d3e02630669",
+            "before": 12,
+            "after": 7,
+            "residual": [
+              {
+                "path": "packages/server-support/src/adapters/ticket-portal-customer.ts",
+                "writes": 5,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Retire after the native customer ticket-portal projection/ack routes replace the TS writer and the remaining file-preview path has a native owner."
+              },
+              {
+                "path": "packages/server-support/src/adapters/support-evidence-planning.ts",
+                "writes": 1,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Retire after the native evidence planning event covers the remaining planner write and retained Files tests seed the event row."
+              },
+              {
+                "path": "packages/server-support/src/adapters/attachment-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.support.residual-writers",
+                "removalCondition": "Retire after the native Support attachment purchase boundary owns the Support guard and the fixture stops calling the TS guard."
+              }
+            ],
+            "note": "Support residual is exactly the three classified files above (7 writes), all bound to retire.support.residual-writers; the staff ticket-portal writer is gone."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "The native Support ticket-portal crate has rules/HTTP ingress tests but no PostgreSQL workflow oracle for prepare/decide/respond/projection/acknowledgement. The retained TS integration tests are the only PG oracle; deleting the writers/tests without a native PG suite would violate the move-oracle rule. Add ticket_portal_postgres coverage first.",
-        "nextAction": "Add native PostgreSQL ticket-portal coverage (prepare/decide/respond/projection/acknowledgement) in tests/integration/support, then switch the staff route to the native client and delete the TS writers.",
+        "blocker": null,
+        "nextAction": "Staff Support ticket-portal writers retired: native client/routes authoritative, TS writers/barrels deleted, native PG workflow + route tests green, KPI ticket-portal.ts 5->0 (support 12->7, global 2627->2622). Pushed 5babffe33.",
         "handoff": {
           "removalTaskId": "retire.support.ticket-portal",
           "removalCondition": "Add native PostgreSQL ticket-portal workflow coverage, then re-run the six-point retirement."
@@ -23989,8 +24072,8 @@
           "runId": "run-20261112-r",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T14:37:28.760Z",
-          "heartbeatAt": "2026-11-12T14:37:28.760Z",
-          "expiresAt": "2026-11-12T15:07:28.760Z",
+          "heartbeatAt": "2026-11-12T14:56:25.099Z",
+          "expiresAt": "2026-11-12T15:26:25.099Z",
           "generation": 43
         },
         "baseSha": null,
@@ -24009,20 +24092,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 117,
-      "migratedPackets": 50,
+      "migratedPackets": 51,
       "statusCounts": {
         "pending": 34,
         "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 50,
-        "blocked": 18,
+        "migrated": 51,
+        "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T14:37:28.761Z",
+    "updatedAt": "2026-11-12T14:56:53.756Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
