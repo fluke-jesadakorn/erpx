@@ -3,6 +3,7 @@ pub mod malware_scan;
 pub mod media_signature;
 pub mod preview;
 
+pub mod attachment_command;
 pub mod attachment_read;
 pub mod attachment_scan;
 

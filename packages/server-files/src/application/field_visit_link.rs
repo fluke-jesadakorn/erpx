@@ -1,5 +1,5 @@
 //! Files use-case preflight, independent of persistence and transport.
-use crate::domain::field_visit_link::{WithdrawalDecision, withdrawal_decision};
+pub use crate::application::attachment_command::{WithdrawalFacts, prepare_withdrawal};
 use erpx_server_shared::public::BusinessError;
 pub fn check_withdrawal_actor(
     state: &str,
@@ -22,22 +22,4 @@ pub fn check_withdrawal_actor(
         ));
     }
     Ok(())
-}
-pub struct WithdrawalFacts<'a> {
-    pub state: &'a str,
-    pub creator: &'a str,
-    pub withdrawn_by: Option<&'a str>,
-    pub previous_reason: Option<&'a str>,
-    pub actor: &'a str,
-    pub reason: &'a str,
-}
-pub fn prepare_withdrawal(f: WithdrawalFacts<'_>) -> Result<WithdrawalDecision, BusinessError> {
-    withdrawal_decision(
-        f.state,
-        f.creator,
-        f.withdrawn_by,
-        f.previous_reason,
-        f.actor,
-        f.reason,
-    )
 }

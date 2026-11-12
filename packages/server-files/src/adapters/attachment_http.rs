@@ -1,24 +1,28 @@
-//! Owner-local HTTP ingress for native Files attachment metadata reads.
+//! Owner-local HTTP ingress for native Files attachment reads and commands.
 //!
 //! Transport facts only: exact registered Host/Holding targets, one bounded
-//! list query, one bounded status path, strict JSON, and BusinessError mapping.
-//! Normal Account session resolution, current Company/branch/department scope,
-//! the owning-record authority and the serializable owner unit remain
-//! composition responsibilities behind [`AttachmentReadHttpBackend`].
+//! list query, one bounded status path, one exact-origin remove command, strict
+//! JSON, and BusinessError mapping. Normal Account session resolution, current
+//! Company/branch/department scope, the owning-record authority and the
+//! serializable owner unit remain composition responsibilities behind
+//! [`AttachmentReadHttpBackend`].
+use crate::domain::attachment_command::valid_command_key;
 use crate::domain::attachment_read::{
     AttachmentListFilter, MAX_IDENTIFIER_BYTES, MAX_PURPOSE_BYTES, MAX_TARGET_ID_BYTES,
     MAX_TARGET_TYPE_BYTES,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, serde_json,
+    StatusCode, body::to_bytes, header, routing::get, routing::post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin, sync::Arc};
 
 const BODY_LIMIT: usize = 0;
+const COMMAND_BODY_LIMIT: usize = 8 * 1024;
 
 pub type AttachmentReadHttpFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -35,6 +39,16 @@ pub struct AttachmentReadHttpStatusRequest<'a> {
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
     pub link_id: &'a str,
+}
+/// One bounded remove command. `reason` and `command_key` are normalized by
+/// the owner service; the router only proves exact Host/Origin/JSON/key shape.
+pub struct AttachmentCommandHttpWithdrawRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub link_id: &'a str,
+    pub reason: &'a str,
+    pub command_key: &'a str,
 }
 
 /// Owner data plus the composition-validated current context. The router never
@@ -58,6 +72,10 @@ pub trait AttachmentReadHttpBackend: Send + Sync {
     fn status<'a>(
         &'a self,
         request: AttachmentReadHttpStatusRequest<'a>,
+    ) -> AttachmentReadHttpFuture<'a, AttachmentReadHttpReply>;
+    fn withdraw<'a>(
+        &'a self,
+        request: AttachmentCommandHttpWithdrawRequest<'a>,
     ) -> AttachmentReadHttpFuture<'a, AttachmentReadHttpReply>;
 }
 
@@ -305,6 +323,10 @@ pub fn attachment_read_router(
             "/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/status",
             get(status_of_link),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/withdraw",
+            post(withdraw_link),
+        )
         .with_state(Arc::new(AttachmentReadHttpState {
             targets: configured,
         })))
@@ -365,6 +387,106 @@ async fn status_of_link(
                 holding_slug: &target.holding_slug,
                 headers: &headers,
                 link_id: &link_id,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WithdrawBody {
+    reason: String,
+}
+
+fn command_key(headers: &HeaderMap) -> Result<String, BusinessError> {
+    let key =
+        unique_header(headers, HeaderName::from_static("idempotency-key"))?.ok_or_else(|| {
+            BusinessError::invalid(
+                "COMMAND_KEY_REQUIRED",
+                "A valid Idempotency-Key is required.",
+            )
+        })?;
+    if !valid_command_key(key) {
+        return Err(BusinessError::invalid(
+            "COMMAND_KEY_REQUIRED",
+            "A valid Idempotency-Key is required.",
+        ));
+    }
+    Ok(key.to_owned())
+}
+
+fn json_content_type(headers: &HeaderMap) -> Result<(), BusinessError> {
+    let value = unique_header(headers, header::CONTENT_TYPE)?.ok_or_else(|| {
+        BusinessError::invalid("ATTACHMENT_REQUEST_INVALID", "Review the file request.")
+    })?;
+    let mut parts = value.split(';');
+    let media_type = parts.next().unwrap_or_default().trim();
+    if !media_type.eq_ignore_ascii_case("application/json")
+        || parts.any(|part| !part.trim().eq_ignore_ascii_case("charset=utf-8"))
+    {
+        return Err(BusinessError::invalid(
+            "ATTACHMENT_REQUEST_INVALID",
+            "Review the file request.",
+        ));
+    }
+    Ok(())
+}
+
+async fn withdraw_link(
+    State(state): State<Arc<AttachmentReadHttpState>>,
+    Path((slug, link_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async move {
+        let target = target(&state, &headers, &slug)?;
+        if request.uri().query().is_some_and(|value| !value.is_empty()) {
+            return Err(malformed());
+        }
+        if !valid_link_id(&link_id) {
+            return Err(BusinessError::new(
+                FailureKind::NotFound,
+                "ATTACHMENT_LINK_NOT_FOUND",
+                "File link not found.",
+            ));
+        }
+        let origin = unique_header(&headers, header::ORIGIN)?.ok_or_else(|| {
+            BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+        })?;
+        if origin != target.origin {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            ));
+        }
+        json_content_type(&headers)?;
+        let key = command_key(&headers)?;
+        let bytes = to_bytes(request.into_body(), COMMAND_BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        if bytes.is_empty() {
+            return Err(malformed());
+        }
+        let body: WithdrawBody = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        target
+            .backend
+            .withdraw(AttachmentCommandHttpWithdrawRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                link_id: &link_id,
+                reason: &body.reason,
+                command_key: &key,
             })
             .await
     }

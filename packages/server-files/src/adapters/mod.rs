@@ -9,6 +9,7 @@ pub mod preview_engine;
 #[cfg(feature = "preview-provider")]
 pub mod preview_process;
 
+pub mod attachment_command_postgres;
 pub mod attachment_read_postgres;
 pub mod attachment_read_use_cases;
 pub mod attachment_http;

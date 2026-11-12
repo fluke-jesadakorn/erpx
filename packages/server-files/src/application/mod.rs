@@ -2,6 +2,7 @@ pub mod canonical_original;
 pub mod malware_scan;
 pub mod preview;
 
+pub mod attachment_command;
 pub mod attachment_scan;
 
 pub mod field_visit_link;
