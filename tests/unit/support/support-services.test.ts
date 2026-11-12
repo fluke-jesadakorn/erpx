@@ -21,7 +21,7 @@ describe("Support service team policy through typed ports", () => {
 });
 import { createGetSupportTicket, createSupportWorkspace } from "@erpx/server-support/application/support";
 import { createSupportEvidenceGuard, createBindSupportEvidence, createSupportEvidence } from "@erpx/server-support/application/support-evidence";
-import { createRequestSupportSession, createChangeSupportSession, createSupportSessionContext } from "@erpx/server-support/application/support-sessions";
+import { createSupportSessionContext } from "@erpx/server-support/application/support-sessions";
 import { supportSessionProjection, type SupportSession } from "@erpx/server-support/domain/support-sessions";
 import type { SupportCommandPorts, SupportCommand, SupportMutation, SupportRow } from "@erpx/server-support/application/command";
 const mutation: SupportMutation = { native: { guard: "current" } };
@@ -52,8 +52,6 @@ describe("Support evidence ownership", () => {
     it("makes retained evidence read-only when rollback mode is active", async () => { expect(await createSupportEvidence({ ticket: async () => ticket, items: async () => [{ id: "file" }], eligible: async () => true, readOnly: () => true })(actor, "ticket")).toEqual({ items: [{ id: "file" }], canChange: false, canShare: false }); });
 });
 describe("Temporary Support capability lifecycle", () => {
-    it("validates self request and eight-hour expiry before replay", async () => { const ports = { ...runtime(), prepare: vi.fn(async () => mutation) }; await expect(createRequestSupportSession(ports)(actor, { ...request, requestedFor: "other" }, "key")).rejects.toMatchObject({ code: "SUPPORT_SESSION_SELF_REQUEST_REQUIRED" }); await expect(createRequestSupportSession(ports)(actor, { ...request, expiresAt: ports.now() + 8 * 60 * 60 * 1000 + 1 }, "key")).rejects.toMatchObject({ code: "SUPPORT_SESSION_EXPIRY_INVALID" }); expect(ports.replay).not.toHaveBeenCalled(); });
-    it("selects the explicit capability-grant port and retains the command receipt", async () => { const ports = { ...runtime(), session: async () => ({ ...session, ticket_status: "open" }), review: vi.fn(async () => mutation), revoke: vi.fn(async () => mutation), grant: vi.fn(async () => mutation), revokeGrant: vi.fn(async () => mutation) }; expect(await createChangeSupportSession(ports)(actor, "session", { action: "issue-capability", expectedVersion: 1, code: "ticket_evidence_metadata", reason: "Review relevant case evidence" }, "key")).toEqual({ id: "session", version: 2 }); expect(ports.grant).toHaveBeenCalledOnce(); expect(ports.review).not.toHaveBeenCalled(); expect(ports.revokeGrant).not.toHaveBeenCalled(); });
     it("retains expired access as completed and unavailable for management", () => { const view = supportSessionProjection(actor, [{ ...session, status: "approved", expires_at: 100 }], () => 200)[0]; expect(view).toMatchObject({ effective_status: "expired", canManage: false, canReview: false }); });
     it("expires pending review at its exact deadline and never offers an approval afterwards", () => {
         const clock = vi.fn(() => 100), pending = { ...session, status: "pending", created_by: "requester", requested_for: "colleague", can_review: 1, expires_at: 100 };

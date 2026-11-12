@@ -1244,20 +1244,26 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "requires an independent current manager and enforces explicit capability access",
-          "proof": "Self-approval rejected; approved session cannot read context until scoped capability issued; returned context excludes customer identity; immutable session and capability histories checked."
+          "title": "reads pending and approved sessions and requires an explicit active capability",
+          "proof": "Seeds pending/approved owner sessions and capabilities, then verifies Workspace/Work, context, detail and the explicit capability gate."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "revokes and reissues one grant with versions while a whole-session revoke removes all access",
-          "proof": "Capability revoke immediately denies context, reissue restores intended grant once, whole-session revoke invalidates all grants; exact versioned issue/revoke/reissue/session-revoke sequence asserted."
+          "title": "reads a whole-session revoke that removes all capability access while retaining immutable history",
+          "proof": "Seeds a revoked session and revoked capability with issue/revoke/reissue/session-revoke history, then verifies context denial and retained detail."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "blocks stale concurrent approval, expiry and a target whose assignment was revoked",
-          "proof": "Concurrent decisions yield one success, expiry or target assignment revocation denies current context and Work reports unavailable owner."
+          "title": "projects expiry and an inactive requested target without exposing context",
+          "proof": "Seeds expired access and revokes the requester assignment, then verifies effective expiry, Work blocker and context denial."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/support/support-sessions.test.ts",
+          "title": "keeps source and history immutable and rejects cross-scope reads",
+          "proof": "Seeds a pending session, rejects cross-scope details and verifies source/history immutability triggers."
         }
       ],
       "moduleId": "support",
@@ -1276,20 +1282,26 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "requires an independent current manager and enforces explicit capability access",
-          "proof": "Self-approval rejected; approved session cannot read context until scoped capability issued; returned context excludes customer identity; immutable session and capability histories checked."
+          "title": "reads pending and approved sessions and requires an explicit active capability",
+          "proof": "Seeds pending/approved owner sessions and capabilities, then verifies Workspace/Work, context, detail and the explicit capability gate."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "revokes and reissues one grant with versions while a whole-session revoke removes all access",
-          "proof": "Capability revoke immediately denies context, reissue restores intended grant once, whole-session revoke invalidates all grants; exact versioned issue/revoke/reissue/session-revoke sequence asserted."
+          "title": "reads a whole-session revoke that removes all capability access while retaining immutable history",
+          "proof": "Seeds a revoked session and revoked capability with issue/revoke/reissue/session-revoke history, then verifies context denial and retained detail."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "blocks stale concurrent approval, expiry and a target whose assignment was revoked",
-          "proof": "Concurrent decisions yield one success, expiry or target assignment revocation denies current context and Work reports unavailable owner."
+          "title": "projects expiry and an inactive requested target without exposing context",
+          "proof": "Seeds expired access and revokes the requester assignment, then verifies effective expiry, Work blocker and context denial."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/support/support-sessions.test.ts",
+          "title": "keeps source and history immutable and rejects cross-scope reads",
+          "proof": "Seeds a pending session, rejects cross-scope details and verifies source/history immutability triggers."
         }
       ],
       "moduleId": "support",

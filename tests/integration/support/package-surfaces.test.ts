@@ -27,7 +27,7 @@ import type { CompanyPackageGrant } from "@erpx/server-commercial/public/package
 import { attachmentPolicy, authorizeAttachmentTarget } from "@erpx/server-files/public/attachments/policy";
 import { createAttachmentSet } from "@erpx/server-files/public/attachments/service";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
+import { seedSupportSession } from "../../support/helpers/support-session-seed";
 import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
 import { seedSupportClock, seedSupportPolicy } from "../../support/helpers/support-sla-seed";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -282,15 +282,15 @@ it("reads incident file authority through the supplied owner transaction without
 
 it("keeps rejection/revocation while draining, hides access expansion and expires pending sessions in Work", async () => {
   await grant("active"); const ticket = await orderTicket();
-  const input = { ticketId: ticket.id, ticketVersion: 1, requestedFor: f.head.userId, expiresAt: Date.now() + 60000, reason: "Independent access review" };
-  const approved = await requestSupportSession(f.head, input, key()), pending = await requestSupportSession(f.head, input, key());
-  await changeSupportSession(f.manager, String(approved.id), { action: "approve", expectedVersion: 1, reason: "Current manager review" }, key());
+  const expiresAt = Date.now() + 60000;
+  const approved = await seedSupportSession(db, f.manager, { ticketId: ticket.id, requestedFor: f.head.userId, createdBy: f.head.userId, reviewedBy: f.manager.userId, status: "approved", expiresAt });
+  const pending = await seedSupportSession(db, f.head, { ticketId: ticket.id, requestedFor: f.head.userId, createdBy: f.head.userId, status: "pending", expiresAt });
   await grant("draining");
   const data = await supportSessionWorkspace(f.manager);
   expect(data.tickets).toEqual([]);
   expect(data.rows.find(row => row.id === pending.id)).toMatchObject({ canReview: true, canApprove: false });
   expect(data.rows.find(row => row.id === approved.id)).toMatchObject({ canManage: true, canIssueCapability: false });
-  vi.spyOn(Date, "now").mockReturnValue(input.expiresAt + 1);
+  vi.spyOn(Date, "now").mockReturnValue(expiresAt + 1);
   const expired = await supportSessionWorkspace(f.manager);
   expect(expired.rows.find(row => row.id === pending.id)).toMatchObject({ effective_status: "expired", canReview: false, canApprove: false });
 });

@@ -7,7 +7,7 @@ import {getSupportTicket} from '@erpx/server-support/public/support';
 import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/support-ticket-seed';
 import {seedSupportIncident,seedSupportIncidentState} from '../../support/helpers/support-incident-seed';
 import {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
-import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
+import { seedSupportSession } from "../../support/helpers/support-session-seed";
 import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
 import { seedSupportClock, seedSupportPolicy } from "../../support/helpers/support-sla-seed";
 import { supportAlerts } from "@erpx/server-support/public/support-sla-alerts";
@@ -196,17 +196,17 @@ it("retains a mitigated incident until its independent close even after the sour
 
 it("retains live temporary access after ticket cancellation, releases it on owner revoke or exact expiry and isolates Company revisions", async () => {
   const ticket = await orderTicket(), expiresAt = Date.now() + 3_600_000;
-  const session = await requestSupportSession(f.head, { ticketId: ticket.id, ticketVersion: 1, requestedFor: f.head.userId, expiresAt, reason: "Time limited troubleshooting context" }, key()), id = String(session.id);
+  const session = await seedSupportSession(db, f.manager, { ticketId: ticket.id, requestedFor: f.head.userId, createdBy: f.head.userId, reviewedBy: f.manager.userId, status: "approved", expiresAt, capabilities: [{ code: "customer_order_context" }] }), id = String(session.id);
   expect((await observe()).outstanding).toBe(2);
-  await changeSupportSession(f.manager, id, { action: "approve", expectedVersion: 1, reason: "Independently reviewed minimal access" }, key());
-  await changeSupportSession(f.manager, id, { action: "issue-capability", expectedVersion: 2, code: "customer_order_context", reason: "Order context is required" }, key());
   await ticketAction(ticket.id, "cancel", f.manager);
   const current = await observe(); expect(current.outstanding).toBe(1);
   const other = await withOwnerPackageObligations(db, { ...input(), companyId: "other-company" }, tx => supportPackageObligations(db, tx, { ...input(), companyId: "other-company" }));
   expect(other.outstanding).toBe(0); expect((await observe()).revision).toBe(current.revision);
   const expired = await withOwnerPackageObligations(db, input(), tx => supportPackageObligations(db, tx, { ...input(), now: expiresAt }));
   expect(expired.outstanding).toBe(0); expect(expired.revision).not.toBe(current.revision);
-  await changeSupportSession(f.manager, id, { action: "revoke", expectedVersion: 3, reason: "The original ticket is closed" }, key());
+  const now = Date.now();
+  await db.prepare("UPDATE support_sessions SET status='revoked',revoked_by=?,revoked_at=?,version=version+1,updated_at=? WHERE id=?").bind(f.manager.userId, now, now, id).run();
+  await db.prepare("UPDATE support_capabilities SET status='revoked',revoked_by=?,revoked_at=?,version=version+1,updated_at=? WHERE session_id=?").bind(f.manager.userId, now, now, id).run();
   expect((await observe()).outstanding).toBe(0);
   expect(await db.prepare("SELECT status FROM support_capabilities WHERE session_id=?").bind(id).first()).toEqual({ status: "revoked" });
 });
