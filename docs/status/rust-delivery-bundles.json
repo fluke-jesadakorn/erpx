@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 622,
+    "revision": 624,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -14128,23 +14128,52 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "db63ab7a8f1afba439edefcff906b8a5d5fac5e8",
+        "implementedCommit": "d03a760ebc06ed80aaf586ec4b7f22f5a58e4710",
+        "lastPushedSha": "d03a760ebc06ed80aaf586ec4b7f22f5a58e4710",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-commerce --locked",
+            "result": "passed",
+            "sourceSha": "d03a760ebc06ed80aaf586ec4b7f22f5a58e4710",
+            "sourceKind": "committed",
+            "note": "Commerce crate compiles with the goods-receipt HTTP ingress."
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --tests --locked",
+            "result": "passed",
+            "sourceSha": "d03a760ebc06ed80aaf586ec4b7f22f5a58e4710",
+            "sourceKind": "committed",
+            "note": "85/85 owner cases pass; receipt_http 4/4. Requires ERPX_BUN_BIN and .env.local for the pre-existing oracle case."
+          },
+          {
+            "command": "bun run test:unit -- --suite=commerce.rust-commerce-receipt-http.unit",
+            "result": "passed",
+            "sourceSha": "d03a760ebc06ed80aaf586ec4b7f22f5a58e4710",
+            "sourceKind": "committed",
+            "note": "4/4 registered router cases pass: targets/origin/query/key/body rejection and exact receipt decode."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "d03a760ebc06ed80aaf586ec4b7f22f5a58e4710",
+            "sourceKind": "committed",
+            "note": "Repository layout passed; catalogue valid at 1161 suites."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Lead: mount the receipt router + Finance goods journal and switch the workplace fulfilment path.",
+        "handoff": {
           "runId": "run-20261112-c",
           "agentId": "worker-commerce",
-          "claimedAt": "2026-11-12T03:05:41.712Z",
-          "heartbeatAt": "2026-11-12T03:05:41.712Z",
-          "expiresAt": "2026-11-12T03:35:41.712Z",
-          "generation": 28
+          "at": "2026-11-12T03:31:46.481Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: mount the receipt router + Finance goods journal and switch the workplace fulfilment path."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the first inventoried commerce packet (migrate.commerce.goods-fulfillment), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commerce",
         "plannedPackage": "erpx-server-commerce",
@@ -16615,8 +16644,8 @@
       "migratedPackets": 23,
       "statusCounts": {
         "pending": 9,
-        "in_progress": 3,
-        "ready_for_integration": 9,
+        "in_progress": 2,
+        "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 23,
         "blocked": 10,
@@ -16625,7 +16654,7 @@
       }
     },
     "lastCoordinatorGeneration": 28,
-    "updatedAt": "2026-11-12T03:29:06.717Z",
+    "updatedAt": "2026-11-12T03:31:46.482Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
