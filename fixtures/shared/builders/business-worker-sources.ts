@@ -11,8 +11,8 @@ import {moduleRegistry} from "@erpx/catalogue/module-registry";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {changeOrderReservation,fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import {createQualityHold} from "@erpx/server-quality/public/quality";
-import {changeManufacturingOrder,createPlanningScenario,createSpecification,reviewPlanningRecommendation,reviewSpecification} from "@erpx/server-manufacturing/public/production";
+import {seedNativeQualityHold} from "../../quality/hold";
+import {changeManufacturingOrder,createPlanningScenario,reviewPlanningRecommendation} from "@erpx/server-manufacturing/public/production";
 import {queueDeliveryNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans} from "@erpx/server-files/public/attachments/service";
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
@@ -52,11 +52,15 @@ export async function seedBusinessWorkerSources(db:PostgresDatabase,files:FileSt
  // Field scheduled recipients, immutable IDs, retry/ack retention and rollback
  // now execute through Rust in scheduled_field_reservation_alerts_keep_original_phase_identity_and_rollback_sources.
  // This fixture deliberately seeds only the remaining legacy worker owners.
- const spec=await createSpecification(f.owner,{name:'Declared worker production specification',mode:'bom',outputProductId:output,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:product,quantity:'1'}]},key());
- await reviewSpecification(reviewer,String(spec.id),{action:'approve',expectedVersion:1,reason:'Independent native material specification review'},key());
+ const specId=`mfg-spec-${key()}`,specAt=now;
+ await db.batch([
+  db.prepare("INSERT INTO manufacturing_specifications(id,company_id,name,mode,output_product_id,batch_quantity_milli,expected_yield_bps,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'approved',?,'native-reviewer',2,?,?)").bind(specId,f.company,'Declared worker production specification','bom',output,1000,10000,f.owner.userId,specAt,specAt),
+  db.prepare("INSERT INTO manufacturing_specification_lines VALUES(?,?,?,?,?,?)").bind(`${specId}-line-0`,specId,product,1000,null,0),
+ ]);
+ const spec={id:specId};
  const plan=await createPlanningScenario(f.owner,{warehouseId:warehouse,specificationId:String(spec.id),specificationVersion:2,demandQuantity:'1',dueDate:new Date(now+86400000).toISOString().slice(0,10),capacityMinutes:10},key()),released=await reviewPlanningRecommendation(reviewer,String(plan.recommendationId),{action:'approve',expectedVersion:1,reason:'Independent native demand and capacity review'},key()),productionId=String(released.orderId);
  await changeManufacturingOrder(f.owner,productionId,{action:'reserve',expectedVersion:1,expiresAt:now+3600000,reason:'Native manufacturing reserves reviewed material requirements'},key());
- const due=await createQualityHold(f.owner,{warehouseId:warehouse,productId:heldProduct,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,heldProduct).first('version')),dueDate:new Date(now).toISOString().slice(0,10),reason:'Native due-soon inspection source'},key()),overdue=await createQualityHold(f.owner,{warehouseId:warehouse,productId:heldProduct,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,heldProduct).first('version')),dueDate:new Date(now-86400000).toISOString().slice(0,10),reason:'Native overdue inspection source'},key());
+ const due=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:heldProduct,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,heldProduct).first('version')),dueDate:new Date(now).toISOString().slice(0,10),reason:'Native due-soon inspection source',createdAt:now},key()),overdue=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:heldProduct,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,heldProduct).first('version')),dueDate:new Date(now-86400000).toISOString().slice(0,10),reason:'Native overdue inspection source',createdAt:now},key());
  const deliveryOrder=await order('sales'),deliveryOrderId=String(deliveryOrder.order.id);
  for(const [stepKey,userId] of [['confirmed',f.owner.userId],['stock_gl',reviewer.userId]] as const){const flow=await resolveFlow(db,f.owner,'order',deliveryOrderId);await assignFlowPrimary(db,f.owner,'order',deliveryOrderId,{stepKey,userId,reason:'Native owner assigns the responsible warehouse and independent Finance reviewer',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());}
  let evidence: {sourceId:string;sha256:string;engine:string}|null=null;

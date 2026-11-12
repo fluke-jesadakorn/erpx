@@ -764,3 +764,202 @@ async fn quality_http_release_and_scrap_routes_drive_native_owner_commands() {
     })
     .await;
 }
+
+/// The bare Quality POST is the native manual hold-create command: purchase
+/// admission, one receipt-keyed hold and replay all share the composed unit.
+#[tokio::test]
+async fn quality_http_hold_create_is_native_purchase_gated_and_replayable() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_quality(&p).await;
+        seed_quality(&p).await;
+        let db = p.system.holdings[0].raw();
+        sqlx::query("UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id IN ('finance-fixture-a','finance-fixture-b')")
+            .execute(db)
+            .await
+            .unwrap();
+        let app = prepared_router(&p);
+        let version: i64 = sqlx::query_scalar(
+            "SELECT version FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        let key = "http-quality-hold-create";
+        let body = format!(
+            r#"{{"warehouseId":"warehouse","productId":"product","expectedStockVersion":{version},"dueDate":"2026-11-10","reason":"Damaged carton requires independent review"}}"#
+        );
+        let created = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality",
+                &p,
+                false,
+                key,
+                &body,
+            ))
+            .await
+            .unwrap();
+        let status = created.status();
+        let created = json(created).await;
+        assert_eq!(status, StatusCode::OK, "{created}");
+        assert_eq!(created["data"]["id"], format!("quality-{key}"));
+        assert_eq!(created["data"]["status"], "held");
+        assert_eq!(created["data"]["version"], 1);
+        let saved: (String, String, i64, i64, Option<String>, String) = sqlx::query_as(
+            "SELECT status,branch_id,version,held_quantity_milli,spec_id,quantity_scope \
+             FROM inventory_quality_holds WHERE id=$1",
+        )
+        .bind(format!("quality-{key}"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            saved,
+            (
+                "held".into(),
+                "branch".into(),
+                1,
+                5000,
+                None,
+                "whole".into()
+            ),
+            "the native hold derives its branch and held quantity from current stock"
+        );
+        let stock: (i64, i64) = sqlx::query_as(
+            "SELECT version,quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            stock,
+            (version + 1, 5000),
+            "the hold trigger advances only the stock version"
+        );
+        let retained: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),\
+                    (SELECT count(*) FROM audit_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM outbox_events WHERE command_id=$1)",
+        )
+        .bind(key)
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(retained, (1, 1, 1));
+
+        let replay = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality",
+                &p,
+                false,
+                key,
+                &body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        assert_eq!(json(replay).await["data"]["version"], 1);
+        let replayed: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inventory_quality_holds WHERE id=$1),\
+                    (SELECT count(*) FROM command_receipts WHERE command_id=$2)",
+        )
+        .bind(format!("quality-{key}"))
+        .bind(key)
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            replayed,
+            (1, 1),
+            "a replay keeps exactly one hold and one receipt"
+        );
+
+        let now = p.system.scenario.clock.now().get();
+        let mut draining = db.begin().await.unwrap();
+        let before: serde_json::Value = sqlx::query_scalar(
+            "SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence) \
+             FROM company_package_grants WHERE company_id='company' AND package_id='supply-quality'",
+        )
+        .fetch_one(&mut *draining)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE company_package_grants SET state='draining',version=version+1 WHERE company_id='company' AND package_id='supply-quality'")
+            .execute(&mut *draining)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) \
+             SELECT 'quality-hold-draining','company',package_id,'fixture-a','synthetic-draining',$1,\
+                    jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$2 \
+             FROM company_package_grants WHERE company_id='company' AND package_id='supply-quality'",
+        )
+        .bind(before)
+        .bind(now)
+        .execute(&mut *draining)
+        .await
+        .unwrap();
+        draining.commit().await.unwrap();
+        let draining = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality",
+                &p,
+                false,
+                "http-quality-hold-draining",
+                &body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(draining.status(), StatusCode::FORBIDDEN);
+        assert_eq!(json(draining).await["error"]["code"], "PACKAGE_DRAINING");
+
+        sqlx::query("DELETE FROM company_package_grants WHERE company_id='company' AND package_id='supply-quality'")
+            .execute(db)
+            .await
+            .unwrap();
+        let basic = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality",
+                &p,
+                false,
+                "http-quality-hold-supply-only",
+                &body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(basic.status(), StatusCode::FORBIDDEN);
+        assert_eq!(json(basic).await["error"]["code"], "PACKAGE_REQUIRED");
+
+        sqlx::query("DELETE FROM company_package_grants WHERE company_id='company'")
+            .execute(db)
+            .await
+            .unwrap();
+        let unpurchased = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality",
+                &p,
+                false,
+                "http-quality-hold-unpurchased",
+                &body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(unpurchased.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(unpurchased).await["error"]["code"],
+            "PACKAGE_REQUIRED"
+        );
+        let refused: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM inventory_quality_holds WHERE id IN ('quality-http-quality-hold-draining','quality-http-quality-hold-supply-only','quality-http-quality-hold-unpurchased')",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(refused, 0, "refused creates persist no hold");
+    })
+    .await;
+}

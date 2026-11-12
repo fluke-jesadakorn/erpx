@@ -1266,10 +1266,10 @@ describe('POS monetary and webhook boundaries',()=>{
 });
 
 it('quality quarantine blocks a reserved retail payment without consuming stock or cash',async()=>{
- const {createQualityHold}=await import("@erpx/server-quality/public/quality");
+ const {seedNativeQualityHold}=await import("../../../fixtures/quality/hold");
  const sale=await createSale();await add(sale);
  const stock=await one(db,'SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?','warehouse','tea');
- await createQualityHold(manager,{warehouseId:'warehouse',productId:'tea',expectedStockVersion:Number(stock!.version),dueDate:'2026-09-22',reason:'Packaging damage requires inspection'},'quality-pos-hold-command');
+ await seedNativeQualityHold(db,manager,{warehouseId:'warehouse',productId:'tea',expectedStockVersion:Number(stock!.version),dueDate:'2026-09-22',reason:'Packaging damage requires inspection'},'quality-pos-hold-command');
  const receiptsBefore=await one(db,'SELECT count(*) n FROM pos_receipts');
  await expect(pay(sale)).rejects.toMatchObject({code:'QUALITY_HOLD'});
  expect((await one(db,'SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?','warehouse','tea'))).toMatchObject({quantity_milli:10000,value_minor:30000});

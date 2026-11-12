@@ -419,11 +419,11 @@ if(mode==='prepare'||diagnostic){
   const initialStock=await env.H001_DB.prepare('SELECT COALESCE(SUM(s.value_minor),0)::bigint value FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=?').bind(f.company).first<{value:number}>();
   const initialInventoryGl=await env.H001_DB.prepare("SELECT COALESCE(SUM(l.base_debit_minor-l.base_credit_minor),0)::bigint value FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted' AND l.account_id=?").bind(f.company,inventoryAccountId).first<{value:number}>();
   if(Number(initialStock?.value)!==152000||Number(initialInventoryGl?.value)!==152000)throw new Error('FICTIONAL_INITIAL_STOCK_GL_NOT_RECONCILED');
-  const {createQualityHold}=await import("@erpx/server-quality/public/quality");
+  const {seedNativeQualityHold}=await import("../../fixtures/quality/hold");
   const {drainQualityAlerts}=await import("@erpx/server-quality/public/quality-alerts");
   const demoDate=(offset:number)=>new Date(Date.now()+offset*86_400_000).toISOString().slice(0,10);
-  const qualityDueSoon=await createQualityHold(f.head,{warehouseId:source,productId:laptopEach,expectedStockVersion:1,dueDate:demoDate(0),reason:'Demo laptop intake requires inspection before service deployment'},'demo-quality-due-soon');
-  const qualityOverdue=await createQualityHold(f.head,{warehouseId:source,productId:laptopCase,expectedStockVersion:1,dueDate:demoDate(-1),reason:'Demo laptop case packaging review missed its target date'},'demo-quality-overdue');
+  const qualityDueSoon=await seedNativeQualityHold(env.H001_DB,f.head,{warehouseId:source,productId:laptopEach,expectedStockVersion:1,dueDate:demoDate(0),reason:'Demo laptop intake requires inspection before service deployment'},'demo-quality-due-soon');
+  const qualityOverdue=await seedNativeQualityHold(env.H001_DB,f.head,{warehouseId:source,productId:laptopCase,expectedStockVersion:1,dueDate:demoDate(-1),reason:'Demo laptop case packaging review missed its target date'},'demo-quality-overdue');
   await drainQualityAlerts(env.H001_DB,Date.now(),86_400_000);
   const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:'SIM-CUSTOMER',name:'Simulation customer only'},crypto.randomUUID());
   const duplicateCustomerLeft=await saveMaster(f.owner,'parties',null,{kind:'customer',code:'SIM-DUP-A',name:'Demo Harbor Logistics'},crypto.randomUUID()),duplicateCustomerRight=await saveMaster(f.owner,'parties',null,{kind:'customer',code:'SIM-DUP-B',name:'Demo Harbor Logistic'},crypto.randomUUID());
