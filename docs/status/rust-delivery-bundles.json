@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1245,
+    "revision": 1247,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-c",
       "agentId": "lead",
       "startedAt": "2026-11-12T21:18:48.018Z",
-      "heartbeatAt": "2026-11-12T21:29:07.124Z",
-      "expiresAt": "2026-11-12T21:59:07.124Z",
+      "heartbeatAt": "2026-11-12T21:34:35.595Z",
+      "expiresAt": "2026-11-12T22:04:35.595Z",
       "generation": 47,
       "tokenHash": "91a1002fa2a1a47f0b2fca58abc16158516e2acc4bf018d2c5fa1d969162a3a1"
     },
@@ -29416,8 +29416,8 @@
           "runId": "run-20261113-c",
           "agentId": "lead",
           "claimedAt": "2026-11-12T21:18:59.466Z",
-          "heartbeatAt": "2026-11-12T21:29:07.124Z",
-          "expiresAt": "2026-11-12T21:59:07.124Z",
+          "heartbeatAt": "2026-11-12T21:34:35.595Z",
+          "expiresAt": "2026-11-12T22:04:35.595Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29434,7 +29434,7 @@
           "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
           "nextAction": "Implement the collaboration-side native draft/publish/edit/report/upload commands with Rust unit+PG tests, then hand off the three caller switches (operations caller waits for its active claim to release)."
         },
-        "nextAction": "ReportPost and SavePostDraft/UpdateDraft native and pushed at 46cc377a2 (unit 9/9, PG 5/5, HTTP 3/3). Remaining: PublishDraft (bind draft -> post + participants/sources/mentions/topics/follow), EditPost/revisions, upload-discard, then switch manage_erpx/pms/operations callers and retire social-home.",
+        "nextAction": "ReportPost, SavePostDraft/UpdateDraft and PublishDraft are native and pushed at 6f161de95 (unit 10/10, PG 6/6, HTTP 3/3). Remaining: EditPost/revisions, upload-discard, then switch manage_erpx/pms/operations callers, delete the TS social-home writer and record Collaboration KPI before/after.",
         "scopeRefinementRequired": false
       },
       {
@@ -29481,8 +29481,8 @@
           "runId": "run-20261113-c",
           "agentId": "worker-ca-access-duplicates",
           "claimedAt": "2026-11-12T21:23:12.405Z",
-          "heartbeatAt": "2026-11-12T21:29:07.124Z",
-          "expiresAt": "2026-11-12T21:59:07.124Z",
+          "heartbeatAt": "2026-11-12T21:34:35.595Z",
+          "expiresAt": "2026-11-12T22:04:35.595Z",
           "generation": 47
         },
         "baseSha": null,
@@ -29518,7 +29518,7 @@
       }
     },
     "lastCoordinatorGeneration": 47,
-    "updatedAt": "2026-11-12T21:29:07.164Z",
+    "updatedAt": "2026-11-12T21:34:35.629Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
