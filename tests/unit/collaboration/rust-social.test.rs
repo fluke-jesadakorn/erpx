@@ -29,6 +29,7 @@ impl Unit {
             department_id: None,
             can_share_company: true,
             can_moderate: false,
+            can_hide_posts: false,
         };
         let post = PostSnapshot {
             id: "post-1".into(),
@@ -741,6 +742,35 @@ async fn creates_and_cancels_comment_and_post_edit_upload_drafts() {
     .await
     .unwrap();
     assert_eq!((edit_cancelled.version, edit_cancelled.status), (2, "cancelled"));
+}
+
+#[tokio::test]
+async fn only_a_company_moderator_may_hide_a_post() {
+    let mut unit = Unit::new();
+    let denied = execute(
+        &mut unit,
+        &key(),
+        Change::ModeratePost {
+            id: "post-1".into(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(denied.code, "POST_MODERATOR_REQUIRED");
+    unit.actor.can_hide_posts = true;
+    let hidden = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0002").unwrap(),
+        Change::ModeratePost {
+            id: "post-1".into(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        (hidden.id.as_str(), hidden.version, hidden.status),
+        ("post-1", 3, "moderated")
+    );
 }
 
 #[tokio::test]

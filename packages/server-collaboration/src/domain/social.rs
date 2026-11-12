@@ -128,6 +128,8 @@ pub struct SocialActor {
     pub can_share_company: bool,
     /// Current role may tombstone another author's comment.
     pub can_moderate: bool,
+    /// Current role may hide/moderate a whole post.
+    pub can_hide_posts: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -268,6 +270,9 @@ pub enum Change {
     PostEditUploadCancel {
         id: String,
     },
+    ModeratePost {
+        id: String,
+    },
     SavePostDraft {
         id: Option<String>,
         body: String,
@@ -360,6 +365,10 @@ pub enum OwnerPlan {
         edit_post_version: Option<i64>,
     },
     UploadDraftCancel {
+        id: String,
+        version: i64,
+    },
+    ModeratePost {
         id: String,
         version: i64,
     },
@@ -750,6 +759,11 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             id: id.clone(),
             version: *version,
             status: "cancelled",
+        },
+        OwnerPlan::ModeratePost { id, version } => Receipt {
+            id: id.clone(),
+            version: *version,
+            status: "moderated",
         },
     })
 }

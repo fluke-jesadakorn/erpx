@@ -73,6 +73,7 @@ pub struct SocialScope {
     pub department_id: Option<String>,
     pub can_share_company: bool,
     pub can_moderate: bool,
+    pub can_hide_posts: bool,
     pub now: i64,
 }
 
@@ -100,6 +101,7 @@ impl SocialScope {
             department_id: None,
             can_share_company: false,
             can_moderate: false,
+            can_hide_posts: false,
             now,
         })
     }
@@ -129,6 +131,11 @@ impl SocialScope {
         self
     }
 
+    pub fn hide_posts(mut self, allowed: bool) -> Self {
+        self.can_hide_posts = allowed;
+        self
+    }
+
     pub fn actor(&self) -> SocialActor {
         SocialActor {
             user_id: self.user_id.as_str().to_owned(),
@@ -138,6 +145,7 @@ impl SocialScope {
             department_id: self.department_id.clone(),
             can_share_company: self.can_share_company,
             can_moderate: self.can_moderate,
+            can_hide_posts: self.can_hide_posts,
         }
     }
 }
@@ -268,6 +276,7 @@ impl<'c> PgSocialUnit<'c> {
             Change::CommentUploadCancel { .. } => "social.comment.upload.cancel",
             Change::PostEditUploadCreate { .. } => "social.post.edit-upload.create",
             Change::PostEditUploadCancel { .. } => "social.post.edit-upload.cancel",
+            Change::ModeratePost { .. } => "social.post.hide",
         }
     }
 
@@ -296,6 +305,7 @@ impl<'c> PgSocialUnit<'c> {
             Change::CommentUploadCreate { .. } => format!("comment-upload-{}", key.as_str()),
             Change::CommentUploadCancel { id } | Change::PostEditUploadCancel { id } => id.clone(),
             Change::PostEditUploadCreate { .. } => format!("post-edit-upload-{}", key.as_str()),
+            Change::ModeratePost { id } => id.clone(),
         })
     }
 
@@ -610,6 +620,11 @@ impl SocialUnit for PgSocialUnit<'_> {
                 "social_post",
                 "Cancel workplace draft upload",
                 "social.draft.cancelled",
+            ),
+            OwnerPlan::ModeratePost { .. } => (
+                "social_post",
+                "Moderate workplace update",
+                "social.post.moderated",
             ),
         };
         let value = serde_json::to_value(&receipt).map_err(|_| {

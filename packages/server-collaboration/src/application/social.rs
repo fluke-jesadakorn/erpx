@@ -134,6 +134,14 @@ pub async fn execute<P: SocialUnit>(
     change: Change,
 ) -> Result<Receipt, P::Error> {
     let actor = p.authorize(Access::Write).await?;
+    if matches!(&change, Change::ModeratePost { .. }) && !actor.can_hide_posts {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "POST_MODERATOR_REQUIRED",
+            "A Holding owner must moderate this post.",
+        )
+        .into());
+    }
     let prior = p.replay(&change).await?;
     let mut plan = None;
     if prior.is_none() {
@@ -412,6 +420,14 @@ pub async fn execute<P: SocialUnit>(
                     comment_parent_post_id: None,
                     edit_post_id: Some(post_id),
                     edit_post_version: Some(expected_version),
+                });
+            }
+            Change::ModeratePost { id } => {
+                let post = p.post(&id).await?;
+                require_published_post(&actor, &post)?;
+                plan = Some(OwnerPlan::ModeratePost {
+                    id,
+                    version: post.version + 1,
                 });
             }
             Change::PostEditUploadCancel { id } => {

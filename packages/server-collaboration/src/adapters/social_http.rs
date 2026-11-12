@@ -550,6 +550,7 @@ pub async fn post_action(
         let operation = match action {
             "edit" => "social.post.edit",
             "retract" => "social.post.retract",
+            "hide" => "social.post.hide",
             _ => return Err(content_invalid()),
         };
         let decoded = decode_social_command(operation, Some(&post_id), None, &raw)?;

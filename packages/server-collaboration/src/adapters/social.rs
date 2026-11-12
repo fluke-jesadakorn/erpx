@@ -830,6 +830,21 @@ pub async fn apply_plan(
             }
             Ok(expected.clone())
         }
+        OwnerPlan::ModeratePost { id, version } => {
+            let updated = sqlx::query(
+                "UPDATE social_posts SET state='moderated',version=version+1,updated_at=$1 WHERE id=$2 AND company_id=$3 AND version=$4",
+            )
+            .bind(now)
+            .bind(id)
+            .bind(&actor.company_id)
+            .bind(version - 1)
+            .execute(&mut *c)
+            .await?;
+            if updated.rows_affected() != 1 {
+                return Err(changed());
+            }
+            Ok(expected.clone())
+        }
         OwnerPlan::UploadDraftCreate {
             id,
             author_id,
@@ -1121,6 +1136,12 @@ pub async fn retain_effects(
         }
 
         OwnerPlan::EditPost { id, .. } | OwnerPlan::RetractPost { id, .. } => {
+            if receipt.id != *id {
+                return Err(changed());
+            }
+            capture(c, &mut images, format!("post:{id}")).await?;
+        }
+        OwnerPlan::ModeratePost { id, .. } => {
             if receipt.id != *id {
                 return Err(changed());
             }

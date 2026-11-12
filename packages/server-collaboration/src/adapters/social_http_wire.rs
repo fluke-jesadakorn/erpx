@@ -165,6 +165,9 @@ pub fn decode_social_command(
                 .transpose()
                 .map_err(|_| invalid())?,
         },
+        "social.post.hide" => Change::ModeratePost {
+            id: post(post_id)?,
+        },
         "social.post.retract" => Change::RetractPost {
             id: post(post_id)?,
             expected_version: positive(raw, "expectedVersion")?,

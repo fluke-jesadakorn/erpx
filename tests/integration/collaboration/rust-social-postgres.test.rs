@@ -39,6 +39,7 @@ fn operation(change: &Change) -> &'static str {
         Change::CommentUploadCancel { .. } => "social.comment.upload.cancel",
         Change::PostEditUploadCreate { .. } => "social.post.edit-upload.create",
         Change::PostEditUploadCancel { .. } => "social.post.edit-upload.cancel",
+        Change::ModeratePost { .. } => "social.post.hide",
     }
 }
 
@@ -56,6 +57,7 @@ fn record_id(key: &str, change: &Change) -> String {
         Change::CommentUploadCreate { .. } => format!("comment-upload-{key}"),
         Change::CommentUploadCancel { id } | Change::PostEditUploadCancel { id } => id.clone(),
         Change::PostEditUploadCreate { .. } => format!("post-edit-upload-{key}"),
+        Change::ModeratePost { id } => id.clone(),
     }
 }
 
@@ -83,6 +85,7 @@ async fn authority(c: &mut PgConnection, user: &str, company: &str) -> Result<So
         department_id: row.try_get(2)?,
         can_share_company: row.try_get::<i64, _>(3)? == 1,
         can_moderate: row.try_get::<i64, _>(4)? == 1,
+        can_hide_posts: row.try_get::<i64, _>(4)? == 1,
     })
 }
 
@@ -95,6 +98,7 @@ fn actor(user: &str, company: &str, branch: Option<&str>, moderate: bool) -> Soc
         department_id: None,
         can_share_company: true,
         can_moderate: moderate,
+        can_hide_posts: moderate,
     }
 }
 
@@ -319,6 +323,7 @@ fn decode_receipt(raw: &str) -> Result<Receipt, Error> {
         Some("draft") => "draft",
         Some("archived") => "archived",
         Some("cancelled") => "cancelled",
+        Some("moderated") => "moderated",
         _ => return Err(changed()),
     };
     let id = value["id"]
@@ -1303,6 +1308,60 @@ async fn upload_drafts_create_and_cancel_comment_and_edit_targets() {
         .await
         .unwrap();
         assert_eq!(edit_cancelled.status, "cancelled");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn moderators_hide_posts_but_other_roles_cannot() {
+    fixture::with_database(9, |pool| async move {
+        setup(&pool).await;
+        let post = run(
+            &pool,
+            "author",
+            "company",
+            "social-post-0801",
+            Change::PublishPost {
+                body: "Moderate target".into(),
+                audience: Audience::Holding,
+                tags: vec![],
+                mentions: vec![],
+                linked_record: None,
+            },
+        )
+        .await
+        .unwrap();
+        let denied = run(
+            &pool,
+            "branch-b",
+            "company",
+            "social-hide-0802",
+            Change::ModeratePost {
+                id: post.id.clone(),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(denied, PgTransactionError::Business(e) if e.code == "POST_MODERATOR_REQUIRED"));
+        let hidden = run(
+            &pool,
+            "moderator",
+            "company",
+            "social-hide-0803",
+            Change::ModeratePost {
+                id: post.id.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!((hidden.version, hidden.status), (2, "moderated"));
+        let state: (String, i64) =
+            sqlx::query_as("SELECT state,version FROM social_posts WHERE id=$1")
+                .bind(&post.id)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(state, ("moderated".into(), 2));
     })
     .await;
 }
