@@ -2910,7 +2910,6 @@
             "packages/server-people_payroll/src/adapters/organization-draft-facts.ts",
             "packages/server-people_payroll/src/adapters/organization-draft-placement.ts",
             "packages/server-people_payroll/src/adapters/organization-person-links.ts",
-            "packages/server-people_payroll/src/adapters/organization-position-moves.ts",
             "packages/server-people_payroll/src/adapters/organization-roster-facts.ts",
             "packages/server-people_payroll/src/adapters/overtime.ts",
             "packages/server-people_payroll/src/adapters/payroll-accounting.ts",
@@ -4427,8 +4426,7 @@
             "packages/server-workflow/src/adapters/leave-evidence-decisions.ts",
             "packages/server-workflow/src/adapters/records-record-details-owned-facts.ts",
             "packages/server-workflow/src/adapters/job-projector.ts",
-            "packages/server-workflow/src/adapters/flow-work.ts",
-            "packages/server-workflow/src/adapters/organization-position-move-events.ts"
+            "packages/server-workflow/src/adapters/flow-work.ts"
           ],
           "regression": [
             "tests/integration/shared.commands/business-commands.test.ts",
