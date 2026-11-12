@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 844,
+    "revision": 847,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -19968,8 +19968,15 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "integrating",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-p",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T11:38:57.724Z",
+          "heartbeatAt": "2026-11-12T11:38:57.724Z",
+          "expiresAt": "2026-11-12T12:08:57.724Z",
+          "generation": 41
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -21674,6 +21681,56 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.finance.journals-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the finance journal TS writers and route fallbacks",
+        "scope": "Journals: the workplace finance route already has native journal create/edit/post/reverse readbacks and commands. Make the journal POST branches native-only (503 when unconfigured), delete createJournal/postJournal/postJournalBatch/reverseJournal and their application/adapters/domain/public/index/package exports, move oracles to native/SQL seeding, and record the owner KPI 382 before/after with a re-classified residual.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/server-finance/package.json",
+          "packages/feature-finance/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "fixtures/finance/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "in_progress",
+        "nextAction": "Retire the journal TS writers and their route fallbacks; measure retirement:ts-writes.",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "claim": {
+          "runId": "run-20261112-p",
+          "agentId": "worker-finance",
+          "claimedAt": "2026-11-12T11:53:06.273Z",
+          "heartbeatAt": "2026-11-12T11:53:06.273Z",
+          "expiresAt": "2026-11-12T12:23:06.273Z",
+          "generation": 41
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -21682,13 +21739,13 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 96,
+      "totalPackets": 97,
       "migratedPackets": 39,
       "statusCounts": {
         "pending": 29,
-        "in_progress": 3,
+        "in_progress": 5,
         "ready_for_integration": 10,
-        "integrating": 1,
+        "integrating": 0,
         "migrated": 39,
         "blocked": 14,
         "deferred": 0,
@@ -21696,7 +21753,7 @@
       }
     },
     "lastCoordinatorGeneration": 41,
-    "updatedAt": "2026-11-12T11:25:10.390Z",
+    "updatedAt": "2026-11-12T11:53:06.274Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
