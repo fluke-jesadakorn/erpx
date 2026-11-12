@@ -122,7 +122,6 @@
     "./adapters/directory-lookup": "./src/adapters/directory-lookup.ts",
     "./adapters/iam-permissions": "./src/adapters/iam-permissions.ts",
     "./adapters/device-account-store": "./src/adapters/device-account-store.ts",
-    "./adapters/account-session-security": "./src/adapters/account-session-security.ts",
     "./adapters/iam-db": "./src/adapters/iam-db.ts",
     "./adapters/iam-migrations": "./src/adapters/iam-migrations.ts",
     "./adapters/iam-transactions": "./src/adapters/iam-transactions.ts",
