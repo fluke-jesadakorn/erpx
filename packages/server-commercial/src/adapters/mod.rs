@@ -9,6 +9,10 @@ pub mod postgres_purchases;
 
 pub mod canonical_purchase_write;
 
+pub mod purchased_capability_sql;
+
+pub mod purchase_command_boundary;
+
 pub mod postgres_purchase_after;
 
 pub mod purchase_shadow_read;

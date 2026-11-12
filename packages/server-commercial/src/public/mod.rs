@@ -7,6 +7,8 @@ pub mod canonical_purchase_write;
 
 pub mod purchase_after;
 
+pub mod purchase_command_boundary;
+
 pub mod purchase_shadow_read;
 
 pub mod purchase_pre_command;

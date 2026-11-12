@@ -74,5 +74,13 @@ path = "../../tests/unit/commercial/rust-subscriptions.test.rs"
 name = "subscriptions_postgres"
 path = "../../tests/integration/commercial/rust-subscriptions-postgres.test.rs"
 
+[[test]]
+name = "purchase_command_boundary"
+path = "../../tests/unit/commercial/rust-purchase-command-boundary.test.rs"
+
+[[test]]
+name = "purchase_command_boundary_postgres"
+path = "../../tests/integration/commercial/rust-purchase-command-boundary-postgres.test.rs"
+
 [lints]
 workspace = true

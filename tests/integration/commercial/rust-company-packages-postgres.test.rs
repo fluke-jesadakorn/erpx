@@ -1,6 +1,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use erpx_server_commercial::public::purchases::*;
+use erpx_server_commercial::public::subscriptions::PgCompanySubscriptionReader;
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
@@ -350,6 +351,20 @@ impl CompanyPackageReadHttpBackend for PgBackend {
                                             "The Commercial package read could not be encoded.",
                                         )
                                     })?
+                                }
+                                CompanyPackageReadHttpKind::Subscriptions => {
+                                    let mut reader = PgCompanySubscriptionReader::new(
+                                        company.clone(),
+                                        connection,
+                                    );
+                                    serde_json::to_value(reader.inspect(now(1000)).await?)
+                                        .map_err(|_| {
+                                            BusinessError::new(
+                                                FailureKind::Unavailable,
+                                                "COMMERCIAL_RESPONSE_ENCODING",
+                                                "The Commercial subscription read could not be encoded.",
+                                            )
+                                        })?
                                 }
                                 CompanyPackageReadHttpKind::Admission {
                                     capabilities,
