@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 530,
+    "revision": 533,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g22",
+      "runId": "run-20261110-g23",
       "agentId": "lead",
-      "startedAt": "2026-11-11T22:57:11.626Z",
-      "heartbeatAt": "2026-11-11T22:57:11.626Z",
-      "expiresAt": "2026-11-11T23:27:11.627Z",
-      "generation": 23,
-      "tokenHash": "a18dcb0c97c946008d1983bf04df63dd5bec392c688a6fe6b71fd52b2075dae8"
+      "startedAt": "2026-11-12T00:10:32.772Z",
+      "heartbeatAt": "2026-11-12T00:10:32.772Z",
+      "expiresAt": "2026-11-12T00:40:32.773Z",
+      "generation": 24,
+      "tokenHash": "ed6e59c8cc890f889448e0023769e145942a4d855560718dbcac90d678a10462"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9940,14 +9940,21 @@
           "owner:identity_access"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261110-g23",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T00:10:32.798Z",
+          "heartbeatAt": "2026-11-12T00:10:32.798Z",
+          "expiresAt": "2026-11-12T00:40:32.798Z",
+          "generation": 24
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after commercial package-grant commit; WIP reviewed",
-        "nextAction": "Holding IAM roles/reviews/access-reviews native and switched; native Directory sign-in router mounted opt-in (cd8eb75c7) with directoryProfiles + directoryProvenanceKeys, boundary admission and absence fail-closed; 5/5 new HTTP cases + account/auth/directory suites pass. Remaining: platform/iam route still TS (platform namespace has no HTTP ingress), directory source-admin mount, principals/conflicts/emergency packet.",
+        "blocker": null,
+        "nextAction": "Holding IAM roles/reviews/access-reviews native+switched; Directory sign-in mounted opt-in (cd8eb75c7); platform IAM command ingress mounted and 5 POST paths switched (919bf93de): roles save, review decide, access-review create/item decide/cancel; Control receipts/audit, platform.iam.* permissions; all other platform IAM and every GET remain TS. Checks: platform IAM http 3/3, transport 4/4, PG 1/1, existing IAM 9/3/4, private-api 12/12, typecheck, catalogue 1135. Remaining: platform IAM read surface (overview/matrix/audit/assignments/users/connections/mappings/emergency), directory source-admin mount, principals/conflicts/emergency packet.",
         "handoff": {
           "runId": "run-20261110-g17",
           "agentId": "lead",
@@ -14216,22 +14223,22 @@
           "owner:runtime"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g22",
-          "agentId": "lead",
-          "claimedAt": "2026-11-11T22:57:11.654Z",
-          "heartbeatAt": "2026-11-11T22:57:11.654Z",
-          "expiresAt": "2026-11-11T23:27:11.654Z",
-          "generation": 23
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired after platform IAM commit; WIP reviewed",
         "nextAction": "Native OutboxSupervisor complete (59ba285c7): claim/renew/complete/fail, retry backoff min(60s,2^attempt), dead-letter at attempt 6, lease-lost handling, attestation rows, one heavy slot, per-Holding isolation, restart logs. Checks: supervisor unit 7/7 + PG 8/8, runtime TS 114/28, worker/outbox/workflow suites, erpx-service, catalogue 1132. Remaining to mount: composition needs a native general OutboxJobHandler (server-workflow job-projector is still TS) before the outbox-supervisor entrypoint can acknowledge generic events; then register the CLI/production supervisor.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261110-g22",
+          "agentId": "lead",
+          "at": "2026-11-12T00:10:32.771Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Lease expired after platform IAM commit; WIP reviewed",
+          "nextAction": "Native OutboxSupervisor complete (59ba285c7): claim/renew/complete/fail, retry backoff min(60s,2^attempt), dead-letter at attempt 6, lease-lost handling, attestation rows, one heavy slot, per-Holding isolation, restart logs. Checks: supervisor unit 7/7 + PG 8/8, runtime TS 114/28, worker/outbox/workflow suites, erpx-service, catalogue 1132. Remaining to mount: composition needs a native general OutboxJobHandler (server-workflow job-projector is still TS) before the outbox-supervisor entrypoint can acknowledge generic events; then register the CLI/production supervisor."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-runtime",
         "plannedPackage": "erpx-server-runtime",
@@ -15965,8 +15972,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 23,
-    "updatedAt": "2026-11-11T22:57:11.679Z",
+    "lastCoordinatorGeneration": 24,
+    "updatedAt": "2026-11-12T00:10:32.822Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16009,10 +16016,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261110-g21",
-      "runId": "run-20261110-g22",
-      "at": "2026-11-11T22:57:11.627Z",
-      "reason": "Lease expired after runtime supervisor commit; WIP reviewed",
+      "previousRunId": "run-20261110-g22",
+      "runId": "run-20261110-g23",
+      "at": "2026-11-12T00:10:32.773Z",
+      "reason": "Lease expired after platform IAM commit; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
