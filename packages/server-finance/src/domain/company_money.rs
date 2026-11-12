@@ -63,7 +63,7 @@ impl CurrencyRules {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionalFxEvidence {
     pub micros: i64,
