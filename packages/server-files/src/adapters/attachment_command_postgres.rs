@@ -223,6 +223,22 @@ pub async fn withdraw_attachment<A: AttachmentWithdrawAuthority>(
     if !locked.source_valid {
         return Err(changed());
     }
+    // The owner grant is revalidated while the Files rows are locked. A grant
+    // that expired, moved or lost the owner read check cannot reach a write.
+    let locked_target = WithdrawTarget {
+        company_id: &locked.company_id,
+        branch_id: locked.branch_id.as_deref(),
+        department_id: locked.department_id.as_deref(),
+        link_id: &locked.link_id,
+        set_id: &locked.set_id,
+        target_type: &locked.target_type,
+        target_id: &locked.target_id,
+        purpose_key: &locked.purpose_key,
+        component_kind: &locked.component_kind,
+        expected_target_version: locked.expected_target_version,
+        created_by: &locked.created_by,
+    };
+    authority.revalidate_withdraw(c, &locked_target).await?;
 
     let decision = prepare_withdrawal(crate::application::attachment_command::WithdrawalFacts {
         state: &locked.link_state,

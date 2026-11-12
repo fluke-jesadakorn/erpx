@@ -2,8 +2,8 @@ import { beforeEach, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   calls: [] as string[],
-  withdraw: vi.fn(),
   status: vi.fn(),
+  nativeWithdraw: vi.fn(),
   native: vi.fn(),
   nativeBind: vi.fn(),
   writer: vi.fn(),
@@ -11,7 +11,7 @@ const state = vi.hoisted(() => ({
   paymentOwner:vi.fn(),
   journalNative:vi.fn(),
   bind: vi.fn(),
-  write: { name: "holding-write" },
+  write: { name: "holding-write", prepare: () => ({ bind: () => ({ first: async () => null }) }) },
 }));
 
 vi.mock("@erpx/server-files/public/field-file-writer-owner",()=>({fieldFileWriterOwner:state.writer,fieldJournalFileOwner:state.journalOwner,servicePaymentFileOwner:state.paymentOwner}));
@@ -23,13 +23,33 @@ vi.mock("../../../packages/workplace/src/lib/native-field-family",()=>({
 vi.mock("@erpx/server-files/public/app-attachment-sources",()=>({appAttachmentSources:()=>({compatibilitySet:async()=>false})}));
 
 vi.mock("@erpx/server-files/public/attachments/service", () => ({
-  withdrawAttachmentLink: state.withdraw,
   attachmentLinkStatus: state.status,
   bindRecordAttachmentSet: state.bind,
 }));
 
+vi.mock("@erpx/server-files/public/native-attachments", () => ({
+  nativeAttachmentCommandConfiguration: (raw: string) => JSON.parse(raw),
+  nativeAttachmentCommandFailure: (error: unknown) =>
+    (error as { nativeFailure?: unknown })?.nativeFailure,
+  createNativeAttachmentCommandClient: () => ({ withdraw: state.nativeWithdraw }),
+}));
+
 vi.mock("@erpx/server-identity_access/public/authorization", () => ({
-  requireWorkContext: async () => ({ holdingId: "h001", companyId: "acme-co", userId: "requester" }),
+  requireWorkContext: async () => ({
+    holdingId: "h001",
+    holdingSlug: "acme",
+    companyId: "acme-co",
+    userId: "requester",
+    branchId: null,
+    departmentId: null,
+    assignmentId: "assignment-requester",
+    role: "requester",
+    assignmentScope: "holding",
+    scope: { kind: "holding" },
+    authority: { revision: 7, assignmentVersion: 3 },
+    modules: ["records"],
+    iam: { permissions: ["records.read", "records.write"] },
+  }),
 }));
 
 vi.mock("@erpx/server-manage_erpx/public/public-origin", () => ({
@@ -46,6 +66,13 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 
 beforeEach(() => {
   state.calls = [];
+  process.env.ERPX_NATIVE_ATTACHMENT_COMMAND_CONFIG = JSON.stringify({
+    privateBaseUrl: "http://127.0.0.1:44993",
+    timeoutMs: 1000,
+    holdings: [
+      { origin: "https://dev-erpx.example.test", holdingSlug: "acme", holdingId: "h001" },
+    ],
+  });
   state.journalOwner.mockReset().mockResolvedValue(false);
   state.paymentOwner.mockReset().mockResolvedValue(false);
   state.journalNative.mockReset().mockImplementation(async()=>Response.json({data:{setId:"set-1",version:5,manifest:[]}}));
@@ -53,9 +80,21 @@ beforeEach(() => {
   state.native.mockReset().mockResolvedValue(undefined);
   state.nativeBind.mockReset().mockResolvedValue(undefined);
   state.bind.mockReset().mockResolvedValue({setId:'set-1',version:5,manifest:[]});
-  state.withdraw.mockReset().mockImplementation(async () => {
-    state.calls.push("withdraw");
-    return { id: "link-1", state: "withdrawn" };
+  state.nativeWithdraw.mockReset().mockImplementation(async () => {
+    state.calls.push("native-withdraw");
+    return {
+      linkId: "link-1",
+      setId: "set-1",
+      sourceId: "source-1",
+      sourceState: "available",
+      linkState: "withdrawn",
+      scan: { attempts: 1, lastResult: "clean", lastError: null, signature: null, definitionUpdatedAt: null, scannedAt: 10 },
+      previewAvailable: true,
+      bindable: false,
+      expiresAt: 20,
+      boundAt: null,
+      withdrawnAt: 30,
+    };
   });
   state.status.mockReset().mockImplementation(async () => {
     state.calls.push("status");
@@ -83,6 +122,43 @@ it('keeps native bind failure closed and retains the unselected bind route',asyn
 });
 
 it("returns the post-withdraw status contract consumed by AttachmentPanel", async () => {
+  const request = new Request("https://dev-erpx.example.test/api/v1/holdings/acme/attachment-links/link-1/withdraw", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": "withdraw-001",
+      Origin: "https://dev-erpx.example.test",
+    },
+    body: JSON.stringify({ reason: "Replace the incorrect photo" }),
+  });
+  const response = await POST(request, {
+    params: Promise.resolve({ holdingSlug: "acme", linkId: "link-1" }),
+  });
+
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+  expect(state.calls).toEqual(["native-withdraw"]);
+  expect(state.nativeWithdraw).toHaveBeenCalledWith(
+    request.headers,
+    expect.objectContaining({
+      holdingId: "h001",
+      holdingSlug: "acme",
+      companyId: "acme-co",
+      userId: "requester",
+      authority: { revision: 7, assignmentVersion: 3 },
+    }),
+    "acme",
+    "link-1",
+    { reason: "Replace the incorrect photo", key: "withdraw-001" },
+  );
+  expect(state.status).not.toHaveBeenCalled();
+  await expect(response.json()).resolves.toMatchObject({
+    data: { linkId: "link-1", sourceState: "available", linkState: "withdrawn", withdrawnAt: 30 },
+  });
+});
+
+it("fails closed without the native command configuration", async () => {
+  delete process.env.ERPX_NATIVE_ATTACHMENT_COMMAND_CONFIG;
   const response = await POST(
     new Request("https://dev-erpx.example.test/api/v1/holdings/acme/attachment-links/link-1/withdraw", {
       method: "POST",
@@ -95,25 +171,11 @@ it("returns the post-withdraw status contract consumed by AttachmentPanel", asyn
     }),
     { params: Promise.resolve({ holdingSlug: "acme", linkId: "link-1" }) },
   );
-
-  expect(response.status).toBe(200);
-  expect(response.headers.get("cache-control")).toBe("private, no-store");
-  expect(state.calls).toEqual(["withdraw", "status"]);
-  expect(state.withdraw).toHaveBeenCalledWith(
-    state.write,
-    expect.objectContaining({ holdingId: "h001", companyId: "acme-co", userId: "requester" }),
-    "link-1",
-    "Replace the incorrect photo",
-    "withdraw-001",
-  );
-  expect(state.status).toHaveBeenCalledWith(
-    state.write,
-    expect.objectContaining({ holdingId: "h001" }),
-    "link-1",
-  );
+  expect(response.status).toBe(503);
   await expect(response.json()).resolves.toMatchObject({
-    data: { linkId: "link-1", sourceState: "available", linkState: "withdrawn", withdrawnAt: 30 },
+    error: { code: "NATIVE_ATTACHMENT_WRITER_UNAVAILABLE" },
   });
+  expect(state.nativeWithdraw).not.toHaveBeenCalled();
 });
 
 it('selects only a configured link and validates native owner context and full post-withdraw status',async()=>{
@@ -130,7 +192,7 @@ it('dispatches a selected native withdrawal only after Origin, key, actor and bo
  state.writer.mockResolvedValue('field');state.native.mockResolvedValue({linkId:'link-1',setId:'set-1',linkState:'withdrawn'});
  const request=(origin:string,key:string,body:string)=>new Request('https://dev-erpx.example.test/api/v1/holdings/acme/attachment-links/link-1/withdraw',{method:'POST',headers:{origin,'Idempotency-Key':key,'content-type':'application/json'},body});const ctx={params:Promise.resolve({holdingSlug:'acme',linkId:'link-1'})};
  expect((await POST(request('https://foreign.example.test','withdraw-001','{"reason":"Original"}'),ctx)).status).toBe(403);expect((await POST(request('https://dev-erpx.example.test','bad','{"reason":"Original"}'),ctx)).status).toBe(422);expect((await POST(request('https://dev-erpx.example.test','withdraw-001','{"reason":"x"}'),ctx)).status).toBe(422);expect(state.native).not.toHaveBeenCalled();
- const body='{"reason":"Original reason"}';const response=await POST(request('https://dev-erpx.example.test','withdraw-001',body),ctx);expect(response.status).toBe(200);expect(state.native).toHaveBeenCalledWith(expect.any(Request),expect.objectContaining({holdingId:'h001'}),'link-1',{key:'withdraw-001',body});expect(state.withdraw).not.toHaveBeenCalled();expect(state.status).not.toHaveBeenCalled();
+ const body='{"reason":"Original reason"}';const response=await POST(request('https://dev-erpx.example.test','withdraw-001',body),ctx);expect(response.status).toBe(200);expect(state.native).toHaveBeenCalledWith(expect.any(Request),expect.objectContaining({holdingId:'h001'}),'link-1',{key:'withdraw-001',body});expect(state.status).not.toHaveBeenCalled();
 });
 
 it('accepts a representable physical link ID longer than 200 bytes in the native selector',async()=>{
@@ -145,7 +207,6 @@ it("does not fall back to the retained owner when the selected native withdrawal
     body: JSON.stringify({ reason: "Original reason" }),
   }), { params: Promise.resolve({ holdingSlug: "acme", linkId: "link-1" }) });
   expect(response.status).toBe(503);
-  expect(state.withdraw).not.toHaveBeenCalled();
   expect(state.status).not.toHaveBeenCalled();
 });
 

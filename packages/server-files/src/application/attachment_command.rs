@@ -28,13 +28,25 @@ pub struct WithdrawTarget<'a> {
 }
 
 /// Composition-owned authority port. It is invoked before the Files row lock
-/// and again by the caller after commit when the owner needs a post-image.
+/// and again after the Files row lock; the second call is the stale-authority
+/// fence and must re-check the current owner record, selected actor and grant.
 pub trait AttachmentWithdrawAuthority: Sync {
     fn authorize_withdraw<'a>(
         &'a self,
         c: &'a mut PgConnection,
         target: &'a WithdrawTarget<'a>,
     ) -> PgWorkFuture<'a, (), BusinessError>;
+
+    /// Called while the Files link/set are locked and before any write. A port
+    /// that cannot prove the owner grant is still current must fail closed.
+    fn revalidate_withdraw<'a>(
+        &'a self,
+        c: &'a mut PgConnection,
+        target: &'a WithdrawTarget<'a>,
+    ) -> PgWorkFuture<'a, (), BusinessError> {
+        let _ = (c, target);
+        Box::pin(async { Ok(()) })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

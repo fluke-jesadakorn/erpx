@@ -20,6 +20,41 @@ pub fn has_native_owner_command(target_type: &str) -> bool {
     )
 }
 
+/// Read authority category of a non-native-command attachment target. The
+/// composition root maps each category to the owner's current read port; this
+/// is only the stable Files-side classification.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WithdrawOwnerAccess {
+    /// The generic Files descriptor read gate (`records.read` plus the current
+    /// Company/branch/department selection).
+    RecordsRead,
+    /// Branding read: `records.read`, the `brand` module and the exact
+    /// holding/company/branch target identity.
+    Brand,
+    /// Legal read: `legal.read` and the current Files scope. Legal item
+    /// membership/classification remains owned by the Legal record policy and
+    /// is not duplicated by Files.
+    Legal,
+    /// Messaging read: `records.read`, the `collaboration` module and current
+    /// conversation membership.
+    Messaging,
+    /// Customer portal read: the current staff customer-file permission. The
+    /// external customer session authority remains owned by Customer Authority.
+    Portal,
+}
+
+/// Classify a generic target for the owner read check. Unknown targets stay on
+/// the generic Files descriptor gate rather than becoming owner-native writes.
+pub fn withdraw_owner_access(target_type: &str) -> WithdrawOwnerAccess {
+    match target_type {
+        "holding_brand" | "branch_brand" | "company_storefront_brand" => WithdrawOwnerAccess::Brand,
+        "legal_item" | "legal_external" => WithdrawOwnerAccess::Legal,
+        "messaging_room" => WithdrawOwnerAccess::Messaging,
+        "customer_access_binding" => WithdrawOwnerAccess::Portal,
+        _ => WithdrawOwnerAccess::RecordsRead,
+    }
+}
+
 /// JavaScript `String.prototype.trim` whitespace and line terminators.
 fn is_js_whitespace(value: char) -> bool {
     matches!(

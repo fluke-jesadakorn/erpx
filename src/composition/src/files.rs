@@ -2,18 +2,21 @@
 //! authority remains with the selected coordinator; owner ports supply the
 //! bounded attachment-set and link-status facts.
 use crate::business_http::BusinessScopeSlugs;
+#[cfg(feature = "field-service")]
+use erpx_server_collaboration::public::messaging_native::{
+    MessagingActor, read_room, require_member,
+};
 use erpx_server_files::public::attachment_command::{
-    AttachmentWithdrawAuthority, WithdrawAttachmentRequest, WithdrawTarget, normalize_withdrawal,
-    withdraw_attachment,
+    AttachmentWithdrawAuthority, WithdrawAttachmentRequest, WithdrawOwnerAccess, WithdrawTarget,
+    normalize_withdrawal, withdraw_attachment, withdraw_owner_access,
 };
 use erpx_server_files::public::attachment_http::{
     AttachmentCommandHttpWithdrawRequest, AttachmentReadHttpBackend, AttachmentReadHttpFuture,
     AttachmentReadHttpListRequest, AttachmentReadHttpReply, AttachmentReadHttpStatusRequest,
 };
 use erpx_server_files::public::attachment_read::{
-    AttachmentLinkStatusView, AttachmentListFilter, AttachmentReader, AttachmentTarget,
-    AttachmentTargetAuthority, AttachmentTargetScope, PostgresAttachmentRead,
-    attachment_link_status, list_attachment_sets,
+    AttachmentListFilter, AttachmentReader, AttachmentTarget, AttachmentTargetAuthority,
+    AttachmentTargetScope, PostgresAttachmentRead, attachment_link_status, list_attachment_sets,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -22,6 +25,7 @@ use erpx_server_identity_access::public::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
+    selected_command_authority::require_selected_actor_current,
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
@@ -143,29 +147,156 @@ impl AttachmentTargetAuthority for CurrentAttachmentAuthority {
     }
 }
 
-/// Files-only scope gate for the generic remove command. The owning-record
-/// authority remains the composition's responsibility; every Files-visible
-/// Company/branch/department fact must still match the current selection.
-impl AttachmentWithdrawAuthority for CurrentAttachmentAuthority {
-    fn authorize_withdraw<'a>(
-        &'a self,
-        _: &'a mut PgConnection,
-        target: &'a WithdrawTarget<'a>,
-    ) -> PgWorkFuture<'a, (), BusinessError> {
+fn owner_denied() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "ATTACHMENT_FORBIDDEN",
+        "Your current assignment cannot read this file's record.",
+    )
+}
+
+fn owner_missing() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "ATTACHMENT_TARGET_NOT_FOUND",
+        "The file owner was not found in this Company.",
+    )
+}
+
+fn owner_changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "ATTACHMENT_WITHDRAW_AUTHORITY_CHANGED",
+        "The selected role or file record changed. Reload and retry.",
+    )
+}
+
+/// Withdraw-only owner authority. The generic Files scope is not enough: the
+/// owning read port must also prove the current actor may read the target, and
+/// the same proof is repeated after the Files row lock so a grant revoked in
+/// between cannot withdraw a draft.
+struct CurrentWithdrawAuthority<'a, C> {
+    company_id: CompanyId,
+    branch_id: Option<String>,
+    department_id: Option<String>,
+    current: &'a AuthorizedWorkContext,
+    clock: &'a C,
+}
+
+impl<'a, C: Clock + Send + Sync> CurrentWithdrawAuthority<'a, C> {
+    async fn authorize<'b>(
+        &'b self,
+        c: &'b mut PgConnection,
+        target: &'b WithdrawTarget<'b>,
+    ) -> Result<(), BusinessError> {
+        if target.company_id != self.company_id.as_str() {
+            return Err(scope());
+        }
+        if let (Some(current), Some(set)) = (&self.branch_id, target.branch_id)
+            && current != set
+        {
+            return Err(scope());
+        }
+        if let (Some(current), Some(set)) = (&self.department_id, target.department_id)
+            && current != set
+        {
+            return Err(scope());
+        }
+        self.current
+            .require_permission("records.read")
+            .map_err(|_| owner_denied())?;
+        match withdraw_owner_access(target.target_type) {
+            WithdrawOwnerAccess::RecordsRead => {}
+            WithdrawOwnerAccess::Brand => {
+                if !self.current.modules().iter().any(|value| value == "brand") {
+                    return Err(owner_denied());
+                }
+                match target.target_type {
+                    "holding_brand" if target.target_id != self.current.holding_id().as_str() => {
+                        return Err(owner_missing());
+                    }
+                    "company_storefront_brand" if target.target_id != self.company_id.as_str() => {
+                        return Err(owner_missing());
+                    }
+                    "branch_brand" => {
+                        if let Some(branch) = &self.branch_id
+                            && target.target_id != branch
+                        {
+                            return Err(owner_missing());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            WithdrawOwnerAccess::Legal => {
+                self.current
+                    .require_permission("legal.read")
+                    .map_err(|_| owner_denied())?;
+            }
+            WithdrawOwnerAccess::Messaging => {
+                #[cfg(feature = "field-service")]
+                {
+                    if !self
+                        .current
+                        .modules()
+                        .iter()
+                        .any(|value| value == "collaboration")
+                    {
+                        return Err(owner_denied());
+                    }
+                    let room = read_room(c, &self.company_id, target.target_id)
+                        .await
+                        .map_err(business)?
+                        .ok_or_else(owner_missing)?;
+                    let actor = MessagingActor {
+                        user_id: self.current.user_id().as_str().to_owned(),
+                        display_name: self.current.user_id().as_str().to_owned(),
+                        company_id: self.company_id.as_str().to_owned(),
+                    };
+                    require_member(&actor, &room)?;
+                }
+                #[cfg(not(feature = "field-service"))]
+                {
+                    let _ = (c, target);
+                    return Err(owner_denied());
+                }
+            }
+            WithdrawOwnerAccess::Portal => {
+                if !self.current.has_permission("commerce.read")
+                    && !self.current.has_permission("support.read")
+                {
+                    return Err(owner_denied());
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<C: Clock + Send + Sync> AttachmentWithdrawAuthority for CurrentWithdrawAuthority<'_, C> {
+    fn authorize_withdraw<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+        target: &'c WithdrawTarget<'c>,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
-            if target.company_id != self.company_id.as_str() {
-                return Err(scope().into());
+            self.authorize(c, target).await?;
+            Ok(())
+        })
+    }
+
+    fn revalidate_withdraw<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+        target: &'c WithdrawTarget<'c>,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            self.authorize(c, target).await?;
+            let now = self.clock.now().get();
+            if now >= self.current.expires_at() {
+                return Err(owner_changed().into());
             }
-            if let (Some(current), Some(set)) = (&self.branch_id, target.branch_id)
-                && current != set
-            {
-                return Err(scope().into());
-            }
-            if let (Some(current), Some(set)) = (&self.department_id, target.department_id)
-                && current != set
-            {
-                return Err(scope().into());
-            }
+            require_selected_actor_current(c, self.current, now).await?;
             Ok(())
         })
     }
@@ -451,6 +582,7 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
                             return Err(scope().into());
                         }
                         current.require_permission("records.write")?;
+                        current.require_permission("records.read")?;
                         let selected = current.selection();
                         let workspace = selected.workspace();
                         let assignment = selected.assignment();
@@ -470,7 +602,7 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
                             current.expires_at(),
                         )
                         .map_err(PgTransactionError::Business)?;
-                        let authority = CurrentAttachmentAuthority {
+                        let authority = CurrentWithdrawAuthority {
                             company_id: workspace.company_id.clone(),
                             branch_id: workspace
                                 .branch_id
@@ -480,7 +612,8 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
                                 .department_id
                                 .as_ref()
                                 .map(|value| value.as_str().to_owned()),
-                            version: assignment.version,
+                            current,
+                            clock: clock.as_ref(),
                         };
                         let now = clock.now();
                         withdraw_attachment(
@@ -496,7 +629,19 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
                             },
                         )
                         .await?;
-                        let mut ports = PostgresAttachmentRead::new(authority);
+                        let read_authority = CurrentAttachmentAuthority {
+                            company_id: workspace.company_id.clone(),
+                            branch_id: workspace
+                                .branch_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
+                            department_id: workspace
+                                .department_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
+                            version: assignment.version,
+                        };
+                        let mut ports = PostgresAttachmentRead::new(read_authority);
                         let data = attachment_link_status(
                             connection,
                             &ports,

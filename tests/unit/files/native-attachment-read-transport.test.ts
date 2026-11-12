@@ -2,7 +2,11 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import {
+  createNativeAttachmentCommandClient,
   createNativeAttachmentReadClient,
+  nativeAttachmentCommandAvailable,
+  nativeAttachmentCommandConfiguration,
+  nativeAttachmentCommandFailure,
   nativeAttachmentReadAvailable,
   nativeAttachmentReadConfiguration,
   nativeAttachmentReadFailure,
@@ -134,6 +138,7 @@ const input = {
 
 afterEach(() => {
   delete process.env.ERPX_NATIVE_ATTACHMENT_READ_CONFIG;
+  delete process.env.ERPX_NATIVE_ATTACHMENT_COMMAND_CONFIG;
   vi.unstubAllEnvs();
 });
 
@@ -319,5 +324,120 @@ describe('native Files attachment metadata transport', () => {
       () => nativeAttachmentReadConfiguration('{'),
       'NATIVE_ATTACHMENT_READ_CONFIGURATION_INVALID',
     );
+  });
+});
+
+describe('native Files attachment command transport', () => {
+  const withdrawnRow = {
+    ...statusRow,
+    linkState: 'withdrawn',
+    bindable: false,
+    withdrawnAt: 5_000,
+  };
+  const commandIncoming = () =>
+    new Headers({
+      host: 'acme.example.com',
+      origin: 'https://acme.example.com',
+      cookie: '__Host-erpx-product=session',
+    });
+
+  it('forwards the exact reason, key, origin and selected context', async () => {
+    const transport = vi.fn().mockResolvedValue(ok({ data: withdrawnRow, context }));
+    const client = createNativeAttachmentCommandClient(parsed(), transport);
+    const row = await client.withdraw(
+      commandIncoming(),
+      actor,
+      'acme',
+      'link-1',
+      { reason: '  duplicate upload  ', key: 'withdraw-key-1' },
+    );
+    expect(row).toEqual(withdrawnRow);
+    const [url, headers, body] = transport.mock.calls[0]!;
+    expect(url.toString()).toBe(
+      'http://127.0.0.1:44993/api/v1/holdings/acme/attachment-links/link-1/withdraw',
+    );
+    expect(headers.get('host')).toBe('acme.example.com');
+    expect(headers.get('origin')).toBe('https://acme.example.com');
+    expect(headers.get('content-type')).toBe('application/json');
+    expect(headers.get('idempotency-key')).toBe('withdraw-key-1');
+    expect(headers.get('x-erpx-context-company')).toBe('company');
+    expect(headers.get('x-erpx-context-assignment')).toBe('assignment-actor');
+    expect(headers.get('x-erpx-context-revision')).toBe('7');
+    expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
+    expect(JSON.parse(body)).toEqual({ reason: 'duplicate upload' });
+  });
+
+  it('rejects a non-withdrawn reply, a changed context and a missing origin', async () => {
+    const draft = createNativeAttachmentCommandClient(
+      parsed(),
+      vi.fn().mockResolvedValue(ok({ data: statusRow, context })),
+    );
+    await expect(
+      draft.withdraw(commandIncoming(), actor, 'acme', 'link-1', {
+        reason: 'duplicate upload',
+        key: 'withdraw-key-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_ATTACHMENT_COMMAND_RESPONSE_INVALID' });
+
+    const changed = createNativeAttachmentCommandClient(
+      parsed(),
+      vi.fn().mockResolvedValue(ok({
+        data: withdrawnRow,
+        context: { ...context, assignmentVersion: 4 },
+      })),
+    );
+    await expect(
+      changed.withdraw(commandIncoming(), actor, 'acme', 'link-1', {
+        reason: 'duplicate upload',
+        key: 'withdraw-key-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_ATTACHMENT_READ_CONTEXT_CHANGED' });
+
+    const noOrigin = createNativeAttachmentCommandClient(parsed(), vi.fn());
+    await expect(
+      noOrigin.withdraw(
+        new Headers({ host: 'acme.example.com', cookie: '__Host-erpx-product=session' }),
+        actor,
+        'acme',
+        'link-1',
+        { reason: 'duplicate upload', key: 'withdraw-key-1' },
+      ),
+    ).rejects.toMatchObject({ code: 'ORIGIN_FORBIDDEN', status: 403 });
+  });
+
+  it('maps configured writes to a bounded unavailable error and fails closed', async () => {
+    expect(nativeAttachmentCommandAvailable()).toBe(false);
+    vi.stubEnv('ERPX_NATIVE_ATTACHMENT_COMMAND_CONFIG', config());
+    expect(nativeAttachmentCommandAvailable()).toBe(true);
+    throwsCode(
+      () => nativeAttachmentCommandConfiguration('{'),
+      'NATIVE_ATTACHMENT_COMMAND_CONFIGURATION_INVALID',
+    );
+    throwsCode(
+      () =>
+        nativeAttachmentCommandConfiguration(
+          JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44993', timeoutMs: 1000, holdings: [] }),
+        ),
+      'NATIVE_ATTACHMENT_COMMAND_CONFIGURATION_INVALID',
+    );
+    const offline = createNativeAttachmentCommandClient(
+      parsed(),
+      vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED')),
+    );
+    await expect(
+      offline.withdraw(commandIncoming(), actor, 'acme', 'link-1', {
+        reason: 'duplicate upload',
+        key: 'withdraw-key-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_ATTACHMENT_COMMAND_UNAVAILABLE', status: 503 });
+    expect(
+      nativeAttachmentCommandFailure(
+        new NativeAttachmentReadError('NATIVE_ATTACHMENT_COMMAND_UNAVAILABLE', 503),
+      ),
+    ).toEqual({
+      status: 503,
+      code: 'NATIVE_ATTACHMENT_WRITER_UNAVAILABLE',
+      message: 'The native file writer is unavailable.',
+    });
   });
 });

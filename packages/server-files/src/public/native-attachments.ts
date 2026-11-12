@@ -766,3 +766,234 @@ export function directHttp(
     outgoing.end();
   });
 }
+
+/** Server-only command transport. It never falls back to the retained writer. */
+export type NativeAttachmentCommandTransport = (
+  url: URL,
+  headers: Headers,
+  body: string,
+  signal: AbortSignal,
+) => Promise<Response>;
+
+export function nativeAttachmentCommandAvailable(): boolean {
+  return process.env.ERPX_NATIVE_ATTACHMENT_COMMAND_CONFIG !== undefined;
+}
+
+/** Parse the same private Holding envelope as the read client with a distinct
+ * failure code so an absent/malformed write configuration is never mistaken
+ * for a readable deployment. Deep target validation still happens in the
+ * command client. */
+export function nativeAttachmentCommandConfiguration(
+  raw: string,
+): NativeAttachmentConfiguration {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return failure('NATIVE_ATTACHMENT_COMMAND_CONFIGURATION_INVALID');
+  }
+  if (
+    !record(value) ||
+    !text(value.privateBaseUrl) ||
+    !integer(value.timeoutMs) ||
+    !Array.isArray(value.holdings) ||
+    value.holdings.length < 1 ||
+    value.holdings.length > 64 ||
+    !value.holdings.every(
+      (holding: unknown) =>
+        record(holding) &&
+        text(holding.origin) &&
+        text(holding.holdingSlug) &&
+        text(holding.holdingId),
+    )
+  )
+    return failure('NATIVE_ATTACHMENT_COMMAND_CONFIGURATION_INVALID');
+  return value as unknown as NativeAttachmentConfiguration;
+}
+
+export function nativeAttachmentCommandFailure(
+  error: unknown,
+): { status: number; code: string; message: string } | undefined {
+  if (!(error instanceof NativeAttachmentReadError)) return undefined;
+  if (error.code === 'NATIVE_ATTACHMENT_READ_CONTEXT_CHANGED')
+    return {
+      status: 409,
+      code: 'WORK_CONTEXT_CHANGED',
+      message: 'Your work role changed. Reload and review before retrying.',
+    };
+  if (error.status === 401) return { status: 401, code: 'UNAUTHENTICATED', message: 'Sign in to continue.' };
+  if (error.status === 403) return { status: 403, code: error.code, message: error.message };
+  if (error.status === 404) return { status: 404, code: error.code, message: error.message };
+  if (error.status === 409) return { status: 409, code: error.code, message: error.message };
+  if (error.status === 422) return { status: 422, code: error.code, message: error.message };
+  if (
+    error.status === 503 ||
+    error.code.startsWith('NATIVE_ATTACHMENT_COMMAND_') ||
+    error.code.startsWith('NATIVE_ATTACHMENT_READ_')
+  )
+    return {
+      status: 503,
+      code: 'NATIVE_ATTACHMENT_WRITER_UNAVAILABLE',
+      message: 'The native file writer is unavailable.',
+    };
+  return undefined;
+}
+
+function commandRequest(
+  transport: NativeAttachmentCommandTransport,
+  config: ReturnType<typeof configuration>,
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeAttachmentPageContext,
+  holdingSlug: string,
+  linkId: string,
+  reason: string,
+  key: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  if (!actor.authority || !actor.iam)
+    return Promise.reject(new NativeAttachmentReadError('NATIVE_ATTACHMENT_READ_CONTEXT_CHANGED'));
+  const host = incoming.get('host');
+  const holding = host ? config.holdings.get(host) : undefined;
+  if (!holding || holding.holdingSlug !== holdingSlug || holding.holdingId !== actor.holdingId)
+    return Promise.reject(
+      new NativeAttachmentReadError('NATIVE_ATTACHMENT_COMMAND_AUTHORITY_INVALID', 403),
+    );
+  const origin = incoming.get('origin');
+  if (!origin)
+    return Promise.reject(new NativeAttachmentReadError('ORIGIN_FORBIDDEN', 403));
+  const headers = new Headers({
+    host: host!,
+    accept: 'application/json',
+    origin,
+    'content-type': 'application/json',
+    'idempotency-key': key,
+    'x-erpx-context-company': actor.companyId,
+    'x-erpx-context-assignment': actor.assignmentId,
+    'x-erpx-context-revision': String(actor.authority.revision),
+    'x-erpx-context-assignment-version': String(actor.authority.assignmentVersion),
+  });
+  const cookie = incoming.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192)
+      return Promise.reject(
+        new NativeAttachmentReadError('NATIVE_ATTACHMENT_COMMAND_COOKIE_LIMIT', 503),
+      );
+    headers.set('cookie', cookie);
+  }
+  if (actor.scope.kind !== 'holding' && actor.scope.branchSlug)
+    headers.set('x-erpx-workspace-branch', actor.scope.branchSlug);
+  if (actor.scope.kind === 'department' && actor.scope.departmentSlug)
+    headers.set('x-erpx-workspace-department', actor.scope.departmentSlug);
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/attachment-links/${encodeURIComponent(linkId)}/withdraw`,
+    config.base,
+  );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeout);
+  const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+  return transport(url, headers, JSON.stringify({ reason }), combined).finally(() =>
+    clearTimeout(timer),
+  );
+}
+
+/** POST the exact reason/key/context and validate the canonical withdrawn
+ * status. A configured failure is surfaced; the caller must not fall back. */
+export function createNativeAttachmentCommandClient(
+  raw: NativeAttachmentConfiguration,
+  transport: NativeAttachmentCommandTransport = directCommandHttp,
+) {
+  const config = configuration(raw);
+  return {
+    withdraw: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeAttachmentPageContext,
+      holdingSlug: string,
+      linkId: string,
+      input: { reason: string; key: string },
+      signal?: AbortSignal,
+    ): Promise<NativeAttachmentStatusRow> => {
+      if (!actor.authority || !actor.iam || actor.holdingSlug !== holdingSlug)
+        return failure('NATIVE_ATTACHMENT_READ_CONTEXT_CHANGED');
+      if (!identifier(linkId) || linkId.includes('/') || linkId.includes('\\'))
+        return failure('NATIVE_ATTACHMENT_COMMAND_REQUEST_INVALID', 422);
+      const reason = input.reason.trim();
+      if (reason.length < 3 || reason.length > 1000)
+        return failure('NATIVE_ATTACHMENT_COMMAND_REQUEST_INVALID', 422);
+      if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(input.key))
+        return failure('COMMAND_KEY_REQUIRED', 422);
+      const response = await commandRequest(
+        transport,
+        config,
+        incoming,
+        actor,
+        holdingSlug,
+        linkId,
+        reason,
+        input.key,
+        signal,
+      ).catch((error: unknown) => {
+        if (error instanceof NativeAttachmentReadError) throw error;
+        return failure('NATIVE_ATTACHMENT_COMMAND_UNAVAILABLE', 503);
+      });
+      const value = await boundedJson(response);
+      if (!exact(value, ['data', 'context']))
+        return failure('NATIVE_ATTACHMENT_COMMAND_RESPONSE_INVALID', 503);
+      context(value.context, actor, holdingSlug);
+      const row = status(value.data, linkId);
+      if (row.linkState !== 'withdrawn' || row.bindable !== false || row.withdrawnAt === null)
+        return failure('NATIVE_ATTACHMENT_COMMAND_RESPONSE_INVALID', 503);
+      return row;
+    },
+  };
+}
+
+/** Fresh bounded socket for one exact native command. */
+export function directCommandHttp(
+  url: URL,
+  headers: Headers,
+  body: string,
+  signal: AbortSignal,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import('node:http').ProxyEnv,
+    });
+    const outgoing = request(
+      url,
+      {
+        method: 'POST',
+        agent,
+        headers: { ...Object.fromEntries(headers) },
+        signal,
+        maxHeaderSize: 8192,
+      },
+      (incoming) => {
+        incoming.once('close', () => agent.destroy());
+        try {
+          const status = incoming.statusCode ?? 502;
+          const values = new Headers();
+          for (let index = 0; index < incoming.rawHeaders.length; index += 2)
+            values.append(incoming.rawHeaders[index]!, incoming.rawHeaders[index + 1]!);
+          resolve(
+            new Response(Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>, {
+              status: status >= 200 && status <= 599 ? status : 502,
+              headers: values,
+            }),
+          );
+        } catch (error) {
+          incoming.destroy();
+          agent.destroy();
+          reject(error);
+        }
+      },
+    );
+    outgoing.once('error', (error) => {
+      agent.destroy();
+      reject(error);
+    });
+    outgoing.end(body);
+  });
+}

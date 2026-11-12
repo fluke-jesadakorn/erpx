@@ -104,6 +104,70 @@ impl AttachmentWithdrawAuthority for RacingAuthority {
     }
 }
 
+/// Simulates a current grant that is revoked after the first owner check and
+/// before the Files row lock is released. The second port call must stop the
+/// command before any write.
+#[derive(Default)]
+struct StaleAuthority {
+    calls: AtomicUsize,
+}
+
+impl AttachmentWithdrawAuthority for StaleAuthority {
+    fn authorize_withdraw<'a>(
+        &'a self,
+        _: &'a mut PgConnection,
+        _: &'a WithdrawTarget<'a>,
+    ) -> PgWorkFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+    }
+
+    fn revalidate_withdraw<'a>(
+        &'a self,
+        _: &'a mut PgConnection,
+        _: &'a WithdrawTarget<'a>,
+    ) -> PgWorkFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Err(BusinessError::new(
+                FailureKind::Conflict,
+                "ATTACHMENT_WITHDRAW_AUTHORITY_CHANGED",
+                "The selected role or file record changed. Reload and retry.",
+            )
+            .into())
+        })
+    }
+}
+
+/// Denies one owner category while allowing the generic Files target. The
+/// composition root maps the category to the owner read port; this test port
+/// proves the command cannot bypass that decision.
+struct OwnerReadAuthority {
+    deny: &'static str,
+}
+
+impl AttachmentWithdrawAuthority for OwnerReadAuthority {
+    fn authorize_withdraw<'a>(
+        &'a self,
+        _: &'a mut PgConnection,
+        target: &'a WithdrawTarget<'a>,
+    ) -> PgWorkFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            if target.target_type == self.deny {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "ATTACHMENT_FORBIDDEN",
+                    "Your current assignment cannot read this file's record.",
+                )
+                .into());
+            }
+            Ok(())
+        })
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn seed(
     pool: &DatabasePool,
@@ -569,6 +633,182 @@ async fn withdraw_rejects_bound_foreign_creator_native_owner_and_closed_sets() {
         }
     })
     .await;
+}
+
+#[tokio::test]
+async fn withdraw_rejects_stale_authorization_after_the_row_lock() {
+    fixture::with_database(2, |pool| async move {
+        migrate(&pool).await;
+        let (_, draft) = seed(
+            &pool, "stale", "company", "asset", "asset-1", "draft", "draft", "actor", None, None,
+        )
+        .await;
+        let authority = std::sync::Arc::new(StaleAuthority::default());
+        let error = run(&pool, {
+            let authority = authority.clone();
+            let draft = draft.clone();
+            move |c| {
+                Box::pin(async move {
+                    withdraw_attachment(
+                        c,
+                        authority.as_ref(),
+                        request(
+                            "company",
+                            "actor",
+                            &draft,
+                            "duplicate upload",
+                            "withdraw-key-1",
+                        ),
+                    )
+                    .await
+                })
+            }
+        })
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            PgTransactionError::Business(BusinessError {
+                kind: FailureKind::Conflict,
+                code: "ATTACHMENT_WITHDRAW_AUTHORITY_CHANGED",
+                ..
+            })
+        ));
+        // Both the pre-lock grant and the post-lock stale check ran, and no
+        // link/audit write survived the refused command.
+        assert_eq!(authority.calls.load(Ordering::SeqCst), 2);
+        assert_eq!(state(&pool, &draft).await.0, "draft");
+        assert!(events(&pool, &draft).await.is_empty());
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn withdraw_requires_the_owning_owner_read_grant() {
+    fixture::with_database(2, |pool| async move {
+        migrate(&pool).await;
+        let (_, asset) = seed(
+            &pool, "owner-a", "company", "asset", "asset-1", "draft", "draft", "actor", None, None,
+        )
+        .await;
+        let (_, legal) = seed(
+            &pool,
+            "owner-b",
+            "company",
+            "legal_item",
+            "legal-1",
+            "draft",
+            "draft",
+            "actor",
+            None,
+            None,
+        )
+        .await;
+
+        let withdrawn = run(&pool, {
+            let asset = asset.clone();
+            move |c| {
+                Box::pin(async move {
+                    withdraw_attachment(
+                        c,
+                        &OwnerReadAuthority { deny: "legal_item" },
+                        request(
+                            "company",
+                            "actor",
+                            &asset,
+                            "duplicate upload",
+                            "withdraw-key-1",
+                        ),
+                    )
+                    .await
+                })
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(withdrawn.state, "withdrawn");
+
+        let error = run(&pool, {
+            let legal = legal.clone();
+            move |c| {
+                Box::pin(async move {
+                    withdraw_attachment(
+                        c,
+                        &OwnerReadAuthority { deny: "legal_item" },
+                        request(
+                            "company",
+                            "actor",
+                            &legal,
+                            "duplicate upload",
+                            "withdraw-key-2",
+                        ),
+                    )
+                    .await
+                })
+            }
+        })
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            PgTransactionError::Business(BusinessError {
+                kind: FailureKind::Forbidden,
+                code: "ATTACHMENT_FORBIDDEN",
+                ..
+            })
+        ));
+        assert_eq!(state(&pool, &legal).await.0, "draft");
+        assert!(events(&pool, &legal).await.is_empty());
+    })
+    .await;
+}
+
+#[test]
+fn generic_owner_read_categories_are_stable() {
+    use erpx_server_files::public::attachment_command::{
+        WithdrawOwnerAccess, has_native_owner_command, withdraw_owner_access,
+    };
+    assert_eq!(
+        withdraw_owner_access("asset"),
+        WithdrawOwnerAccess::RecordsRead
+    );
+    assert_eq!(
+        withdraw_owner_access("holding_brand"),
+        WithdrawOwnerAccess::Brand
+    );
+    assert_eq!(
+        withdraw_owner_access("branch_brand"),
+        WithdrawOwnerAccess::Brand
+    );
+    assert_eq!(
+        withdraw_owner_access("company_storefront_brand"),
+        WithdrawOwnerAccess::Brand
+    );
+    assert_eq!(
+        withdraw_owner_access("legal_item"),
+        WithdrawOwnerAccess::Legal
+    );
+    assert_eq!(
+        withdraw_owner_access("legal_external"),
+        WithdrawOwnerAccess::Legal
+    );
+    assert_eq!(
+        withdraw_owner_access("messaging_room"),
+        WithdrawOwnerAccess::Messaging
+    );
+    assert_eq!(
+        withdraw_owner_access("customer_access_binding"),
+        WithdrawOwnerAccess::Portal
+    );
+    for target in [
+        "field_service_visit",
+        "project",
+        "finance_journal",
+        "finance_payment",
+    ] {
+        assert!(has_native_owner_command(target), "{target}");
+    }
+    assert!(!has_native_owner_command("legal_item"));
 }
 
 #[tokio::test]
