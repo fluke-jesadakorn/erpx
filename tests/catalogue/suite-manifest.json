@@ -83692,6 +83692,41 @@
       ]
     },
     {
+      "id": "people_payroll.organization-consumers.unit",
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "files": [
+        "tests/unit/people_payroll/organization-consumers.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "The People workspace/move access consumers and lifecycle job must select the native Organization read/drain only when ERPX_NATIVE_ORGANIZATION_CONFIG is present, keep the retained path when unset, and never fall back after a configured failure."
+      },
+      "framework": "vitest",
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/contracts",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/server-identity_access",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
       "id": "people_payroll.rust-payroll-summary.unit",
       "lane": "unit",
       "owner": "people_payroll",
