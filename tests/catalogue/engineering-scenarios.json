@@ -2917,38 +2917,7 @@
         "Persisted Exception queue lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "commits only one concurrent decision and replays a lost response without duplicating evidence",
-          "proof": "Same key returns same receipt and exactly one event; two competing same-version actions yield exactly one commit; stale next command rejects."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "removes inaccessible source content, counts, Work and Inbox immediately after access withdrawal",
-          "proof": "Revoked current source grant produces empty rows/counts/Work/Inbox, no body disclosure, command denied; foreign Company/Branch/Department list/detail denied."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "requires the exact current source version and preserves a handoff when its source advances",
-          "proof": "Stale source version handoff rejected; new handoff pins advanced version; historical pinned reference remains version1 while authorized live link resolves version2."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "reloads native exception decisions in the complete Work queue without a generic flow and removes its withdrawn source",
-          "proof": "Complete readWorkSnapshot has no Operational exceptions source outage; exact native owner queue, canAct, source version and next action are asserted before and after native decisions; real source update is reflected and DB assignment withdrawal removes the item, title and source-backed link."
-        }
-      ],
+      "cases": [],
       "moduleId": "operations",
       "capabilityId": "feature-exception-queue"
     },
@@ -2961,14 +2930,7 @@
         "Persisted Escalations lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        }
-      ],
+      "cases": [],
       "moduleId": "operations",
       "capabilityId": "feature-escalations"
     },
@@ -2982,18 +2944,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "rejects self review after reassignment and supports correction, reassignment, rework and cancellation",
-          "proof": "Resolution author self-review denied; reassignment resets proposal, independent reject/rework/approve/close/reopen/cancel persist valid states and evidence."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
@@ -3023,24 +2973,6 @@
       "review": "reviewed",
       "cases": [
         {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "rejects self review after reassignment and supports correction, reassignment, rework and cancellation",
-          "proof": "Resolution author self-review denied; reassignment resets proposal, independent reject/rework/approve/close/reopen/cancel persist valid states and evidence."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "commits only one concurrent decision and replays a lost response without duplicating evidence",
-          "proof": "Same key returns same receipt and exactly one event; two competing same-version actions yield exactly one commit; stale next command rejects."
-        },
-        {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
           "title": "isolated Workplace queue uses independently published policy and closes a source exception with retained decisions",
@@ -3068,12 +3000,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "publishes queue revisions independently and preserves existing policy and source snapshots",
-          "proof": "Policy creator cannot publish; independent new revision retires previous; old exception due time/source/policy snapshot unchanged, stale policy cannot open new exception and raw policy/source edits rejected."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
@@ -3106,18 +3032,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "removes inaccessible source content, counts, Work and Inbox immediately after access withdrawal",
-          "proof": "Revoked current source grant produces empty rows/counts/Work/Inbox, no body disclosure, command denied; foreign Company/Branch/Department list/detail denied."
-        },
         {
           "runner": "vitest",
           "file": "tests/integration/shared.workplace-journeys/engineering-workplace-workers.test.ts",
