@@ -17,6 +17,11 @@ use erpx_server_pms::public::front_desk::{
 use erpx_server_pms::public::pms_http::{
     PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest, PmsHttpResponse,
 };
+use erpx_server_pms::public::report::{
+    PgPmsReportRead, PmsReportEntries, PmsReportEntriesRequest, PmsReportHttpBackend,
+    PmsReportHttpFuture, PmsReportHttpResponse, PmsReportRange, PmsReportRangeRequest,
+    pms_range_report, pms_report_entries,
+};
 use erpx_server_pms::public::room_board::{
     PgPmsBoardRead, PmsBoardActor, PmsBoardEntitlement, PmsBoardEntitlementPort, PmsBoardSelection,
     PmsStaff, PmsStaffDirectory, pms_room_board,
@@ -595,6 +600,116 @@ impl<C: Clock + Send + Sync + 'static> PmsService<C> {
             )
             .await
     }
+    /// Native PMS range report (occupancy/ADR/RevPAR/flow/balances) over the
+    /// caller's owner connection. Read-only; no unit, lock or write.
+    pub async fn report_range<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        selection: PmsReportRange,
+    ) -> Result<PmsReportHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                WorkAuthorizationRequest {
+                    permission: "pms.reports".into(),
+                    module: Some("pms".into()),
+                    destination: "pms".into(),
+                    api: true,
+                },
+                PmsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let selection = selection.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("pms.read")?;
+                        current.require_permission("pms.reports")?;
+                        let actor = pms_actor(current)?;
+                        let mut repository = PgPmsReportRead::new(connection);
+                        let now = clock.now().get();
+                        let data =
+                            pms_range_report(&actor, &selection, &mut repository, now).await?;
+                        Ok(PmsReportHttpResponse {
+                            data: serde_json::to_value(data)
+                                .map_err(|_| Error::from(unavailable()))?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Native PMS charge-entry history read for one property/business date.
+    pub async fn report_entries<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        selection: PmsReportEntries,
+    ) -> Result<PmsReportHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                WorkAuthorizationRequest {
+                    permission: "pms.reports".into(),
+                    module: Some("pms".into()),
+                    destination: "pms".into(),
+                    api: true,
+                },
+                PmsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let selection = selection.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("pms.read")?;
+                        current.require_permission("pms.reports")?;
+                        let actor = pms_actor(current)?;
+                        let mut repository = PgPmsReportRead::new(connection);
+                        let now = clock.now().get();
+                        let data =
+                            pms_report_entries(&actor, &selection, &mut repository, now).await?;
+                        Ok(PmsReportHttpResponse {
+                            data: serde_json::to_value(data)
+                                .map_err(|_| Error::from(unavailable()))?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct PmsBackend<C> {
@@ -701,6 +816,44 @@ impl<C: Clock + Send + Sync + 'static> PmsRoomCommandHttpBackend for PmsBackend<
                     request.context,
                     request.key,
                     request.command,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PmsReportHttpBackend for PmsBackend<C> {
+    fn range<'a>(
+        &'a self,
+        request: PmsReportRangeRequest<'a>,
+    ) -> PmsReportHttpFuture<'a, PmsReportHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .report_range(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.selection,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn entries<'a>(
+        &'a self,
+        request: PmsReportEntriesRequest<'a>,
+    ) -> PmsReportHttpFuture<'a, PmsReportHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .report_entries(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.selection,
                 )
                 .await
                 .map_err(business)

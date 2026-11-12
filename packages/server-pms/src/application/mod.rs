@@ -6,3 +6,4 @@ pub mod room_board;
 pub(crate) mod stay_room;
 pub(crate) mod room_command;
 pub(crate) mod night_audit;
+pub mod report_projection;
