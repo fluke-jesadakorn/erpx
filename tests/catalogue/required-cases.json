@@ -1397,16 +1397,6 @@
     {
       "runner": "vitest",
       "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "revokes queued invitations when their customer binding is revoked"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "revokes sent invitations when their customer binding is revoked"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
       "title": "releases signup reservations after mail infrastructure failures and caps failed enrollment attempts"
     },
     {

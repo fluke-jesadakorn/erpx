@@ -15,7 +15,7 @@ import {saveProductionResource,saveProductionResourceCalendar} from "@erpx/serve
 import {createManufacturingAccountingProfile,reviewManufacturingAccountingProfile} from "@erpx/server-manufacturing/public/production-accounting";
 import {createChannel,createListing,createCart,addCartLine,changeEcommerce} from "@erpx/server-ecommerce/public/ecommerce";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
-import {requestCustomerAccess} from "@erpx/server-customer_authority/public/customer-access";
+import {prepareCustomerAccessNotice1} from "@erpx/server-collaboration/public/customer-authority-notifications";
 
 type Fixture=Awaited<ReturnType<typeof seedExpenseCompany>>;
 type Input={run:string;db:SqlDatabase;f:Fixture};
@@ -132,8 +132,22 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
   const portalOrderId=await confirmedOrder('quote',String(customer.id),String(online.id),'10'),portalUser=viewport==='desktop'?f.claimant:f.head,unrelatedUser=viewport==='desktop'?f.head:f.claimant;
   const portalEmail=await db.prepare('SELECT email FROM hr_people WHERE company_id=? AND user_id=?').bind(f.company,portalUser.userId).first<string>('email');
   if(!portalEmail)throw new Error('NORMAL_VERIFIED_CUSTOMER_BROWSER_IDENTITY_REQUIRED');
-  const portalBinding=await requestCustomerAccess(source,{orderId:portalOrderId,sourceVersion:3,email:portalEmail,expiresAt:now+7*86400000,reason:'Fictional customer controls the normal verified account; independent Sales authority review is required before this one quotation can be shared.'},key());
-  const invitedEmail=`portal-invite-${viewport}-${run}@example.test`,invitedBinding=await requestCustomerAccess(source,{orderId:portalOrderId,sourceVersion:3,email:invitedEmail,expiresAt:now+7*86400000,reason:'Fresh fictional external recipient has no pre-existing Account; independent Sales review is required before this one quotation can be shared.'},key());
+  // The access request command is native-owned. Seed the exact pending rows the
+  // owner persists so the browser journey exercises the native decision path.
+  async function accessRequest(orderId:string,email:string,reason:string){
+   const command=key(),id=`customer-access-${key()}`,createdAt=Date.now(),expiresAt=createdAt+7*86400000;
+   const party=await db.prepare('SELECT party_id FROM commerce_orders WHERE id=? AND company_id=?').bind(orderId,f.company).first<string>('party_id');
+   if(!party)throw new Error('CUSTOMER_ACCESS_FIXTURE_SOURCE_REQUIRED');
+   await db.batch([
+    db.prepare('INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at) VALUES(?,?,?,?,?,?,?)').bind(command,'customer.access.request',source.userId,'0'.repeat(64),id,JSON.stringify({id,version:1,status:'pending'}),createdAt),
+    db.prepare('INSERT INTO customer_access_bindings(id,company_id,order_id,customer_id,email,expires_at,status,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(id,f.company,orderId,party,email,expiresAt,'pending',reason,source.userId,createdAt,createdAt),
+    db.prepare("INSERT INTO customer_access_events VALUES(?,?,1,'request',?,?,?)").bind(`customer-access-event-${command}`,id,source.userId,reason,createdAt),
+    prepareCustomerAccessNotice1(db,command,id),
+   ]);
+   return {id};
+  }
+  const portalBinding=await accessRequest(portalOrderId,portalEmail,'Fictional customer controls the normal verified account; independent Sales authority review is required before this one quotation can be shared.');
+  const invitedEmail=`portal-invite-${viewport}-${run}@example.test`,invitedBinding=await accessRequest(portalOrderId,invitedEmail,'Fresh fictional external recipient has no pre-existing Account; independent Sales review is required before this one quotation can be shared.');
   const channel=await createChannel(source,{name:`${label} web channel`,channelType:'web',configuration:{storefront:'Declared sandbox only'}},key());
   await changeEcommerce(reviewer,'channel',String(channel.id),{action:'activate',expectedVersion:1,reason:'Independent review of the sandbox channel.'},key());
   const listing=await createListing(source,{channelId:channel.id,productId:online.id,title:`${label} published online item`,currency:'THB',price:'20.01'},key());

@@ -617,100 +617,121 @@ async fn independent_review_cas_separation_ended_employment_and_revoke_are_enfor
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn revoke_cancels_queued_portal_invitations_in_the_same_transaction() {
+async fn revoke_cancels_open_portal_invitations_in_the_same_transaction() {
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
-        let id = create_binding(&pool, "customer-access-invite-create-0001").await;
-        PgUnitOfWork::new(pool.clone())
-            .run::<_, BusinessError, _>(TransactionOptions::default(), {
-                let id = id.clone();
-                move |connection| {
+        for (index, (state, sent_at)) in [("queued", None), ("sent", Some(1799999999002i64))]
+            .into_iter()
+            .enumerate()
+        {
+            let id = create_binding(
+                &pool,
+                &format!("customer-access-invite-create-{index:04}"),
+            )
+            .await;
+            PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
                     let id = id.clone();
+                    move |connection| {
+                        let id = id.clone();
+                        Box::pin(async move {
+                            let mut repository = PgCustomerAccess::new(connection);
+                            change_access(
+                                &mut repository,
+                                &reviewer(),
+                                &key(&format!("customer-access-invite-approve-{index:04}")),
+                                &id,
+                                &change(AccessAction::Approve, 1),
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            let receipt = format!("invitation-issue-{index:04}");
+            let invitation = format!("customer-portal-invite-{index}");
+            sqlx::query(
+                "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) \
+                 VALUES($1,'customer.portal.invite','requester','hash',$2,$3,1799999999000,'{}')",
+            )
+            .bind(&receipt)
+            .bind(&id)
+            .bind(format!("{{\"id\":\"{invitation}\"}}"))
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO customer_portal_invitations(id,binding_id,holding_slug,generation,email,token_hash,\
+                 token_expires_at,state,attempts,next_attempt_at,created_by,created_at,sent_at,command_id) VALUES \
+                 ($1,$2,'acme',1,'customer@example.test',repeat('a',64),\
+                 1800000000000,$3,0,1800000000000,'requester',1799999999000,$4,$5)",
+            )
+            .bind(&invitation)
+            .bind(&id)
+            .bind(state)
+            .bind(sent_at)
+            .bind(&receipt)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO customer_portal_invitation_events(id,invitation_id,action,actor_id,reason,created_at) VALUES \
+                 ($1,$2,'issued','requester','Issued',1799999999000)",
+            )
+            .bind(format!("{invitation}-issued"))
+            .bind(&invitation)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            let id_for_revoke = id.clone();
+            PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let id = id_for_revoke.clone();
                     Box::pin(async move {
                         let mut repository = PgCustomerAccess::new(connection);
                         change_access(
                             &mut repository,
-                            &reviewer(),
-                            &key("customer-access-invite-approve-0001"),
+                            &requester(),
+                            &key(&format!("customer-access-invite-revoke-{index:04}")),
                             &id,
-                            &change(AccessAction::Approve, 1),
+                            &change(AccessAction::Revoke, 2),
                             NOW,
                         )
                         .await
                     })
-                }
-            })
-            .await
-            .unwrap();
-        sqlx::query(
-            "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) \
-             VALUES('invitation-issue-0001','customer.portal.invite','requester','hash',$1,\
-             '{\"id\":\"customer-portal-invite-1\"}',1799999999000,'{}')",
-        )
-        .bind(&id)
-        .execute(pool.raw())
-        .await
-        .unwrap();
-        sqlx::query(
-            "INSERT INTO customer_portal_invitations(id,binding_id,holding_slug,generation,email,token_hash,\
-             token_expires_at,state,attempts,next_attempt_at,created_by,created_at,command_id) VALUES \
-             ('customer-portal-invite-1',$1,'acme',1,'customer@example.test',\
-             repeat('a',64),1800000000000,'queued',0,1800000000000,'requester',1799999999000,'invitation-issue-0001')",
-        )
-        .bind(&id)
-        .execute(pool.raw())
-        .await
-        .unwrap();
-        sqlx::query(
-            "INSERT INTO customer_portal_invitation_events(id,invitation_id,action,actor_id,reason,created_at) VALUES \
-             ('customer-portal-invite-event-issued-1','customer-portal-invite-1','issued','requester','Issued',1799999999000)",
-        )
-        .execute(pool.raw())
-        .await
-        .unwrap();
-        let id_for_revoke = id.clone();
-        PgUnitOfWork::new(pool.clone())
-            .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
-                let id = id_for_revoke.clone();
-                Box::pin(async move {
-                    let mut repository = PgCustomerAccess::new(connection);
-                    change_access(
-                        &mut repository,
-                        &requester(),
-                        &key("customer-access-invite-revoke-0001"),
-                        &id,
-                        &change(AccessAction::Revoke, 2),
-                        NOW,
-                    )
-                    .await
                 })
-            })
+                .await
+                .unwrap();
+            let revoked: (String, Option<String>, Option<i64>, Option<String>) = sqlx::query_as(
+                "SELECT state,lease_token,lease_until,last_error FROM customer_portal_invitations WHERE id=$1",
+            )
+            .bind(&invitation)
+            .fetch_one(pool.raw())
             .await
             .unwrap();
-        let invitation: (String, Option<String>, Option<i64>, Option<String>) = sqlx::query_as(
-            "SELECT state,lease_token,lease_until,last_error FROM customer_portal_invitations WHERE id='customer-portal-invite-1'",
-        )
-        .fetch_one(pool.raw())
-        .await
-        .unwrap();
-        assert_eq!(invitation, ("revoked".into(), None, None, Some("REVOKED".into())));
-        let event: (String, String) = sqlx::query_as(
-            "SELECT action,reason FROM customer_portal_invitation_events \
-             WHERE invitation_id='customer-portal-invite-1' AND action='revoked'",
-        )
-        .fetch_one(pool.raw())
-        .await
-        .unwrap();
-        assert_eq!(
-            event,
-            (
-                "revoked".into(),
-                "Independent customer authority decision".into()
+            assert_eq!(revoked, ("revoked".into(), None, None, Some("REVOKED".into())));
+            let event: (String, String) = sqlx::query_as(
+                "SELECT action,reason FROM customer_portal_invitation_events \
+                 WHERE invitation_id=$1 AND action='revoked'",
             )
-        );
+            .bind(&invitation)
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                event,
+                (
+                    "revoked".into(),
+                    "Independent customer authority decision".into()
+                )
+            );
+        }
     })
     .await;
 }
+
 
 #[tokio::test(flavor = "multi_thread")]
 async fn late_outbox_failure_rolls_back_the_decision_then_retry_persists() {

@@ -1002,12 +1002,6 @@
       "review": "reviewed",
       "cases": [
         {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-duplicates.test.ts",
-          "title": "transactionally repoints safe source records, snapshots paired balances and preserves merge lineage",
-          "proof": "expect(merged).toMatchObject({status:'merged',canonicalCustomerId:left,mergedCustomerId:right,version:3});\nexpect(await changeCustomerDuplicate(reviewer,id,{action:'merge',expectedVersion:2,reason:'Repointed safe source records and retained the canonical customer'},mergeKey)).toEqual(merged);\nexpect(await db.prepare('SELECT party_id FROM commerce_orders WHERE id=?').bind(order).first('party_id')).toBe(left);\nexpect(await db.prepare('SELECT party_id FROM finance_invoices WHERE id IN (?,?)').bind(invoice,canonicalInvoice).all()).toMatchObject({results:[{party_id:left},{party_id:left}]});\nexpect(await db.prepare('SELECT party_id FROM finance_payments WHERE id IN (?,?)').bind(losingPayment,canonicalPayment).all()).toMatchObject({results:[{party_id:left},{party_id:left}]});\nexpect(await db.prepare('SELECT invoice_count,invoice_total_minor,invoice_outstanding_minor,payment_count,payment_total_minor,payment_outstanding_minor,refund_count,refund_total_minor,refund_outstanding_minor FROM customer_duplicate_merge_reconciliations WHERE review_id=?').bind(id).first()).toMatchObject({invoice_count:2,invoice_total_minor:300,invoice_outstanding_minor:250,payment_count:2,payment_total_minor:200,payment_outstanding_minor:50,refund_count:0,refund_total_minor:0,refund_outstanding_minor:0});\nexpect(await db.prepare('SELECT status,merged_into_id,version FROM finance_parties WHERE id=?').bind(right).first()).toMatchObject({status:'blocked',merged_into_id:left,version:2});\nexpect((await customerDuplicateDetail(f.owner,id)).row.status).toBe('merged');\nexpect((await customerDuplicateDetail(f.owner,id)).history.map(x=>x.action)).toEqual(['request','duplicate','merge']);"
-        },
-        {
           "runner": "playwright",
           "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
           "title": "isolated demo independently reviews and merges duplicate customers",
@@ -1048,18 +1042,6 @@
           "file": "tests/integration/customer_authority/customer-access.test.ts",
           "title": "issues a tenant-token invitation and binds only the invited verified Portal identity",
           "proof": "expect(before.items).toEqual([]); expect(await db.prepare('SELECT binding_id FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toBeNull(); expect(issued).toMatchObject({id,bindingId:id,state:'queued'}); expect(issued).not.toHaveProperty('token'); expect(deliveries[0]).toMatchObject({to:body.email,options:{sensitive:true}}); expect((await enroll(wrongOrigin)).status).toBe(403); expect(wrongAccountResponse.status).toBe(404); expect(await db.prepare('SELECT binding_id FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toBeNull(); expect(acceptedResponse.status).toBe(200); expect(await db.prepare('SELECT binding_id,user_id,email FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toEqual({binding_id:id,user_id:account.userId,email:body.email}); expect((await customerPortalProjection(db,{userId:'customer-user-2',email:body.email})).items).toEqual([]); expect((await customerPortalSharedFiles(db,portalActor,[id])).get(id)).toEqual([{linkId:file.linkId,label:'Shared support document',previewAvailable:true}]); await expect(customerPortalSharedPreview(db,env.H001_FILES,uninvitedActor,file.linkId)).rejects.toMatchObject({code:'CUSTOMER_SHARED_FILE_NOT_FOUND'}); expect(new Uint8Array(await sharedPreview.object.arrayBuffer())).toEqual(preview); expect((await customerAccessHistory(requester,id)).reads).toHaveLength(2);"
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-access.test.ts",
-          "title": "revokes queued invitations when their customer binding is revoked",
-          "proof": "Revoking customer authority immediately terminates a queued invitation in the same PostgreSQL transaction, records its immutable actor and reason, sends no email, and reports canInvite/isActive as false."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-access.test.ts",
-          "title": "revokes sent invitations when their customer binding is revoked",
-          "proof": "Revoking customer authority immediately terminates a sent invitation in the same PostgreSQL transaction, records its immutable actor and reason, rejects its existing token, and reports canInvite/isActive as false."
         }
       ],
       "moduleId": "customer_authority",
@@ -1079,12 +1061,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-access.test.ts",
-          "title": "revokes immediately, hides wrong-scope bindings and blocks stale decisions",
-          "proof": "await seedVerifiedPortalIdentity(id,{userId:'customer-user-1',email:body.email}); await expect(changeCustomerAccess(reviewer,id,{action:'reject',expectedVersion:1,reason:'Stale parallel review'},key())).rejects.toMatchObject({code:'CONFLICT'});\nexpect((await customerPortalProjection(db,{userId:'customer-user-1',email:body.email})).items).toEqual([]);\nexpect((await customerAccessWorkspace(a)).rows).toEqual([]);"
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",

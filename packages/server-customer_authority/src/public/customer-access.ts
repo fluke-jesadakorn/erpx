@@ -1,2 +1,2 @@
-export { customerAccessBinding,customerAccessWorkspace,requestCustomerAccess,changeCustomerAccess,customerAccessHistory,customerAccessWork } from "@erpx/server-customer_authority/adapters/access";
+export { customerAccessBinding,customerAccessWorkspace,customerAccessHistory,customerAccessWork } from "@erpx/server-customer_authority/adapters/access";
 export { customerAccessRequestSchema } from "@erpx/server-customer_authority/domain/access";
