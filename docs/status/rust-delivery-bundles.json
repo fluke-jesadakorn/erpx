@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1134,
+    "revision": 1144,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-a",
+      "runId": "run-20261113-b",
       "agentId": "lead",
-      "startedAt": "2026-11-12T18:22:56.884Z",
-      "heartbeatAt": "2026-11-12T18:37:12.751Z",
-      "expiresAt": "2026-11-12T19:07:12.751Z",
-      "generation": 45,
-      "tokenHash": "01987380ea47a5bf01d44d35646397fdf3229687e8b239e208cad2e332c2f456"
+      "startedAt": "2026-11-12T19:21:40.531Z",
+      "heartbeatAt": "2026-11-12T19:21:40.531Z",
+      "expiresAt": "2026-11-12T19:51:40.531Z",
+      "generation": 46,
+      "tokenHash": "da5d2711ad0b6538842db9c48a2aa2cc4a1b0ac7be2d601a7d5a055ba6421fed"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -21362,12 +21362,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261113-a",
+          "runId": "run-20261113-b",
           "agentId": "worker-operations",
-          "claimedAt": "2026-11-12T18:23:13.159Z",
-          "heartbeatAt": "2026-11-12T18:37:12.751Z",
-          "expiresAt": "2026-11-12T19:07:12.751Z",
-          "generation": 45
+          "claimedAt": "2026-11-12T19:21:40.653Z",
+          "heartbeatAt": "2026-11-12T19:21:40.653Z",
+          "expiresAt": "2026-11-12T19:51:40.653Z",
+          "generation": 46
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -21515,11 +21515,11 @@
         "blocker": null,
         "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0.",
         "handoff": {
-          "runId": "run-20261112-s",
-          "agentId": "lead",
-          "at": "2026-11-12T18:22:56.884Z",
+          "runId": "run-20261113-a",
+          "agentId": "worker-operations",
+          "at": "2026-11-12T19:21:40.531Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous coordinator lease expired at 18:22Z after the runtime slice was pushed; runtime/billing workers keep their WIP, claims are re-established by the new lead",
+          "reason": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
           "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -21898,12 +21898,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261113-a",
+          "runId": "run-20261113-b",
           "agentId": "worker-sales-native",
-          "claimedAt": "2026-11-12T18:24:11.923Z",
-          "heartbeatAt": "2026-11-12T18:37:12.751Z",
-          "expiresAt": "2026-11-12T19:07:12.751Z",
-          "generation": 45
+          "claimedAt": "2026-11-12T19:21:40.593Z",
+          "heartbeatAt": "2026-11-12T19:21:40.593Z",
+          "expiresAt": "2026-11-12T19:51:40.593Z",
+          "generation": 46
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -21912,7 +21912,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "STEP 0 AUDIT (HEAD 0344be06e): sales owner KPI 36; adapters/notification-execution.ts = 7 writes (deliver/claim/terminal/insert/recover). The job needs a sales-owned Rust repository over commerce_customer_notifications + sales_notification_execution_attempts, the source/authority checks currently in notification-purchases.ts (source joins, queued-command authority, purchase capability sales.orders, receipts, locks), a composition-bound EmailDispatchPort (Resend, fail-closed without credentials), worker registration, native-only runtime jobs switch, deletion of notification-execution.ts + barrel/export, and migration of the execution oracle. Reconciliation (3 writes) stays live under its own removal task. Do not reuse identity Access account-mail tables; do not weaken source/lease/idempotency semantics. Record sales KPI 36 -> 29 with residual 3.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261113-a",
+          "agentId": "worker-sales-native",
+          "at": "2026-11-12T19:21:40.531Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
+          "nextAction": "STEP 0 AUDIT (HEAD 0344be06e): sales owner KPI 36; adapters/notification-execution.ts = 7 writes (deliver/claim/terminal/insert/recover). The job needs a sales-owned Rust repository over commerce_customer_notifications + sales_notification_execution_attempts, the source/authority checks currently in notification-purchases.ts (source joins, queued-command authority, purchase capability sales.orders, receipts, locks), a composition-bound EmailDispatchPort (Resend, fail-closed without credentials), worker registration, native-only runtime jobs switch, deletion of notification-execution.ts + barrel/export, and migration of the execution oracle. Reconciliation (3 writes) stays live under its own removal task. Do not reuse identity Access account-mail tables; do not weaken source/lease/idempotency semantics. Record sales KPI 36 -> 29 with residual 3."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -23156,7 +23163,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the remaining Support TypeScript SQL writers",
-        "scope": "Classify the 2 remaining Support owner writes against packages/server-support/src/**/*.rs and retire them: support-evidence-planning 1 and attachment-purchases 1. Each needs a native cross-owner port and no live TS caller, then delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair.",
+        "scope": "Retire the last Support owner write: packages/server-support/src/adapters/attachment-purchases.ts (1 DELETE FROM command_assertions Support purchase boundary). It is bound to migrate.files.generic-attachment-command: the native support_ticket create/reserve/complete/scan command must enforce the Support purchase boundary on the same connection, switch the workplace attachment-sets/uploads support_ticket branch, then delete the file and barrels.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -23180,7 +23187,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": "The final two Support writes are cross-owner effects of the still-TypeScript generic Files attachment command: supportEvidenceEvent writes support_ticket_events for attachment-add, and supportAttachmentCommandBoundary enforces the Support purchase/command boundary. support_ticket is not in the native Files has_native_owner_command set, so the native Files command does not yet own this path. Adding the ports alone without switching the generic Files command would create a dual writer. Prerequisite: migrate.files.generic-attachment-command.",
-        "nextAction": "Migrate the generic Files attachment command for support_ticket support_evidence/internal_evidence targets, bind the native Support evidence-event and purchase-boundary ports, switch the Files attachment route/service consumers, then delete support-evidence-planning.ts and attachment-purchases.ts (Support 2 -> 0).",
+        "nextAction": "After the active sales worker releases src/composition, claim migrate.files.generic-attachment-command, implement native support_ticket create/reserve/complete/scan with the same-connection Support purchase boundary, switch the support_ticket upload/stage consumers, delete attachment-purchases.ts, and record Support 1 -> 0.",
         "handoff": {
           "removalTaskId": "migrate.files.generic-attachment-command",
           "removalCondition": "Native generic Files attachment command owns support_ticket attachment-add evidence and purchase boundary; then retire the two remaining Support writer files."
@@ -24360,7 +24367,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Native generic attachment command engine",
-        "scope": "Implement the native generic attachment create/reserve/complete/scan/remove command set for non-field owners (brand, legal portal, messaging, finance) with owner authorization, then retire adapters/attachments/service-repository.ts writers and the migration/legal-portal repositories that have no native counterpart. Removal condition: the named TS writers are deleted and the owner KPI command returns 0 for that capability.",
+        "scope": "Support-ticket-first slice of the generic Files attachment command: implement native create/reserve/complete/scan for support_ticket evidence with the same-connection Support purchase boundary, switch the shared workplace attachment-sets/uploads routes for support_ticket, delete attachment-purchases.ts (Support 1 -> 0), and record the Support KPI. Then extend the same native command to the remaining non-field owners (brand, legal portal, messaging, finance) and classify the 55 service-repository residuals.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -24368,13 +24375,22 @@
           "packages/server-files/Cargo.toml",
           "packages/server-files/package.json",
           "packages/feature-files/**",
+          "packages/feature-support/**",
+          "packages/server-support/src/**",
           "packages/server-customer_360/src/adapters/attachment-request.ts",
           "packages/server-pms/src/**",
           "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/attachments/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/**",
+          "src/composition/src/**",
+          "packages/contracts/src/ownership.json",
+          "Cargo.lock",
           "tests/unit/files/**",
           "tests/integration/files/**",
           "tests/unit/shared.attachments/**",
-          "tests/integration/shared.attachments/**"
+          "tests/integration/shared.attachments/**",
+          "tests/integration/support/**",
+          "tests/support/**"
         ],
         "resources": [
           "owner:files"
@@ -24432,7 +24448,7 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Next files slice: native create/reserve/complete/scan for non-field owners; classify the residual 55 service-repository writes with removalTaskId/removalCondition.",
+        "nextAction": "Implement native support_ticket create/reserve/complete/scan with the same-connection Support purchase boundary, switch the workplace attachment-sets/uploads support_ticket branch, delete attachment-purchases.ts (Support 1->0), and run native PG/HTTP + support/attachments oracles.",
         "handoff": {
           "runId": "run-20261112-s",
           "agentId": "worker-files-withdraw",
@@ -26982,12 +26998,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261113-a",
+          "runId": "run-20261113-b",
           "agentId": "worker-billing-invoice",
-          "claimedAt": "2026-11-12T18:23:13.128Z",
-          "heartbeatAt": "2026-11-12T18:37:12.751Z",
-          "expiresAt": "2026-11-12T19:07:12.751Z",
-          "generation": 45
+          "claimedAt": "2026-11-12T19:21:40.623Z",
+          "heartbeatAt": "2026-11-12T19:21:40.623Z",
+          "expiresAt": "2026-11-12T19:51:40.623Z",
+          "generation": 46
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -26997,11 +27013,11 @@
         "blocker": null,
         "nextAction": "BLOCKED on billing transport conformance (see retire.billing.billing). The cost cutover was reverted at f0aa0dfcd; owner KPI is back to 82. Do not start approve/void or target/retry until the conformance task lands.",
         "handoff": {
-          "runId": "run-20261112-s",
+          "runId": "run-20261113-a",
           "agentId": "worker-billing-invoice",
-          "at": "2026-11-12T18:22:56.884Z",
+          "at": "2026-11-12T19:21:40.531Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous coordinator lease expired at 18:22Z after the runtime slice was pushed; runtime/billing workers keep their WIP, claims are re-established by the new lead",
+          "reason": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
           "nextAction": "BLOCKED on billing transport conformance (see retire.billing.billing). The cost cutover was reverted at f0aa0dfcd; owner KPI is back to 82. Do not start approve/void or target/retry until the conformance task lands."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -27160,21 +27176,55 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261113-a",
+          "runId": "run-20261113-b",
           "agentId": "worker-commerce-delivery",
-          "claimedAt": "2026-11-12T18:35:14.687Z",
-          "heartbeatAt": "2026-11-12T18:37:12.751Z",
-          "expiresAt": "2026-11-12T19:07:12.751Z",
-          "generation": 45
+          "claimedAt": "2026-11-12T19:21:40.563Z",
+          "heartbeatAt": "2026-11-12T19:21:40.563Z",
+          "expiresAt": "2026-11-12T19:51:40.563Z",
+          "generation": 46
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "e2cda8f03eab5f2658c7316c07b755b6eaa926b8",
+        "lastPushedSha": "e2cda8f03eab5f2658c7316c07b755b6eaa926b8",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-commerce",
+            "result": "passed",
+            "sourceSha": "e2cda8f03eab5f2658c7316c07b755b6eaa926b8",
+            "note": "Commerce compiles with the new domain/application/adapters/public sales delivery and order_http dispatch."
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test sales_delivery",
+            "result": "passed",
+            "sourceSha": "e2cda8f03eab5f2658c7316c07b755b6eaa926b8",
+            "note": "12/12 pure domain/plan cases: quantity, allocation, tracking, version and journal invariants."
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test sales_delivery_postgres",
+            "result": "passed",
+            "sourceSha": "e2cda8f03eab5f2658c7316c07b755b6eaa926b8",
+            "note": "4/4 on disposable PostgreSQL: goods delivery posts stock+journal+order state and replays exactly; quarantined/unallocated lot rolls back; mixed completes service lines; current IAM/version required."
+          },
+          {
+            "command": "kpi:ts-writes -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e2cda8f03eab5f2658c7316c07b755b6eaa926b8",
+            "before": 58,
+            "after": 58,
+            "note": "Owner-side capability only; the TS fulfillOrder goods branch is still authoritative until composition mounts the delivery backend and the workplace route is switched, so the retirement delta is not claimed yet."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the native sales delivery use case in server-commerce over the Inventory stock_issue seam and Finance Delivery goods journal, mount it in order_http for goods/mixed fulfill, then (after the sales lane releases feature-sales/composition) switch the client and workplace route and delete the TS fulfillOrder goods branch.",
-        "handoff": null,
+        "nextAction": "Owner-side sales delivery is live at e2cda8f03 (Commerce KPI unchanged 58; TS branch still authoritative). Remaining cutover: bind Inventory apply_stock_issue + Finance Delivery journal in src/composition/src/commerce.rs and mount commerce_order_http_router_with_sales_delivery; call it from feature-sales nativeCommerceOrderFulfill; switch workplace commerce route line 88 to native-only; delete the TS fulfillOrder goods branch/export; move oracles; record retirement:ts-writes commerce before/after.",
+        "handoff": {
+          "runId": "run-20261113-a",
+          "agentId": "worker-commerce-delivery",
+          "at": "2026-11-12T19:21:40.531Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
+          "nextAction": "Implement the native sales delivery use case in server-commerce over the Inventory stock_issue seam and Finance Delivery goods journal, mount it in order_http for goods/mixed fulfill, then (after the sales lane releases feature-sales/composition) switch the client and workplace route and delete the TS fulfillOrder goods branch."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commerce",
         "plannedPackage": "erpx-server-commerce",
@@ -27364,6 +27414,58 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "migrate.organization.position-command",
+        "title": "Native organization position-save command with people-payroll roster exit",
+        "scope": "Build the native position-save command (domain validation, application ports, postgres adapter, HTTP router) and the two producer ports it needs: people-payroll roster exit effects and collaboration roster-position notifications. Then wire composition, switch the People route fail-closed, delete the TS savePosition writer and migrate fixtures. Composition mount is lead integration.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "packages/server-people_payroll/src/**",
+          "packages/server-collaboration/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/**",
+          "tests/unit/organization/**",
+          "tests/unit/people_payroll/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization",
+          "owner:people_payroll-roster-exit"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
+        "handoff": {
+          "runId": "run-20261113-a",
+          "agentId": "lead",
+          "at": "2026-11-12T19:21:40.531Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
+          "nextAction": "Claim and implement the native position command plus its two producer ports."
+        },
+        "nextAction": "Claim and implement the native position command plus its two producer ports.",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -27372,7 +27474,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 128,
+      "totalPackets": 129,
       "migratedPackets": 62,
       "statusCounts": {
         "pending": 28,
@@ -27380,13 +27482,13 @@
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 62,
-        "blocked": 22,
+        "blocked": 23,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 45,
-    "updatedAt": "2026-11-12T18:37:12.752Z",
+    "lastCoordinatorGeneration": 46,
+    "updatedAt": "2026-11-12T19:21:44.753Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -27429,10 +27531,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-s",
-      "runId": "run-20261113-a",
-      "at": "2026-11-12T18:22:56.885Z",
-      "reason": "Previous coordinator lease expired at 18:22Z after the runtime slice was pushed; runtime/billing workers keep their WIP, claims are re-established by the new lead",
+      "previousRunId": "run-20261113-a",
+      "runId": "run-20261113-b",
+      "at": "2026-11-12T19:21:40.531Z",
+      "reason": "Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
       "wipReviewed": true,
       "previousRunStopped": true
     }
