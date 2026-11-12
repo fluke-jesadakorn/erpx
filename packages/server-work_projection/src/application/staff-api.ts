@@ -8,7 +8,7 @@ import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,
 import type {listTasks,taskDetail} from '@erpx/server-operations/public/staff-tasks';
 import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema} from "@erpx/server-projects/public/project-milestones";
 import type {listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema} from "@erpx/server-projects/public/project-actuals";
-import type {canEditTemplate,changeScheduleState,endSchedule,getTemplate,listTemplates,runTemplate,saveSchedule,saveTemplate,scheduleSchema,templateSchema,ScheduleRow} from "@erpx/server-operations/public/routines";
+import type {canEditTemplate,getTemplate,listTemplates,runTemplate,ScheduleRow} from "@erpx/server-operations/public/routines";
 import type {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import type {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import type {getProject,listProjects,projectSchema} from "@erpx/server-projects/public/staff-projects";
@@ -31,13 +31,9 @@ listProjectMilestones:WithoutDatabase<typeof listProjectMilestones>;
 listProjectWorkLogs:WithoutDatabase<typeof listProjectWorkLogs>;
 projectCommand(command:ProjectCommandPort):Promise<unknown>;
 canEditTemplate:WithoutDatabase<typeof canEditTemplate>;
-changeScheduleState:WithoutDatabase<typeof changeScheduleState>;
-endSchedule:WithoutDatabase<typeof endSchedule>;
 getTemplate:WithoutDatabase<typeof getTemplate>;
 listTemplates:WithoutDatabase<typeof listTemplates>;
 runTemplate:WithoutDatabase<typeof runTemplate>;
-saveSchedule:WithoutDatabase<typeof saveSchedule>;
-saveTemplate:WithoutDatabase<typeof saveTemplate>;
 rerouteApproval:WithoutDatabase<typeof rerouteApproval>;
 changeAppointment:WithoutDatabase<typeof changeAppointment>;headSchema:typeof headSchema.parse;
 levelAssignmentSchema:typeof levelAssignmentSchema.parse;
@@ -47,8 +43,7 @@ projectMilestoneSchema:typeof projectMilestoneSchema.parse;
 projectMilestoneTransitionSchema:typeof projectMilestoneTransitionSchema.parse;
 projectWorkLogDecisionSchema:typeof projectWorkLogDecisionSchema.parse;
 projectWorkLogSchema:typeof projectWorkLogSchema.parse;
-scheduleSchema:typeof scheduleSchema.parse;
-templateSchema:typeof templateSchema.parse;facts:{projectMembers(value:string):Promise<{results:Record<string,unknown>[]}>;
+facts:{projectMembers(value:string):Promise<{results:Record<string,unknown>[]}>;
 templateSchedules(value:string,companyId:string):Promise<{results:ScheduleRow[]}>;
 approvalQueue(companyId:string,value:0 | 1):Promise<{results:Record<string,unknown>[]}>;
 headPlacement(companyId:string,value:string,personId:string):Promise<{position_id:string|null}|null>;
@@ -226,37 +221,6 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
             Date.parse(body.dueAt),
             key,
           );
-        } else if (resource === "routine-templates" && p[1] === "clone")
-          data = await ports.saveTemplate(
-            actor,
-            null,
-            ports.templateSchema(input),
-            key,
-            p[0],
-          );
-        else if (resource === "routine-templates" && p[1] === "schedules")
-          data = await ports.saveSchedule(
-            actor,
-            p[0],
-            p[2] ?? null,
-            ports.scheduleSchema(input),
-            key,
-          );
-        else if (resource === "routine-templates" && p.length < 2)
-          data = await ports.saveTemplate(
-            actor,
-            p[0] ?? null,
-            ports.templateSchema(input),
-            key,
-          );
-        else if (
-          resource === "routine-schedules" &&
-          ["pause", "resume", "end"].includes(p[1])
-        ) {
-          const body = z
-            .object({ expectedVersion: z.number().int().positive() })
-            .parse(input);
-          data = p[1]==="end"?await ports.endSchedule(actor,p[0],body.expectedVersion,key):await ports.changeScheduleState(actor,p[0],body.expectedVersion,p[1]==="resume",key);
         } else if (resource === "approvals" && p[1] === "reroute") {
           if (
             actor.beta &&
