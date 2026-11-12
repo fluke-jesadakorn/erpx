@@ -17,3 +17,7 @@ pub mod staff_tasks;
 pub mod workflow_projection_source;
 
 pub mod staff_work_http;
+
+pub mod routine_commands;
+
+pub mod routine_commands_http;

@@ -9,6 +9,7 @@ autotests = false
 [dependencies]
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
+jiff = { version = "=0.2.35", default-features = false, features = ["std", "tzdb-bundle-always"] }
 sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -71,3 +72,7 @@ path = "../../tests/integration/operations/rust-staff-work-postgres.test.rs"
 [[test]]
 name = "workflow_projection_source_postgres"
 path = "../../tests/integration/operations/rust-workflow-projection-source-postgres.test.rs"
+
+[[test]]
+name = "routine_commands"
+path = "../../tests/unit/operations/rust-routine-commands.test.rs"

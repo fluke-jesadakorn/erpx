@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 779,
+    "revision": 806,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261112-m",
+      "runId": "run-20261112-n",
       "agentId": "lead",
-      "startedAt": "2026-11-12T08:59:27.956Z",
-      "heartbeatAt": "2026-11-12T08:59:27.956Z",
-      "expiresAt": "2026-11-12T09:29:27.957Z",
-      "generation": 38,
-      "tokenHash": "d4c72025171d4f444d1e98566637cda0761ed8fd23c6adfe84cbd9bf649951a8"
+      "startedAt": "2026-11-12T10:12:45.127Z",
+      "heartbeatAt": "2026-11-12T10:12:45.127Z",
+      "expiresAt": "2026-11-12T10:42:45.129Z",
+      "generation": 39,
+      "tokenHash": "9bb08c7c2a914cfd779b77f0801d71b6f0b529188751903e6ee7c52be8dad54b"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -18485,22 +18485,283 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "dd192aa5b3a85a062331cd2ec9d3e0f495cf7815",
+        "lastPushedSha": "dd192aa5b3a85a062331cd2ec9d3e0f495cf7815",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-identity_access/src",
+            "result": "passed",
+            "before": 245,
+            "after": 243,
+            "sourceSha": "dd192aa5b3a85a062331cd2ec9d3e0f495cf7815",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/position-gpo.ts",
+                "writes": 33,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the position-gpo.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-access.ts",
+                "writes": 18,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the people-access.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-transaction.ts",
+                "writes": 17,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the directory-transaction.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts",
+                "writes": 16,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the iam-service.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-operations.ts",
+                "writes": 15,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the directory-operations.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-access.ts",
+                "writes": 13,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the account-access.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/user-management.ts",
+                "writes": 12,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the user-management.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-migrations.ts",
+                "writes": 11,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the iam-migrations.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/gpo-rules.ts",
+                "writes": 11,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the gpo-rules.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-recovery.ts",
+                "writes": 11,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the account-recovery.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-api.ts",
+                "writes": 10,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the iam-api.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-sso-store.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the product-sso-store.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the people-lifecycle-facts.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/invitation-delivery.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the invitation-delivery.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-directories.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the iam-directories.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/technology.ts",
+                "writes": 6,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the technology.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/provider-context-store.ts",
+                "writes": 5,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the provider-context-store.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-worker-effects.ts",
+                "writes": 5,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the people-lifecycle-worker-effects.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-recovery.ts",
+                "writes": 4,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the iam-recovery.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-mfa.ts",
+                "writes": 3,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the iam-mfa.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-session-security.ts",
+                "writes": 3,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the account-session-security.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-template-attributes.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the people-template-attributes.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-transactions.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the iam-transactions.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-grant-transaction.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the iam-grant-transaction.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-synchronization.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the directory-synchronization.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-onboarding-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the beta-onboarding-effects.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-preferences.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the account-preferences.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/throttle.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the throttle.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-session-revocation.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the product-session-revocation.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-directory-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the people-directory-facts.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/payroll-owner-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the payroll-owner-facts.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/organization-department-relocation.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the organization-department-relocation.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-auth.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the iam-auth.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-management-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the beta-management-facts.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-invitation-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the beta-invitation-sources.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/auth.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the auth.ts writers to their native owner port, then delete the TS statements and exports."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-time-preference.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Move the account-time-preference.ts writers to their native owner port, then delete the TS statements and exports."
+              }
+            ]
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --test account_sso_postgres --locked",
+            "result": "passed",
+            "sourceSha": "dd192aa5b3a85a062331cd2ec9d3e0f495cf7815",
+            "sourceKind": "committed",
+            "note": "18/18 cases incl. native adoption, existing binding, and conflicting device-group rejection."
+          },
+          {
+            "command": "bun run --filter '@erpx/server-identity_access' typecheck",
+            "result": "passed",
+            "sourceSha": "dd192aa5b3a85a062331cd2ec9d3e0f495cf7815",
+            "sourceKind": "committed",
+            "note": "exit 0"
+          },
+          {
+            "command": "bun run --filter '@erpx/feature-account' typecheck",
+            "result": "passed",
+            "sourceSha": "dd192aa5b3a85a062331cd2ec9d3e0f495cf7815",
+            "sourceKind": "committed",
+            "note": "exit 0"
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --locked",
+            "result": "passed",
+            "sourceSha": "dd192aa5b3a85a062331cd2ec9d3e0f495cf7815",
+            "sourceKind": "committed",
+            "note": "pass"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-k lease expired; no mutating coordinator call since; worker WIP for payroll readers committed in 74a94a3be; no live cargo/rust writer process owned by the old coordinator",
-        "nextAction": "Move SSO device adoption into native account_auth authorize, delete the TS transaction/barrel, seed tests inline, and measure the owner KPI.",
+        "blocker": null,
+        "nextAction": "SSO device adoption is native (KPI 245 -> 243 at dd192aa5b); 243 residual writes classified under retire.identity_access.residual-writers. Internal capability: no Next client/route cutover applies.",
         "handoff": {
-          "runId": "run-20261112-l",
+          "runId": "run-20261112-n",
           "agentId": "worker-identity",
-          "at": "2026-11-12T08:59:27.955Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-k lease expired; no mutating coordinator call since; worker WIP for payroll readers committed in 74a94a3be; no live cargo/rust writer process owned by the old coordinator",
-          "nextAction": "Move SSO device adoption into native account_auth authorize, delete the TS transaction/barrel, seed tests inline, and measure the owner KPI."
+          "at": "2026-11-12T10:14:25.097Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: mark migrated (internal capability, no cutover object)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -18675,28 +18936,21 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-m",
-          "agentId": "worker-payroll-readers",
-          "claimedAt": "2026-11-12T08:59:32.793Z",
-          "heartbeatAt": "2026-11-12T08:59:32.793Z",
-          "expiresAt": "2026-11-12T09:29:32.793Z",
-          "generation": 38
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
         "nextAction": "Register the three payroll-run cargo suites, migrate the foreign payroll-run seeds, remove the route fallbacks and TS writers/readers, then run owner KPI and affected suites.",
         "handoff": {
-          "runId": "run-20261112-k",
-          "agentId": "worker-people-mount",
-          "at": "2026-11-12T08:37:28.230Z",
+          "runId": "run-20261112-m",
+          "agentId": "worker-payroll-readers",
+          "at": "2026-11-12T10:12:45.126Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-k lease expired; assets change-writer retirement pushed c94bd9422; WIP reviewed",
+          "reason": "Recovery: run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
           "nextAction": "Register the three payroll-run cargo suites, migrate the foreign payroll-run seeds, remove the route fallbacks and TS writers/readers, then run owner KPI and affected suites."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -19042,23 +19296,23 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-m",
-          "agentId": "worker-operations",
-          "claimedAt": "2026-11-12T09:05:19.636Z",
-          "heartbeatAt": "2026-11-12T09:05:19.636Z",
-          "expiresAt": "2026-11-12T09:35:19.636Z",
-          "generation": 38
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
         "nextAction": "Implement native routine template/schedule commands with receipt/audit/outbox and PG tests; report composition mount; switch the routine routes fail-closed; delete the replaced TS writers/fences/exports; migrate tests; record KPI 29->12 and push.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-m",
+          "agentId": "worker-operations",
+          "at": "2026-11-12T10:12:45.126Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
+          "nextAction": "Implement native routine template/schedule commands with receipt/audit/outbox and PG tests; report composition mount; switch the routine routes fail-closed; delete the replaced TS writers/fences/exports; migrate tests; record KPI 29->12 and push."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
         "plannedPackage": "erpx-server-operations",
@@ -19070,6 +19324,907 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.agent.agent-governance",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "agent",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/agent-governance.ts (16 write statements)",
+        "scope": "G4 per-capability retirement for agent: adapters/agent-governance.ts holds 16 retained write statements of the owner total 46. Classify against packages/server-agent/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "packages/server-agent/Cargo.toml",
+          "packages/server-agent/package.json",
+          "packages/feature-agent/**",
+          "fixtures/**",
+          "tests/unit/agent/**",
+          "tests/integration/agent/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/agent-governance.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.billing.billing",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "billing",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/billing.ts (41 write statements)",
+        "scope": "G4 per-capability retirement for billing: adapters/billing.ts holds 41 retained write statements of the owner total 82. Classify against packages/server-billing/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "packages/server-billing/Cargo.toml",
+          "packages/server-billing/package.json",
+          "packages/feature-billing/**",
+          "fixtures/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/billing.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.collaboration.social-home",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/social-home.ts (33 write statements)",
+        "scope": "G4 per-capability retirement for collaboration: adapters/social-home.ts holds 33 retained write statements of the owner total 219. Classify against packages/server-collaboration/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/server-collaboration/Cargo.toml",
+          "packages/server-collaboration/package.json",
+          "packages/feature-collaboration/**",
+          "fixtures/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/social-home.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.commerce.commerce",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "commerce",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/commerce.ts (28 write statements)",
+        "scope": "G4 per-capability retirement for commerce: adapters/commerce.ts holds 28 retained write statements of the owner total 58. Classify against packages/server-commerce/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "packages/server-commerce/Cargo.toml",
+          "packages/server-commerce/package.json",
+          "packages/feature-commerce/**",
+          "fixtures/**",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/commerce.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.customer_authority.portal-invitation-delivery",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "customer_authority",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/portal-invitation-delivery.ts (7 write statements)",
+        "scope": "G4 per-capability retirement for customer_authority: adapters/portal-invitation-delivery.ts holds 7 retained write statements of the owner total 46. Classify against packages/server-customer_authority/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "packages/server-customer_authority/Cargo.toml",
+          "packages/server-customer_authority/package.json",
+          "packages/feature-customer_authority/**",
+          "fixtures/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/portal-invitation-delivery.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.files.service-repository",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "files",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/attachments/service-repository.ts (57 write statements)",
+        "scope": "G4 per-capability retirement for files: adapters/attachments/service-repository.ts holds 57 retained write statements of the owner total 125. Classify against packages/server-files/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-files/Cargo.toml",
+          "packages/server-files/package.json",
+          "packages/feature-files/**",
+          "fixtures/**",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/attachments/service-repository.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.finance.finance",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/finance.ts (56 write statements)",
+        "scope": "G4 per-capability retirement for finance: adapters/finance.ts holds 56 retained write statements of the owner total 387. Classify against packages/server-finance/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/server-finance/Cargo.toml",
+          "packages/server-finance/package.json",
+          "packages/feature-finance/**",
+          "fixtures/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/finance.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.identity_access.position-gpo",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/position-gpo.ts (33 write statements)",
+        "scope": "G4 per-capability retirement for identity_access: adapters/position-gpo.ts holds 33 retained write statements of the owner total 243. Classify against packages/server-identity_access/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/server-identity_access/Cargo.toml",
+          "packages/server-identity_access/package.json",
+          "packages/feature-identity_access/**",
+          "fixtures/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/position-gpo.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.inventory.commerce-stock-owner-effects",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/commerce-stock-owner-effects.ts (21 write statements)",
+        "scope": "G4 per-capability retirement for inventory: adapters/commerce-stock-owner-effects.ts holds 21 retained write statements of the owner total 136. Classify against packages/server-inventory/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "packages/server-inventory/Cargo.toml",
+          "packages/server-inventory/package.json",
+          "packages/feature-inventory/**",
+          "fixtures/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/commerce-stock-owner-effects.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.legal.service",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "legal",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/legal/service.ts (30 write statements)",
+        "scope": "G4 per-capability retirement for legal: adapters/legal/service.ts holds 30 retained write statements of the owner total 164. Classify against packages/server-legal/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "packages/server-legal/Cargo.toml",
+          "packages/server-legal/package.json",
+          "packages/feature-legal/**",
+          "fixtures/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/legal/service.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.operations.routines",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "operations",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/routines.ts (12 write statements)",
+        "scope": "G4 per-capability retirement for operations: adapters/routines.ts holds 12 retained write statements of the owner total 29. Classify against packages/server-operations/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "packages/server-operations/Cargo.toml",
+          "packages/server-operations/package.json",
+          "packages/feature-operations/**",
+          "fixtures/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/routines.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.organization.organization",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "organization",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/organization.ts (20 write statements)",
+        "scope": "G4 per-capability retirement for organization: adapters/organization.ts holds 20 retained write statements of the owner total 70. Classify against packages/server-organization/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "packages/server-organization/Cargo.toml",
+          "packages/server-organization/package.json",
+          "packages/feature-organization/**",
+          "fixtures/**",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/organization.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.people_payroll.people-payroll",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "people_payroll",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/people-payroll.ts (51 write statements)",
+        "scope": "G4 per-capability retirement for people_payroll: adapters/people-payroll.ts holds 51 retained write statements of the owner total 333. Classify against packages/server-people_payroll/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "packages/server-people_payroll/Cargo.toml",
+          "packages/server-people_payroll/package.json",
+          "packages/feature-people_payroll/**",
+          "fixtures/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/people-payroll.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.pms.pms-booking",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "pms",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/pms-booking.ts (27 write statements)",
+        "scope": "G4 per-capability retirement for pms: adapters/pms-booking.ts holds 27 retained write statements of the owner total 113. Classify against packages/server-pms/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "packages/server-pms/Cargo.toml",
+          "packages/server-pms/package.json",
+          "packages/feature-pms/**",
+          "fixtures/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/pms-booking.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.pos.pos-core",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "pos",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/pos-core.ts (102 write statements)",
+        "scope": "G4 per-capability retirement for pos: adapters/pos-core.ts holds 102 retained write statements of the owner total 137. Classify against packages/server-pos/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "packages/server-pos/Cargo.toml",
+          "packages/server-pos/package.json",
+          "packages/feature-pos/**",
+          "fixtures/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/pos-core.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.runtime.connections",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "runtime",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/executive/connections.ts (5 write statements)",
+        "scope": "G4 per-capability retirement for runtime: adapters/executive/connections.ts holds 5 retained write statements of the owner total 36. Classify against packages/server-runtime/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "packages/server-runtime/Cargo.toml",
+          "packages/server-runtime/package.json",
+          "packages/feature-runtime/**",
+          "fixtures/**",
+          "tests/unit/runtime/**",
+          "tests/integration/runtime/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/executive/connections.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.sales.notification-execution",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "sales",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/notification-execution.ts (7 write statements)",
+        "scope": "G4 per-capability retirement for sales: adapters/notification-execution.ts holds 7 retained write statements of the owner total 36. Classify against packages/server-sales/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "packages/server-sales/Cargo.toml",
+          "packages/server-sales/package.json",
+          "packages/feature-sales/**",
+          "fixtures/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/notification-execution.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.support.support",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/support.ts (10 write statements)",
+        "scope": "G4 per-capability retirement for support: adapters/support.ts holds 10 retained write statements of the owner total 60. Classify against packages/server-support/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/server-support/Cargo.toml",
+          "packages/server-support/package.json",
+          "packages/feature-support/**",
+          "fixtures/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/support.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.work_projection.calendar-commands-facts",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "work_projection",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/calendar-commands-facts.ts (26 write statements)",
+        "scope": "G4 per-capability retirement for work_projection: adapters/calendar-commands-facts.ts holds 26 retained write statements of the owner total 42. Classify against packages/server-work_projection/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "packages/server-work_projection/Cargo.toml",
+          "packages/server-work_projection/package.json",
+          "packages/feature-work_projection/**",
+          "fixtures/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/calendar-commands-facts.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.workflow.approval-planning",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "workflow",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS writer in adapters/approval-planning.ts (18 write statements)",
+        "scope": "G4 per-capability retirement for workflow: adapters/approval-planning.ts holds 18 retained write statements of the owner total 119. Classify against packages/server-workflow/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "packages/server-workflow/Cargo.toml",
+          "packages/server-workflow/package.json",
+          "packages/feature-workflow/**",
+          "fixtures/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 native counterpart audit for adapters/approval-planning.ts, then six-point retirement with the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.identity_access.residual-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the residual identity_access TS writers (37 files)",
+        "scope": "Delete the classified residual identity_access TS writers (243 statements across 37 adapter files: position-gpo 33, people-access 18, directory-transaction 17, iam-service 16, directory-operations 15, account-access 13, user-management 12, iam-migrations 11, and the remaining 29 files) as each native owner port lands; move oracles and record the owner KPI per batch.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-account/**",
+          "tests/integration/identity_access/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "pending",
+        "nextAction": "Retire the largest identity_access writer clusters batch by batch and record the KPI after each.",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -19078,21 +20233,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 73,
-      "migratedPackets": 35,
+      "totalPackets": 94,
+      "migratedPackets": 36,
       "statusCounts": {
-        "pending": 11,
-        "in_progress": 3,
+        "pending": 32,
+        "in_progress": 1,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 35,
-        "blocked": 14,
+        "migrated": 36,
+        "blocked": 15,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 38,
-    "updatedAt": "2026-11-12T09:05:19.636Z",
+    "lastCoordinatorGeneration": 39,
+    "updatedAt": "2026-11-12T10:14:25.156Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -19135,10 +20290,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-l",
-      "runId": "run-20261112-m",
-      "at": "2026-11-12T08:59:27.957Z",
-      "reason": "run-20261112-k lease expired; no mutating coordinator call since; worker WIP for payroll readers committed in 74a94a3be; no live cargo/rust writer process owned by the old coordinator",
+      "previousRunId": "run-20261112-m",
+      "runId": "run-20261112-n",
+      "at": "2026-11-12T10:12:45.129Z",
+      "reason": "run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
       "wipReviewed": true,
       "previousRunStopped": true
     }
