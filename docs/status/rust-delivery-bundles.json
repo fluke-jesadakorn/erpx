@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 892,
+    "revision": 894,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -22186,7 +22186,7 @@
           "owner:finance"
         ],
         "status": "blocked",
-        "nextAction": "Port opening/legacy-revenue/journal-review to native journal ports (seed tests inline, no fixtures path), switch the route, delete the three writers, measure retirement:ts-writes.",
+        "nextAction": "BLOCKED after implementation review: deleting createJournal/postJournal/reverseJournal breaks 31 cross-owner consumers (fixtures/finance|people_payroll|shared builders, scripts/local/browser-simulation.ts, integration suites in assets/crm/ecommerce/inventory/manufacturing/marketing/pms/procurement/projects/sales/shared.*) and legacy revenue recognition has no native owner command. Work reverted; finance KPI 382 unchanged; HEAD green (tests/config 0 errors after close-unit fix). Ordering: (1) shared SQL finance-journal seeding helper for fixtures/tests + migrate the 31 consumers, (2) native revenue-obligation recognize command + composition mount, (3) route switch + writer deletion for KPI 382 -> 376.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
@@ -22196,14 +22196,14 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261112-q",
+          "runId": "run-20261112-r",
           "agentId": "worker-finance",
-          "at": "2026-11-12T12:26:25.187Z",
+          "at": "2026-11-12T12:59:13.811Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
-          "nextAction": "Port opening/legacy-revenue/journal-review to native journal ports (seed tests inline, no fixtures path), switch the route, delete the three writers, measure retirement:ts-writes."
+          "reason": "handoff",
+          "nextAction": "BLOCKED after implementation review: deleting createJournal/postJournal/reverseJournal breaks 31 cross-owner consumers (fixtures/finance|people_payroll|shared builders, scripts/local/browser-simulation.ts, integration suites in assets/crm/ecommerce/inventory/manufacturing/marketing/pms/procurement/projects/sales/shared.*) and legacy revenue recognition has no native owner command. Work reverted; finance KPI 382 unchanged; HEAD green (tests/config 0 errors after close-unit fix). Ordering: (1) shared SQL finance-journal seeding helper for fixtures/tests + migrate the 31 consumers, (2) native revenue-obligation recognize command + composition mount, (3) route switch + writer deletion for KPI 382 -> 376."
         }
       },
       {
@@ -22321,7 +22321,7 @@
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T12:56:48.888Z",
+    "updatedAt": "2026-11-12T12:59:13.812Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
