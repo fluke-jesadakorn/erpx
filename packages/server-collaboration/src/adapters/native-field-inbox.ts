@@ -40,12 +40,22 @@ export function createNativeFieldInboxReader(raw:string,send:typeof nativeFieldI
   return result;
  };
 }
+/** The overlay is only reachable from a real request. A direct server call
+ *  outside one (background read, owner test) has no inbound origin/cookie, so
+ *  its native partition is absent rather than guessed; legacy rows still serve. */
+async function inboundHeaders():Promise<Pick<Headers,'get'>|null>{
+ try{return await headers();}catch(error){
+  if(error instanceof Error&&error.message.includes('outside a request scope'))return null;
+  throw error;
+ }
+}
 export async function nativeFieldInboxCandidates(actor:WorkContext,query:NativeFieldInboxQuery):Promise<Candidate[]>{
  // No relevant owner authority is a presentation filter, never a grant. The legacy stream
  // independently excludes this entire source partition for every caller.
  if(!actor.modules.includes('field_service')&&!actor.iam?.permissions.includes('support.read')&&!actor.iam?.permissions.includes('records.read')&&!actor.iam?.permissions.includes('inventory.read')&&!actor.iam?.permissions.includes('finance.read'))return [];
  const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_SOURCE_RECORD_CONFIG;if(!raw)fail('NATIVE_FIELD_INBOX_CONFIGURATION_REQUIRED');
- return createNativeFieldInboxReader(raw)(await headers(),actor,query);
+ const incoming=await inboundHeaders();if(!incoming)return [];
+ return createNativeFieldInboxReader(raw)(incoming,actor,query);
 }
 
 export function createNativeFieldInboxState(raw:string,send:typeof nativeFieldInboxStateRequest=nativeFieldInboxStateRequest){
