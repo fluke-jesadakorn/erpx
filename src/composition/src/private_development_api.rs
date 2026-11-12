@@ -2915,6 +2915,7 @@ async fn assemble_checked(
         let mut project_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut project_attachment_targets = Vec::new();
+        let mut project_attachment_read_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut project_structure_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3635,18 +3636,19 @@ async fn assemble_checked(
                     },
                 );
                 #[cfg(feature = "existing-business")]
+                let projects_service = Arc::new(crate::projects::ProjectsService::new(
+                    authorizer.clone(),
+                    crate::projects::ProjectsConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                    ),
+                    Arc::new(SharedClock(clock.clone())),
+                    catalogue.clone(),
+                ));
                 let projects_backend = Arc::new(crate::projects::ProjectsBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
-                    Arc::new(crate::projects::ProjectsService::new(
-                        authorizer.clone(),
-                        crate::projects::ProjectsConfiguration::new(
-                            holding.registration.holding_id.clone(),
-                            company.clone(),
-                        ),
-                        Arc::new(SharedClock(clock.clone())),
-                        catalogue.clone(),
-                    )),
+                    projects_service.clone(),
                 ));
                 #[cfg(feature = "existing-business")]
                 projects_targets.push(
@@ -3702,6 +3704,36 @@ async fn assemble_checked(
                         backend: projects_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
+                {
+                    #[cfg(feature = "files-scan-worker")]
+                    let project_store = messaging_files_roots
+                        .get(&holding.registration.holding_id)
+                        .and_then(|root| {
+                            erpx_server_files::public::canonical_original::LocalOriginalStore::open(
+                                root, 8,
+                            )
+                            .ok()
+                        })
+                        .map(Arc::new);
+                    #[cfg(not(feature = "files-scan-worker"))]
+                    let project_store = None;
+                    project_attachment_read_targets.push(
+                        erpx_server_projects::public::project_attachment_read_http::ProjectAttachmentReadHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: Arc::new(
+                                crate::projects::ProjectAttachmentReadBackend::new(
+                                    config.policy.clone(),
+                                    Arc::new(FinanceJournalReadScopeHeaders),
+                                    projects_service.clone(),
+                                    project_store,
+                                ),
+                            ),
+                        },
+                    );
+                }
                 #[cfg(feature = "existing-business")]
                 {
                     let access_configuration =
@@ -5494,6 +5526,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_projects::public::project_attachment_http::project_attachment_router(
                     project_attachment_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !project_attachment_read_targets.is_empty() {
+            router = router.merge(
+                erpx_server_projects::public::project_attachment_read_http::project_attachment_read_router(
+                    project_attachment_read_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
             );
@@ -9266,6 +9307,28 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 "projects",
                 project_id,
                 "graph",
+            ] if !project_id.is_empty() => state.policy.audience(host).is_some(),
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                _,
+                "projects",
+                project_id,
+                "attachment-sets",
+                ..,
+            ] if !project_id.is_empty() => state.policy.audience(host).is_some(),
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                _,
+                "projects",
+                project_id,
+                "attachment-links",
+                ..,
             ] if !project_id.is_empty() => state.policy.audience(host).is_some(),
             _ => false,
         };

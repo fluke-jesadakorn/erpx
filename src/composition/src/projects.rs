@@ -6,10 +6,12 @@ use erpx_server_commercial::public::purchases::{
     PurchaseRequest,
 };
 use erpx_server_files::public::project_attachment::{
-    PROJECT_ATTACHMENT_PURPOSES, bind_project_attachment_with_current_facts,
-    project_attachment_bound_manifest, project_attachment_link_ids,
-    project_attachment_set_facts,
+    PROJECT_ATTACHMENT_PURPOSES, ProjectAttachmentContentVariant, bind_project_attachment_with_current_facts,
+    project_attachment_bound_manifest, project_attachment_content, project_attachment_link_ids,
+    project_attachment_link_status, project_attachment_links, project_attachment_set_facts,
+    project_attachment_sets,
 };
+use erpx_server_files::public::canonical_original::LocalOriginalStore;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -61,6 +63,14 @@ use erpx_server_projects::public::project_attachment::{
     attachment_set_not_found, project_attachment_authority_json,
     project_attachment_command_receipt, project_attachment_fingerprint,
     replay_project_attachment_binding,
+};
+use erpx_server_projects::public::project_attachment_read_http::{
+    ProjectAttachmentContentHttpResponse, ProjectAttachmentReadContentHttpRequest,
+    ProjectAttachmentReadHttpBackend, ProjectAttachmentReadHttpFuture,
+    ProjectAttachmentReadHttpResponse,
+    ProjectAttachmentReadHttpTarget, ProjectAttachmentReadLinksHttpRequest,
+    ProjectAttachmentReadSetsHttpRequest, ProjectAttachmentReadStatusHttpRequest,
+    project_attachment_read_router,
 };
 use erpx_server_projects::public::project_attachment_http::{
     ProjectAttachmentBindHttpBackend, ProjectAttachmentBindHttpRequest, ProjectAttachmentHttpFuture,
@@ -197,6 +207,19 @@ pub struct ProjectsService<C> {
     configuration: ProjectsConfiguration,
     clock: Arc<C>,
     catalogue: Arc<CommercialCatalogue>,
+}
+
+#[derive(Clone)]
+pub enum ProjectAttachmentReadAccess {
+    Sets { project_id: String },
+    Links { project_id: String, set_id: String },
+    Status { project_id: String, link_id: String },
+    Content { project_id: String, link_id: String, variant: ProjectAttachmentContentVariant },
+}
+
+pub enum ProjectAttachmentReadOutcome {
+    Data(ProjectAttachmentReadHttpResponse),
+    Content(ProjectAttachmentContentHttpResponse),
 }
 
 impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
@@ -558,6 +581,139 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                             data: serde_json::to_value(receipt).map_err(|_| unavailable())?,
                             context: context(current),
                         })
+                    })
+                },
+            )
+            .await
+    }
+
+
+    pub async fn read_project_attachment<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        access: ProjectAttachmentReadAccess,
+        store: Option<Arc<LocalOriginalStore>>,
+    ) -> Result<ProjectAttachmentReadOutcome, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                Self::access(),
+                ProjectsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let access = access.clone();
+                    let store = store.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now();
+                        let actor = ProjectAttachmentActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: company.clone(),
+                            branch_id: current.selection().workspace().branch_id.clone(),
+                            department_id: current.selection().workspace().department_id.clone(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                            active_staff: false,
+                            wbs_purchased: false,
+                        };
+                        let response = match access {
+                            ProjectAttachmentReadAccess::Sets { project_id } => {
+                                let sets = project_attachment_sets(
+                                    connection,
+                                    &actor,
+                                    &project_id,
+                                    now,
+                                )
+                                .await?;
+                                ProjectAttachmentReadOutcome::Data(
+                                    ProjectAttachmentReadHttpResponse {
+                                        data: serde_json::to_value(sets)
+                                            .map_err(|_| attachment_invalid())?,
+                                        context: context(current),
+                                    },
+                                )
+                            }
+                            ProjectAttachmentReadAccess::Links { project_id, set_id } => {
+                                let links = project_attachment_links(
+                                    connection,
+                                    &actor,
+                                    &project_id,
+                                    &set_id,
+                                    now,
+                                )
+                                .await?;
+                                ProjectAttachmentReadOutcome::Data(
+                                    ProjectAttachmentReadHttpResponse {
+                                        data: serde_json::to_value(links)
+                                            .map_err(|_| attachment_invalid())?,
+                                        context: context(current),
+                                    },
+                                )
+                            }
+                            ProjectAttachmentReadAccess::Status { project_id, link_id } => {
+                                let status = project_attachment_link_status(
+                                    connection,
+                                    &actor,
+                                    &project_id,
+                                    &link_id,
+                                    now,
+                                )
+                                .await?;
+                                ProjectAttachmentReadOutcome::Data(
+                                    ProjectAttachmentReadHttpResponse {
+                                        data: serde_json::to_value(status)
+                                            .map_err(|_| attachment_invalid())?,
+                                        context: context(current),
+                                    },
+                                )
+                            }
+                            ProjectAttachmentReadAccess::Content {
+                                project_id,
+                                link_id,
+                                variant,
+                            } => {
+                                let store = store.as_deref().ok_or_else(|| {
+                                    PgTransactionError::Business(unavailable())
+                                })?;
+                                let content = project_attachment_content(
+                                    connection,
+                                    store,
+                                    &actor,
+                                    &project_id,
+                                    &link_id,
+                                    variant,
+                                    now,
+                                )
+                                .await?;
+                                ProjectAttachmentReadOutcome::Content(
+                                    ProjectAttachmentContentHttpResponse {
+                                        media_type: content.media_type,
+                                        filename: content.filename,
+                                        inline: content.inline,
+                                        body: content.body,
+                                    },
+                                )
+                            }
+                        };
+                        Ok(response)
                     })
                 },
             )
@@ -1226,6 +1382,163 @@ impl<C: Clock + Send + Sync + 'static> ProjectsBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+pub struct ProjectAttachmentReadBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<ProjectsService<C>>,
+    store: Option<Arc<LocalOriginalStore>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> ProjectAttachmentReadBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<ProjectsService<C>>,
+        store: Option<Arc<LocalOriginalStore>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+            store,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> ProjectAttachmentReadHttpBackend
+    for ProjectAttachmentReadBackend<C>
+{
+    fn sets<'a>(
+        &'a self,
+        request: ProjectAttachmentReadSetsHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match self
+                .service
+                .read_project_attachment(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    ProjectAttachmentReadAccess::Sets {
+                        project_id: request.project_id.to_owned(),
+                    },
+                    self.store.clone(),
+                )
+                .await
+                .map_err(business)?
+            {
+                ProjectAttachmentReadOutcome::Data(response) => Ok(response),
+                ProjectAttachmentReadOutcome::Content(_) => Err(attachment_invalid()),
+            }
+        })
+    }
+
+    fn links<'a>(
+        &'a self,
+        request: ProjectAttachmentReadLinksHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match self
+                .service
+                .read_project_attachment(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    ProjectAttachmentReadAccess::Links {
+                        project_id: request.project_id.to_owned(),
+                        set_id: request.set_id.to_owned(),
+                    },
+                    self.store.clone(),
+                )
+                .await
+                .map_err(business)?
+            {
+                ProjectAttachmentReadOutcome::Data(response) => Ok(response),
+                ProjectAttachmentReadOutcome::Content(_) => Err(attachment_invalid()),
+            }
+        })
+    }
+
+    fn status<'a>(
+        &'a self,
+        request: ProjectAttachmentReadStatusHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentReadHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match self
+                .service
+                .read_project_attachment(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    ProjectAttachmentReadAccess::Status {
+                        project_id: request.project_id.to_owned(),
+                        link_id: request.link_id.to_owned(),
+                    },
+                    self.store.clone(),
+                )
+                .await
+                .map_err(business)?
+            {
+                ProjectAttachmentReadOutcome::Data(response) => Ok(response),
+                ProjectAttachmentReadOutcome::Content(_) => Err(attachment_invalid()),
+            }
+        })
+    }
+
+    fn content<'a>(
+        &'a self,
+        request: ProjectAttachmentReadContentHttpRequest<'a>,
+    ) -> ProjectAttachmentReadHttpFuture<'a, ProjectAttachmentContentHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            let variant = ProjectAttachmentContentVariant::parse(request.variant)?;
+            match self
+                .service
+                .read_project_attachment(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    ProjectAttachmentReadAccess::Content {
+                        project_id: request.project_id.to_owned(),
+                        link_id: request.link_id.to_owned(),
+                        variant,
+                    },
+                    self.store.clone(),
+                )
+                .await
+                .map_err(business)?
+            {
+                ProjectAttachmentReadOutcome::Content(response) => Ok(response),
+                ProjectAttachmentReadOutcome::Data(_) => Err(attachment_invalid()),
+            }
+        })
     }
 }
 
