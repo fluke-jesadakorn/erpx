@@ -305,7 +305,7 @@ it("protects actual private-file HTTP bytes without purchase and retains held hi
   const reservation = (await reserved.json()).data;
   const uploaded = await uploadFile(new Request(`http://localhost:3100/api/v1/holdings/test/uploads/${reservation.id}/content`, { method: "PUT",
     headers: { "Content-Type": "application/pdf", "Content-Length": String(bytes.length) }, body: bytes }), { params: Promise.resolve({ holdingSlug: "test", id: reservation.id }) });
-  expect(uploaded.status).toBe(201);
+  expect(uploaded.status).toBe(202);
   const sourceId = (await uploaded.json()).data.id;
   // Existing held evidence is fixture state, not an entitlement mutation.
   await db.prepare("UPDATE attachments SET legal_hold=1 WHERE id=?").bind(sourceId).run();
@@ -333,7 +333,7 @@ it("does not expose actual legacy private-file bytes through a first unstarted f
   expect(reserved.status).toBe(201); const intent = (await reserved.json()).data;
   const uploaded = await uploadFile(new Request(`http://localhost:3100/api/v1/holdings/test/uploads/${intent.id}/content`, { method: "PUT",
     headers: { "Content-Type": "application/pdf", "Content-Length": String(bytes.length) }, body: bytes }), { params: Promise.resolve({ holdingSlug: "test", id: intent.id }) });
-  expect(uploaded.status).toBe(201); const id = (await uploaded.json()).data.id;
+  expect(uploaded.status).toBe(202); const id = (await uploaded.json()).data.id;
   const read = () => downloadFile(new Request(`http://localhost:3100/api/v1/holdings/test/attachments/${id}/content`), { params: Promise.resolve({ holdingSlug: "test", id }) });
   expect((await read()).status).toBe(200);
   await store().apply({ grant: { companyId: f.company, packageId: "support", packageVersion: 1, state: "active", startsAt: Date.now() + 60000,

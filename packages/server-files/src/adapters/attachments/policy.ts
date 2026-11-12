@@ -1,8 +1,8 @@
 import{createNativeSupportTicketRead}from '@erpx/server-support/public/support-ticket-read';
-import{createNativeSupportEvidencePlanner}from '@erpx/server-support/public/support-evidence-planning';
+import{supportEvidenceGuard}from '@erpx/server-support/public/support-evidence';
 import{readSourceRecord,visibleSourceRecord,sourceRecordGuards}from '@erpx/server-records/public/source-record-policy';
 const sources={read:readSourceRecord,visible:visibleSourceRecord,guards:sourceRecordGuards};
-const supportTicketRead=createNativeSupportTicketRead(sources),supportEvidencePlanning=createNativeSupportEvidencePlanner(sources);
+const supportTicketRead=createNativeSupportTicketRead(sources);
 import {authorizeMessagingAttachmentPurchase} from "@erpx/server-collaboration/public/messaging-attachment-purchases";
 import {authorizeEcommerceAttachmentPurchase} from "@erpx/server-ecommerce/public/attachment-purchases";
 import {authorizeWorkTaskAttachmentPurchase} from "@erpx/server-operations/public/task-attachment-purchases";
@@ -102,7 +102,7 @@ function unit(db: SqlDatabase): AttachmentPolicyUnit {
         leaveAccess: async (actor, input) => { const service = await import("@erpx/server-people_payroll/public/leave-evidence"); if (!service.assertLeaveAttachmentAccess)
             throw new ApiError(503, "LEAVE_ATTACHMENT_ADAPTER_UNAVAILABLE", "Leave evidence access is not ready."); return service.assertLeaveAttachmentAccess(db, actor, input); },
         supportTicket: async (actor, id) => await supportTicketRead.getSupportTicket(actor, id, db),
-        supportEvidenceGuard: async (actor, id, version, key) => await supportEvidencePlanning.supportEvidenceGuard(db, actor, id, version, key),
+        supportEvidenceGuard: async (actor, id, version, key) => await supportEvidenceGuard(db, actor, id, version, key),
         employeeRequest: async (actor, id) => await (await import("@erpx/server-records/public/employee-requests-read")).getEmployeeRequest(db, actor, id),
         employeeRequestUpload: async (actor, id, purpose) => await (await import("@erpx/server-records/public/employee-requests-read")).employeeRequestUpload(db, actor, id, purpose),
         expenseOwner: async (actor, id) => { const service = await import("@erpx/server-people_payroll/public/expense-read"), row = await service.getExpense(actor, id, db); return { row, canEdit: service.canEditExpense(actor, row) }; },

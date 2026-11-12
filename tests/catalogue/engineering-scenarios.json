@@ -1314,8 +1314,8 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-evidence.test.ts",
-          "title": "uploads private evidence through existing routes, safely replays, preserves hashes/history and records a correction without mutating bound evidence",
-          "proof": "Uploads through private reservation lifecycle, asserts replay/no duplicate allocation, bound checksum/history retained, correction preserves original evidence."
+          "title": "stages private evidence through the retained upload routes, safely replays, and leaves the case binding to the native Support command",
+          "proof": "Stages through the private reservation lifecycle, asserts replay/no duplicate allocation, no Files-side ticket event, native-shaped bind/revoke owner rows, and retained checksum/history."
         }
       ],
       "moduleId": "support",

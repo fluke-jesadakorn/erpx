@@ -47,12 +47,21 @@ beforeEach(async()=>{
 async function intent(expectedVersion=1,k=key()) {return reserve(new Request('http://localhost:3100/api/v1/holdings/test/uploads',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':k},body:JSON.stringify({ownerType:'support_ticket',ownerId:ticket,expectedVersion,purpose:'support_evidence',filename:'simulation.pdf',mediaType:'application/pdf',bytes:bytes.length})}),{params:Promise.resolve({holdingSlug:'test'})});}
 const upload=(id:string,data=bytes)=>put(new Request(`http://localhost:3100/api/v1/holdings/test/uploads/${id}/content`,{method:'PUT',headers:{'Content-Type':'application/pdf','Content-Length':String(data.length)},body:data}),ctx(id));
 const get=(id:string)=>download(new Request(`http://localhost:3100/api/v1/holdings/test/attachments/${id}/content`),ctx(id));
-it('uploads private evidence through existing routes, safely replays, preserves hashes/history and records a correction without mutating bound evidence',async()=>{
+it('stages private evidence through the retained upload routes, safely replays, and leaves the case binding to the native Support command',async()=>{
  const previous=process.env.ERPX_ATTACHMENTS_V2;process.env.ERPX_ATTACHMENTS_V2='false';delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
  const k=key(),r=await intent(1,k);expect(r.status).toBe(201);const reserved=(await r.json()).data;expect(reserved).toMatchObject({attachmentSetId:expect.any(String),attachmentLinkId:expect.any(String)});expect((await (await intent(1,k)).json()).data.id).toBe(reserved.id);
- const response=await upload(reserved.id);expect(response.status).toBe(201);const result=(await response.json()).data;expect((await (await upload(reserved.id)).json()).data).toEqual(result);
- expect(await db.prepare('SELECT source_state FROM attachments WHERE id=?').bind(result.id).first('source_state')).toBe('available');expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(reserved.attachmentLinkId).first('state')).toBe('bound');
- expect(await getSupportTicket(f.head,ticket)).toMatchObject({version:2,status:'open'});expect((await supportDetail(f.head,ticket)).history[0]).toMatchObject({action:'attachment-add',version:2});
+ const response=await upload(reserved.id);expect(response.status).toBe(202);const result=(await response.json()).data;expect((await (await upload(reserved.id)).json()).data).toEqual(result);
+ expect(await db.prepare('SELECT source_state FROM attachments WHERE id=?').bind(result.id).first('source_state')).toBe('available');expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(reserved.attachmentLinkId).first('state')).toBe('draft');
+ expect(await getSupportTicket(f.head,ticket)).toMatchObject({version:1,status:'open'});expect(await db.prepare("SELECT COUNT(*) n FROM support_ticket_events WHERE ticket_id=? AND action='attachment-add'").bind(ticket).first()).toEqual({n:0});
+ // Files must never bind Support evidence or emit the case event itself.
+ const rejected=await bindRecord(new Request(`http://localhost:3100/api/v1/holdings/test/attachment-sets/${reserved.attachmentSetId}/bind`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key()},body:JSON.stringify({expectedTargetVersion:1})}),{params:Promise.resolve({holdingSlug:'test',setId:reserved.attachmentSetId})});
+ expect(rejected.status).toBe(503);expect((await rejected.json()).error.code).toBe('SUPPORT_FILES_NATIVE_REQUIRED');
+ expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(reserved.attachmentLinkId).first('state')).toBe('draft');
+ // The native Support evidence command owns the ticket version step and audit
+ // event; the retained seed persists exactly those owner rows for the reader.
+ await bindSupportEvidenceSeed(db,f.head,{ticketId:ticket,setId:reserved.attachmentSetId,expectedVersion:1,reason:'Attached private support evidence'});
+ expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(reserved.attachmentLinkId).first('state')).toBe('bound');
+ expect(await getSupportTicket(f.head,ticket)).toMatchObject({version:2,status:'open'});expect((await supportDetail(f.head,ticket)).history[0]).toMatchObject({action:'attachment-bind',version:2});
  const content=await get(result.id);expect(content.status).toBe(200);expect(content.headers.get('Cache-Control')).toBe('private, no-store');expect(content.headers.get('Content-Disposition')).toContain('attachment');expect(new Uint8Array(await content.arrayBuffer())).toEqual(bytes);
  if(previous===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previous;
  session.actor={...f.head,companyId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,branchId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,role:'employee'};expect((await get(result.id)).status).toBe(404);session.actor=f.head;
@@ -64,12 +73,12 @@ it('blocks every support-evidence mutation and hides write capabilities in expli
  const previousGate=process.env.ERPX_ATTACHMENTS_V2,previousReadOnly=process.env.ERPX_ATTACHMENTS_READ_ONLY;process.env.ERPX_ATTACHMENTS_V2='false';delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
  try{
   const reservation=(await (await intent()).json()).data,uploaded=(await (await upload(reservation.id)).json()).data;
-  const staged=await seedAttachmentSet(db,f.owner,{targetType:'support_ticket',targetId:ticket,purposeKey:'internal_evidence',componentKind:'action',componentRef:'support-evidence:internal_evidence',expectedTargetVersion:2,compatibilityAdapter:true});
+  const staged=await seedAttachmentSet(db,f.owner,{targetType:'support_ticket',targetId:ticket,purposeKey:'internal_evidence',componentKind:'action',componentRef:'support-evidence:internal_evidence',expectedTargetVersion:1,compatibilityAdapter:true});
   expect((await supportEvidence(f.owner,ticket))).toMatchObject({canChange:true,canShare:true});
   process.env.ERPX_ATTACHMENTS_READ_ONLY='true';
   const intake=await intent(2);expect(intake.status).toBe(503);expect((await intake.json()).error.code).toBe('ATTACHMENTS_READ_ONLY');
   expect((await supportEvidence(f.owner,ticket))).toMatchObject({canChange:false,canShare:false});
-  expect(await db.prepare('SELECT version FROM support_tickets WHERE id=?').bind(ticket).first()).toEqual({version:2});
+  expect(await db.prepare('SELECT version FROM support_tickets WHERE id=?').bind(ticket).first()).toEqual({version:1});
   expect(await db.prepare('SELECT revoked_at FROM attachments WHERE id=?').bind(uploaded.id).first()).toEqual({revoked_at:null});
   expect(await attachmentBindingState(db,staged.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
  }
@@ -92,7 +101,8 @@ it('rechecks source version and current assignment when completing a reserved up
 it('freezes evidence after proposed resolution and refuses signature mismatch or legal-hold revocation',async()=>{
  const reserved=(await (await intent()).json()).data;
  expect((await upload(reserved.id,new Uint8Array(bytes.length).fill(65))).status).toBe(422);
- const response=await upload(reserved.id),attachment=(await response.json()).data;
+ const response=await upload(reserved.id);expect(response.status).toBe(202);const attachment=(await response.json()).data;
+ await bindSupportEvidenceSeed(db,f.head,{ticketId:ticket,setId:reserved.attachmentSetId,expectedVersion:1,reason:'Simulated evidence before proposed resolution'});
  await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(attachment.id).run();
  await db.prepare("UPDATE support_tickets SET status='resolved',resolution='Simulated proposed resolution',resolved_by=?,resolved_at=?,version=4,updated_at=? WHERE id=?").bind(f.head.userId,Date.now(),Date.now(),ticket).run();
  expect((await intent(4)).status).toBe(409);expect((await supportEvidence(f.head,ticket)).canChange).toBe(false);expect((await get(attachment.id)).status).toBe(200);
