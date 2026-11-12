@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1149,
+    "revision": 1153,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -27547,14 +27547,163 @@
           "owner:organization",
           "owner:people_payroll-roster-exit"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "baseSha": "17ac11e26493f897b6790944420786bdef3f6b28",
+        "implementedCommit": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+        "lastPushedSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features private-development-api,existing-business,contracts --locked",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "note": "Composition compiles with the mounted position router and the two owner producer ports."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization --locked",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "note": "Owner crate and its test targets compile."
+          },
+          {
+            "command": "bun run test:unit -- --suite=organization.rust-position.unit",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "note": "19/19 native validation/order cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=organization.rust-position-postgres.integration",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "note": "5/5 PostgreSQL cases pass (persist/replay/stale, guards, roster exit port handoff)."
+          },
+          {
+            "command": "bun run test:unit -- --suite=organization.native-organization-setup.unit",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "note": "9/9 client selector/transport cases pass including the new position create/edit and fail-closed cases."
+          },
+          {
+            "command": "bun run test:unit -- --suite=people_payroll.rust-roster-position-exit.unit",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "note": "6/6 roster-exit producer cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.rust-roster-position-exit-postgres.integration",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "note": "3/3 roster-exit PG cases pass including notices in the ordered phases."
+          },
+          {
+            "command": "bun run test:unit -- --suite=collaboration.rust-roster-position-notifications.unit",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "note": "3/3 collaboration notice cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=organization.organization.integration",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "note": "25/25 organization integration cases pass with native position seeding."
+          },
+          {
+            "command": "retirement:ts-writes: organization",
+            "result": "passed",
+            "sourceSha": "9b6c861ba869ef66ed5a227febbee4cca31893d9",
+            "before": 61,
+            "after": 59,
+            "note": "git grep over packages/server-organization/src/**/*.ts: 61 before, 59 after; the TS savePosition insert/update pair is gone. Roster-exit TS remains live for people-directory.",
+            "residual": [
+              {
+                "path": "packages/server-organization/src/adapters/organization.ts",
+                "writes": 15,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/organization-drafts.ts",
+                "writes": 13,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/beta-onboarding-effects.ts",
+                "writes": 6,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/company-business-acceptance.ts",
+                "writes": 6,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/department-authority.ts",
+                "writes": 4,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/profile-media-command.ts",
+                "writes": 3,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/operations-staff-settings-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/staff-defaults.ts",
+                "writes": 2,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/member-profiles.ts",
+                "writes": 2,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/people-lifecycle-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/spending-template-owner.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/operations-level-history-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/people-placement-level-history.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261113-a",
           "agentId": "lead",
@@ -27563,8 +27712,14 @@
           "reason": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
           "nextAction": "Claim and implement the native position command plus its two producer ports."
         },
-        "nextAction": "Claim and implement the native position command plus its two producer ports.",
-        "scopeRefinementRequired": false
+        "nextAction": "Organization position command is native-only. Remaining organization residuals: node-change TS consumers used by drafts/tests, profile media/staff defaults; next organization task is drafts.",
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
       },
       {
         "id": "retire.sales.notification-reconciliation",
@@ -27665,20 +27820,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 131,
-      "migratedPackets": 63,
+      "migratedPackets": 64,
       "statusCounts": {
         "pending": 30,
         "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 63,
-        "blocked": 23,
+        "migrated": 64,
+        "blocked": 22,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T19:39:23.910Z",
+    "updatedAt": "2026-11-12T19:40:45.188Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
