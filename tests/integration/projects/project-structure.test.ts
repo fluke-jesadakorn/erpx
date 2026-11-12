@@ -5,7 +5,7 @@ import {getProject,projectSchema,saveTask,taskSchema} from '@erpx/server-operati
 import {projectGraph,projectHandoffs,projectHandoffWork} from "@erpx/server-projects/public/project-structure";
 import {listProjectCostAllocations} from "@erpx/server-projects/public/project-actuals";
 import {approveCostAllocation,seedCostAllocation,seedMilestone,seedProjectFor,seedWorkLog} from "./project-actual-fixtures";
-import {createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 import {packageGrantRevision} from "@erpx/server-commercial/public/package-grants";
 import {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations} from "@erpx/server-commercial/public/owner-package-obligations";
@@ -22,8 +22,8 @@ afterEach(()=>vi.unstubAllEnvs());
 beforeEach(async()=>{f=await expenseFixture();for(const a of [f.owner,f.claimant,f.head,f.manager,f.reviewer])a.modules=['projects','finance'];});
 async function newProject(){return seedProjectFor(db,f.owner,null,projectSchema.parse({title:'Reviewed customer implementation',memberUserIds:[f.claimant.userId,f.head.userId,f.manager.userId,f.reviewer.userId]}),key());}
 async function approvedExpense(){
- const journal=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-09-12',currency:'THB',sourceType:'manual',memo:'Approved project cost source',lines:[{accountId:f.accounts.expense,debit:'75.01',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'75.01'}]}),key());
- await postJournal(f.manager,journal.id,key(),{expectedVersion:1});return `${journal.id}-0`;
+ const journal=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:'2026-09-12',currency:'THB',memo:'Approved project cost source',key:key(),createdBy:f.owner.userId,status:'posted',lines:[{accountId:f.accounts.expense,debit:'75.01',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'75.01'}]});
+ return `${journal.id}-0`;
 }
 async function grantProject(state:'active'|'draining'='active',endsAt:number|null=null,packageId='projects',companyId=f.company){
  const before=(await readCompanyPackageGrants(db,companyId)).find(row=>row.packageId===packageId),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-provider'}),obligations:async()=>{throw new Error('PROJECT_FIXTURE_CANNOT_INACTIVATE');}});
@@ -53,7 +53,7 @@ it('requires minted Project source leases and refuses legacy completed headers w
 });
 it('keeps unposted and foreign original Project cost lineage as raw Finance withdrawal obligations',async()=>{
  await grantProject();await grantProject('active',null,'projects-costs');const p=await newProject(),now=Date.now(),foreign=key(),first=key(),second=key();
- const journal=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-09-12',currency:'THB',sourceType:'manual',memo:'Original unresolved legacy Project cost',lines:[{accountId:f.accounts.expense,debit:'20.00',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'20.00'}]}),key());
+ const journal=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:'2026-09-12',currency:'THB',memo:'Original unresolved legacy Project cost',key:key(),createdBy:f.owner.userId,lines:[{accountId:f.accounts.expense,debit:'20.00',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'20.00'}]});
  await db.prepare("INSERT INTO staff_projects(id,company_id,title,owner_user_id,created_at,updated_at) VALUES(?,'foreign-company','Foreign retained source',?,?,?)").bind(foreign,f.owner.userId,now,now).run();
  for(const [id,projectId] of [[first,p.id],[second,foreign]])await db.prepare("INSERT INTO staff_project_cost_allocations(id,company_id,project_id,journal_line_id,amount_minor,state,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,?,500,'approved',?,?,?,?)").bind(id,f.company,projectId,`${journal.id}-0`,f.owner.userId,f.manager.userId,now,now).run();
  await grantProject('draining',null,'projects-costs');const observed=await projectSettlement('projects-costs');expect(observed.observations.find(row=>row.moduleId==='finance')?.outstanding).toBe(2);expect(observed.observations.find(row=>row.moduleId==='projects')?.outstanding).toBe(2);await expect(projectWithdrawalReview(await projectWithdrawal('projects-costs'))).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
