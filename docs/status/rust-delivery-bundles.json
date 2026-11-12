@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1084,
+    "revision": 1086,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21164,7 +21164,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/position-gpo.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "BLOCKED ON A NATIVE OWNER PORT: grep finds no Rust writer for position_gpo_policies, position_gpo_jobs, position_gpo_revisions or a native directory GPO apply path. Implement the native GPO publish/unmap/retry/config producer plus its composition mount and feature route before attempting the 33-statement TS retirement; do not delete the TS writer first.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -22024,7 +22024,7 @@
           "owner:identity_access"
         ],
         "status": "blocked",
-        "nextAction": "Batch 1 landed at 9eff55d99/2bf57134f as retire.identity_access.access-review-commands (KPI 240->231). Remaining 231 statements in 36 adapters: position-gpo 33, people-access 18, directory-transaction 17, iam-service 7, directory-operations 15, account-access 13, user-management 12 and the rest; each needs a native owner port before deletion.",
+        "nextAction": "BLOCKED ON A NATIVE OWNER PORT: native code only reads iam_access_subjects/iam_access_invitations; there are no Rust writers for iam_access_previews, iam_external_organizations, iam_external_teams or the access-preview/apply transaction. Implement that native people-access producer and mount it before retiring the 18 TS statements.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
@@ -26284,7 +26284,7 @@
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T17:41:06.235Z",
+    "updatedAt": "2026-11-12T17:41:26.954Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
