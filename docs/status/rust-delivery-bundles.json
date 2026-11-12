@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 597,
+    "revision": 607,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-b",
       "agentId": "lead",
       "startedAt": "2026-11-12T01:52:42.182Z",
-      "heartbeatAt": "2026-11-12T01:55:41.745Z",
-      "expiresAt": "2026-11-12T02:25:41.745Z",
+      "heartbeatAt": "2026-11-12T02:31:08.037Z",
+      "expiresAt": "2026-11-12T03:01:08.037Z",
       "generation": 27,
       "tokenHash": "9f491d39a9b36ce8bd2e2507f2a042cf84dd1a6d8824db3c72895c82066396e3"
     },
@@ -9753,8 +9753,8 @@
           "runId": "run-20261112-b",
           "agentId": "lead",
           "claimedAt": "2026-11-12T01:55:53.700Z",
-          "heartbeatAt": "2026-11-12T01:55:53.700Z",
-          "expiresAt": "2026-11-12T02:25:53.700Z",
+          "heartbeatAt": "2026-11-12T02:31:08.037Z",
+          "expiresAt": "2026-11-12T03:01:08.037Z",
           "generation": 27
         },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
@@ -9891,8 +9891,8 @@
           "runId": "run-20261112-b",
           "agentId": "worker-commercial",
           "claimedAt": "2026-11-12T02:00:23.215Z",
-          "heartbeatAt": "2026-11-12T02:00:23.215Z",
-          "expiresAt": "2026-11-12T02:30:23.215Z",
+          "heartbeatAt": "2026-11-12T02:31:08.037Z",
+          "expiresAt": "2026-11-12T03:01:08.037Z",
           "generation": 27
         },
         "baseSha": null,
@@ -10705,8 +10705,8 @@
           "runId": "run-20261112-b",
           "agentId": "lead",
           "claimedAt": "2026-11-12T01:55:53.671Z",
-          "heartbeatAt": "2026-11-12T01:55:53.671Z",
-          "expiresAt": "2026-11-12T02:25:53.671Z",
+          "heartbeatAt": "2026-11-12T02:31:08.037Z",
+          "expiresAt": "2026-11-12T03:01:08.037Z",
           "generation": 27
         },
         "baseSha": null,
@@ -12274,18 +12274,11 @@
         "resources": [
           "owner:marketing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-b",
-          "agentId": "worker-marketing",
-          "claimedAt": "2026-11-12T01:52:48.074Z",
-          "heartbeatAt": "2026-11-12T01:55:41.745Z",
-          "expiresAt": "2026-11-12T02:25:41.745Z",
-          "generation": 27
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
-        "implementedCommit": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
-        "lastPushedSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+        "implementedCommit": "a4b108dfd8fbfc2be9412b22457e4c81ec0bf2e2",
+        "lastPushedSha": "a4b108dfd8fbfc2be9412b22457e4c81ec0bf2e2",
         "checks": [
           {
             "command": "cargo check -p erpx-server-marketing --locked",
@@ -12363,18 +12356,42 @@
             "result": "passed",
             "sourceSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
             "note": "Registered suite path: 18/18 Postgres command cases pass."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "a4b108dfd8fbfc2be9412b22457e4c81ec0bf2e2",
+            "note": "Composition service compiles with the marketing command mount."
+          },
+          {
+            "command": "cargo test -p erpx-service --features existing-business --test marketing_lead_http_postgres",
+            "result": "passed",
+            "sourceSha": "a4b108dfd8fbfc2be9412b22457e4c81ec0bf2e2",
+            "note": "6/6 composed HTTP cases pass: create+replay+conflict, independent asset review/settlement, purchase denial."
+          },
+          {
+            "command": "bun run --filter '@erpx/feature-marketing' typecheck",
+            "result": "passed",
+            "sourceSha": "a4b108dfd8fbfc2be9412b22457e4c81ec0bf2e2",
+            "note": "Native marketing client typechecks."
+          },
+          {
+            "command": "bun run --filter '@erpx/feature-sales' typecheck",
+            "result": "passed",
+            "sourceSha": "a4b108dfd8fbfc2be9412b22457e4c81ec0bf2e2",
+            "note": "Route switch typechecks; only pre-existing feature-records errors remain in untouched files."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "campaign commands pushed e75b1d34f and verified via registered suites; mount worker implementing MarketingService create/review + feature-sales switch.",
+        "nextAction": "Marketing command ingress migrated: campaign/candidate/asset create + asset review native, mounted and switched (a4b108dfd), composed HTTP 6/6. Retained: campaign link-cost, candidate handoff, unknown asset actions, public form and reads.",
         "handoff": {
-          "runId": "run-20261110-g24",
+          "runId": "run-20261112-b",
           "agentId": "worker-marketing",
-          "at": "2026-11-12T01:52:42.182Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
-          "nextAction": "Lead review: native marketing engagement command and lead reads are mounted and switched; next slice is campaign-asset-commands (campaign/asset/candidate create+review)."
+          "at": "2026-11-12T02:29:53.093Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead reviewed mount and switch; mark migrated"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-marketing",
@@ -12873,8 +12890,8 @@
           "runId": "run-20261112-b",
           "agentId": "lead",
           "claimedAt": "2026-11-12T01:57:16.972Z",
-          "heartbeatAt": "2026-11-12T01:57:16.972Z",
-          "expiresAt": "2026-11-12T02:27:16.972Z",
+          "heartbeatAt": "2026-11-12T02:31:08.037Z",
+          "expiresAt": "2026-11-12T03:01:08.037Z",
           "generation": 27
         },
         "baseSha": "c5d734cf8895f5a064a1b692f945a516212d19d9",
@@ -13791,11 +13808,11 @@
           "runId": "run-20261112-b",
           "agentId": "worker-pms",
           "claimedAt": "2026-11-12T01:53:46.584Z",
-          "heartbeatAt": "2026-11-12T01:55:41.745Z",
-          "expiresAt": "2026-11-12T02:25:41.745Z",
+          "heartbeatAt": "2026-11-12T02:31:08.037Z",
+          "expiresAt": "2026-11-12T03:01:08.037Z",
           "generation": 27
         },
-        "baseSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+        "baseSha": "786f6503d984dce5214f042d2e0e82724b3cee61",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -13863,11 +13880,56 @@
             "command": "cargo check -p erpx-service --features production-api",
             "result": "passed",
             "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
+          },
+          {
+            "command": "cargo check -p erpx-service --features production-api",
+            "result": "passed",
+            "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.rust-pms-room-command.unit",
+            "result": "passed",
+            "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.rust-pms-stay-room.unit",
+            "result": "passed",
+            "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
+          },
+          {
+            "command": "bun run test:integration -- --suite=pms.rust-pms-room-command-postgres.integration",
+            "result": "passed",
+            "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
+          },
+          {
+            "command": "bun run test:integration -- --suite=pms.rust-stay-room-postgres.integration",
+            "result": "passed",
+            "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "c41bc2a1925dff30cfc5738c2d2c5e034f438fd1"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "stay.assign/stay.move packet 1 slice pushed f53ab9d2d; production-api feature check also passes. Room/housekeeping worker in progress; remaining pms packets after it: reservations/booking, guest cashier/stock, night audit/reports/settings.",
+        "nextAction": "Room/housekeeping commands pushed c41bc2a19 (remote verified): room.save/dnd/observe + task assign/start/complete/inspect, PG/http/router + composition mount, writer lock SHARE ROW EXCLUSIVE, stay unit-test parity fix included. Remaining pms packets: reservations/booking lifecycle, guest cashier/stock, night audit/reports/settings.",
         "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-pms",
@@ -16280,15 +16342,41 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-b",
+          "agentId": "worker-people",
+          "claimedAt": "2026-11-12T02:29:03.569Z",
+          "heartbeatAt": "2026-11-12T02:31:08.037Z",
+          "expiresAt": "2026-11-12T03:01:08.037Z",
+          "generation": 27
+        },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "628b48a1087fbccd9936608693aa3dc76031cc97",
+        "lastPushedSha": "786f6503d984dce5214f042d2e0e82724b3cee61",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-people-payroll --all-targets",
+            "result": "passed",
+            "sourceSha": "628b48a1087fbccd9936608693aa3dc76031cc97",
+            "note": "People/Payroll crate and all targets compile with the native workforce commands."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=people_payroll.rust-workforce.unit",
+            "result": "passed",
+            "sourceSha": "628b48a1087fbccd9936608693aa3dc76031cc97",
+            "note": "Registered suite path: 9/9 workforce unit cases pass."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=people_payroll.rust-workforce-postgres.integration",
+            "result": "passed",
+            "sourceSha": "628b48a1087fbccd9936608693aa3dc76031cc97",
+            "note": "Registered suite path: 6/6 workforce Postgres cases pass (receipt/audit/outbox, CAS, isolation, fail-closed ports)."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the owner-native employee/leave/expense commands and the detail read, run people_payroll cargo + registered suites, report the composition/route switch requests.",
+        "nextAction": "employees packet native and pushed (628b48a10 in 786f6503d): save_person/record/status, engagement create+transition, compensation create+transition, person detail; registered suites 9/9 + 6/6. Mount blocked on three composition ports: Organization placement/history/roster, Identity account link/revocation, Finance money snapshot. Remaining packets: leave-requests, expenses.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-people-payroll",
@@ -16414,20 +16502,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 54,
-      "migratedPackets": 21,
+      "migratedPackets": 22,
       "statusCounts": {
-        "pending": 13,
+        "pending": 12,
         "in_progress": 4,
         "ready_for_integration": 9,
         "integrating": 1,
-        "migrated": 21,
+        "migrated": 22,
         "blocked": 6,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 27,
-    "updatedAt": "2026-11-12T02:01:42.675Z",
+    "updatedAt": "2026-11-12T02:36:48.241Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
