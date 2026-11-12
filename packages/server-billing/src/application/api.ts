@@ -6,27 +6,6 @@ import {billingMonth} from "@erpx/feature-billing/lib/billing";
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {BillingEvidenceSource} from '@erpx/server-billing/domain/evidence';
 import type {TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
-/**
- * Billing command actions whose native owner command is the only authority.
- * `cost`, `delete-cost` and `complete-costs` use the native
- * `require_cost_command` gate, which requires exactly the platform
- * `platform_admin` actor the retained command required, so dispatching them
- * natively preserves the authorized actor set.
- *
- * The target-evidence/provider/rollout/rate actions and `retry` are
- * deliberately absent: their native commands use `require_target_command`,
- * which authorizes the selected `holding_owner` and rejects platform
- * administrators — the inverse of the retained contract. They stay on the
- * TypeScript command until the owner decides that policy.
- *
- * For every action in this set the TypeScript command is never an alternative
- * authority, so a missing or unavailable native transport fails closed.
- */
-const nativeBillingCommandActions = new Set<BillingInput["action"]>([
-  "cost",
-  "delete-cost",
-  "complete-costs",
-]);
 export interface BillingApiRepository {platformAccounts():Promise<{rows:Record<string,unknown>[]}>;holdingSlug(id:string):Promise<{rows:{slug:string}[]}>;scopedEvidence(id:string,holdingId:string):Promise<{rows:BillingEvidenceSource[]}>;deniedUnavailable(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;deniedMissingFile(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;allowedEvidence(id:string,evidenceId:string,holdingId:string,actorId:string,now:number):Promise<unknown>;existingEvidence(id:string):Promise<{rows:BillingEvidenceSource[]}>;billingAccountExists(holdingId:string):Promise<{rowCount:number|null}>;retainQuarantine(facts:{id:string;holdingId:string;filename:string;mime:string;size:number;sha:string;actorId:string;now:number;objectKey:string;detected:string}):Promise<void>;}
 export interface BillingApiPorts {ready():Promise<void>;repository:BillingApiRepository;platformActor():Promise<{userId:string;email:string;role:string;assignmentId?:string}>;workActor(slug:string):Promise<WorkContext>;companyAuthority(actor:WorkContext):Promise<unknown>;error(status:number,code:string,message:string):Error;errorResponse(error:unknown):Response;now():number;id():string;origin():string;publicOrigin(request:Request):string;readOnly():boolean;uploadsFrozen():boolean;scannerReadiness():Promise<{ready:boolean;enabled:boolean}>;object(key:string):Promise<{body:ReadableStream<Uint8Array>}|null>;objectHead(key:string):Promise<{customMetadata:Record<string,string>}|null>;putObject(key:string,bytes:Uint8Array,options:{onlyIf:{etagDoesNotMatch:string};httpMetadata:{contentType:string;cacheControl:string};customMetadata:{sha256:string;state:string}}):Promise<unknown>;hash(value:string|Uint8Array):string;detect(bytes:Uint8Array,mime:string):string|null;target(holdingId:string,month:string):Promise<TargetBillingPeriodView>;view(holdingId:string):Promise<BillingView>;body(request:Request):Promise<unknown>;command(actor:BillingActor,holdingId:string,input:BillingInput,key:string,returnUrl:string):Promise<{ok:boolean;url?:string}>;nativeCostCommand?(actor:BillingActor,holdingId:string,input:BillingInput,key:string):Promise<{ok:boolean;url?:string}>;}
 function concatBytes(chunks:Uint8Array[],size:number){const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}return bytes;}
@@ -246,27 +225,13 @@ function billingHandler(platform: boolean) {
         );
       const input = billingInput.parse(await ports.body(request));
       const key = request.headers.get("Idempotency-Key") ?? "";
-      if (nativeBillingCommandActions.has(input.action)) {
-        if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(key))
-          throw ports.error(
-            422,
-            "COMMAND_KEY_REQUIRED",
-            "Idempotency-Key required.",
-          );
-        const nativeCostCommand = ports.nativeCostCommand;
-        if (!nativeCostCommand)
-          throw ports.error(
-            503,
-            "NATIVE_BILLING_UNAVAILABLE",
-            "The native Billing command is unavailable.",
-          );
-        const data = await nativeCostCommand(actor, holdingId, input, key);
-        if (!data)
-          throw ports.error(
-            503,
-            "NATIVE_BILLING_UNAVAILABLE",
-            "The native Billing command is unavailable.",
-          );
+      if (
+        ports.nativeCostCommand &&
+        ["cost", "delete-cost", "complete-costs", "approve-target-rollout", "verify-provider-cost", "verify-statement", "retry", "record-operating-cost", "review-target-capacity", "approve-target-extra", "rate-target"].includes(
+          input.action,
+        )
+      ) {
+        const data = await ports.nativeCostCommand(actor, holdingId, input, key);
         return Response.json(canonicalDestinationLinks({ data }), {
           headers: { "Cache-Control": "private, no-store" },
         });

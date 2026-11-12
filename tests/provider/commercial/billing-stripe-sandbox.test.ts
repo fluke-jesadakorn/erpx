@@ -74,33 +74,30 @@ it.skipIf(!enabled)(
       if (mode === "auto")
         await cmd("payment-mode", { paymentMode: "auto", consent: true });
       const p = v.periods[0];
-      /** Native cost review owns `cost`/`complete-costs`; seed the owner rows
-       * directly instead of reaching the retired TypeScript writer. */
       for (const [category, amountSatang] of [
         ["hosting", 30000],
         ["storage", 5000],
         ["provider_ai", 7500],
       ] as const)
-        await db.pool.query(
-          `INSERT INTO billing_costs
-             (id,holding_id,period_id,category,amount_satang,service_start,service_end,
-              note,simulated,evidence_id,original_invoice_id,created_at)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,TRUE,NULL,NULL,$9)`,
-          [
-            `billing-cost-${id}-${category}`,
-            id,
-            p.id,
+        await cmd(
+          "cost",
+          {
+            periodId: p.id,
             category,
             amountSatang,
-            p.start_at,
-            p.end_at,
-            "จำลอง — isolated acceptance test",
-            now,
-          ],
+            serviceStart: p.start_at,
+            serviceEnd: p.end_at,
+            note: "จำลอง — isolated acceptance test",
+            simulated: true,
+          },
+          now,
+          true,
         );
-      await db.pool.query(
-        "UPDATE billing_periods SET costs_complete=TRUE WHERE id=$1",
-        [p.id],
+      await cmd(
+        "complete-costs",
+        { periodId: p.id, complete: true },
+        p.end_at + 1,
+        true,
       );
       await cmd("approve", { periodId: p.id }, p.end_at + 2, true);
       await drainBilling({ ...env }, p.end_at + 3, stripe);

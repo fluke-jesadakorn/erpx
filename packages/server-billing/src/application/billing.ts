@@ -35,6 +35,14 @@ automaticOpenInvoices(value0:string):Promise<{rows:BillingInvoiceRow[];rowCount:
 queueManualInvoice(value0:string,value1:string,value2:string,value3:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 withdrawConsent(value0:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 setPaymentMode(value0:string,value1:"manual" | "auto" | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
+originalInvoiceExists(value0:string | undefined,value1:string,value2:string):Promise<{rows:BillingInvoiceRow[];rowCount:number|null}>;
+availableCostEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
+existingCost(value0:string,value1:string,value2:string):Promise<{rows:BillingCost[];rowCount:number|null}>;
+insertCost(value0:string,value1:string,value2:string,value3:string | undefined,value4:number | undefined,value5:number | undefined,value6:number | undefined,value7:string | undefined,value8:unknown,value9:unknown,value10:unknown,value11:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
+markCostsIncomplete(value0:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
+deleteUnissuedCost(value0:string | undefined,value1:string):Promise<{rows:BillingCost[];rowCount:number|null}>;
+markDeletedCostPeriodIncomplete(value0:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
+setCostCompletion(value0:string,value1:unknown):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 currentMainInvoice(value0:string):Promise<{rows:BillingInvoiceRow[];rowCount:number|null}>;
 unissuedCosts(value0:string):Promise<{rows:BillingCost[];rowCount:number|null}>;
 retainedPlan(value0:string,value1:number):Promise<{rows:BillingPlan[];rowCount:number|null}>;
@@ -91,21 +99,6 @@ commit():Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 rollback():Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;release():void;calculateTarget(holdingId:string,month:string,now:number):Promise<TargetBillingPeriodView>;calculateRollout(holdingId:string,month:string,margin:number,now:number):Promise<TargetRolloutReadiness>;}
 export interface BillingPorts {error(status:number,code:string,message:string):Error;hash(value:string):string;id():string;now():number;session():Promise<BillingRepository>;view(holdingId:string):Promise<BillingViewFacts>;}
 export function createBillingService(ports:BillingPorts){function fail(code:string,message:string):never{throw ports.error(409,code,message)}
-/** Actions whose native owner command is the only authority. `cost`,
- * `delete-cost` and `complete-costs` use `require_cost_command`, which requires
- * the same platform `platform_admin` actor the retained command required, so
- * the cutover preserves the authorized actor set exactly.
- *
- * The target-evidence/provider/rollout/rate actions and `retry` are NOT here:
- * their native commands use `require_target_command`, which authorizes the
- * selected `holding_owner` and rejects platform administrators. That inverts
- * the retained contract, so those actions stay on the TypeScript command until
- * the owner decides whether `holding_owner` replaces `platform_admin`. */
-const nativeActions = new Set<BillingInput["action"]>([
-  "cost",
-  "delete-cost",
-  "complete-costs",
-]);
 const adminActions = new Set([
   "cost",
   "delete-cost",
@@ -197,11 +190,6 @@ async function billingCommand(
       422,
       "COMMAND_KEY_REQUIRED",
       "Idempotency-Key required.",
-    );
-  if (nativeActions.has(input.action))
-    fail(
-      "NATIVE_BILLING_REQUIRED",
-      "This billing action is served by the native Billing command.",
     );
   if (
     actor.platform
@@ -371,6 +359,83 @@ async function billingCommand(
           await c.withdrawConsent(holdingId);
         }
         await c.setPaymentMode(holdingId,input.paymentMode);
+        break;
+      }
+      case "cost": {
+        const p = await period();
+        if (
+          input.amountSatang === undefined ||
+          !input.category ||
+          !input.note ||
+          input.serviceStart === undefined ||
+          input.serviceEnd === undefined
+        )
+          fail(
+            "COST_REQUIRED",
+            "Amount, category, service dates and notes are required.",
+          );
+        if (input.category !== "adjustment" && input.amountSatang < 0)
+          fail("INVALID_COST", "Only adjustments may be negative.");
+        if (
+          input.serviceStart < Number(p.start_at) ||
+          input.serviceEnd > Number(p.end_at) ||
+          input.serviceEnd <= input.serviceStart
+        )
+          fail(
+            "INVALID_SERVICE_DATES",
+            "Service dates must be inside the original service period.",
+          );
+        if (input.category === "adjustment" && !input.originalInvoiceId)
+          fail(
+            "ORIGINAL_REQUIRED",
+            "An adjustment must reference the original invoice.",
+          );
+        if (
+          input.originalInvoiceId &&
+          !(
+            await c.originalInvoiceExists(input.originalInvoiceId,holdingId,p.id)
+          ).rowCount
+        )
+          fail(
+            "INVALID_ORIGINAL",
+            "Original invoice must belong to this Holding and period.",
+          );
+        if (
+          input.evidenceId &&
+          !(
+            await c.availableCostEvidence(input.evidenceId,holdingId)
+          ).rowCount
+        )
+          fail("INVALID_EVIDENCE", "Evidence not found.");
+        if (!input.simulated && !input.evidenceId)
+          fail(
+            "EVIDENCE_REQUIRED",
+            "Attach private evidence for an actual provider cost, or explicitly label a simulated fixture.",
+          );
+        const id = input.costId ?? ports.id();
+        if (input.costId) {
+          const old = (
+            await c.existingCost(id,holdingId,p.id)
+          ).rows[0];
+          if (!old || old.invoice_id)
+            fail("COST_FROZEN", "Issued or missing costs cannot be changed.");
+        }
+        await c.insertCost(id,holdingId,p.id,input.category,input.amountSatang,input.serviceStart,input.serviceEnd,input.note,input.simulated ?? false,input.evidenceId ?? null,input.originalInvoiceId ?? null,now);
+        await c.markCostsIncomplete(p.id);
+        break;
+      }
+      case "delete-cost": {
+        const old = (
+          await c.deleteUnissuedCost(input.costId,holdingId)
+        ).rows[0];
+        if (!old)
+          fail("COST_FROZEN", "Issued or missing costs cannot be removed.");
+        await c.markDeletedCostPeriodIncomplete(old.period_id);
+        break;
+      }
+      case "complete-costs": {
+        const p = await period();
+        await c.setCostCompletion(p.id,input.complete === true);
         break;
       }
       case "approve": {

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   createNativeBillingClient,
-  nativeBillingCommandRequest,
   nativeBillingConfiguration,
   nativeBillingFailure,
   NativeBillingError,
@@ -604,54 +603,6 @@ describe('native Billing transport', () => {
     expect(sent.get('idempotency-key')).toBe('billing-rollout-0001');
     expect(sent.get('origin')).toBe('https://acme.example.test');
     expect(JSON.parse(body!)).toEqual(input.body);
-  });
-  it('maps the exact cost-review command fields onto the owner request body', () => {
-    const base = { version: 4, reason: 'Reviewed native command' };
-    const cases = [
-      [
-        {
-          action: 'cost' as const, ...base, periodId: 'period-1', costId: 'cost-1',
-          category: 'adjustment' as const, amountSatang: -500, serviceStart: 100,
-          serviceEnd: 200, note: 'Late adjustment', simulated: true,
-          evidenceId: 'evidence-1', originalInvoiceId: 'invoice-1',
-        },
-        'cost',
-        {
-          ...base, periodId: 'period-1', costId: 'cost-1', category: 'adjustment',
-          amountSatang: -500, serviceStart: 100, serviceEnd: 200,
-          note: 'Late adjustment', simulated: true, evidenceId: 'evidence-1',
-          originalInvoiceId: 'invoice-1',
-        },
-      ],
-      [
-        { action: 'delete-cost' as const, ...base, costId: 'cost-1' },
-        'delete-cost',
-        { ...base, costId: 'cost-1' },
-      ],
-      [
-        { action: 'complete-costs' as const, ...base, periodId: 'period-1' },
-        'complete-costs',
-        { ...base, periodId: 'period-1', complete: false },
-      ],
-    ] as const;
-    for (const [input, action, body] of cases)
-      expect(nativeBillingCommandRequest(input)).toEqual({ action, body });
-    // Target-evidence/provider/rollout/rate actions and retry keep the retained
-    // platform-only TypeScript authority; the native client must not map them.
-    for (const action of [
-      'verify-provider-cost',
-      'verify-statement',
-      'record-operating-cost',
-      'review-target-capacity',
-      'approve-target-extra',
-      'approve-target-rollout',
-      'rate-target',
-      'retry',
-      'approve',
-    ] as const)
-      expect(
-        nativeBillingCommandRequest({ action, version: 1, reason: 'Retained action' }),
-      ).toBeUndefined();
   });
 
 });

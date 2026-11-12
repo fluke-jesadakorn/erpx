@@ -1,7 +1,6 @@
 export {
   createNativeBillingClient,
   nativeBillingAvailable,
-  nativeBillingCommandRequest,
   nativeBillingConfiguration,
   nativeBillingFailure,
   NativeBillingError,

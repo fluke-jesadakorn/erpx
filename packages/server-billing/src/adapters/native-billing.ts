@@ -1,5 +1,4 @@
 import type { BillingView } from "@erpx/feature-billing/lib/billing";
-import type { BillingInput } from "@erpx/server-billing/domain/billing";
 
 /**
  * Pure Billing owner transport. It carries the retained browser Host, cookie
@@ -47,60 +46,6 @@ export type NativeBillingCommandInput = Readonly<{
   key: string;
   body: Readonly<Record<string, unknown>>;
 }>;
-
-/**
- * Exact retained-input to native-owner mapping for the Billing actions whose
- * native authority matches the retained contract. `cost`, `delete-cost` and
- * `complete-costs` use the owner `require_cost_command` gate, which requires
- * the same platform `platform_admin` actor. Every other action returns
- * `undefined`: their native target commands authorize the holding owner
- * instead, so they stay on the TypeScript command until that policy is decided.
- *
- * The owner request structs deny unknown fields, so this carries each accepted
- * field exactly once and never projects a subset.
- */
-export function nativeBillingCommandRequest(
-  input: BillingInput,
-): { action: NativeBillingCommandInput["action"]; body: Record<string, unknown> } | undefined {
-  const common = { version: input.version, reason: input.reason };
-  switch (input.action) {
-    case "cost":
-      return {
-        action: "cost",
-        body: {
-          ...common,
-          periodId: input.periodId,
-          ...(input.costId ? { costId: input.costId } : {}),
-          category: input.category,
-          amountSatang: input.amountSatang,
-          serviceStart: input.serviceStart,
-          serviceEnd: input.serviceEnd,
-          note: input.note ?? "",
-          simulated: input.simulated ?? false,
-          evidenceId: input.evidenceId ?? null,
-          ...(input.originalInvoiceId
-            ? { originalInvoiceId: input.originalInvoiceId }
-            : {}),
-        },
-      };
-    case "delete-cost":
-      return {
-        action: "delete-cost",
-        body: { ...common, costId: input.costId },
-      };
-    case "complete-costs":
-      return {
-        action: "complete-costs",
-        body: {
-          ...common,
-          periodId: input.periodId,
-          complete: input.complete ?? false,
-        },
-      };
-    default:
-      return undefined;
-  }
-}
 
 type UnknownRow = Record<string, unknown>;
 const failure = (code: string, status?: number, message?: string): never => {

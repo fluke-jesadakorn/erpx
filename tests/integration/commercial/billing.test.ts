@@ -137,60 +137,13 @@ async function fixture(now = Date.parse("2026-09-01T00:00:00+07:00")) {
       at,
       stripe.request,
     );
-  /** Native `cost`, `delete-cost` and `complete-costs` own these writes; seed
-   * `billing_costs` directly so this oracle stays on the retained approval,
-   * void and Stripe issue paths. */
-  const seedCost = async (
-    periodId: string,
-    fields: {
-      category: "hosting" | "storage" | "provider_ai" | "adjustment";
-      amountSatang: number;
-      note: string;
-      serviceStart?: number;
-      serviceEnd?: number;
-      evidenceId?: string | null;
-      originalInvoiceId?: string | null;
-    },
-  ) => {
-    const period = (await get()).periods.find((row) => row.id === periodId)!;
-    const costId = `cost_${crypto.randomUUID()}`;
-    await db.pool.query(
-      `INSERT INTO billing_costs
-        (id,holding_id,period_id,category,amount_satang,service_start,service_end,
-         note,simulated,evidence_id,original_invoice_id,created_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,TRUE,$9,$10,$11)`,
-      [
-        costId,
-        id,
-        periodId,
-        fields.category,
-        fields.amountSatang,
-        fields.serviceStart ?? period.start_at,
-        fields.serviceEnd ?? period.end_at,
-        fields.note,
-        fields.evidenceId ?? null,
-        fields.originalInvoiceId ?? null,
-        now,
-      ],
-    );
-    await db.pool.query(
-      "UPDATE billing_periods SET costs_complete=FALSE WHERE id=$1",
-      [periodId],
-    );
-    return costId;
-  };
-  const completeCosts = (periodId: string, complete = true) =>
-    db.pool.query("UPDATE billing_periods SET costs_complete=$2 WHERE id=$1", [
-      periodId,
-      complete,
-    ]);
-  return { id, stripe, owner, admin, command, get, drain, seedCost, completeCosts, now };
+  return { id, stripe, owner, admin, command, get, drain, now };
 }
 it("rolls back the approved invoice, cost links, issue job, account version and audit after a final receipt fault, then retries and replays once", async () => {
   const f = await fixture(); await f.command("enroll", { planId: "standard" });
   const period = (await f.get()).periods[0];
-  await f.seedCost(period.id, { category: "hosting", amountSatang: 1000, note: "Retained actual hosting source" });
-  await f.completeCosts(period.id);
+  await f.command("cost", { periodId: period.id, category: "hosting", amountSatang: 1000, serviceStart: period.start_at, serviceEnd: period.end_at, note: "Retained actual hosting source", simulated: true }, period.end_at + 1, f.admin);
+  await f.command("complete-costs", { periodId: period.id, complete: true }, period.end_at + 1, f.admin);
   const snapshot = async () => Object.fromEntries(await Promise.all(["billing_accounts", "billing_enrollments", "billing_periods", "billing_costs", "billing_invoices", "billing_jobs", "billing_audit"].map(async table => [table, (await db.pool.query(`SELECT * FROM ${table} WHERE holding_id=$1 ORDER BY ${table === "billing_accounts" ? "holding_id" : "id"}`, [f.id])).rows])));
   const before = await snapshot(), command = crypto.randomUUID(), input: BillingInput = { action: "approve", version: (await f.get()).account!.version, periodId: period.id, reason: "Independent reviewed actual cost approval" }, at = period.end_at + 2;
   const approve = () => billingCommand(db, f.admin, f.id, input, command, f.stripe.request, "https://fixture.example/usage", at), fault = `billing_receipt_fault_${crypto.randomUUID().replaceAll("-", "")}`;
@@ -220,7 +173,12 @@ it("offers PromptPay only on opt-in manual Sandbox invoices", async () => {
   const f = await fixture();
   await f.command("enroll", { planId: "standard" });
   const period = (await f.get()).periods[0];
-  await f.completeCosts(period.id);
+  await f.command(
+    "complete-costs",
+    { periodId: period.id, complete: true },
+    period.end_at + 1,
+    f.admin,
+  );
   await f.command("approve", { periodId: period.id }, period.end_at + 2, f.admin);
   await f.drain(period.end_at + 3, true);
   const create = f.stripe.calls.find((call) => call.path === "invoices");
@@ -231,7 +189,12 @@ it("offers PromptPay only on opt-in manual Sandbox invoices", async () => {
   await automatic.command("enroll", { planId: "standard" });
   await automatic.command("payment-mode", { paymentMode: "auto", consent: true });
   const autoPeriod = (await automatic.get()).periods[0];
-  await automatic.completeCosts(autoPeriod.id);
+  await automatic.command(
+    "complete-costs",
+    { periodId: autoPeriod.id, complete: true },
+    autoPeriod.end_at + 1,
+    automatic.admin,
+  );
   await automatic.command(
     "approve",
     { periodId: autoPeriod.id },
@@ -254,11 +217,29 @@ it("issues exactly one 925 baht reviewed invoice across concurrent approvals and
     ["storage", 5000],
     ["provider_ai", 7500],
   ] as const)
-    await f.seedCost(p.id, { category, amountSatang, note: "จำลอง" });
+    await f.command(
+      "cost",
+      {
+        periodId: p.id,
+        category,
+        amountSatang,
+        serviceStart: p.start_at,
+        serviceEnd: p.end_at,
+        note: "จำลอง",
+        simulated: true,
+      },
+      f.now,
+      f.admin,
+    );
   await expect(
     f.command("approve", { periodId: p.id }, p.end_at + 1, f.admin),
   ).rejects.toMatchObject({ code: "COSTS_INCOMPLETE" });
-  await f.completeCosts(p.id);
+  await f.command(
+    "complete-costs",
+    { periodId: p.id, complete: true },
+    p.end_at + 1,
+    f.admin,
+  );
   const version = (await f.get()).account!.version,
     key = crypto.randomUUID(),
     input: BillingInput = {
@@ -296,14 +277,9 @@ it("issues exactly one 925 baht reviewed invoice across concurrent approvals and
       .filter((c) => c.path === "invoiceitems")
       .every((c) => c.fields?.invoice === v.invoices[0].stripe_id),
   ).toBe(true);
-  // Native `delete-cost` removes only unissued costs (`invoice_id IS NULL`);
-  // the issued cost stays frozen. The Rust cost-command oracles assert the
-  // COST_FROZEN code for both delete and update.
-  const frozen = await db.pool.query(
-    "SELECT invoice_id FROM billing_costs WHERE holding_id=$1 AND id=$2",
-    [f.id, v.costs[0].id],
-  );
-  expect(frozen.rows[0].invoice_id).not.toBeNull();
+  await expect(
+    f.command("delete-cost", { costId: v.costs[0].id }, p.end_at + 3, f.admin),
+  ).rejects.toMatchObject({ code: "COST_FROZEN" });
   await f.command(
     "void",
     { invoiceId: v.invoices[0].id },
@@ -312,7 +288,12 @@ it("issues exactly one 925 baht reviewed invoice across concurrent approvals and
   );
   await f.drain(p.end_at + 70001);
   expect((await f.get()).invoices[0].status).toBe("void");
-  await f.completeCosts(p.id);
+  await f.command(
+    "complete-costs",
+    { periodId: p.id, complete: true },
+    p.end_at + 79999,
+    f.admin,
+  );
   await f.command("approve", { periodId: p.id }, p.end_at + 80000, f.admin);
   await f.drain(p.end_at + 80001);
   expect(
@@ -338,8 +319,26 @@ it("applies changes only at month end, allows withdrawal, ends Hosting without s
   v = await f.get();
   expect(v.enrollment!.ended_at).toBe(october.end_at);
   expect(v.periods).toHaveLength(2);
-  await f.seedCost(p.id, { category: "storage", amountSatang: 5000, note: "Late provider cost" });
-  await f.completeCosts(p.id);
+  await f.command(
+    "cost",
+    {
+      periodId: p.id,
+      category: "storage",
+      amountSatang: 5000,
+      serviceStart: p.start_at,
+      serviceEnd: p.end_at,
+      note: "Late provider cost",
+      simulated: true,
+    },
+    october.end_at + 10,
+    f.admin,
+  );
+  await f.command(
+    "complete-costs",
+    { periodId: p.id, complete: true },
+    october.end_at + 11,
+    f.admin,
+  );
   await f.command("approve", { periodId: p.id }, october.end_at + 12, f.admin);
   await f.drain(october.end_at + 13);
   expect((await f.get()).invoices[0].total_satang).toBe(30000);
@@ -349,7 +348,7 @@ it("holds a Sandbox credential failure for explicit repair and resumes the origi
   const f = await fixture();
   await f.command("enroll", { planId: "standard" });
   const period = (await f.get()).periods[0];
-  await f.completeCosts(period.id);
+  await f.command("complete-costs", { periodId: period.id, complete: true }, period.end_at + 1, f.admin);
   await f.command("approve", { periodId: period.id }, period.end_at + 2, f.admin);
   let unavailable = true;
   const stripe: BillingStripe = async (path, fields, key) => {
@@ -401,7 +400,12 @@ it("requires explicit consent and a card, handles withdrawal before issue, rejec
   f.stripe.card = true;
   await f.command("payment-mode", { paymentMode: "auto", consent: true });
   const p = (await f.get()).periods[0];
-  await f.completeCosts(p.id);
+  await f.command(
+    "complete-costs",
+    { periodId: p.id, complete: true },
+    p.end_at + 1,
+    f.admin,
+  );
   await f.command("approve", { periodId: p.id }, p.end_at + 2, f.admin);
   await f.command("payment-mode", { paymentMode: "manual" }, p.end_at + 3);
   await f.drain(p.end_at + 4);
@@ -426,7 +430,12 @@ it("reconciles payment failures, authentication and paid state from current Stri
   await f.command("enroll", { planId: "standard" });
   await f.command("payment-mode", { paymentMode: "auto", consent: true });
   const p = (await f.get()).periods[0];
-  await f.completeCosts(p.id);
+  await f.command(
+    "complete-costs",
+    { periodId: p.id, complete: true },
+    p.end_at + 1,
+    f.admin,
+  );
   await f.command("approve", { periodId: p.id }, p.end_at + 2, f.admin);
   await f.drain(p.end_at + 3);
   expect(f.stripe.calls.some((c) => c.fields?.auto_advance === "true")).toBe(
@@ -515,24 +524,55 @@ it("bills late adjustments without duplicating Support and rejects references ac
   const f = await fixture();
   await f.command("enroll", { planId: "standard" });
   const p = (await f.get()).periods[0];
-  await f.completeCosts(p.id);
+  await f.command(
+    "complete-costs",
+    { periodId: p.id, complete: true },
+    p.end_at + 1,
+    f.admin,
+  );
   await f.command("approve", { periodId: p.id }, p.end_at + 2, f.admin);
   await f.drain(p.end_at + 3);
   let v = await f.get();
   const inv = v.invoices[0];
   f.stripe.objects.get(inv.stripe_id!)!.status = "paid";
   await f.drain(p.end_at + 400000);
-  // Native `cost` rejects an original invoice from another Holding with
-  // INVALID_ORIGINAL; the Rust cost-command oracle asserts that code. The
-  // accepted late adjustment is seeded directly to keep this oracle focused on
-  // the retained approval and Stripe issue path.
-  await f.seedCost(p.id, {
-    category: "adjustment",
-    amountSatang: 5000,
-    note: "Late adjustment",
-    originalInvoiceId: inv.id,
-  });
-  await f.completeCosts(p.id);
+  await expect(
+    f.command(
+      "cost",
+      {
+        periodId: p.id,
+        category: "adjustment",
+        amountSatang: 5000,
+        serviceStart: p.start_at,
+        serviceEnd: p.end_at,
+        note: "Wrong reference",
+        originalInvoiceId: "other-holding-invoice",
+      },
+      p.end_at + 400001,
+      f.admin,
+    ),
+  ).rejects.toMatchObject({ code: "INVALID_ORIGINAL" });
+  await f.command(
+    "cost",
+    {
+      periodId: p.id,
+      category: "adjustment",
+      amountSatang: 5000,
+      serviceStart: p.start_at,
+      serviceEnd: p.end_at,
+      note: "Late adjustment",
+      originalInvoiceId: inv.id,
+      simulated: true,
+    },
+    p.end_at + 400002,
+    f.admin,
+  );
+  await f.command(
+    "complete-costs",
+    { periodId: p.id, complete: true },
+    p.end_at + 400003,
+    f.admin,
+  );
   await f.command("approve", { periodId: p.id }, p.end_at + 400004, f.admin);
   await f.drain(p.end_at + 400005);
   v = await f.get();
