@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 936,
+    "revision": 937,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -19927,7 +19927,7 @@
           "owner:quality"
         ],
         "status": "in_progress",
-        "nextAction": "Alert acknowledge retired (quality KPI 15->14 at fa7cd6e05): native command+route+client, TS writer/schema/export deleted, oracles native. Residual 14: alert sweep due-soon/overdue inserts (2), inventory-count-effects (5), attachment-purchases (2), product-entry (1), quality purchase helpers (4). Each needs its native owner port + route authority before deletion; then re-run the owner KPI.",
+        "nextAction": "Alert acknowledge retired (quality KPI 15->14 at fa7cd6e05): native owner command+route+client, TS writer/schema/export deleted, oracles native. Known parity note: native admission uses supply.quality settle-existing like the other native Quality commands; the TS writer additional Quality-hold purchase-source witness expansion has no native port yet (same posture as native inspect/release). Residual 14: alert sweep inserts 2, inventory-count-effects 5, attachment-purchases 2, product-entry 1, quality purchase helpers 4; each needs its native owner port before deletion.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -23029,7 +23029,7 @@
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:38:46.800Z",
+    "updatedAt": "2026-11-12T13:39:58.700Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
