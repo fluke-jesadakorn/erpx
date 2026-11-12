@@ -70718,8 +70718,7 @@
         "rust-toolchain.toml",
         "packages/server-assets/Cargo.toml",
         "fixtures/assets/rust-maintenance-effects/conformance.v1.json",
-        "scripts/testing/fixtures/generate-assets-maintenance-effects-oracle.mjs",
-        "packages/server-assets/src/adapters/maintenance-transaction.ts"
+        "scripts/testing/fixtures/generate-assets-maintenance-effects-oracle.mjs"
       ]
     },
     {
@@ -71268,7 +71267,6 @@
         "tests/support/rust-effective-authority.rs",
         "tests/support/maintenance/parts-facts.rs",
         "src/composition/Cargo.toml",
-        "packages/server-assets/src/adapters/maintenance-transaction.ts",
         "packages/server-maintenance/src/adapters/work.ts",
         "packages/server-maintenance/src/application/work.ts",
         "packages/server-maintenance/src/domain/work.ts"
@@ -71526,7 +71524,6 @@
         "tests/support/rust-effective-authority.rs",
         "tests/support/maintenance/parts-facts.rs",
         "src/composition/Cargo.toml",
-        "packages/server-assets/src/adapters/maintenance-transaction.ts",
         "packages/server-maintenance/src/adapters/work.ts",
         "packages/server-maintenance/src/application/work.ts",
         "packages/server-maintenance/src/domain/work.ts",
