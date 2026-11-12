@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 814,
+    "revision": 817,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -19304,28 +19304,21 @@
           "owner:operations"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261112-n",
-          "agentId": "worker-operations",
-          "claimedAt": "2026-11-12T10:19:41.864Z",
-          "heartbeatAt": "2026-11-12T10:19:41.864Z",
-          "expiresAt": "2026-11-12T10:49:41.864Z",
-          "generation": 39
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Native routine template/schedule command module committed (73ddcc32b): domain/application/adapters/http + 11 unit tests pass. Remaining before migration: mount RoutineHttpBackend in composition with Identity/People/Projects/Workflow RoutineFactDelegates, switch workplace routine routes fail-closed, delete the retained TS stubs/fences and record KPI 29->12.",
+        "blocker": "handoff",
+        "nextAction": "Native routine command module is tested (11/11) but unmounted; next: composition RoutineHttpBackend + Identity/People/Projects/Workflow delegates, fail-closed route switch, delete TS stubs/fences, KPI 29->12.",
         "handoff": {
-          "runId": "run-20261112-m",
+          "runId": "run-20261112-n",
           "agentId": "worker-operations",
-          "at": "2026-11-12T10:12:45.126Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
-          "nextAction": "Implement native routine template/schedule commands with receipt/audit/outbox and PG tests; report composition mount; switch the routine routes fail-closed; delete the replaced TS writers/fences/exports; migrate tests; record KPI 29->12 and push."
+          "at": "2026-11-12T10:22:44.187Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native routine command module is tested (11/11) but unmounted; next: composition RoutineHttpBackend + Identity/People/Projects/Workflow delegates, fail-closed route switch, delete TS stubs/fences, KPI 29->12."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-operations",
@@ -20858,6 +20851,69 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.operations.staff-transitions",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "operations",
+        "workflowIds": [
+          "operations/feature-exception-queue",
+          "operations/feature-escalations",
+          "operations/feature-approval-decisions",
+          "operations/feature-resolution",
+          "operations/feature-queue-policies",
+          "operations/feature-operations-summary"
+        ],
+        "workstream": "S15",
+        "kind": "migration",
+        "title": "Retire the dead Operations staff transition/delegation TS writers",
+        "scope": "The workplace staff-tasks route is native-authoritative for transition/delegate; the TS transitionTask/delegateTask writers are used only by tests. Delete them, migrate cross-owner fixtures to owner-row task/event updates, keep saveTask for the beta post route, and record the owner KPI drop.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "workflow",
+          "collaboration"
+        ],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**",
+          "tests/integration/projects/**",
+          "tests/integration/collaboration/**",
+          "tests/integration/shared.work/**",
+          "tests/integration/shared.executive/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-n",
+          "agentId": "worker-operations",
+          "claimedAt": "2026-11-12T10:22:52.298Z",
+          "heartbeatAt": "2026-11-12T10:22:52.298Z",
+          "expiresAt": "2026-11-12T10:52:52.298Z",
+          "generation": 39
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete transitionTask/delegateTask adapters/application/exports; replace test calls with owner-row staff_tasks/event updates preserving state/version/delegation fields; KPI 29->25; typecheck/catalogue/affected suites; push.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-operations",
+        "plannedPackage": "erpx-server-operations",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -20866,11 +20922,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 95,
+      "totalPackets": 96,
       "migratedPackets": 37,
       "statusCounts": {
         "pending": 31,
-        "in_progress": 2,
+        "in_progress": 3,
         "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 37,
@@ -20880,7 +20936,7 @@
       }
     },
     "lastCoordinatorGeneration": 39,
-    "updatedAt": "2026-11-12T10:19:41.893Z",
+    "updatedAt": "2026-11-12T10:22:52.299Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
