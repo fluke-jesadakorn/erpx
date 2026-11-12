@@ -233,3 +233,37 @@ describe('native Platform IAM transport', () => {
     expect(() => nativePlatformIamConfiguration('{}')).toThrow(NativePlatformIamError);
   });
 });
+
+describe('retired platform access-review command route', () => {
+  const route = () =>
+    import(
+      '../../../packages/feature-admin/src/routes/api/v1/platform/iam/[[...path]]/route'
+    );
+
+  it('fails closed for access-review POST instead of falling back to TypeScript', async () => {
+    const previous = process.env.ERPX_NATIVE_PLATFORM_IAM_CONFIG;
+    delete process.env.ERPX_NATIVE_PLATFORM_IAM_CONFIG;
+    try {
+      const { POST } = await route();
+      const response = await POST(
+        new Request('https://erpx-internal.example.test/api/v1/platform/iam/access-reviews', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Quarterly access certification',
+            dueAt: 1_000_000,
+            reason: 'Confirm every active company assignment',
+          }),
+        }),
+        { params: Promise.resolve({ path: ['access-reviews'] }) } as never,
+      );
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        error: { code: 'NATIVE_PLATFORM_IAM_REQUIRED' },
+      });
+    } finally {
+      if (previous === undefined) delete process.env.ERPX_NATIVE_PLATFORM_IAM_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_IAM_CONFIG = previous;
+    }
+  });
+});
