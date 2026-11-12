@@ -66,3 +66,5 @@ pub(crate) mod quality_notification;
 pub(crate) mod supplier_bill_match_notification;
 
 pub(crate) mod staff_facts;
+
+pub mod pms_social_event;

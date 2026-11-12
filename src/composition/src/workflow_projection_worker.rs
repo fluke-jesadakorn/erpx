@@ -15,17 +15,26 @@ use erpx_server_runtime::public::postgres::{
 };
 use erpx_server_shared::public::Clock;
 use erpx_server_workflow::public::job_projector::{
-    EventMessage, EventPayload, ProjectionOwnerSources, ProjectionResult, ProjectionSource,
-    ProjectionSourceFuture, project_event,
+    EventMessage, EventPayload, PMS_SOCIAL_EVENTS, PmsSocialFuture, PmsSocialNotice,
+    PmsSocialOriginal, PmsSocialPorts, PmsSocialPost, PmsSocialSource, ProjectionOwnerSources,
+    ProjectionResult, ProjectionSource, ProjectionSourceFuture, project_event, project_pms_social,
 };
 use sqlx::{Connection, PgConnection, PgPool};
 use std::sync::Arc;
 
 pub(crate) fn owned_predicate() -> String {
-    let families = "(e.event_type LIKE 'task.%' OR e.event_type = 'routine.run' \
+    let pms_social_types = PMS_SOCIAL_EVENTS
+        .iter()
+        .map(|(event_type, _)| format!("'{event_type}'"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let families = format!(
+        "(e.event_type LIKE 'task.%' OR e.event_type = 'routine.run' \
          OR (e.event_type LIKE 'leave.%' AND e.event_type NOT LIKE 'leave.policy.%') \
          OR (e.event_type LIKE 'overtime.%' AND e.event_type <> 'overtime.eligibility') \
-         OR e.event_type LIKE 'people.payroll.%')";
+         OR e.event_type LIKE 'people.payroll.%' \
+         OR e.event_type IN ({pms_social_types}))"
+    );
     let quarantine = format!(
         "({}) OR ({}) OR ({}) OR ({}) OR ({}) OR ({})",
         erpx_server_field_service::public::field_outbox::QUARANTINE,
@@ -100,6 +109,183 @@ impl ProjectionOwnerSources for OwnerSources<'_> {
     }
 }
 
+struct CompositionPmsSocialPorts;
+
+impl PmsSocialPorts for CompositionPmsSocialPorts {
+    fn original<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        event_id: &'a str,
+        event_type: &'a str,
+    ) -> PmsSocialFuture<'a, Option<PmsSocialOriginal>> {
+        Box::pin(async move {
+            erpx_server_workflow::public::job_projector::pms_social_original(
+                connection,
+                event_id,
+                event_type,
+            )
+            .await
+        })
+    }
+
+    fn payout_source<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        id: &'a str,
+        property_id: &'a str,
+    ) -> PmsSocialFuture<'a, Option<String>> {
+        Box::pin(async move {
+            erpx_server_pms::public::pms_social_event::pms_social_payout_source(
+                connection,
+                id,
+                property_id,
+            )
+            .await
+        })
+    }
+
+    fn source<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        id: Option<&'a str>,
+        company_id: &'a str,
+        property_id: &'a str,
+    ) -> PmsSocialFuture<'a, Option<PmsSocialSource>> {
+        Box::pin(async move {
+            Ok(
+                erpx_server_pms::public::pms_social_event::pms_social_source(
+                    connection,
+                    id,
+                    company_id,
+                    property_id,
+                )
+                .await?
+                .map(|source| PmsSocialSource {
+                    id: source.id,
+                    kind: source.kind,
+                    company_id: source.company_id,
+                    branch_id: source.branch_id,
+                    property_name: source.property_name,
+                    business_date: source.business_date,
+                    data_json: source.data_json,
+                    version: source.version,
+                }),
+            )
+        })
+    }
+
+    fn lock<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        post_id: &'a str,
+    ) -> PmsSocialFuture<'a, ()> {
+        Box::pin(async move {
+            erpx_server_collaboration::public::pms_social_event::pms_social_lock(
+                connection, post_id,
+            )
+            .await
+        })
+    }
+
+    fn received<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        event_id: &'a str,
+    ) -> PmsSocialFuture<'a, bool> {
+        Box::pin(async move {
+            erpx_server_collaboration::public::pms_social_event::pms_social_received(
+                connection, event_id,
+            )
+            .await
+        })
+    }
+
+    fn publish<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        post: PmsSocialPost,
+        source_id: &'a str,
+        event_id: &'a str,
+        received_at: i64,
+    ) -> PmsSocialFuture<'a, ()> {
+        Box::pin(async move {
+            erpx_server_collaboration::public::pms_social_event::pms_social_publish(
+                connection,
+                erpx_server_collaboration::public::pms_social_event::PmsSocialPost {
+                    post_id: post.post_id,
+                    company_id: post.company_id,
+                    branch_id: post.branch_id,
+                    actor_id: post.actor_id,
+                    body: post.body,
+                    command_id: post.command_id,
+                    at: post.at,
+                },
+                source_id,
+                event_id,
+                received_at,
+            )
+            .await
+        })
+    }
+
+    fn recipients<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        id: &'a str,
+        company_id: &'a str,
+        actor_id: &'a str,
+        review: Option<&'a str>,
+        recipient: Option<&'a str>,
+    ) -> PmsSocialFuture<'a, Vec<String>> {
+        Box::pin(async move {
+            erpx_server_identity_access::public::pms_social_event_recipients::pms_social_recipients(
+                connection,
+                id,
+                company_id,
+                actor_id,
+                review,
+                recipient,
+            )
+            .await
+        })
+    }
+
+    fn version<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        post_id: &'a str,
+    ) -> PmsSocialFuture<'a, Option<i64>> {
+        Box::pin(async move {
+            erpx_server_collaboration::public::pms_social_event::pms_social_version(
+                connection, post_id,
+            )
+            .await
+        })
+    }
+
+    fn notify<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        notice: PmsSocialNotice,
+    ) -> PmsSocialFuture<'a, ()> {
+        Box::pin(async move {
+            erpx_server_collaboration::public::pms_social_event::pms_social_notify(
+                connection,
+                erpx_server_collaboration::public::pms_social_event::PmsSocialNotice {
+                    id: notice.id,
+                    company_id: notice.company_id,
+                    user_id: notice.user_id,
+                    post_id: notice.post_id,
+                    version: notice.version,
+                    body: notice.body,
+                    at: notice.at,
+                },
+            )
+            .await
+        })
+    }
+}
+
 struct WorkflowProjectionHandler {
     holding_id: String,
 }
@@ -131,6 +317,24 @@ impl OutboxJobHandler for WorkflowProjectionHandler {
             let unit = &mut *projection_connection;
             let mut unit = unit.begin().await
                 .map_err(|_| worker_failure("PROJECTION_DB_UNAVAILABLE"))?;
+            if message.event_type.starts_with("pms.") {
+                let mut pms_ports = CompositionPmsSocialPorts;
+                match project_pms_social(&mut unit, &mut pms_ports, &message, now).await {
+                    Ok(Some(())) => {
+                        unit.commit()
+                            .await
+                            .map_err(|_| worker_failure("PROJECTION_COMMIT_FAILED"))?;
+                        return Ok(WorkerOutcome::Complete);
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        unit.rollback()
+                            .await
+                            .map_err(|_| worker_failure("PROJECTION_ROLLBACK_FAILED"))?;
+                        return Ok(WorkerOutcome::Fail(error.code));
+                    }
+                }
+            }
             match project_event(&mut unit, &mut sources, &message, now).await {
                 Ok(ProjectionResult::Projected) => {
                     unit.commit()

@@ -26,7 +26,6 @@ import { readablePmsSource } from "@erpx/server-pms/public/pms/source";
 import { previewPmsImport,approvePmsImport,applyPmsImport } from "@erpx/server-pms/public/pms/import";
 import { publishHandover,acknowledgeHandover,handoverView } from "@erpx/server-operations/public/handover";
 import {homePosts,postView} from '@erpx/server-collaboration/public/social-home';
-import { projectPmsSocialEvent } from "@erpx/server-pms/public/pms/social-events";
 import type { EventMessage } from "@erpx/server-workflow/public/job-projector";
 import {createJournal,postJournal,previewOpeningTrialBalance,importOpeningTrialBalance,openingTrialBalanceSchema} from '@erpx/server-finance/public/finance';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
@@ -84,14 +83,6 @@ async function cmd(operation: string, input: unknown = {}, actor = owner) {
     { propertyId, expectedVersion: s.property.version, operation, input },
     key(),
   );
-}
-async function projectCommittedEvent(eventType:string) {
-  const event=await db.prepare("SELECT * FROM outbox_events WHERE event_type=? AND payload_json::jsonb->>'companyId'=? ORDER BY created_at DESC,id LIMIT 1")
-    .bind(eventType,f.company).first<{id:string;event_type:string;aggregate_id:string;aggregate_version:number;payload_json:string}>();
-  if(!event)throw new Error("Expected committed PMS event");
-  const message={id:event.id,holdingId:"h001",eventType:event.event_type,aggregateId:event.aggregate_id,aggregateVersion:event.aggregate_version,payload:JSON.parse(event.payload_json)} satisfies EventMessage;
-  await projectPmsSocialEvent(db,message);
-  return message;
 }
 beforeEach(async context => {
   f = await seedExpenseCompany(db, env.H001_FILES, !context.task.name.startsWith("blocks a new booking"));
@@ -662,11 +653,6 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
     nextAction: "Match imported bank evidence to this hotel transfer",
   });
   expect((await pmsWork(owner)).find((item) => item.id === pending.id)).toMatchObject({queue:"waiting",canAct:false});
-  await projectCommittedEvent("pms.payment.request_transfer");
-  expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
-    .bind(f.company,reviewer.userId).first<number>("count")).toBe(1);
-  expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
-    .bind(f.company,owner.userId).first<number>("count")).toBe(0);
   const statement=key(),bankId=key();
   await db.prepare("INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,source_hash,imported_by,created_at) VALUES(?,?,?,?,?,0,10700,?,?,?)").bind(statement,f.company,accounts.bank,"PMS-STATEMENT-1",initial.property.businessDate,key(),reviewer.userId,Date.now()).run();
   await db.prepare("INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) VALUES(?,?,?,?,?,10600,'THB')").bind(bankId,statement,f.company,initial.property.businessDate,"PMS-BANK-001").run();
@@ -701,14 +687,6 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
   expect(Number(payment!.amount_minor)).toBe(10700);
   expect(await balance(accounts.bank)).toBe(10700);
   expect(records(await snapshot(),"entry").filter(row=>row.id===result.entryId)).toHaveLength(1);
-  const verificationEvent=await projectCommittedEvent("pms.payment.verify_transfer");
-  await projectPmsSocialEvent(db,verificationEvent);
-  const notification=await db.prepare("SELECT record_id,message FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
-    .bind(f.company,owner.userId).first<{record_id:string;message:string}>();
-  expect(notification?.message).toContain("Bank transfer verified");
-  expect((await postView(db,owner,notification!.record_id)).linkedSources[0]).toMatchObject({id:pending.id,available:true});
-  expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
-    .bind(f.company,owner.userId).first<number>("count")).toBe(1);
 });
 
 it("cancels an unverified hotel transfer without changing guest account or ledger", async () => {
@@ -966,13 +944,8 @@ it("separates security deposits, enforces refund independence and reverses advan
   });
   await cmd("refund.approve", { id: refund }, reviewer);
   expect((await pmsWork(owner)).find(item=>item.id===refund)).toMatchObject({queue:"todo",canAct:true,nextAction:"Pay approved refund",responsibleQueue:"Cashier"});
-  await projectCommittedEvent("pms.refund.approve");
-  expect(await db.prepare("SELECT message FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'").bind(f.company,owner.userId).first("message")).toContain("Refund approved");
   await cmd("refund.pay", { id: refund, method: "cash", shiftId: sh });
   expect((await pmsWork(owner)).some(item=>item.id===refund)).toBe(false);
-  const payoutEvent=await projectCommittedEvent("pms.refund.pay");
-  await projectPmsSocialEvent(db,payoutEvent);
-  expect((await homePosts(db,owner)).find(post=>post.linkedSources.some(source=>source.id===refund))?.body).toContain("Refund paid");
   expect(await balance(accounts.advance)).toBe(0);
   expect(await balance(accounts.tax)).toBe(0);
   expect(await balance(accounts.deposit)).toBe(-5000);
@@ -1157,18 +1130,6 @@ it("rejects a handover from a stale PMS source and bounds task pages with cursor
   const next=await pmsTaskPage(db,owner,{cursor:page.nextCursor!});
   expect(next.items.some(item=>page.items.some(previous=>previous.id===item.id))).toBe(false);
   await expect(pmsTaskPage(db,receiver,{cursor:page.nextCursor!})).rejects.toMatchObject({status:422});
-});
-
-it("projects durable PMS events once and combines room updates in the same Social post",async()=>{
-  await clean();
-  const events=(await db.prepare("SELECT * FROM outbox_events WHERE event_type IN ('pms.task.complete','pms.task.inspect') AND payload_json::jsonb->>'companyId'=? ORDER BY created_at,id").bind(f.company).all<{id:string;event_type:string;aggregate_id:string;aggregate_version:number;payload_json:string}>()).results;
-  const messages=events.map(event=>({id:event.id,holdingId:"h001",eventType:event.event_type,aggregateId:event.aggregate_id,aggregateVersion:event.aggregate_version,payload:JSON.parse(event.payload_json)} satisfies EventMessage));
-  await Promise.all(messages.map(message=>projectPmsSocialEvent(db,message)));
-  await Promise.all(messages.map(message=>projectPmsSocialEvent(db,message)));
-  expect(await db.prepare("SELECT count(*) FROM pms_social_event_receipts WHERE event_id IN (?,?)").bind(...events.map(event=>event.id)).first<number>("count")).toBe(2);
-  const posts=await homePosts(db,owner);
-  expect(posts.filter(post=>post.author_name==="PMS")).toHaveLength(1);
-  expect(posts[0].linkedSources[0].available).toBe(true);
 });
 
 async function cutoverDefinition(opening={due:0,advance:0,advanceTax:0,deposit:0}){

@@ -12,3 +12,4 @@ pub mod guest_account;
 pub mod reservation;
 pub mod night_audit;
 pub mod report;
+pub mod pms_social_event;

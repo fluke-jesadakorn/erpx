@@ -127,3 +127,7 @@ path = "../../tests/integration/collaboration/rust-staff-facts-postgres.test.rs"
 [[test]]
 name = "work_home_unread_postgres"
 path = "../../tests/integration/collaboration/rust-work-home-unread-postgres.test.rs"
+
+[[test]]
+name = "pms_social_publish_postgres"
+path = "../../tests/integration/collaboration/rust-pms-social-publish-postgres.test.rs"

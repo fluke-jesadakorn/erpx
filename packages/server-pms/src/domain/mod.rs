@@ -11,3 +11,4 @@ pub(crate) mod guest_account;
 pub(crate) mod reservation;
 pub(crate) mod night_audit;
 pub mod report_projection;
+pub mod social_sources;

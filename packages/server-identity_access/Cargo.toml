@@ -279,3 +279,7 @@ path = "../../tests/integration/identity_access/rust-platform-iam-postgres.test.
 [[test]]
 name = "staff_facts_postgres"
 path = "../../tests/integration/identity_access/rust-staff-facts-postgres.test.rs"
+
+[[test]]
+name = "pms_social_recipients_postgres"
+path = "../../tests/integration/identity_access/rust-pms-social-recipients-postgres.test.rs"

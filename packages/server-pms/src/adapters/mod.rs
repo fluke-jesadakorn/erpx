@@ -17,3 +17,4 @@ pub mod reservation_postgres;
 pub mod night_audit_postgres;
 pub mod night_audit_worker;
 pub mod report_http;
+pub mod pms_social_event;

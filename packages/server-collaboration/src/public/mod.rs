@@ -45,3 +45,5 @@ pub mod quality_notification;
 pub mod supplier_bill_match_notification;
 
 pub mod staff_facts;
+
+pub mod pms_social_event;

@@ -1,6 +1,8 @@
 pub mod postgres_commands;
 pub mod postgres_record_origin;
 pub mod job_projector;
+pub mod pms_social_event_facts;
+pub mod pms_social_projector;
 
 pub mod approval_oversight_postgres;
 pub mod approval_oversight_http;

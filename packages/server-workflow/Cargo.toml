@@ -82,3 +82,11 @@ path = "../../tests/unit/workflow/rust-job-projector.test.rs"
 [[test]]
 name = "job_projector_postgres"
 path = "../../tests/integration/workflow/rust-job-projector-postgres.test.rs"
+
+[[test]]
+name = "pms_social_event"
+path = "../../tests/unit/workflow/rust-pms-social-event.test.rs"
+
+[[test]]
+name = "pms_social_event_postgres"
+path = "../../tests/integration/workflow/rust-pms-social-event-postgres.test.rs"
