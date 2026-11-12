@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1281,
+    "revision": 1290,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21503,23 +21503,60 @@
           "packages/server-legal/Cargo.toml",
           "packages/server-legal/package.json",
           "packages/feature-legal/**",
-          "fixtures/**",
           "tests/unit/legal/**",
           "tests/integration/legal/**"
         ],
         "resources": [
           "owner:legal"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "9b304dfbb6aca3424a478b9b2495ed70c9760cee",
+        "lastPushedSha": "9b304dfbb6aca3424a478b9b2495ed70c9760cee",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9b304dfbb6aca3424a478b9b2495ed70c9760cee",
+            "before": 164,
+            "after": 160,
+            "note": "Test-only TS document-processing drain (recover/claim/complete/failed) deleted after the runtime switched to runNativeLegalWorker; processing.ts 5 -> 1. Trust/revocation and destruction retain partial/no native counterparts."
+          },
+          {
+            "command": "cargo test -p erpx-server-legal",
+            "result": "passed",
+            "sourceSha": "9b304dfbb6aca3424a478b9b2495ed70c9760cee",
+            "note": "105/105 across 11 binaries with pinned Bun/Node oracle env."
+          },
+          {
+            "command": "bunx tsc -p packages/server-legal/tsconfig.json --noEmit && bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "9b304dfbb6aca3424a478b9b2495ed70c9760cee"
+          },
+          {
+            "command": "vitest unit tests/unit/legal/legal-application.test.ts",
+            "result": "passed",
+            "sourceSha": "9b304dfbb6aca3424a478b9b2495ed70c9760cee",
+            "note": "55/55. The queued-completion integration suite is blocked by the environment (target/debug/erpx-server lacks private-development-api, so native-account SSO returns 503); identical failure on untouched suites, so it is not caused by this change."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "9b304dfbb6aca3424a478b9b2495ed70c9760cee"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/legal/service.ts, then six-point retirement with the owner KPI pair.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead: extend the native legal command set + destruction worker; then retire legal/service.ts writers per action and record deltas. Rebuild target/debug/erpx-server with private-development-api before rerunning the queued-completion suite.",
+        "handoff": {
+          "runId": "run-20261113-d",
+          "agentId": "worker-legal-retire",
+          "at": "2026-11-12T23:10:13.218Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead: extend the native legal command set + destruction worker; then retire legal/service.ts writers per action and record deltas. Rebuild target/debug/erpx-server with private-development-api before rerunning the queued-completion suite."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -28096,8 +28133,15 @@
         "resources": [
           "owner:sales"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-d",
+          "agentId": "worker-sales-reconciliation",
+          "claimedAt": "2026-11-12T22:41:32.618Z",
+          "heartbeatAt": "2026-11-12T22:41:32.618Z",
+          "expiresAt": "2026-11-12T23:11:32.618Z",
+          "generation": 48
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -29763,15 +29807,82 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "6971136db5cc536dce1f21cde86fd6943d31b71b",
+        "lastPushedSha": "6971136db5cc536dce1f21cde86fd6943d31b71b",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-customer_authority/src",
+            "result": "passed",
+            "before": 18,
+            "after": 12,
+            "sourceSha": "6971136db5cc536dce1f21cde86fd6943d31b71b",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-support.ts",
+                "writes": 6,
+                "removalTaskId": "retire.customer_authority.portal-support",
+                "removalCondition": "Native support respond/acknowledge/close/threads ports + HTTP ingress, then switch customer-access support actions."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-access.ts",
+                "writes": 3,
+                "removalTaskId": "retire.customer_authority.portal-access",
+                "removalCondition": "Native Portal projection/read-audit and portal-evidence-bind port; switch server-customer_360 portal command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.customer_authority.purchase-boundary",
+                "removalCondition": "Move purchase-boundary assertion cleanup into the native purchase guard."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.customer_authority.purchase-boundary",
+                "removalCondition": "Remove the unused TS withCustomerAccessPurchasedCommand once the native boundary owns access commands."
+              }
+            ],
+            "note": "Identity and duplicate-request writers retired; read-only projections retained."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-authority",
+            "result": "passed",
+            "sourceSha": "6971136db5cc536dce1f21cde86fd6943d31b71b",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business",
+            "result": "passed",
+            "sourceSha": "6971136db5cc536dce1f21cde86fd6943d31b71b",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "6971136db5cc536dce1f21cde86fd6943d31b71b",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "6971136db5cc536dce1f21cde86fd6943d31b71b",
+            "sourceKind": "committed",
+            "note": "1203 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "6971136db5cc536dce1f21cde86fd6943d31b71b",
+            "sourceKind": "committed"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
-        "nextAction": "Step-0 audit 18 residual files, then retire the highest-confidence native-backed batch (portal-support/portal-access or identity), with route/client switches, TS deletion, oracle migration and KPI pair.",
+        "blocker": null,
+        "nextAction": "Closed. Remaining 12: portal-support 6, portal-access 3, purchase-boundary 3.",
         "handoff": {
           "runId": "run-20261113-c",
           "agentId": "worker-ca-tail",
@@ -29792,20 +29903,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 143,
-      "migratedPackets": 74,
+      "migratedPackets": 75,
       "statusCounts": {
-        "pending": 25,
-        "in_progress": 3,
+        "pending": 23,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 74,
+        "migrated": 75,
         "blocked": 31,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 48,
-    "updatedAt": "2026-11-12T22:41:12.144Z",
+    "updatedAt": "2026-11-12T23:10:13.218Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
