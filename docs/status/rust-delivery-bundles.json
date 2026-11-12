@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 730,
+    "revision": 732,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -18156,6 +18156,62 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.benefits.ts-commands",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "benefits",
+        "workflowIds": [
+          "benefits/dependents",
+          "benefits/coverage",
+          "benefits/feature-plans",
+          "benefits/feature-enrollment-windows",
+          "benefits/feature-provider-payroll"
+        ],
+        "workstream": "S10",
+        "kind": "migration",
+        "title": "Retire the Benefits TS command fallback and writers",
+        "scope": "The feature-people Benefits route already prefers the native benefit command and the Rust command has HTTP/PG coverage. Remove the no-native fallback (fail closed), delete createBenefitPlan/Window/Dependent/Election and changeBenefitRecord writers plus their application/plan write paths and exports, delete/migrate the TS oracle suite, and record the owner KPI before/after. Keep reads, attachments and executive evidence.",
+        "dependsOn": [
+          "migrate.benefits"
+        ],
+        "requiredPorts": [
+          "people_payroll"
+        ],
+        "allowedPaths": [
+          "packages/server-benefits/src/**",
+          "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/**",
+          "tests/unit/benefits/**",
+          "tests/integration/benefits/**",
+          "tests/unit/shared.architecture/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-j",
+          "agentId": "worker-benefits",
+          "claimedAt": "2026-11-12T07:26:13.900Z",
+          "heartbeatAt": "2026-11-12T07:26:13.900Z",
+          "expiresAt": "2026-11-12T07:56:13.900Z",
+          "generation": 35
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Fail closed on the native Benefits command, delete the TS command writers/application/plan paths/exports, delete or migrate the TS oracle to native coverage, prove KPI drop and no references, run typecheck/catalogue/native+affected suites, push.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-benefits",
+        "plannedPackage": "erpx-server-benefits",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false
       }
     ],
     "migrationProgress": {
@@ -18164,11 +18220,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 63,
+      "totalPackets": 64,
       "migratedPackets": 30,
       "statusCounts": {
         "pending": 8,
-        "in_progress": 2,
+        "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 30,
@@ -18178,7 +18234,7 @@
       }
     },
     "lastCoordinatorGeneration": 35,
-    "updatedAt": "2026-11-12T07:23:57.418Z",
+    "updatedAt": "2026-11-12T07:26:13.900Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
