@@ -3,8 +3,7 @@ import {applyMigrations,env} from '../../support/runtime-env';
 import {expenseDb as db,expenseFixture,key} from '../../support/helpers/expense-fixture';
 import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
-import {runTemplate} from '@erpx/server-operations/public/routines';
-import {seedRoutineFor,seedRoutineTemplate} from './routine-fixtures';
+import {seedRoutineFor,seedRoutineRunTask,seedRoutineTemplate} from './routine-fixtures';
 import {recordsPage,getRecord,searchReferences} from '@erpx/server-records/public/records';
 import {publishInboxEvent,inboxPage} from '@erpx/server-collaboration/public/inbox';
 import {listStaffNotifications,notificationsPage} from '@erpx/server-collaboration/public/staff-notifications';
@@ -42,7 +41,7 @@ it('applies actual ordinary Task history and participant policy before Records s
  expect((await listStaffNotifications(db,captured)).some(row=>row.record_id===valid)).toBe(true);await db.prepare('UPDATE active_work_contexts SET revision=revision+1 WHERE session_id=?').bind(session).run();expect((await listStaffNotifications(db,captured)).filter(row=>row.record_type==='task')).toEqual([]);expect((await inboxPage(db,captured,{view:'all'})).items.filter(row=>row.sourceType==='task')).toEqual([]);await expect(getRecord(captured,'operations',valid)).rejects.toMatchObject({status:404});
 });
 it('keeps actual routine addon identity out of generic records until purchased and preserves draining history',async()=>{
- const {template}=await seedRoutineFor(db,f.claimant,{title:'Original routine projection',assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[f.manager.userId]}),run=await runTemplate(db,f.claimant,template.id,Date.now()+60000,key()),id=String(run.id);await record(id);vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');await purchase();
+ const {template}=await seedRoutineFor(db,f.claimant,{title:'Original routine projection',assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[f.manager.userId]}),run=await seedRoutineRunTask(db,{templateId:template.id,companyId:f.claimant.companyId,creatorUserId:f.claimant.userId,key:key(),dueAt:Date.now()+60000}),id=String(run.id);await record(id);vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');await purchase();
  expect((await recordsPage(f.head,'operations','exceptions',{})).items).toEqual([]);await expect(getRecord(f.head,'operations',id)).rejects.toMatchObject({status:404});await purchase('work-routines');await purchase('work-routines','draining');await purchase('work','draining');expect((await recordsPage(f.head,'operations','exceptions',{})).items.map(row=>row.id)).toEqual([id]);expect((await getRecord(f.head,'operations',id)).id).toBe(id);
 });
 it('keeps Projects-only Task metric and evidence foundations without Work or People and rechecks captured drilldown after original IAM revocation',async()=>{

@@ -18926,98 +18926,6 @@
       ]
     },
     {
-      "id": "finance.opening-balances.integration",
-      "lane": "integration",
-      "owner": "finance",
-      "modules": [
-        "finance"
-      ],
-      "files": [
-        "tests/integration/finance/finance-opening-balances.test.ts"
-      ],
-      "fixture": "postgres",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
-      },
-      "apps": [
-        "finance"
-      ],
-      "packages": [
-        "@erpx/catalogue",
-        "@erpx/contracts",
-        "@erpx/feature-billing",
-        "@erpx/feature-collaboration",
-        "@erpx/feature-commerce",
-        "@erpx/feature-finance",
-        "@erpx/feature-identity_access",
-        "@erpx/feature-legal",
-        "@erpx/feature-organization",
-        "@erpx/feature-people_payroll",
-        "@erpx/feature-records",
-        "@erpx/feature-runtime",
-        "@erpx/feature-sales",
-        "@erpx/feature-shared",
-        "@erpx/feature-work_projection",
-        "@erpx/native-sdk",
-        "@erpx/server-agent",
-        "@erpx/server-assets",
-        "@erpx/server-benefits",
-        "@erpx/server-brand",
-        "@erpx/server-collaboration",
-        "@erpx/server-commerce",
-        "@erpx/server-commercial",
-        "@erpx/server-crm",
-        "@erpx/server-customer_360",
-        "@erpx/server-customer_authority",
-        "@erpx/server-ecommerce",
-        "@erpx/server-field_service",
-        "@erpx/server-files",
-        "@erpx/server-finance",
-        "@erpx/server-identity_access",
-        "@erpx/server-inventory",
-        "@erpx/server-learning",
-        "@erpx/server-legal",
-        "@erpx/server-maintenance",
-        "@erpx/server-manage_erpx",
-        "@erpx/server-manufacturing",
-        "@erpx/server-marketing",
-        "@erpx/server-operations",
-        "@erpx/server-organization",
-        "@erpx/server-people_payroll",
-        "@erpx/server-planning",
-        "@erpx/server-platform_administration",
-        "@erpx/server-pms",
-        "@erpx/server-pos",
-        "@erpx/server-procurement",
-        "@erpx/server-projects",
-        "@erpx/server-quality",
-        "@erpx/server-records",
-        "@erpx/server-runtime",
-        "@erpx/server-sales",
-        "@erpx/server-shared",
-        "@erpx/server-support",
-        "@erpx/server-talent",
-        "@erpx/server-work_projection",
-        "@erpx/server-workflow"
-      ],
-      "postgres": {
-        "mode": "template",
-        "slots": [
-          "CONTROL_DB",
-          "H001_DB",
-          "H001_READ_DB"
-        ],
-        "migratedSlots": [
-          "H001_DB"
-        ]
-      }
-    },
-    {
       "id": "finance.operations-attachments.integration",
       "lane": "integration",
       "owner": "finance",
@@ -80262,7 +80170,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "PostgreSQL-backed native opening-balance preview/import retains balanced/control/schedule validation, preview-token staleness, opening journal/invoice atomicity, replay/idempotency, audit/outbox, Company isolation and HTTP admission in the PR baseline."
+        "reason": "PostgreSQL-backed native opening-balance preview/import retains balanced/control/schedule validation, preview-token staleness, single concurrent import per chart, opening journal/invoice atomicity, independent subledger post/reversal, settled-receivable reversal refusal, replay/idempotency, audit/outbox, Company isolation and HTTP admission in the PR baseline."
       },
       "framework": "cargo",
       "cargo": {
@@ -95195,6 +95103,139 @@
         ],
         "migratedSlots": []
       }
+    },
+    {
+      "id": "operations.rust-routine-run.unit",
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native manual routine run must preserve template snapshot, route/project blockers, state, notices, approval start and replay/conflict semantics."
+      },
+      "files": [
+        "tests/unit/operations/rust-routine-run.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "routine_run"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-operations/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/src/domain/routine_commands.rs",
+        "packages/server-operations/src/domain/staff_tasks.rs",
+        "packages/server-operations/src/application/routine_commands.rs",
+        "packages/server-operations/src/application/staff_tasks.rs",
+        "packages/server-operations/src/adapters/staff_tasks.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-operations",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "operations.rust-routine-run-http.unit",
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "The native routine run route keeps the exact Holding target, Origin, Idempotency-Key, JSON bounds and command decode."
+      },
+      "files": [
+        "tests/unit/operations/rust-routine-run-http.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "routine_run_http"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-operations/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/src/adapters/routine_commands_http.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-operations",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "operations.rust-routine-run-postgres.integration",
+      "lane": "integration",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/integration/operations/rust-routine-run-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native routine run retains the occurrence row, template snapshot, command receipt/audit/outbox, notices, approval start, replay and conflict."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "routine_run_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-operations/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/src/application/routine_commands.rs",
+        "packages/server-operations/src/application/staff_tasks.rs",
+        "packages/server-operations/src/adapters/staff_tasks.rs",
+        "tests/support/operations/rust-operations-database.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-operations",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
     }
   ]
 }

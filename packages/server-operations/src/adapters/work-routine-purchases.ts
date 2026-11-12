@@ -24,7 +24,6 @@ import {appsPackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesse
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 
-type Command={key:string;operations:readonly string[];templateId:string;scheduleId?:string;projectId?:string|null;configure?:boolean;purpose:CapabilityPurpose;taskId?:string;cloneId?:string;retire?:{title:string;description:string;assigneeUserId:string;projectId:string|null;startApprovers:string[];completionApprovers:string[];published:boolean}};
 const hash=(image:string)=>createHash('sha256').update(image).digest('hex');
 const template=(database:SqlDatabase,companyId:string,id:string)=>database.prepare('SELECT * FROM routine_templates WHERE id=? AND company_id=?').bind(id,companyId).first<TemplateRow>();
 const schedule=(database:SqlDatabase,companyId:string,id:string)=>database.prepare('SELECT * FROM routine_schedules WHERE id=? AND company_id=?').bind(id,companyId).first<ScheduleRow>();
@@ -42,21 +41,6 @@ const codes=['work.actions','work.advanced-routines'];
 async function purchasedFences(database:SqlDatabase,actor:StaffActor,purpose:CapabilityPurpose,ordinary:boolean,key:string){
  const mode=await appsPackageEnforcementMode(),fences=ordinary?codes.map((capability,index)=>({key:`${key}:${index}`,scope:{companyId:actor.companyId,capability,purpose},boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,{companyId:actor.companyId,capability,purpose})!})):[];
  for(const fence of fences)await checkPurchasedCapability(database,mode,fence.scope);await database.batch(fences.flatMap(fence=>fence.boundary.before));return fences;
-}
-export async function withWorkRoutineCommand<Result>(owner:SqlDatabase,actor:StaffActor,command:Command,run:(database:SqlDatabase)=>Promise<Result>){
- const mode=await appsPackageEnforcementMode();if(mode==='disabled')return run(owner);
- return withOperationsTaskPurchaseUnit(owner,actor,database=>sourceLocks(database,actor.companyId),async database=>{
-  const before=await template(database,actor.companyId,command.templateId),clone=command.cloneId?await template(database,actor.companyId,command.cloneId):null,beforeSchedule=command.scheduleId?await schedule(database,actor.companyId,command.scheduleId):null,receipt=await database.prepare("SELECT operation FROM command_receipts WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,actor.userId,actor.companyId).first<{operation:string}>(),replay=!!receipt&&command.operations.includes(receipt.operation),projectId=replay?before?.project_id??null:command.configure?command.projectId??null:before?.project_id??null,ordinary=!!before&&!before.project_id||!!clone&&!clone.project_id||projectId===null,retire=!!before&&before.published===1&&command.retire?.published===false&&command.retire.title===before.title&&command.retire.description===before.description&&command.retire.assigneeUserId===before.assignee_user_id&&command.retire.projectId===before.project_id&&JSON.stringify(command.retire.startApprovers)===JSON.stringify(JSON.parse(before.start_approvers_json))&&JSON.stringify(command.retire.completionApprovers)===JSON.stringify(JSON.parse(before.completion_approvers_json)),purpose=replay?'history' as const:retire?'settle-existing' as const:command.purpose,key=`work-routine:${randomUUID()}`;
-  if(beforeSchedule&&beforeSchedule.template_id!==command.templateId)throw new ApiError(409,'WORK_ROUTINE_SOURCE_CHANGED','The original schedule template changed.');
-  await current(database,actor,key);const fences=await purchasedFences(database,actor,purpose,ordinary,key),projects=[...new Set([before?.project_id,clone?.project_id,projectId].filter((id):id is string=>!!id))];
-  const invoke=async(index:number):Promise<Result>=>index===projects.length?run(database):withProjectPurchasedCommand(database,actor,{key:command.key,operations:command.operations,projectId:projects[index],capability:'projects.tasks',purpose,existing:true,permission:'records.read'},()=>invoke(index+1));
-  const result=await invoke(0);const completed=await fullImage(database,actor.companyId,command.templateId,command.scheduleId,command.taskId);
-  deferOperationsTaskPurchaseCheck(database,actor,async()=>{
-   const after=await template(database,actor.companyId,command.templateId),cloneAfter=command.cloneId?await template(database,actor.companyId,command.cloneId):null;
-   if(JSON.stringify(clone)!==JSON.stringify(cloneAfter)||!after||after.project_id!==projectId||before&&(['id','company_id','branch_id','department_id','creator_user_id'] as const).some(field=>before[field]!==after[field])||completed!==await fullImage(database,actor.companyId,command.templateId,command.scheduleId,command.taskId))throw new ApiError(409,'WORK_ROUTINE_SOURCE_CHANGED','The completed original routine source changed during deferred effects.');
-   await current(database,actor,key);const results=await database.batch(fences.flatMap(fence=>[...fence.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(fence.key)]));fences[0]?.boundary.observe?.(results);
-  });return result;
- });
 }
 export function workRoutineReadScope(database:SqlDatabase,actor:StaffActor){return routineSourceReadScope(database,actor);}
 export async function requireWorkRoutineRead(database:SqlDatabase,actor:StaffActor,id:string){const scope=await workRoutineReadScope(database,actor);if(!await database.prepare(`SELECT 1 FROM routine_templates t WHERE t.id=? AND t.company_id=? AND ${scope.where}`).bind(id,actor.companyId,...scope.args).first())throw new ApiError(404,'TEMPLATE_NOT_FOUND','Routine template not found.');}

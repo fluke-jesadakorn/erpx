@@ -770,7 +770,7 @@ pub fn delegation_record_id(key: &str) -> String {
     format!("task-delegation-{key}")
 }
 
-fn parse_time(value: &str) -> Result<i64, BusinessError> {
+pub(crate) fn parse_time(value: &str) -> Result<i64, BusinessError> {
     // Bounded RFC3339 subset: YYYY-MM-DDTHH:MM:SS[.fff](Z|±HH:MM). No new
     // dependency edge is added for the one owner-local due/expiry fact.
     let raw = value.trim();

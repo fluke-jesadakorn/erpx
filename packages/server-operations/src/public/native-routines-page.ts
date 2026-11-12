@@ -97,6 +97,83 @@ export async function nativeRoutineCommand(
   body: unknown,
   key: string,
 ): Promise<unknown> {
+  return (await nativeRoutineEnvelope(request, holdingSlug, resource, path, body, key)).data;
+}
+
+export type NativeRoutineRunReceipt = Readonly<{
+  id: string;
+  state: 'draft' | 'start_approval' | 'ready';
+  version: number;
+}>;
+
+function contextChanged(request: Request, context: unknown): boolean {
+  if (!context || typeof context !== 'object' || Array.isArray(context))
+    return true;
+  const value = context as Record<string, unknown>;
+  const expected: Array<[string, unknown]> = [
+    ['companyId', request.headers.get('x-erpx-context-company')],
+    ['assignmentId', request.headers.get('x-erpx-context-assignment')],
+    ['revision', request.headers.get('x-erpx-context-revision')],
+    ['assignmentVersion', request.headers.get('x-erpx-context-assignment-version')],
+  ];
+  return expected.some(([name, header]) => {
+    if (header === null) return typeof value[name] !== 'string' && typeof value[name] !== 'number';
+    return String(value[name]) !== header;
+  });
+}
+
+/** Forward the manual run and validate the exact retained receipt and selected
+ * work context. A malformed acknowledgement never reaches the caller. */
+export async function nativeRoutineRun(
+  request: Request,
+  holdingSlug: string,
+  templateId: string,
+  body: unknown,
+  key: string,
+): Promise<NativeRoutineRunReceipt> {
+  const envelope = await nativeRoutineEnvelope(
+    request,
+    holdingSlug,
+    'routine-templates',
+    `/${encodeURIComponent(templateId)}/run`,
+    body,
+    key,
+  );
+  const data = envelope.data;
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    Array.isArray(data) ||
+    !('id' in data) ||
+    !('state' in data) ||
+    !('version' in data) ||
+    data.id !== `task-${key}` ||
+    data.version !== 1 ||
+    typeof data.state !== 'string' ||
+    !['draft', 'start_approval', 'ready'].includes(data.state)
+  )
+    throw new ApiError(
+      503,
+      'NATIVE_ROUTINES_RESPONSE_INVALID',
+      'The native Operations routine response is invalid.',
+    );
+  if (contextChanged(request, envelope.context))
+    throw new ApiError(
+      503,
+      'NATIVE_ROUTINES_RESPONSE_INVALID',
+      'The native Operations routine response is invalid.',
+    );
+  return data as NativeRoutineRunReceipt;
+}
+
+async function nativeRoutineEnvelope(
+  request: Request,
+  holdingSlug: string,
+  resource: 'routine-templates' | 'routine-schedules',
+  path: string,
+  body: unknown,
+  key: string,
+): Promise<{ data: unknown; context: unknown }> {
   const config = configuration();
   const headers = forwarded(request);
   headers.set('idempotency-key', key);
@@ -120,7 +197,7 @@ export async function nativeRoutineCommand(
     );
   }
   const payload = (await response.json().catch(() => null)) as
-    | { data?: unknown; error?: { code?: string; message?: string } }
+    | { data?: unknown; context?: unknown; error?: { code?: string; message?: string } }
     | null;
   if (!response.ok)
     throw new ApiError(
@@ -128,5 +205,5 @@ export async function nativeRoutineCommand(
       payload?.error?.code ?? 'NATIVE_ROUTINES_FAILED',
       payload?.error?.message ?? 'The routine command failed.',
     );
-  return payload?.data;
+  return { data: payload?.data, context: payload?.context };
 }

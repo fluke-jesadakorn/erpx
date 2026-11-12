@@ -368,6 +368,49 @@ impl ScheduleStateCommand {
     }
 }
 
+/// Manual routine run request. The retained route accepts one ISO-8601 due
+/// datetime with an explicit offset; the occurrence task snapshots the template
+/// at that instant.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RunRoutineTemplateCommand {
+    pub due_at: String,
+}
+impl RunRoutineTemplateCommand {
+    pub fn due_at_millis(&self) -> Result<i64, BusinessError> {
+        crate::domain::staff_tasks::parse_time(&self.due_at).map_err(|_| {
+            invalid(
+                "ROUTINE_FIELDS_INVALID",
+                "Use an ISO-8601 due date with an explicit offset.",
+            )
+        })
+    }
+}
+
+/// Retained `routine.run` request image. The owner fingerprint is computed over
+/// exactly `{templateId,dueAt}` and the `task-${key}` record.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoutineRunInput<'a> {
+    pub template_id: &'a str,
+    pub due_at: &'a str,
+}
+
+pub fn run_fingerprint(
+    record_id: &str,
+    template_id: &str,
+    due_at: &str,
+) -> Result<String, BusinessError> {
+    fingerprint_json(
+        "routine.run",
+        record_id,
+        &RoutineRunInput {
+            template_id,
+            due_at,
+        },
+    )
+}
+
 fn valid_time(value: &str) -> bool {
     let bytes = value.as_bytes();
     bytes.len() == 5

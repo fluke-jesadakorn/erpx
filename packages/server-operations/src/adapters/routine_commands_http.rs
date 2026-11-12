@@ -7,7 +7,8 @@
 //! Workflow ports, purchase boundaries and the serializable owner unit remain
 //! composition responsibilities behind [`RoutineHttpBackend`].
 use crate::domain::routine_commands::{
-    SaveRoutineScheduleCommand, SaveRoutineTemplateCommand, ScheduleStateCommand,
+    RunRoutineTemplateCommand, SaveRoutineScheduleCommand, SaveRoutineTemplateCommand,
+    ScheduleStateCommand,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -45,6 +46,10 @@ pub enum RoutineHttpCommand {
     EndSchedule {
         id: String,
         command: ScheduleStateCommand,
+    },
+    RunTemplate {
+        template_id: String,
+        due_at: String,
     },
 }
 
@@ -194,6 +199,10 @@ pub fn routine_commands_router(targets: Vec<RoutineHttpTarget>) -> Result<Router
             post(command_template_clone),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/routine-templates/{template_id}/run",
+            post(command_template_run),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/routine-templates/{template_id}/schedules",
             post(command_schedule_create),
         )
@@ -334,6 +343,13 @@ fn decode_command(
             id: id.ok_or_else(malformed)?,
             command: decode(body)?,
         }),
+        Some("run") => {
+            let command: RunRoutineTemplateCommand = decode(body)?;
+            Ok(RoutineHttpCommand::RunTemplate {
+                template_id: template_id.ok_or_else(malformed)?,
+                due_at: command.due_at,
+            })
+        }
         _ => Err(malformed()),
     }
 }
@@ -401,6 +417,17 @@ async fn command_template_clone(
     let id = RecordId::new(id).map(|id| id.as_str().to_owned());
     match id {
         Ok(id) => run(state, slug, request, None, Some(id), Some("clone")).await,
+        Err(error) => error_response(error),
+    }
+}
+async fn command_template_run(
+    State(state): State<Arc<RoutineHttpState>>,
+    Path((slug, template_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let template_id = RecordId::new(template_id).map(|id| id.as_str().to_owned());
+    match template_id {
+        Ok(template_id) => run(state, slug, request, Some(template_id), None, Some("run")).await,
         Err(error) => error_response(error),
     }
 }

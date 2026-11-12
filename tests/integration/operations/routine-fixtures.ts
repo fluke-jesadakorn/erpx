@@ -325,6 +325,128 @@ export async function seedRoutineFor(
   return {template, schedule, at};
 }
 
+/** Stage the settled `routine.run` occurrence task for a published template.
+ * Native routine writes own this shape; TypeScript coverage pins the resulting
+ * owner rows when a run is only a fixture for reads, Files, or projections. */
+export async function seedRoutineRunTask(
+  db: SqlDatabase,
+  seed: {
+    templateId: string;
+    companyId: string;
+    creatorUserId: string;
+    key: string;
+    dueAt: number;
+    state?: 'draft' | 'start_approval' | 'ready';
+  },
+) {
+  const template = await db
+    .prepare(
+      'SELECT id,company_id,branch_id,department_id,title,description,assignee_user_id,project_id,start_approvers_json,completion_approvers_json,published,version FROM routine_templates WHERE id=? AND company_id=?',
+    )
+    .bind(seed.templateId, seed.companyId)
+    .first<{
+      id: string;
+      company_id: string;
+      branch_id: string | null;
+      department_id: string | null;
+      title: string;
+      description: string;
+      assignee_user_id: string;
+      project_id: string | null;
+      start_approvers_json: string;
+      completion_approvers_json: string;
+      published: number;
+      version: number;
+    }>();
+  if (!template || template.published !== 1)
+    throw new Error('ROUTINE_RUN_TEMPLATE_REQUIRED');
+  const id = `task-${seed.key}`;
+  const existing = await db
+    .prepare('SELECT id,state,version FROM staff_tasks WHERE id=? AND company_id=?')
+    .bind(id, seed.companyId)
+    .first<{ id: string; state: string; version: number }>();
+  if (existing) return existing;
+  const start = JSON.parse(template.start_approvers_json) as string[];
+  const state =
+    seed.state ?? (start.length ? 'start_approval' : 'ready');
+  const now = Date.now();
+  const statements = [
+    db
+      .prepare(
+        `INSERT INTO staff_tasks
+          (id,company_id,branch_id,department_id,title,description,creator_user_id,assignee_user_id,due_at,project_id,start_approvers_json,completion_approvers_json,state,blocked_reason,template_id,template_version,created_at,updated_at)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?)`,
+      )
+      .bind(
+        id,
+        template.company_id,
+        template.branch_id,
+        template.department_id,
+        template.title,
+        template.description,
+        seed.creatorUserId,
+        template.assignee_user_id,
+        seed.dueAt,
+        template.project_id,
+        template.start_approvers_json,
+        template.completion_approvers_json,
+        state,
+        template.id,
+        template.version,
+        now,
+        now,
+      ),
+    db
+      .prepare(
+        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,'task',?,1,?,?)",
+      )
+      .bind(
+        `staff-task-notice-${seed.key}-${template.assignee_user_id}`,
+        template.company_id,
+        template.assignee_user_id,
+        id,
+        'Routine task assigned to you',
+        now,
+      ),
+  ];
+  if (state === 'start_approval') {
+    const instanceId = `approval-${seed.key}`;
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO approval_instances(id,company_id,branch_id,department_id,record_type,record_id,phase,cycle,requester_user_id,assignee_user_id,state,current_step,version,created_at,updated_at) VALUES(?,?,?,?,'task',?,'start',1,?,?,'pending',0,1,?,?)",
+        )
+        .bind(
+          instanceId,
+          template.company_id,
+          template.branch_id,
+          template.department_id,
+          id,
+          seed.creatorUserId,
+          template.assignee_user_id,
+          now,
+          now,
+        ),
+    );
+    for (const [ordinal, user] of start.entries())
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO approval_steps(id,instance_id,ordinal,approver_user_id,authority,state,approver_pool_json) VALUES(?,?,?,?,'named','pending',?)",
+          )
+          .bind(
+            `${instanceId}-${ordinal}`,
+            instanceId,
+            ordinal,
+            user,
+            JSON.stringify([user]),
+          ),
+      );
+  }
+  await db.batch(statements);
+  return { id, state, version: 1 };
+}
+
 /**
  * Stage the settled end of a routine schedule, including the native
  * `routine.schedule.end` receipt that the Work obligations projection requires

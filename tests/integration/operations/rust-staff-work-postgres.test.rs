@@ -77,6 +77,16 @@ fn save_plan(key: &str, now: i64) -> SaveTaskPlan {
         now,
         request_fingerprint: "task.create\ntask-1\n{}".into(),
         receipt: TaskReceipt::new("task-1", "ready", 1),
+        authority_branch_id: Some("branch".into()),
+        authority_department_id: Some("department".into()),
+        template_id: None,
+        template_version: None,
+        schedule_id: None,
+        occurrence_at: None,
+        blocked_reason: None,
+        notification: None,
+        creator_notification: None,
+        insert_only: false,
     }
 }
 

@@ -8,7 +8,7 @@ import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,
 import type {listTasks,taskDetail} from '@erpx/server-operations/public/staff-tasks';
 import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema} from "@erpx/server-projects/public/project-milestones";
 import type {listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema} from "@erpx/server-projects/public/project-actuals";
-import type {canEditTemplate,getTemplate,listTemplates,runTemplate,ScheduleRow} from "@erpx/server-operations/public/routines";
+import type {canEditTemplate,getTemplate,listTemplates,ScheduleRow} from "@erpx/server-operations/public/routines";
 import type {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import type {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import type {getProject,listProjects,projectSchema} from "@erpx/server-projects/public/staff-projects";
@@ -33,7 +33,6 @@ projectCommand(command:ProjectCommandPort):Promise<unknown>;
 canEditTemplate:WithoutDatabase<typeof canEditTemplate>;
 getTemplate:WithoutDatabase<typeof getTemplate>;
 listTemplates:WithoutDatabase<typeof listTemplates>;
-runTemplate:WithoutDatabase<typeof runTemplate>;
 rerouteApproval:WithoutDatabase<typeof rerouteApproval>;
 changeAppointment:WithoutDatabase<typeof changeAppointment>;headSchema:typeof headSchema.parse;
 levelAssignmentSchema:typeof levelAssignmentSchema.parse;
@@ -211,17 +210,7 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
             key,
           });
         }
-        else if (resource === "routine-templates" && p[1] === "run") {
-          const body = z
-            .object({ dueAt: z.iso.datetime({ offset: true }) })
-            .parse(input);
-          data = await ports.runTemplate(
-            actor,
-            p[0],
-            Date.parse(body.dueAt),
-            key,
-          );
-        } else if (resource === "approvals" && p[1] === "reroute") {
+        else if (resource === "approvals" && p[1] === "reroute") {
           if (
             actor.beta &&
             !(await ports.facts.betaApproval(p[0],actor.companyId))

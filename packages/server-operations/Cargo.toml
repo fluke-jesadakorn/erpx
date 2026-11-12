@@ -76,3 +76,15 @@ path = "../../tests/integration/operations/rust-workflow-projection-source-postg
 [[test]]
 name = "routine_commands"
 path = "../../tests/unit/operations/rust-routine-commands.test.rs"
+
+[[test]]
+name = "routine_run"
+path = "../../tests/unit/operations/rust-routine-run.test.rs"
+
+[[test]]
+name = "routine_run_http"
+path = "../../tests/unit/operations/rust-routine-run-http.test.rs"
+
+[[test]]
+name = "routine_run_postgres"
+path = "../../tests/integration/operations/rust-routine-run-postgres.test.rs"

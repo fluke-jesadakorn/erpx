@@ -7,15 +7,18 @@
 //! valid only when the key, operation, record, request fingerprint and selected
 //! scope all agree.
 use crate::domain::routine_commands::{
-    RoutineAuthority, RoutineReceipt, RoutineScheduleRow, RoutineTemplateRow, ScheduleStateCommand,
-    SaveRoutineScheduleCommand, SaveRoutineTemplateCommand, StoredRoutineReceipt,
-    fingerprint_json, idempotency_conflict, incomplete_receipt, invalid_receipt, next_occurrence,
-    schedule_ended, schedule_not_found, source_changed, template_not_found, template_owner_required,
-    template_unpublished,
+    RoutineAuthority, RoutineReceipt, RoutineScheduleRow, RoutineTemplateRow, RunRoutineTemplateCommand,
+    ScheduleStateCommand, SaveRoutineScheduleCommand, SaveRoutineTemplateCommand,
+    StoredRoutineReceipt, fingerprint_json, idempotency_conflict, incomplete_receipt,
+    invalid_receipt, next_occurrence, run_fingerprint, schedule_ended, schedule_not_found,
+    source_changed, template_not_found, template_owner_required, template_unpublished,
 };
-use crate::application::staff_tasks::{ProjectFact, RouteFact, StaffFact};
+use crate::application::staff_tasks::{
+    ProjectFact, RouteFact, SaveTaskMode, RoutineTaskWrite, StaffFact,
+    StaffTaskRepository, StaffTaskSources, replay as replay_task, save_task_mode,
+};
 use crate::domain::staff_tasks::{
-    StaffTaskActor, TaskScope,
+    SaveTaskCommand, StaffTaskActor, TaskReceipt, TaskScope,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use std::future::Future;
@@ -441,7 +444,7 @@ where
     let staff = validate_configuration(actor, repository, sources, creator, input).await?;
     let version = current
         .as_ref()
-        .map(|row| input.expected_version + 1)
+        .map(|_row| input.expected_version + 1)
         .unwrap_or(1);
     let branch_id = current
         .as_ref()
@@ -481,6 +484,206 @@ where
         })
         .await?;
     check_receipt(committed, &record_id, None, version).map_err(Into::into)
+}
+
+/// Load the published template a manual run snapshots. Visibility and ownership
+/// stay the retained `getTemplate` rule: an unpublished template is visible only
+/// to its creator or a Company owner, and running any unpublished source is a
+/// retained 409.
+pub async fn run_template_source<R, S>(
+    actor: &StaffTaskActor,
+    repository: &mut R,
+    sources: &mut S,
+    id: &str,
+) -> Result<RoutineTemplateRow, R::Error>
+where
+    R: RoutineCommandRepository,
+    S: RoutineCommandSources,
+    R::Error: From<S::Error> + From<BusinessError>,
+{
+    crate::domain::field_policy::identifier(id)?;
+    let row = visible(actor, repository, sources, id).await?;
+    if !row.is_published() {
+        return Err(template_unpublished().into());
+    }
+    Ok(row)
+}
+
+/// Manual `routine.run`: one occurrence task from the published template.
+///
+/// Replay is checked before the template is needed so the same key returns the
+/// original receipt even after the source was unpublished or removed. A fresh
+/// run computes the retained start/completion routes, project availability,
+/// draft/start_approval/ready state, assignee/creator notices and the start
+/// approval before committing the owner task and ledger.
+#[allow(clippy::too_many_arguments)]
+pub async fn run_template<R, S>(
+    actor: &StaffTaskActor,
+    repository: &mut R,
+    sources: &mut S,
+    template: Option<&RoutineTemplateRow>,
+    template_id: &str,
+    input: &RunRoutineTemplateCommand,
+    key: &str,
+    now: i64,
+) -> Result<TaskReceipt, R::Error>
+where
+    R: StaffTaskRepository,
+    S: StaffTaskSources,
+    R::Error: From<S::Error> + From<BusinessError>,
+{
+    actor.require_write(now)?;
+    let _due_at = input.due_at_millis()?;
+    let key = CommandKey::new(key)?;
+    let record_id = format!("task-{}", key.as_str());
+    let fingerprint = run_fingerprint(&record_id, template_id, &input.due_at)?;
+    if let Some(receipt) = replay_task(
+        repository.stored_receipt(key.as_str()).await?,
+        "routine.run",
+        &record_id,
+        &fingerprint,
+        actor,
+    )? {
+        return Ok(receipt);
+    }
+    let template = template.ok_or_else(template_not_found)?;
+    if template.company_id != actor.company_id {
+        return Err(template_not_found().into());
+    }
+    if !template.is_published() {
+        return Err(template_unpublished().into());
+    }
+    let start = template.start_approvers()?;
+    let completion = template.completion_approvers()?;
+    let scope = TaskScope {
+        company_id: template.company_id.clone(),
+        branch_id: template.branch_id.clone(),
+        department_id: template.department_id.clone(),
+    };
+    let start_route = run_route(
+        actor,
+        repository,
+        sources,
+        &scope,
+        &template.assignee_user_id,
+        "start",
+        &start,
+    )
+    .await?;
+    let completion_route = run_route(
+        actor,
+        repository,
+        sources,
+        &scope,
+        &template.assignee_user_id,
+        "completion",
+        &completion,
+    )
+    .await?;
+    let mut blocked = start_route
+        .blocked_reason
+        .or(completion_route.blocked_reason);
+    if let Some(project_id) = template.project_id.as_deref()
+        && sources
+            .project(repository.connection(), &template.company_id, project_id)
+            .await?
+            .is_none()
+    {
+        blocked.get_or_insert_with(|| "The project is unavailable.".into());
+    }
+    let state = if blocked.is_some() {
+        "draft"
+    } else if !start.is_empty() {
+        "start_approval"
+    } else {
+        "ready"
+    };
+    let notification = if blocked.is_some() {
+        "Routine task blocked: correction required"
+    } else {
+        "Routine task assigned to you"
+    };
+    let creator_notification = blocked
+        .as_ref()
+        .map(|reason| format!("Routine blocked: {reason}"));
+    let task_input = SaveTaskCommand {
+        title: template.title.clone(),
+        description: template.description.clone(),
+        assignee_user_id: template.assignee_user_id.clone(),
+        project_id: template.project_id.clone(),
+        start_approvers: start,
+        completion_approvers: completion,
+        due_at: Some(input.due_at.clone()),
+        expected_version: 1,
+        reason: String::new(),
+    };
+    save_task_mode(
+        actor,
+        repository,
+        sources,
+        None,
+        &task_input,
+        key.as_str(),
+        false,
+        now,
+        SaveTaskMode::Routine(RoutineTaskWrite {
+            template_id: template.id.clone(),
+            template_version: template.version,
+            branch_id: template.branch_id.clone(),
+            department_id: template.department_id.clone(),
+            state: state.into(),
+            blocked_reason: blocked,
+            notification: notification.into(),
+            creator_notification,
+            open_start_approval: state == "start_approval",
+            request_fingerprint: fingerprint,
+        }),
+    )
+    .await
+}
+
+/// Retained `taskRoute` for a run occurrence. An empty phase still proves the
+/// assignee is current active staff; a non-empty phase goes to the Workflow
+/// port, which owns the ordered route and department flow.
+async fn run_route<R, S>(
+    actor: &StaffTaskActor,
+    repository: &mut R,
+    sources: &mut S,
+    scope: &TaskScope,
+    assignee_user_id: &str,
+    phase: &str,
+    approvers: &[String],
+) -> Result<RouteFact, R::Error>
+where
+    R: StaffTaskRepository,
+    S: StaffTaskSources,
+    R::Error: From<S::Error> + From<BusinessError>,
+{
+    if approvers.is_empty() {
+        let current = sources
+            .active_staff(
+                repository.connection(),
+                &scope.company_id,
+                assignee_user_id,
+            )
+            .await?
+            .is_some();
+        return Ok(RouteFact {
+            blocked_reason: (!current)
+                .then(|| "Choose a current active staff member.".to_owned()),
+        });
+    }
+    Ok(sources
+        .task_route(
+            repository.connection(),
+            scope,
+            &actor.user_id,
+            assignee_user_id,
+            phase,
+            approvers,
+            false,
+        )
+        .await?)
 }
 
 /// Schedule create/update. A saved schedule is always paused, matching the

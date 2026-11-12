@@ -1,14 +1,12 @@
-import {withWorkRoutineCommand,withWorkRoutineOccurrence,workRoutineReadScope,workRoutineScheduledReadScope} from '@erpx/server-operations/adapters/work-routine-purchases';
+import {withWorkRoutineOccurrence,workRoutineReadScope,workRoutineScheduledReadScope} from '@erpx/server-operations/adapters/work-routine-purchases';
 import {operationsRoutineJournalEffects} from '@erpx/server-workflow/public/operations-routine-journal-effects';
-import { getProject } from "@erpx/server-projects/public/staff-projects";
 import type { SqlDatabase, SqlStatement, SqlValue } from "@erpx/server-runtime/public/runtime/types";
-import { activeStaff, companyAuthority, staffGuard, notification, type StaffActor } from "@erpx/server-operations/public/staff-policy";
+import { companyAuthority, notification, type StaffActor } from "@erpx/server-operations/public/staff-policy";
 import {taskRoute,openApproval} from '@erpx/server-workflow/public/approval-planning';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
-import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { type TemplateRow, type ScheduleRow } from '@erpx/server-operations/domain/routines';
 import { createRoutinesApplication, type RoutinesRepository } from '@erpx/server-operations/application/routines';
@@ -88,8 +86,8 @@ function application(provided?: SqlDatabase,readScope={where:'TRUE',args:[] as S
                 oldest: number | null;
             }>();
         } };
-    return createRoutinesApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => { if (!provided)
-            database = (await nativeHoldingResources(holding)).write; }, production: process.env.NODE_ENV === 'production', occurrenceUnit:(schedule,at,run)=>withWorkRoutineOccurrence(database,schedule,at,async transaction=>{const original=database;database=transaction;try{return await run();}finally{database=original;}}), batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, getProject: (...args) => fromNative(() => getProject(database, ...args)), activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), companyAuthority: (...args) => fromNative(() => companyAuthority(database, ...args)), staffGuard: (...args) => staffGuard(database, ...args), notification: (...args) => notification(database, ...args), taskRoute: (...args) => fromNative(() => taskRoute(database, ...args)), openApproval: (...args) => fromNative(() => openApproval(database, ...args)), assertProductionModuleEnabled: (...args) => fromNative(() => assertProductionModuleEnabled(database, ...args)), productionFeatureGuard: (...args) => productionFeatureGuard(database, ...args) });
+    return createRoutinesApplication({ repository, clock: { now: Date.now }, prepare: async (holding) => { if (!provided)
+            database = (await nativeHoldingResources(holding)).write; }, production: process.env.NODE_ENV === 'production', occurrenceUnit:(schedule,at,run)=>withWorkRoutineOccurrence(database,schedule,at,async transaction=>{const original=database;database=transaction;try{return await run();}finally{database=original;}}), batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, companyAuthority: (...args) => fromNative(() => companyAuthority(database, ...args)), notification: (...args) => notification(database, ...args), taskRoute: (...args) => fromNative(() => taskRoute(database, ...args)), openApproval: (...args) => fromNative(() => openApproval(database, ...args)), assertProductionModuleEnabled: (...args) => fromNative(() => assertProductionModuleEnabled(database, ...args)), productionFeatureGuard: (...args) => productionFeatureGuard(database, ...args) });
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> { try {
     return await run();
@@ -110,5 +108,4 @@ catch (error) {
 export async function listTemplates(db: SqlDatabase, actor: StaffActor) { return invoke(async() => application(db,await workRoutineReadScope(db,actor)).listTemplates(actor)); }
 export async function getTemplate(db: SqlDatabase, actor: StaffActor, id: string) { const scope=await workRoutineReadScope(db,actor);return invoke(() => application(db,scope).getTemplate(actor, id)); }
 export async function canEditTemplate(db: SqlDatabase, actor: StaffActor, row: TemplateRow) { return invoke(() => application(db).canEditTemplate(actor, row)); }
-export async function runTemplate(db: SqlDatabase, actor: StaffActor, id: string, dueAt: number, key: string) { return withWorkRoutineCommand(db,actor,{key,operations:['routine.run'],templateId:id,taskId:`task-${key}`,purpose:'new-work'},tx=>invoke(() => application(tx).runTemplate(actor, id, dueAt, key))); }
 export async function generateOccurrences(db: SqlDatabase, now = Date.now(), limit = 20) { return invoke(() => application(db).generateOccurrences(now, limit)); }

@@ -1,17 +1,13 @@
-import type { getProject } from "@erpx/server-projects/public/staff-projects";
 import { nextOccurrence } from "@erpx/feature-work_projection/lib/routine-calendar";
 import type { StaffActor } from "@erpx/server-operations/public/staff-policy";
-import type { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import type { companyAuthority } from "@erpx/server-operations/public/staff-policy";
-import type { staffGuard } from "@erpx/server-operations/public/staff-policy";
 import type { notification } from "@erpx/server-operations/public/staff-policy";
 import type {taskRoute} from '@erpx/server-workflow/public/approval-planning';
 import type {openApproval} from '@erpx/server-workflow/public/approval-planning';
 import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { type TemplateRow, type ScheduleRow, eventScope } from '@erpx/server-operations/domain/routines';
-import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { OperationsCommands } from '@erpx/server-operations/domain/commands';
+import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
 type Tail<Value extends unknown[]> = Value extends [
     unknown,
     ...infer Rest
@@ -61,18 +57,13 @@ export interface RoutinesRepository<Effect> {
 export interface RoutinesPorts<Effect> {
     repository: RoutinesRepository<Effect>;
     clock: Clock;
-    identifiers: IdentifierSource;
-    commands: OperationsCommands<Effect>;
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     occurrenceUnit<Result extends {next:number|null;generated:boolean}>(schedule:ScheduleRow,at:number,run:()=>Promise<Result>):Promise<Result|undefined>;
     batch(effects: Effect[]): Promise<unknown>;
     policyRead<Result>(key: string, read: () => Promise<Result>): Promise<Result>;
     policyNow(): number;
-    getProject(...args: Tail<Parameters<typeof getProject>>): PortResult<ReturnType<typeof getProject>, Effect>;
-    activeStaff(...args: Tail<Parameters<typeof activeStaff>>): PortResult<ReturnType<typeof activeStaff>, Effect>;
     companyAuthority(...args: Tail<Parameters<typeof companyAuthority>>): PortResult<ReturnType<typeof companyAuthority>, Effect>;
-    staffGuard(...args: Tail<Parameters<typeof staffGuard>>): PortResult<ReturnType<typeof staffGuard>, Effect>;
     notification(...args: Tail<Parameters<typeof notification>>): PortResult<ReturnType<typeof notification>, Effect>;
     taskRoute(...args: Tail<Parameters<typeof taskRoute>>): PortResult<ReturnType<typeof taskRoute>, Effect>;
     openApproval(...args: Tail<Parameters<typeof openApproval>>): PortResult<ReturnType<typeof openApproval>, Effect>;
@@ -127,21 +118,13 @@ export function createRoutinesApplication<Effect>(ports: RoutinesPorts<Effect>) 
         }
         return { steps, state };
     }
-    async function runTemplate(actor: StaffActor, id: string, dueAt: number, key: string) {
-        const taskId = `task-${key}`, input = { templateId: id, dueAt }, prior = await ports.commands.replay(actor, key, "routine.run", taskId, input);
-        if (prior)
-            return prior;
-        await ports.activeStaff(actor.companyId, actor.userId);
-        const template = await getTemplate(actor, id);
-        if (!template.published)
-            throw new BusinessRuleError(409, "TEMPLATE_UNPUBLISHED", "Publish the template before running it.");
-        // A runner is the creator of the occurrence and must have access to the chosen project.
-        if (template.project_id) {
-            await ports.getProject(actor, template.project_id);
-        }
-        const prepared = await occurrenceStatements(template, taskId, key, dueAt, actor.userId, null, null);
-        return ports.commands.commit(actor, key, "routine.run", input, taskId, 1, { id: taskId, state: prepared.state, version: 1 }, [ports.staffGuard(key, actor.companyId, actor.userId), ...prepared.steps], eventScope(template));
-    }
+    /**
+     * Retained TypeScript scheduled-occurrence scheduler. The manual run is
+     * native; this scheduler stays until the native occurrence generator owns
+     * the schedule cursor, execution lineage and purchase/shadow fences.
+     * Removal condition: native `routine.occurrence` generation passes the
+     * scheduler PostgreSQL suites and the retained generation oracle migrates.
+     */
     async function generateOccurrences(now = ports.clock.now(), limit = 20) {
         let generated = 0, examined = 0;
         const schedules = (await r.readGenerateOccurrencesSchedules(now, Math.min(limit, 20))).results;
@@ -224,5 +207,5 @@ export function createRoutinesApplication<Effect>(ports: RoutinesPorts<Effect>) 
         }));
         return { generated, examined };
     }
-    return { listTemplates, getTemplate, canEditTemplate, runTemplate, generateOccurrences };
+    return { listTemplates, getTemplate, canEditTemplate, generateOccurrences };
 }

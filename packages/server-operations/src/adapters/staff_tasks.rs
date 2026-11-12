@@ -545,13 +545,17 @@ impl StaffTaskRepository for PgStaffTasks<'_> {
                 serde_json::to_string(&plan.input.completion_approvers).map_err(|_| {
                     unavailable("TASK_FIELDS_INVALID", "The approval route is invalid.")
                 })?;
-            let existing: Option<(i64,)> = sqlx::query_as(
-                "SELECT version FROM staff_tasks WHERE id=$1 AND company_id=$2 FOR UPDATE",
-            )
-            .bind(&plan.record_id)
-            .bind(&plan.company_id)
-            .fetch_optional(&mut *self.connection)
-            .await?;
+            let existing: Option<(i64,)> = if plan.insert_only {
+                None
+            } else {
+                sqlx::query_as(
+                    "SELECT version FROM staff_tasks WHERE id=$1 AND company_id=$2 FOR UPDATE",
+                )
+                .bind(&plan.record_id)
+                .bind(&plan.company_id)
+                .fetch_optional(&mut *self.connection)
+                .await?
+            };
             if let Some((version,)) = existing {
                 if version != plan.input.expected_version {
                     return Err(changed());
@@ -589,8 +593,9 @@ impl StaffTaskRepository for PgStaffTasks<'_> {
                 sqlx::query(
                     "INSERT INTO staff_tasks(id,company_id,branch_id,department_id,title,description,\
                      creator_user_id,assignee_user_id,due_at,project_id,start_approvers_json,\
-                     completion_approvers_json,state,created_at,updated_at) \
-                     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
+                     completion_approvers_json,state,blocked_reason,template_id,template_version,\
+                     schedule_id,occurrence_at,created_at,updated_at) \
+                     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)",
                 )
                 .bind(&plan.record_id)
                 .bind(&plan.company_id)
@@ -605,17 +610,22 @@ impl StaffTaskRepository for PgStaffTasks<'_> {
                 .bind(&start_json)
                 .bind(&completion_json)
                 .bind(&plan.state)
+                .bind(plan.blocked_reason.as_deref())
+                .bind(plan.template_id.as_deref())
+                .bind(plan.template_version)
+                .bind(plan.schedule_id.as_deref())
+                .bind(plan.occurrence_at)
                 .bind(plan.now)
                 .bind(plan.now)
                 .execute(&mut *self.connection)
                 .await
                 .map_err(write_error)?;
             }
-            let message = if plan.revision {
+            let message = plan.notification.as_deref().unwrap_or(if plan.revision {
                 "Task revised; approvals restart"
             } else {
                 "Task assigned to you"
-            };
+            });
             notify(
                 self.connection,
                 plan.key.as_str(),
@@ -627,10 +637,24 @@ impl StaffTaskRepository for PgStaffTasks<'_> {
                 plan.now,
             )
             .await?;
+            if let Some(message) = plan.creator_notification.as_deref() {
+                notify_staff_record(
+                    self.connection,
+                    plan.key.as_str(),
+                    &plan.company_id,
+                    &plan.actor_id,
+                    "task",
+                    &plan.record_id,
+                    plan.version,
+                    message,
+                    plan.now,
+                )
+                .await?;
+            }
             let authority = authority_json(
                 &plan.company_id,
-                plan.branch_id.as_deref(),
-                plan.department_id.as_deref(),
+                plan.authority_branch_id.as_deref(),
+                plan.authority_department_id.as_deref(),
                 &plan.actor_id,
                 &plan.assignment_id,
             );

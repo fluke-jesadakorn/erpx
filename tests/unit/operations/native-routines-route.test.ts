@@ -14,6 +14,19 @@ const request = (body: unknown = {}) =>
     body: JSON.stringify(body),
   });
 const context = (path: string[]) => ({params: Promise.resolve({holdingSlug: 'acme', path})});
+const scopedRequest = (body: unknown = {}) =>
+  new Request('https://acme.jesadakorn.com/api/v1/holdings/acme/routine-templates', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': 'routine-command-key',
+      'x-erpx-context-company': 'company',
+      'x-erpx-context-assignment': 'assignment',
+      'x-erpx-context-revision': '7',
+      'x-erpx-context-assignment-version': '3',
+    },
+    body: JSON.stringify(body),
+  });
 const ok = (data: unknown) =>
   new Response(JSON.stringify({data, context: {revision: 1}}), {
     status: 200,
@@ -33,6 +46,9 @@ describe('native routine routes are the sole command path', () => {
     const templates = await templatesPost(request({title: 'Old writer'}), context([]));
     expect(templates.status).toBe(503);
     expect(await templates.json()).toMatchObject({error: {code: 'NATIVE_ROUTINES_UNAVAILABLE'}});
+    const run = await templatesPost(request({dueAt: '2026-12-01T02:00:00Z'}), context(['template', 'run']));
+    expect(run.status).toBe(503);
+    expect(await run.json()).toMatchObject({error: {code: 'NATIVE_ROUTINES_UNAVAILABLE'}});
     const schedules = await schedulesPost(request({expectedVersion: 1}), context(['schedule', 'end']));
     expect(schedules.status).toBe(503);
     expect(await schedules.json()).toMatchObject({error: {code: 'NATIVE_ROUTINES_UNAVAILABLE'}});
@@ -65,15 +81,42 @@ describe('native routine routes are the sole command path', () => {
     expect(transport).toHaveBeenCalledTimes(cases.length);
   });
 
-  it('keeps the retained read and run shapes off the native command transport', async () => {
+  it('forwards the manual run and rejects a non-exact owner receipt or changed context', async () => {
+    process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG = config;
+    const runReceipt = {id: 'task-routine-command-key', state: 'start_approval', version: 1};
+    const receiptContext = {companyId: 'company', assignmentId: 'assignment', revision: 7, assignmentVersion: 3};
+    const transport = vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({data: runReceipt, context: receiptContext}), {status: 200, headers: {'content-type': 'application/json'}}));
+    vi.stubGlobal('fetch', transport);
+    const body = {dueAt: '2026-12-01T02:00:00Z'};
+    const response = await templatesPost(scopedRequest(body), context(['template', 'run']));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({data: runReceipt});
+    const [url, init] = transport.mock.calls[0]!;
+    expect(String(url)).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/routine-templates/template/run');
+    expect(init).toMatchObject({method: 'POST', cache: 'no-store'});
+    expect(JSON.parse(String(init?.body))).toEqual(body);
+    expect(new Headers(init?.headers).get('idempotency-key')).toBe('routine-command-key');
+    for (const [data, replyContext] of [
+      [{...runReceipt, version: 2}, receiptContext],
+      [{...runReceipt, id: 'task-other'}, receiptContext],
+      [{...runReceipt, state: 'completed'}, receiptContext],
+      [runReceipt, {...receiptContext, revision: 8}],
+    ] as const) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({data, context: replyContext}), {status: 200, headers: {'content-type': 'application/json'}})));
+      const invalid = await templatesPost(scopedRequest(body), context(['template', 'run']));
+      expect(invalid.status).toBe(503);
+      expect(await invalid.json()).toMatchObject({error: {code: 'NATIVE_ROUTINES_RESPONSE_INVALID'}});
+    }
+    expect(retained).not.toHaveBeenCalled();
+  });
+
+  it('keeps the retained read shape off the native command transport', async () => {
     process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG = config;
     const transport = vi.fn();
     vi.stubGlobal('fetch', transport);
-    expect(await (await templatesPost(request({dueAt: '2026-12-01T02:00:00Z'}), context(['template', 'run']))).json())
-      .toEqual({data: 'retained'});
     expect(await (await schedulesPost(request({dueAt: '2026-12-01T02:00:00Z'}), context(['schedule', 'unknown']))).json())
       .toEqual({data: 'retained'});
-    expect(retained).toHaveBeenCalledTimes(2);
+    expect(retained).toHaveBeenCalledTimes(1);
     expect(transport).not.toHaveBeenCalled();
   });
 
