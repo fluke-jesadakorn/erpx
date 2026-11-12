@@ -19,9 +19,13 @@ import {
   type BrandProfileRow,
   type BrandRecordKind,
   type BrandStorefrontRow,
-  type DocumentBrandMode,
 } from "@erpx/server-brand/domain/branding";
 import { publishedBrandIdentity } from "@erpx/server-brand/adapters/identity";
+import {
+  nativeBrandProfileEvidence,
+  nativeResolveDocumentBrand,
+  nativeResolveWorkspaceBrand,
+} from "./native-brand-presentation";
 export { documentBrandModes } from "@erpx/server-brand/domain/branding";
 export type { DocumentBrandMode,BrandVariant,WorkspaceBrand,StorefrontAppBrand,DocumentBrand } from "@erpx/server-brand/domain/branding";
 const image={async metadata(buffer:ArrayBuffer){return sharp(Buffer.from(buffer),{failOn:"warning"}).metadata();},async encode(buffer:ArrayBuffer){return sharp(Buffer.from(buffer),{failOn:"warning"}).rotate().resize({width:4096,height:4096,fit:"inside",withoutEnlargement:true}).webp({quality:92,alphaQuality:100}).toBuffer();}};
@@ -32,26 +36,27 @@ function mediaUrls(actor:WorkContext){
   publication:(id:string|null)=>id?`/api/public/holdings/${encodeURIComponent(actor.holdingSlug)}/media-publications/${encodeURIComponent(id)}/content`:null,
  };
 }
-const profile=(db:SqlDatabase,kind:"holding"|"branch",id:string)=>db.prepare("SELECT * FROM organization_brand_profiles WHERE scope_kind=? AND scope_id=?").bind(kind,id).first<BrandProfileRow>();
 const branch=(db:SqlDatabase,actor:WorkContext,id:string)=>db.prepare(`SELECT id,display_name FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'`).bind(id,actor.companyId).first<{id:string;display_name:string}>();
-const company=(db:SqlDatabase,actor:WorkContext)=>db.prepare(`SELECT display_name FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND kind='company' AND status='active'`).bind(actor.companyId).first<{display_name:string}>();
 const storefrontRow=(db:SqlDatabase,actor:WorkContext)=>db.prepare(`SELECT c.slug,c.display_name,b.short_name,b.accent_color,b.logo_attachment_id,b.logo_publication_id FROM (${organizationProjectionSources.organization_nodes}) c LEFT JOIN storefront_app_brands b ON b.company_id=c.id WHERE c.id=? AND c.kind='company' AND c.status='active'`).bind(actor.companyId).first<BrandStorefrontRow>();
-async function present(db:SqlDatabase,actor:WorkContext,kind:"holding"|"branch",id:string,label:string){
- return brandPresentation(kind,id,label,await profile(db,kind,id),mediaUrls(actor),attachmentsV2Readable());
+/** Native workspace brand for the selected scope. The Brand owner resolves the
+ * Holding label, media URL precedence and document mode on the current Holding
+ * transaction; no TypeScript Brand SQL read remains on this path. */
+export async function resolveWorkspaceBrand(a:WorkContext){
+ return nativeResolveWorkspaceBrand(a);
 }
-export async function resolveWorkspaceBrand(db:SqlDatabase,a:WorkContext){
- if(a.branchId){const row=await branch(db,a,a.branchId);if(row)return present(db,a,"branch",row.id,row.display_name);}
- return present(db,a,"holding",a.holdingId,a.holdingName);
+/** Native document brand choice. Holding mode is the no-Branch default and a
+ * requested Branch mode is ignored for a document without a Branch. */
+export async function resolveDocumentBrand(a:WorkContext,scope:{branchId:string|null;requestedMode?:string|null}){
+ return nativeResolveDocumentBrand(a,scope);
 }
-export async function resolveDocumentBrand(db:SqlDatabase,a:WorkContext,scope:{branchId:string|null;requestedMode?:string|null}){
- const current=await company(db,a);if(!current)throw new BusinessRuleError(409,"COMPANY_REQUIRED","The legal Company is unavailable.");
- const holding=await present(db,a,"holding",a.holdingId,a.holdingName);
- if(!scope.branchId)return {mode:"holding" as const,companyName:current.display_name,branchName:null,holding,branch:null};
- const row=await branch(db,a,scope.branchId);if(!row)throw new BusinessRuleError(404,"BRANCH_NOT_FOUND","The document Branch is unavailable.");
- const branchProfile=await profile(db,"branch",row.id),branchBrand=brandPresentation("branch",row.id,row.display_name,branchProfile,mediaUrls(a),attachmentsV2Readable());
- const requested=["holding","branch","both"].includes(scope.requestedMode??"")?scope.requestedMode as DocumentBrandMode:null;
- return {mode:requested??branchProfile?.document_mode??"branch",companyName:current.display_name,branchName:row.display_name,holding,branch:branchBrand};
-}
+/**
+ * Retained TypeScript Brand profile list.
+ *
+ * The serving consumers read `nativeListBrandProfiles`; this retained reader is
+ * kept only for the registered `shared.attachments.attachments-v2.integration`
+ * suite, which exercises the accepted profile/storefront shapes against real
+ * PostgreSQL. Remove it with that suite's native replacement.
+ */
 export async function listBrandProfiles(db:SqlDatabase,a:WorkContext){
  const branches=(await db.prepare(`SELECT id,display_name FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind='branch' AND status='active' ORDER BY display_name,id`).bind(a.companyId).all<{id:string;display_name:string}>()).results;
  const profiles=(await db.prepare("SELECT * FROM organization_brand_profiles WHERE scope_kind='holding' OR company_id=?").bind(a.companyId).all<BrandProfileRow>()).results;
@@ -90,6 +95,7 @@ export async function recordBranchId(db:SqlDatabase,a:WorkContext,kind:BrandReco
   ELSE NULL END branch_id FROM (${financeProjectionSources.finance_journals}) j WHERE j.id=? AND j.company_id=?`).bind(id,a.companyId).first<{branch_id:string|null}>();return found?.branch_id??null;
 }
 export function normalizeBrandImage(buffer:ArrayBuffer){return normalizeBrandMedia(image,buffer);}
-export async function brandProfileEvidenceRow(db:SqlDatabase,a:WorkContext,branchId:string){
- return db.prepare(`SELECT p.scope_id id,b.display_name branch_name,p.document_mode,p.updated_at,p.primary_attachment_id,p.inverse_attachment_id FROM organization_brand_profiles p JOIN (${organizationProjectionSources.organization_nodes}) b ON b.id=p.scope_id AND b.company_id=p.company_id AND b.kind='branch' AND b.status='active' WHERE p.scope_kind='branch' AND p.company_id=? AND p.scope_id=? LIMIT 1`).bind(a.companyId,branchId).first();
+/** Native executive Brand profile evidence row for one active Branch. */
+export async function readBrandProfileEvidence(a:WorkContext,branchId:string){
+ return nativeBrandProfileEvidence(a,branchId);
 }

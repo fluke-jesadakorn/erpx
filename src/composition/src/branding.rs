@@ -6,12 +6,14 @@
 use crate::brand_identity::{BrandSources, brand_actor};
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_brand::public::branding::{
-    PgBranding, attach_brand_media, read_branding_workspace, update_brand_profile,
-    update_storefront,
+    BrandPresentationContext, PgBranding, attach_brand_media, list_brand_profiles,
+    read_brand_profile_evidence, read_branding_workspace, read_storefront_app_brand,
+    resolve_document_brand, resolve_workspace_brand, update_brand_profile, update_storefront,
 };
 use erpx_server_brand::public::branding_http::{
     BrandingHttpBackend, BrandingHttpCommandRequest, BrandingHttpFuture, BrandingHttpReadRequest,
-    BrandingHttpTarget, branding_http_router,
+    BrandingHttpTarget, BrandingPresentationHttpRequest, BrandingPresentationReadKind,
+    branding_http_router,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -55,6 +57,57 @@ fn business(error: Error) -> BusinessError {
         PgTransactionError::Business(error) => error,
         PgTransactionError::Persistence(_) => unavailable(),
     }
+}
+
+/// Reproduce the retained `encodeURIComponent` calls in `workspaceBase`.
+fn encode_uri_component(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric()
+            || matches!(
+                byte,
+                b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')'
+            )
+        {
+            encoded.push(*byte as char);
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    encoded
+}
+
+/// Reproduce `workspaceBase(publicScope(actor))` from the selected scope so the
+/// legacy attachment URLs stay `/api/v1{base}/attachments/{id}/content`.
+fn workspace_api_base(
+    holding_slug: &str,
+    branch_slug: Option<&str>,
+    department_slug: Option<&str>,
+) -> String {
+    let holding = format!("/holdings/{}", encode_uri_component(holding_slug));
+    let base = match (branch_slug, department_slug) {
+        (_, Some(department)) => {
+            let branch = branch_slug
+                .map(|branch| format!("/branches/{}", encode_uri_component(branch)))
+                .unwrap_or_default();
+            format!(
+                "{holding}{branch}/departments/{}",
+                encode_uri_component(department)
+            )
+        }
+        (Some(branch), None) => format!("{holding}/branches/{}", encode_uri_component(branch)),
+        (None, None) => holding,
+    };
+    format!("/api/v1{base}")
+}
+
+/// `attachmentsV2Readable()` from the Files owner feature flags: approved v2
+/// media is readable when the platform is enabled, and the emergency rollback
+/// keeps immutable evidence readable. The Brand owner renders the legacy
+/// attachment URL only outside this state.
+fn attachments_readable() -> bool {
+    std::env::var("ERPX_ATTACHMENTS_V2").as_deref() == Ok("true")
+        || std::env::var("ERPX_ATTACHMENTS_READ_ONLY").as_deref() == Ok("true")
 }
 
 #[derive(Clone)]
@@ -141,8 +194,93 @@ impl<C: Clock + Send + Sync + 'static> BrandingService<C> {
             )
             .await
     }
-    pub async fn command(
+    /// Retained Brand presentation read. The current Holding/Company authority,
+    /// the legacy attachment readability and the workspace API base are resolved
+    /// on this same unit; the owner renders the projection the switched consumers
+    /// previously read from TypeScript SQL.
+    pub async fn presentation(
         &self,
+        host: &str,
+        proof: DeviceProof,
+        input: HoldingWorkspaceRequest,
+        holding_slug: String,
+        holding_name: String,
+        kind: BrandingPresentationReadKind,
+        branch_id: Option<String>,
+        requested_mode: Option<String>,
+    ) -> Result<Value, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || Ok(input),
+                Self::access(false),
+                BrandSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let holding_slug = holding_slug.clone();
+                    let holding_name = holding_name.clone();
+                    let branch_id = branch_id.clone();
+                    let requested_mode = requested_mode.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_required().into());
+                        }
+                        let actor = brand_actor(current)?;
+                        let workspace = current.selection().workspace();
+                        let context = BrandPresentationContext::new(
+                            &holding_name,
+                            &holding_slug,
+                            &workspace_api_base(
+                                &holding_slug,
+                                workspace.branch_slug.as_deref(),
+                                workspace.department_slug.as_deref(),
+                            ),
+                            attachments_readable(),
+                        )?;
+                        let mut ports = PgBranding::new(connection, &actor, clock.now().get());
+                        let data = match kind {
+                            BrandingPresentationReadKind::Workspace => {
+                                serde_json::to_value(resolve_workspace_brand(&mut ports, &context).await?)
+                            }
+                            BrandingPresentationReadKind::Document => serde_json::to_value(
+                                resolve_document_brand(
+                                    &mut ports,
+                                    &context,
+                                    branch_id.as_deref(),
+                                    requested_mode.as_deref(),
+                                )
+                                .await?,
+                            ),
+                            BrandingPresentationReadKind::Profiles => {
+                                serde_json::to_value(list_brand_profiles(&mut ports, &context).await?)
+                            }
+                            BrandingPresentationReadKind::Storefront => serde_json::to_value(
+                                read_storefront_app_brand(&mut ports, &context).await?,
+                            ),
+                            BrandingPresentationReadKind::Evidence => serde_json::to_value(
+                                read_brand_profile_evidence(
+                                    &mut ports,
+                                    branch_id.as_deref().unwrap_or_default(),
+                                )
+                                .await?,
+                            ),
+                        }
+                        .map_err(|_| PgTransactionError::Business(unavailable()))?;
+                        Ok(data)
+                    })
+                },
+            )
+            .await
+    }
+    pub async fn command(        &self,
         host: &str,
         proof: DeviceProof,
         mut input: HoldingWorkspaceRequest,
@@ -287,6 +425,27 @@ impl<C: Clock + Send + Sync + 'static> BrandingHttpBackend for BrandingBackend<C
                     selection,
                     request.key.to_owned(),
                     request.body.clone(),
+                )
+                .await
+                .map_err(business)
+        })
+    }
+    fn presentation<'a>(
+        &'a self,
+        request: BrandingPresentationHttpRequest<'a>,
+    ) -> BrandingHttpFuture<'a, Value> {
+        Box::pin(async move {
+            let (proof, selection) = self.read_context(request.headers)?;
+            self.service
+                .presentation(
+                    request.host,
+                    proof,
+                    selection,
+                    request.holding_slug.to_owned(),
+                    request.holding_name.to_owned(),
+                    request.kind,
+                    request.branch_id.map(str::to_owned),
+                    request.requested_mode.map(str::to_owned),
                 )
                 .await
                 .map_err(business)

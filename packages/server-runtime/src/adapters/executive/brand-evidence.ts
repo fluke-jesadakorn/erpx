@@ -1,7 +1,7 @@
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { brandProfileEvidenceRow } from "@erpx/server-brand/public/branding";
+import { readBrandProfileEvidence } from "@erpx/server-brand/public/branding";
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import { companyAuthority } from "@erpx/server-operations/public/staff-policy";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -20,7 +20,7 @@ function application(database: SqlDatabase) {
                 .bind(companyId, userId, assignmentId, providerId, metric, action, value, queryHash, now, value2)
                 .run();
         } };
-    return createBrandEvidenceApplication({ repository, clock: { now: Date.now }, digest: sha256, brandProfileEvidenceRow: (...args) => fromNative(() => brandProfileEvidenceRow(database, ...args)), assertProductionModuleEnabled: (...args) => fromNative(() => assertProductionModuleEnabled(database, ...args)), companyAuthority: (...args) => fromNative(() => companyAuthority(database, ...args)), currentAuthority: (...args) => fromNative(() => currentAuthority(database, ...args)), metricCatalogFor: (...args) => fromNative(() => metricCatalogFor(database, ...args)) });
+    return createBrandEvidenceApplication({ repository, clock: { now: Date.now }, digest: sha256, brandProfileEvidenceRow: (...args) => fromNative(() => readBrandProfileEvidence(...args)), assertProductionModuleEnabled: (...args) => fromNative(() => assertProductionModuleEnabled(database, ...args)), companyAuthority: (...args) => fromNative(() => companyAuthority(database, ...args)), currentAuthority: (...args) => fromNative(() => currentAuthority(database, ...args)), metricCatalogFor: (...args) => fromNative(() => metricCatalogFor(database, ...args)) });
 }
 async function fromNative<T>(run: () => Promise<T> | T): Promise<T> { try {
     return await run();

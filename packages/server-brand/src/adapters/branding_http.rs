@@ -5,8 +5,8 @@
 //! policy, snapshots, receipts, audit and outbox remain composition
 //! responsibilities behind the backend trait.
 use erpx_server_runtime::public::http_support::{
-    HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, serde_json,
+    HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
+    State, StatusCode, body::to_bytes, header, routing::get, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::collections::BTreeMap;
@@ -14,6 +14,8 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 const BODY_LIMIT: usize = 64 * 1024;
 const KEY_LIMIT: usize = 180;
+/// The verified Account context's Holding display label. Presentation only.
+const PRESENTATION_NAME_HEADER: &str = "x-erpx-holding-name";
 
 pub type BrandingHttpFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -32,10 +34,62 @@ pub struct BrandingHttpCommandRequest<'a> {
     pub body: serde_json::Value,
 }
 
+/// One retained Brand presentation read. Label initials, media URL precedence,
+/// storefront overlay and document mode stay in the owner; this transport only
+/// selects which native projection the current authority may read.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BrandingPresentationReadKind {
+    Workspace,
+    Document,
+    Profiles,
+    Storefront,
+    Evidence,
+}
+
+impl BrandingPresentationReadKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Workspace => "workspace",
+            Self::Document => "document",
+            Self::Profiles => "profiles",
+            Self::Storefront => "storefront",
+            Self::Evidence => "evidence",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "workspace" => Some(Self::Workspace),
+            "document" => Some(Self::Document),
+            "profiles" => Some(Self::Profiles),
+            "storefront" => Some(Self::Storefront),
+            "evidence" => Some(Self::Evidence),
+            _ => None,
+        }
+    }
+}
+
+/// Presentation facts the Brand owner cannot derive. The label is the Holding
+/// name the verified Account context already carries for this request; it is a
+/// display fact only and never selects a Company, Branch or media source.
+pub struct BrandingPresentationHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub holding_name: &'a str,
+    pub headers: &'a HeaderMap,
+    pub kind: BrandingPresentationReadKind,
+    pub branch_id: Option<&'a str>,
+    pub requested_mode: Option<&'a str>,
+}
+
 pub trait BrandingHttpBackend: Send + Sync {
     fn read<'a>(
         &'a self,
         request: BrandingHttpReadRequest<'a>,
+    ) -> BrandingHttpFuture<'a, serde_json::Value>;
+    fn presentation<'a>(
+        &'a self,
+        request: BrandingPresentationHttpRequest<'a>,
     ) -> BrandingHttpFuture<'a, serde_json::Value>;
     fn command<'a>(
         &'a self,
@@ -203,12 +257,97 @@ async fn read(
     respond(result)
 }
 
+#[derive(serde::Deserialize)]
+struct PresentationQuery {
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    branch: Option<String>,
+    #[serde(default)]
+    mode: Option<String>,
+}
+
+fn presentation_text(value: &str, max: usize, code: &'static str) -> Result<(), BusinessError> {
+    if value.is_empty() || value.len() > max || value.chars().any(char::is_control) {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            code,
+            "Use one bounded Branding presentation read.",
+        ));
+    }
+    Ok(())
+}
+
+async fn presentation(
+    State(state): State<Arc<BrandingHttpState>>,
+    Path(slug): Path<String>,
+    Query(query): Query<PresentationQuery>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result: Result<serde_json::Value, BusinessError> = async move {
+        let target = target(&state, &headers, &slug)?;
+        require_origin(target, &headers, false)?;
+        let invalid = || malformed();
+        let kind = query
+            .kind
+            .as_deref()
+            .and_then(BrandingPresentationReadKind::parse)
+            .ok_or_else(invalid)?;
+        let holding_name = unique_header(&headers, HeaderName::from_static(PRESENTATION_NAME_HEADER))?
+            .ok_or_else(invalid)?;
+        if holding_name.trim().is_empty()
+            || holding_name.trim().chars().count() > 200
+            || holding_name.chars().any(char::is_control)
+        {
+            return Err(invalid());
+        }
+        for value in [query.branch.as_deref(), query.mode.as_deref()]
+            .into_iter()
+            .flatten()
+        {
+            presentation_text(value, 200, "BRANDING_REQUEST_INVALID")?;
+        }
+        let branch_id = match kind {
+            BrandingPresentationReadKind::Evidence => {
+                Some(query.branch.as_deref().ok_or_else(invalid)?)
+            }
+            BrandingPresentationReadKind::Document => query.branch.as_deref(),
+            BrandingPresentationReadKind::Workspace
+            | BrandingPresentationReadKind::Profiles
+            | BrandingPresentationReadKind::Storefront => {
+                if query.branch.is_some() || query.mode.is_some() {
+                    return Err(invalid());
+                }
+                None
+            }
+        };
+        target
+            .backend
+            .presentation(BrandingPresentationHttpRequest {
+                host: unique_header(&headers, header::HOST)?.ok_or_else(missing)?,
+                holding_slug: &slug,
+                holding_name: holding_name.trim(),
+                headers: &headers,
+                kind,
+                branch_id,
+                requested_mode: if kind == BrandingPresentationReadKind::Document {
+                    query.mode.as_deref()
+                } else {
+                    None
+                },
+            })
+            .await
+    }
+    .await;
+    respond(result)
+}
+
 async fn command(
     State(state): State<Arc<BrandingHttpState>>,
     Path(slug): Path<String>,
     request: Request,
-) -> Response {
-    let headers = request.headers().clone();
+) -> Response {    let headers = request.headers().clone();
     let body = match to_bytes(request.into_body(), BODY_LIMIT).await {
         Ok(body) => body,
         Err(_) => return error_response(malformed()),
@@ -226,8 +365,7 @@ async fn command(
         {
             return Err(malformed());
         }
-        let value: serde_json::Value =
-            serde_json::from_slice(&body).map_err(|_| malformed())?;
+        let value: serde_json::Value = serde_json::from_slice(&body).map_err(|_| malformed())?;
         if !value.is_object() {
             return Err(malformed());
         }
@@ -253,10 +391,7 @@ pub fn branding_http_router(targets: Vec<BrandingHttpTarget>) -> Result<Router, 
             || !valid_slug(&target.holding_slug)
             || !valid_origin(&target.origin)
             || map
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    target,
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), target)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -266,6 +401,10 @@ pub fn branding_http_router(targets: Vec<BrandingHttpTarget>) -> Result<Router, 
         .route(
             "/api/v1/holdings/{holding_slug}/branding",
             get(read).post(command),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/branding/presentation",
+            get(presentation),
         )
         .with_state(Arc::new(BrandingHttpState { targets: map })))
 }

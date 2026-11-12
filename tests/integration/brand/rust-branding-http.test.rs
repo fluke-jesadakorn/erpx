@@ -3,7 +3,8 @@
 //! outbox remain separate composition responsibilities.
 use erpx_server_brand::public::branding_http::{
     BrandingHttpBackend, BrandingHttpCommandRequest, BrandingHttpFuture, BrandingHttpReadRequest,
-    BrandingHttpTarget, branding_http_router,
+    BrandingHttpTarget, BrandingPresentationHttpRequest, BrandingPresentationReadKind,
+    branding_http_router,
 };
 use erpx_server_runtime::public::http_support::{serde_json, serve};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -36,6 +37,18 @@ impl BrandingHttpBackend for Noop {
             ))
         })
     }
+    fn presentation<'a>(
+        &'a self,
+        _: BrandingPresentationHttpRequest<'a>,
+    ) -> BrandingHttpFuture<'a, serde_json::Value> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::NotFound,
+                "NOT_FOUND",
+                "Not found.",
+            ))
+        })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -52,9 +65,20 @@ struct SeenCommand {
     short_name: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SeenPresentation {
+    host: String,
+    holding: String,
+    holding_name: String,
+    kind: String,
+    branch: Option<String>,
+    mode: Option<String>,
+}
+
 struct Probe {
     reads: Arc<Mutex<Vec<SeenRead>>>,
     commands: Arc<Mutex<Vec<SeenCommand>>>,
+    presentations: Arc<Mutex<Vec<SeenPresentation>>>,
     fail: Option<BusinessError>,
 }
 
@@ -97,6 +121,70 @@ impl BrandingHttpBackend for Probe {
                 return Err(error);
             }
             Ok(serde_json::json!({"shortName": "ERPX", "accentColor": "#3659c9"}))
+        })
+    }
+    fn presentation<'a>(
+        &'a self,
+        request: BrandingPresentationHttpRequest<'a>,
+    ) -> BrandingHttpFuture<'a, serde_json::Value> {
+        Box::pin(async move {
+            self.presentations
+                .lock()
+                .unwrap()
+                .push(SeenPresentation {
+                    host: request.host.into(),
+                    holding: request.holding_slug.into(),
+                    holding_name: request.holding_name.into(),
+                    kind: request.kind.as_str().into(),
+                    branch: request.branch_id.map(str::to_owned),
+                    mode: request.requested_mode.map(str::to_owned),
+                });
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            let workspace = serde_json::json!({
+                "scopeKind": "branch",
+                "scopeId": "branch-1",
+                "label": "North Branch",
+                "initials": "NB",
+                "primaryUrl": "/api/public/holdings/erpx/media-publications/pub-1/content",
+                "inverseUrl": null,
+                "documentMode": "both"
+            });
+            let storefront = serde_json::json!({
+                "companyId": "erpx-co",
+                "holdingSlug": "erpx",
+                "companySlug": "erpx-co",
+                "companyName": "ERPX Company",
+                "shortName": "ERPX",
+                "accentColor": "#3659c9",
+                "logoUrl": null,
+                "identityRevision": 4
+            });
+            Ok(match request.kind {
+                BrandingPresentationReadKind::Workspace => workspace,
+                BrandingPresentationReadKind::Document => serde_json::json!({
+                    "mode": "both",
+                    "companyName": "ERPX Company",
+                    "branchName": "North Branch",
+                    "holding": workspace,
+                    "branch": workspace
+                }),
+                BrandingPresentationReadKind::Profiles => serde_json::json!({
+                    "holding": workspace,
+                    "branches": [workspace],
+                    "storefront": storefront
+                }),
+                BrandingPresentationReadKind::Storefront => storefront,
+                BrandingPresentationReadKind::Evidence => serde_json::json!({
+                    "id": "branch-1",
+                    "branch_name": "North Branch",
+                    "document_mode": "both",
+                    "updated_at": 1_700_000_000_000_i64,
+                    "primary_attachment_id": null,
+                    "inverse_attachment_id": "attachment-2"
+                }),
+            })
         })
     }
 }
@@ -163,6 +251,11 @@ async fn http(addr: std::net::SocketAddr, raw: String) -> (u16, serde_json::Valu
 fn get(path: &str, host: &str) -> String {
     format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n")
 }
+fn get_named(path: &str, host: &str, holding_name: &str) -> String {
+    format!(
+        "GET {path} HTTP/1.1\r\nHost: {host}\r\nX-Erpx-Holding-Name: {holding_name}\r\nConnection: close\r\n\r\n"
+    )
+}
 fn post(path: &str, host: &str, origin: &str, key: Option<&str>, body: &str) -> String {
     format!(
         "POST {path} HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\nContent-Type: application/json\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -175,10 +268,12 @@ fn post(path: &str, host: &str, origin: &str, key: Option<&str>, body: &str) -> 
 async fn actual_router_forwards_exact_targets_and_maps_business_errors() {
     let reads = Arc::new(Mutex::new(Vec::new()));
     let commands = Arc::new(Mutex::new(Vec::new()));
+    let presentations = Arc::new(Mutex::new(Vec::new()));
     let router = branding_http_router(vec![
         target(Arc::new(Probe {
             reads: reads.clone(),
             commands: commands.clone(),
+            presentations: presentations.clone(),
             fail: None,
         })),
         BrandingHttpTarget {
@@ -188,6 +283,7 @@ async fn actual_router_forwards_exact_targets_and_maps_business_errors() {
             backend: Arc::new(Probe {
                 reads: reads.clone(),
                 commands: commands.clone(),
+                presentations: presentations.clone(),
                 fail: Some(BusinessError::new(
                     FailureKind::Conflict,
                     "CONFLICT",
@@ -229,6 +325,100 @@ async fn actual_router_forwards_exact_targets_and_maps_business_errors() {
     .await;
     assert_eq!(status, 404);
     assert_eq!(body["error"]["code"], "NOT_FOUND");
+
+    let presentation = "/api/v1/holdings/erpx/branding/presentation";
+    for (query, kind, branch, mode) in [
+        ("kind=workspace", "workspace", None, None),
+        ("kind=document&branch=branch-1&mode=both", "document", Some("branch-1"), Some("both")),
+        ("kind=profiles", "profiles", None, None),
+        ("kind=storefront", "storefront", None, None),
+        ("kind=evidence&branch=branch-1", "evidence", Some("branch-1"), None),
+    ] {
+        let (status, body, raw) = http(
+            addr,
+            get_named(
+                &format!("{presentation}?{query}"),
+                "erpx-internal.example.test",
+                "ERPX",
+            ),
+        )
+        .await;
+        assert_eq!(status, 200, "{kind}");
+        assert!(raw.contains("cache-control: private, no-store"), "{kind}");
+        assert!(body["data"].is_object() || body["data"].is_null(), "{kind}");
+        assert_eq!(
+            presentations.lock().unwrap().last().cloned(),
+            Some(SeenPresentation {
+                host: "erpx-internal.example.test".into(),
+                holding: "erpx".into(),
+                holding_name: "ERPX".into(),
+                kind: kind.into(),
+                branch: branch.map(str::to_owned),
+                mode: mode.map(str::to_owned),
+            })
+        );
+    }
+    let (status, body, _) = http(
+        addr,
+        get_named(
+            &format!("{presentation}?kind=workspace"),
+            "erpx-internal.example.test",
+            "ERPX",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["initials"], "NB");
+    assert_eq!(
+        body["data"]["primaryUrl"],
+        "/api/public/holdings/erpx/media-publications/pub-1/content"
+    );
+    let (status, body, _) = http(
+        addr,
+        get(&format!("{presentation}?kind=workspace"), "erpx-internal.example.test"),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(body["error"]["code"], "BRANDING_REQUEST_INVALID");
+    let overlong = "b".repeat(201);
+    for invalid in [
+        "kind=unknown".to_owned(),
+        "kind=".to_owned(),
+        String::new(),
+        "kind=evidence".to_owned(),
+        "kind=workspace&branch=branch-1".to_owned(),
+        format!("kind=document&branch={overlong}"),
+    ] {
+        let (status, body, _) = http(
+            addr,
+            get_named(
+                &format!("{presentation}?{invalid}"),
+                "erpx-internal.example.test",
+                "ERPX",
+            ),
+        )
+        .await;
+        assert_eq!(status, 422, "{invalid}");
+        assert_eq!(body["error"]["code"], "BRANDING_REQUEST_INVALID");
+    }
+    let (status, body, _) = http(
+        addr,
+        get_named(&format!("{presentation}?kind=workspace"), "other.example.test", "ERPX"),
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert_eq!(body["error"]["code"], "NOT_FOUND");
+    let (status, body, _) = http(
+        addr,
+        get_named(
+            "/api/v1/holdings/fail/branding/presentation?kind=workspace",
+            "fail.example.test",
+            "Fail Holding",
+        ),
+    )
+    .await;
+    assert_eq!(status, 409);
+    assert_eq!(body["error"]["code"], "CONFLICT");
 
     let (status, body, _) = http(
         addr,
