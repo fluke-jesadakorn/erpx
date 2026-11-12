@@ -159,6 +159,12 @@ export type NativeQualityReleaseReceipt = Readonly<{
   version: number;
 }>;
 
+export type NativeQualityHoldReceipt = Readonly<{
+  id: string;
+  status: string;
+  version: number;
+}>;
+
 export type NativeQualityDispositionReceipt = Readonly<{
   id: string;
   status: string;
@@ -818,6 +824,29 @@ export function createNativeQualityReader(raw: string, transport: QualityTranspo
         result: value.result,
         version: value.version,
       };
+    },
+    holdCreate: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+      input: unknown,
+      key: string,
+    ): Promise<NativeQualityHoldReceipt> => {
+      const value = await send(
+        'POST',
+        incoming,
+        slug,
+        '',
+        JSON.stringify(input ?? {}),
+        key,
+      );
+      if (
+        !identifier(value.id) ||
+        !text(value.status) ||
+        !safeInteger(value.version) ||
+        value.version < 1
+      )
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return { id: value.id, status: value.status, version: value.version };
     },
     release: async (
       incoming: Pick<Headers, 'get'>,
