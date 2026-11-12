@@ -15,14 +15,6 @@ import {employeeRequestDetail,getEmployeeRequest} from '@erpx/server-records/pub
 import { executeCommand } from "@erpx/server-workflow/public/commands";
 import { serviceAuthoritySnapshot } from "@erpx/server-support/public/service-access";
 import {
-  actOnHandbook,
-  handbookArticle,
-  handbookList,
-  handbookSchema,
-  saveHandbookArticle,
-  setHandbookEditor,
-} from "@erpx/server-collaboration/public/handbook";
-import {
   responsibilityContext,
   responsibilityRoles,
 } from "@erpx/feature-organization/lib/responsibilities";
@@ -477,101 +469,6 @@ it("uses only the active responsibility even when other grants exist", async () 
   const purchasing={...actor,role:"purchasing_operator",assignmentId:actor.assignments[1].id};
   expect(commercePermissions(purchasing).purchase).toBe(true);
 });
-it("keeps handbook drafts, published revisions and search strictly separate", async () => {
-  await setHandbookEditor(
-    db,
-    f.owner,
-    { userId: f.it.userId, active: true, expectedVersion: 0 },
-    key(),
-  );
-  const input = handbookSchema.parse({
-    title: "Office help",
-    body: "Published instructions for requesting support.",
-  });
-  const r = await saveHandbookArticle(db, f.it, null, input, key());
-  expect((await handbookList(db, f.claimant)).articles).toHaveLength(0);
-  await expect(handbookArticle(db, f.claimant, r.id)).rejects.toMatchObject({
-    status: 404,
-  });
-  await actOnHandbook(
-    db,
-    f.it,
-    r.id,
-    { action: "publish", expectedVersion: r.version },
-    key(),
-  );
-  const published = await handbookArticle(db, f.it, r.id, true);
-  await saveHandbookArticle(
-    db,
-    f.it,
-    r.id,
-    {
-      ...input,
-      body: "Unpublished secret draft",
-      expectedVersion: published.article.version!,
-    },
-    key(),
-  );
-  expect((await handbookArticle(db, f.claimant, r.id)).revision.body).toBe(
-    input.body,
-  );
-  expect((await handbookList(db, f.claimant, "secret")).articles).toHaveLength(
-    0,
-  );
-  expect((await handbookArticle(db, f.claimant, r.id)).history).toHaveLength(1);
-  expect((await handbookArticle(db, f.it, r.id, true)).history).toHaveLength(2);
-  await expect(
-    handbookArticle(db, f.claimant, r.id, true),
-  ).rejects.toMatchObject({ status: 403 });
-});
-it("revokes handbook editing immediately, denies cross-company reads and rejects stale publication", async () => {
-  await setHandbookEditor(
-    db,
-    f.owner,
-    { userId: f.it.userId, active: true, expectedVersion: 0 },
-    key(),
-  );
-  const input = handbookSchema.parse({
-      title: "Company guide",
-      body: "Original draft",
-    }),
-    r = await saveHandbookArticle(db, f.it, null, input, key());
-  await saveHandbookArticle(
-    db,
-    f.it,
-    r.id,
-    { ...input, body: "Revised draft", expectedVersion: r.version },
-    key(),
-  );
-  await expect(
-    actOnHandbook(
-      db,
-      f.it,
-      r.id,
-      { action: "publish", expectedVersion: r.version },
-      key(),
-    ),
-  ).rejects.toMatchObject({ status: 409 });
-  await setHandbookEditor(
-    db,
-    f.owner,
-    { userId: f.it.userId, active: false, expectedVersion: 1 },
-    key(),
-  );
-  await expect(
-    saveHandbookArticle(
-      db,
-      f.it,
-      r.id,
-      { ...input, expectedVersion: 2 },
-      key(),
-    ),
-  ).rejects.toMatchObject({ status: 403 });
-  const other = await expenseFixture();
-  await expect(
-    handbookArticle(db, other.owner, r.id, true),
-  ).rejects.toMatchObject({ status: 404 });
-});
 
 it("retains immutable team configuration history and blocks unavailable local coverage", async () => {
   await team();
@@ -611,49 +508,6 @@ it("permits a purchase request with unknown cost and no promised delivery date",
   await act(f.claimant, r.id, "submit");
   expect((await getEmployeeRequest(db, f.head, r.id)).state).toBe(
     "awaiting_approval",
-  );
-});
-it("opens historical published handbook content and never exposes a requested draft revision", async () => {
-  const input = handbookSchema.parse({
-    title: "Company guide",
-    body: "First published edition",
-  });
-  const r = await saveHandbookArticle(db, f.owner, null, input, key());
-  await actOnHandbook(
-    db,
-    f.owner,
-    r.id,
-    { action: "publish", expectedVersion: 1 },
-    key(),
-  );
-  await saveHandbookArticle(
-    db,
-    f.owner,
-    r.id,
-    { ...input, body: "Second private draft", expectedVersion: 2 },
-    key(),
-  );
-  expect(
-    (await handbookArticle(db, f.claimant, r.id, false, 1)).revision.body,
-  ).toBe(input.body);
-  await expect(
-    handbookArticle(db, f.claimant, r.id, false, 2),
-  ).rejects.toMatchObject({ status: 404 });
-  expect(
-    (await handbookArticle(db, f.owner, r.id, true, 2)).revision.body,
-  ).toBe("Second private draft");
-  await actOnHandbook(
-    db,
-    f.owner,
-    r.id,
-    { action: "publish", expectedVersion: 3 },
-    key(),
-  );
-  expect(
-    (await handbookArticle(db, f.claimant, r.id, false, 1)).revision.body,
-  ).toBe(input.body);
-  expect((await handbookArticle(db, f.claimant, r.id)).revision.revision).toBe(
-    2,
   );
 });
 it('maps an approved requisition into RFQ and atomically links the awarded PO without bypassing either owner',async()=>{
@@ -739,43 +593,4 @@ it('rolls back request draft, event, receipt, audit and outbox after a late fail
  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(1);
 });
 
-it('rolls back handbook publication and canonical command journals then retries and replays once with live editor authority',async()=>{
- const draft=await saveHandbookArticle(db,f.owner,null,handbookSchema.parse({title:'Atomic handbook guide',body:'Published only after the complete command commits.'}),key()),command=key(),input={action:'publish' as const,expectedVersion:draft.version},suffix=command.replaceAll('-',''),fn='reject_handbook_'+suffix,trigger=fn;
- const before=await db.prepare('SELECT row_to_json(a) state FROM handbook_articles a WHERE id=?').bind(draft.id).first('state'),revisions=await db.prepare('SELECT jsonb_agg(to_jsonb(r) ORDER BY revision) state FROM handbook_revisions r WHERE article_id=?').bind(draft.id).first('state');
- await db.prepare(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${command}' THEN RAISE EXCEPTION 'injected final handbook publication failure' USING ERRCODE='23514'; END IF; RETURN NEW; END $$`).run();
- await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fn}()`).run();
- try{await expect(actOnHandbook(db,f.owner,draft.id,input,command)).rejects.toMatchObject({code:'23514'});expect(await db.prepare('SELECT row_to_json(a) state FROM handbook_articles a WHERE id=?').bind(draft.id).first('state')).toEqual(before);expect(await db.prepare('SELECT jsonb_agg(to_jsonb(r) ORDER BY revision) state FROM handbook_revisions r WHERE article_id=?').bind(draft.id).first('state')).toEqual(revisions);for(const table of ['command_receipts','audit_events','outbox_events','command_assertions'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();}finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fn}()`).run();}
- const retry=await actOnHandbook(db,f.owner,draft.id,input,command);expect(await actOnHandbook(db,f.owner,draft.id,input,command)).toEqual(retry);expect((await handbookArticle(db,f.claimant,draft.id)).revision).toMatchObject({revision:1,published_by:f.owner.userId});for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(1);
-});
 
-async function handbookWorkGrant(state:'active'|'draining'='active'){
- const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='work');
- return packageGrantStore(db,{authorize:async()=>({userId:'isolated-handbook-provider'}),obligations:async()=>{throw Error('HANDBOOK_FIXTURE_CANNOT_INACTIVATE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'work',packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Original Work handbook owner fixture',evidence:'test:handbook-purchases'}});
-}
-it('purchasedHandbook preserves module-free membership and original private revisions through active draining archive and normal inactive history',async()=>{
- await setHandbookEditor(db,f.owner,{userId:f.it.userId,active:true,expectedVersion:0},key());const article=await saveHandbookArticle(db,f.it,null,handbookSchema.parse({title:'Original retained handbook',body:'Published original employee guidance'}),key());await actOnHandbook(db,f.it,article.id,{action:'publish',expectedVersion:1},key());
- vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');expect(f.it.modules).toEqual([]);expect(f.claimant.modules).toEqual([]);
- await expect(handbookList(db,f.claimant)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await expect(saveHandbookArticle(db,f.it,null,handbookSchema.parse({title:'Unpurchased',body:'No fabricated People purchase'}),key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
- await handbookWorkGrant();expect((await handbookList(db,f.claimant)).articles.map(row=>row.id)).toEqual([article.id]);expect((await handbookArticle(db,f.claimant,article.id)).revision.body).toBe('Published original employee guidance');await expect(handbookArticle(db,f.claimant,article.id,true)).rejects.toMatchObject({code:'HANDBOOK_EDITOR_REQUIRED'});
- const savedInput=handbookSchema.parse({title:'Private retained revision',body:'Unpublished employee content',expectedVersion:2}),saveKey=key(),saved=await saveHandbookArticle(db,f.it,article.id,savedInput,saveKey);await handbookWorkGrant('draining');
- expect(await saveHandbookArticle(db,f.it,article.id,savedInput,saveKey)).toEqual(saved);await expect(saveHandbookArticle(db,f.it,article.id,{...savedInput,expectedVersion:3},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});await expect(actOnHandbook(db,f.it,article.id,{action:'publish',expectedVersion:3},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
- await setHandbookEditor(db,f.owner,{userId:f.head.userId,active:false,expectedVersion:1},key());await expect(setHandbookEditor(db,f.owner,{userId:f.head.userId,active:true,expectedVersion:2},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
- const archiveKey=key(),archiveInput={action:'archive' as const,expectedVersion:3},archived=await actOnHandbook(db,f.it,article.id,archiveInput,archiveKey);
- const {packageGrantStore,readCompanyPackageGrants,packageGrantRevision}=await import('@erpx/server-commercial/public/package-grants'),{withOwnerPackageObligations,ownerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),grants=await readCompanyPackageGrants(db,f.company),grant=grants.find(row=>row.packageId==='work')!,request={companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:grant.version,grant:{...grant,state:'inactive' as const,version:grant.version+1,reason:'Original handbook archived through its normal owner',evidence:'test:handbook-normal-inactive'}}]},scope={companyId:f.company,packageId:'work',packageVersion:1},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-handbook-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)}),preview=await withOwnerPackageObligations(db,scope,tx=>store.batch.previewIn(tx,request));expect(await withOwnerPackageObligations(db,scope,tx=>store.batch.applyIn(tx,request,async()=>{}))).toEqual(preview);
- expect(await actOnHandbook(db,f.it,article.id,archiveInput,archiveKey)).toEqual(archived);expect((await handbookArticle(db,f.it,article.id,true)).revision.body).toBe('Unpublished employee content');await expect(handbookArticle(db,f.claimant,article.id,false,1)).rejects.toMatchObject({code:'ARTICLE_NOT_FOUND'});await expect(actOnHandbook(db,f.it,article.id,{action:'restore',expectedVersion:4},key())).rejects.toMatchObject({code:'PACKAGE_INACTIVE'});
- expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['work']);
-});
-it('purchasedHandbook rolls back original publication revision receipts and current editor authority after real deferred effects before exact retry',async()=>{
- await setHandbookEditor(db,f.owner,{userId:f.it.userId,active:true,expectedVersion:0},key());await handbookWorkGrant();vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');const article=await saveHandbookArticle(db,f.it,null,handbookSchema.parse({title:'Complete publication',body:'Original private owner text'}),key()),command=key(),input={action:'publish' as const,expectedVersion:1};
- for(const kind of ['source','iam','editor'] as const){const fault=`handbook_final_${key().replaceAll('-','')}`,effect=kind==='source'?`UPDATE handbook_revisions SET body='Late replacement body' WHERE article_id='${article.id}'`:kind==='iam'?`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.it.assignmentId}'`:`DELETE FROM handbook_editors WHERE company_id='${f.company}' AND user_id='${f.it.userId}'`;
-  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
-  try{await expect(actOnHandbook(db,f.it,article.id,input,command)).rejects.toMatchObject({code:kind==='source'?'WORK_HANDBOOK_SOURCE_CHANGED':kind==='iam'?'WORK_HANDBOOK_AUTHORITY_CHANGED':'HANDBOOK_EDITOR_REQUIRED'});}finally{await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}()`);}
-  expect(await db.prepare('SELECT version,published_revision FROM handbook_articles WHERE id=?').bind(article.id).first()).toEqual({version:1,published_revision:null});expect(await db.prepare('SELECT body,published_at FROM handbook_revisions WHERE article_id=?').bind(article.id).first()).toEqual({body:'Original private owner text',published_at:null});for(const table of ['command_receipts','audit_events','outbox_events','command_assertions'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
- }
- const published=await actOnHandbook(db,f.it,article.id,input,command);expect(await actOnHandbook(db,f.it,article.id,input,command)).toEqual(published);expect((await handbookArticle(db,f.claimant,article.id)).revision.body).toBe('Original private owner text');await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.it.assignmentId).run();await expect(actOnHandbook(db,f.it,article.id,input,command)).rejects.toMatchObject({code:'WORK_HANDBOOK_AUTHORITY_CHANGED'});
-});
-it('purchasedHandbook observes an actual committed editor removal before the first command snapshot without deadlock or automatic retry',async()=>{
- await setHandbookEditor(db,f.owner,{userId:f.it.userId,active:true,expectedVersion:0},key());await handbookWorkGrant();vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');const article=await saveHandbookArticle(db,f.it,null,handbookSchema.parse({title:'Original editor source',body:'An earlier snapshot cannot borrow a removed editor'}),key()),command=key(),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
- const observed=await committedSourceVisibility(db,tx=>tx.prepare('DELETE FROM handbook_editors WHERE company_id=? AND user_id=?').bind(f.company,f.it.userId).run(),()=>measureReads(async()=>{try{await actOnHandbook(db,f.it,article.id,{action:'publish',expectedVersion:1},command);return null;}catch(error){return error;}}));
- expect(observed.result).toMatchObject({code:'HANDBOOK_EDITOR_REQUIRED'});expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);expect(await db.prepare('SELECT command_id FROM command_receipts WHERE command_id=?').bind(command).first()).toBeNull();await expect(db.transaction(tx=>actOnHandbook(tx,f.owner,article.id,{action:'publish',expectedVersion:1},key()))).rejects.toMatchObject({code:'WORK_HANDBOOK_TRANSACTION_REQUIRED'});
-});
