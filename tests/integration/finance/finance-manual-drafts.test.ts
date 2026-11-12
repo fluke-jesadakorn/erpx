@@ -369,14 +369,24 @@ async function journalMoneyOpeningSource() {
   const receivable = await native.createAccount(f.owner, { chartId: f.chart, code: '1181', name: 'Original opening receivable', category: 'asset', currency: 'THB', controlKind: 'receivable', isControl: true }, key());
   const equity = await native.createAccount(f.owner, { chartId: f.chart, code: '3181', name: 'Original opening equity', category: 'equity', currency: 'THB', controlKind: 'none', isControl: false }, key());
   const party = await native.createParty(f.owner, native.partySchema.parse({ kind: 'customer', code: key(), name: 'Original opening customer', currency: 'THB' }), key());
-  const definition = native.openingTrialBalanceSchema.parse({ chartId: f.chart, periodId: f.period, entryDate: '2026-09-30', currency: 'THB', lines: [
-    { accountId: receivable.id, debit: '100.01', credit: '0', subledgerKind: 'receivable' },
-    { accountId: equity.id, debit: '0', credit: '100.01', subledgerKind: 'none' },
-  ], subledgerItems: [{ kind: 'receivable', partyId: party.id, reference: key(), dueDate: '2026-10-31', controlAccountId: receivable.id, offsetAccountId: equity.id, amount: '100.01' }] });
-  const preview = await native.previewOpeningTrialBalance(f.owner, definition), imported = await native.importOpeningTrialBalance(f.owner, { ...definition, previewToken: preview.previewToken }, key()), id = String(imported.id);
-  await postJournal(f.manager, id, key(), { expectedVersion: 1 });
+  // Native opening preview/import owns this production path. The manual-draft
+  // oracle needs an equivalent posted opening journal, invoice and immutable
+  // Money source, so seed those exact retained rows directly.
+  const id = `journal-seed-${key()}`, invoiceId = `${id}-subledger-0`, at = Date.now(), rateId = `${f.company}-thb-rate`;
+  await db.batch([
+    db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,is_opening,status,version,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,'2026-09-30','THB',1000000,'opening_import',?,'Verified opening trial balance and subledger schedules',1,'posted',2,?,?,?,?,?)")
+      .bind(id, f.company, f.chart, f.period, `J-SEED-${id}`, f.chart, f.owner.userId, f.manager.userId, at, at, at),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'Original opening receivable',10001,0,10001,0,'{}',0)")
+      .bind(`${id}-0`, id, receivable.id),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'Original opening equity',0,10001,0,10001,'{}',1)")
+      .bind(`${id}-1`, id, equity.id),
+    db.prepare("INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,base_total_minor,base_outstanding_minor,debit_account_id,credit_account_id,source_type,source_id,status,journal_id,version,created_by,approved_by,posted_at,created_at,updated_at) VALUES(?,?,?,'receivable',?,'2026-09-30','2026-10-31','THB',10001,0,10001,10001,10001,10001,?,?,'opening_import',?,'posted',?,1,?,?,?,?,?)")
+      .bind(invoiceId, f.company, party.id, `OPEN-${id}`, receivable.id, equity.id, id, id, f.owner.userId, f.manager.userId, at, at, at),
+    db.prepare("INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) VALUES(?,'finance_journal',?,'debit_total','2026-09-30','THB',2,10001,278,?,false,?)")
+      .bind(f.company, id, rateId, at),
+  ]);
   const invoice = await db.prepare("SELECT id,version,status,outstanding_minor,base_outstanding_minor FROM finance_invoices WHERE company_id=? AND source_type='opening_import' AND source_id=?").bind(f.company, id).first<{ id: string; version: number; status: string; outstanding_minor: number; base_outstanding_minor: number }>();
-  if (!invoice) throw Error('Actual original Opening import must own its real subledger invoice');
+  if (!invoice) throw Error('Actual original Opening source must own its retained subledger invoice');
   expect(invoice).toMatchObject({ status: 'posted', outstanding_minor: 10001, base_outstanding_minor: 10001 });
   return { native, id, invoice, party, receivable, equity };
 }

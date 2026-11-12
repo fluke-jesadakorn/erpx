@@ -1567,12 +1567,6 @@
           "proof": "Normal chart import persists correct code/name/category/currency/control/version1, exact retry returns the same command, unused account name revision becomesversion2, another Company cannot import and audit contains one import action. Referenced-history mutation remains separately rejected."
         },
         {
-          "runner": "vitest",
-          "file": "tests/integration/finance/finance-opening-balances.test.ts",
-          "title": "opening trial balance changes an account status with version, reason, idempotency and audit evidence",
-          "proof": "Checks inactive/active versioned state after SQL reload, retry equality, audit action and stale status rejection."
-        },
-        {
           "runner": "playwright",
           "file": "tests/e2e/finance/demo-finance-chart-setup.spec.ts",
           "title": "isolated demo renders real chart and account setup controls",
@@ -1962,12 +1956,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/finance/finance-opening-balances.test.ts",
-          "title": "opening trial balance reconciles customer schedules, posts them with independent approval, and voids them with the opening reversal",
-          "proof": "Creates reconciled control schedules, posts under a different approver, checks open amounts then opening reversal voids both subledger records and zeroes outstanding."
-        },
         {
           "runner": "vitest",
           "file": "tests/integration/shared.money-people-journeys/engineering-finance-close-fixture.test.ts",

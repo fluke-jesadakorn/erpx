@@ -1,5 +1,5 @@
 import {requireLegacyFinanceJournal} from './document-purchases';
-import{confirmedFunctionalFx,prepareJournal,ensurePeriod,journalPreparation,journalStatements}from '@erpx/server-finance/adapters/journal-planning';
+import{confirmedFunctionalFx,prepareJournal,journalPreparation,journalStatements}from '@erpx/server-finance/adapters/journal-planning';
 import{decimalToMinor}from '@erpx/server-finance/public/money-primitives';
 import {resources,financeReadService}from '@erpx/server-finance/adapters/finance-invoice-read';
 import {withSupplierReversalMoney,prepareSupplierReversalMoney} from '@erpx/server-finance/adapters/supplier-payment-money';
@@ -39,7 +39,7 @@ import { createJournalBatch } from '@erpx/server-finance/application/journal-bat
 
 import { createJournalReview, type JournalPostPlan } from '@erpx/server-finance/application/journal-review';
 import { createAccountImport } from '@erpx/server-finance/application/account-import';
-import { createOpeningService } from '@erpx/server-finance/application/opening';
+import { createJournalService } from '@erpx/server-finance/application/opening';
 
 import { createFinanceConfiguration } from '@erpx/server-finance/application/configuration';
 import {withSalesPostingCommand} from '@erpx/server-finance/adapters/sales-posting-setup';
@@ -47,8 +47,8 @@ import {salesPostingChartSchema,salesPostingAccountSchema,salesPostingPeriodSche
 import {withSupplyPostingPrerequisiteCommand} from '@erpx/server-finance/adapters/supply-posting-prerequisites';
 import {supplyPostingChartSchema,supplyPostingAccountSchema,supplyPostingPeriodSchema} from '@erpx/server-finance/domain/supply-posting-prerequisites';
 
-import { createJournalSchema, openingTrialBalanceSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, reversePaymentSchema, journalBatchSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema, type ReportDates, type FinanceRow } from '@erpx/server-finance/domain/finance';
-export { moneySchema, createJournalSchema, openingTrialBalanceSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, closeProofSchema, reversePaymentSchema, journalBatchSchema, reportDateSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema } from '@erpx/server-finance/domain/finance';
+import { createJournalSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, reversePaymentSchema, journalBatchSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema, type ReportDates, type FinanceRow } from '@erpx/server-finance/domain/finance';
+export { moneySchema, createJournalSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, closeProofSchema, reversePaymentSchema, journalBatchSchema, reportDateSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema } from '@erpx/server-finance/domain/finance';
 export type { JournalLineInput, ReportDates, CloseReconciliation } from '@erpx/server-finance/domain/finance';
 
 import { prepareFlowCommand } from "@erpx/server-workflow/public/flow-command-planning";
@@ -139,11 +139,7 @@ export async function createPeriod(actor: WorkContext, input: z.infer<typeof cre
 export async function createSupplyPostingPeriod(actor:WorkContext,raw:unknown,key:string){const request=supplyPostingPeriodSchema.parse(raw);return withSupplyPostingPrerequisiteCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
 export async function createSalesPostingPeriod(actor:WorkContext,raw:unknown,key:string){const request=salesPostingPeriodSchema.parse(raw);return withSalesPostingCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
 
-export async function createJournal(actor: WorkContext, input: z.infer<typeof createJournalSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.journal.create",purpose:"new-work"},tx=>openingService(tx).createJournal(actor,input,id)); }
-export async function previewOpeningTrialBalance(actor: WorkContext, input: z.infer<typeof openingTrialBalanceSchema>) { return purchasedFinanceRead(actor,()=>openingService().previewOpeningTrialBalance(actor,input)); }
-export async function importOpeningTrialBalance(actor: WorkContext, input: z.infer<typeof openingTrialBalanceSchema> & {
-    previewToken: string;
-}, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.journal.create",purpose:"new-work"},tx=>openingService(tx).importOpeningTrialBalance(actor,input,id)); }
+export async function createJournal(actor: WorkContext, input: z.infer<typeof createJournalSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.journal.create",purpose:"new-work"},tx=>journalCreateService(tx).createJournal(actor,input,id)); }
 export async function listJournals(actor: WorkContext, query: {
     periodId?: string;
     status?: string;
@@ -355,27 +351,20 @@ function configurationService(provided?: SqlDatabase,boundRequest?:unknown) {
         commitCreateRevenueObligation: async (facts) => { const { obligationId, input, actor, id, output } = facts; const write = await db(actor); const pendingStatements: SqlStatement[] = []; pendingStatements.push(write.prepare("INSERT INTO finance_revenue_obligations(id,contract_id,description,allocated_minor,recognition_method,start_date,end_date,revenue_account_id,deferred_account_id) VALUES(?,?,?,?,?,?,?,?,?)").bind(obligationId, input.contractId, input.description, decimalToMinor(input.allocated), input.recognitionMethod, input.startDate, input.endDate ?? null, input.revenueAccountId, input.deferredAccountId)); return saveCommand(write, actor, id, "finance.revenue-obligation.create", input, output, pendingStatements); } });
 }
 
-function openingService(provided?: SqlDatabase) {
+function journalCreateService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
-    const db = (actor: WorkContext, readOnly = false) => pending ??= financeOwnedDatabase(actor, provided, readOnly);
-    return createOpeningService({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, digest: hash, ready: async (actor, readOnly) => { await db(actor, readOnly); }, period: async (actor, periodId, date) => ensurePeriod(await db(actor), actor, periodId, date), prepare: async (actor, input, key) => journalPreparation(await db(actor))(actor, input, key), replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), replayOpening: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), commitJournal: async ({ actor, input, id, journalId, plan }) => { const write = await db(actor), { steps, result } = journalStatements(write, actor, input, id, 'draft', plan); return executeCommand(write, actor, id, 'finance.journal.create', input, journalId, 1, result, steps); }, commitOpening: async ({ actor, commandId, journalId, commandInput, journalInput, definition, journal: plan, now }) => {
-            const write = await db(actor), journal = journalStatements(write, actor, journalInput, commandId, 'draft', plan);
-            const invoiceSteps = definition.subledgerItems.flatMap((item, index) => {
-                const amount = decimalToMinor(item.amount), invoiceId = `${journalId}-subledger-${index}`, receivable = item.kind === "receivable";
-                return [
-                    assertion(write, commandId, `opening-party-${index}`, "EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND kind=? AND currency=? AND status='active')", [item.partyId, actor.companyId, receivable ? "customer" : "supplier", definition.currency]),
-                    assertion(write, commandId, `opening-control-${index}`, "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND status='active' AND is_control=1)", [item.controlAccountId, actor.companyId, definition.chartId]),
-                    assertion(write, commandId, `opening-reference-${index}`, "NOT EXISTS(SELECT 1 FROM finance_invoices WHERE company_id=? AND kind=? AND lower(invoice_number)=lower(?))", [actor.companyId, item.kind, item.reference]),
-                    write.prepare("INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,base_total_minor,base_outstanding_minor,debit_account_id,credit_account_id,source_type,source_id,status,journal_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,'draft',?,?,?,?)").bind(invoiceId, actor.companyId, item.partyId, item.kind, item.reference, definition.entryDate, item.dueDate, definition.currency, amount, amount, amount, amount, amount, receivable ? item.controlAccountId : item.offsetAccountId, receivable ? item.offsetAccountId : item.controlAccountId, "opening_import", journalId, journalId, actor.userId, now, now),
-                ];
-            });
-            const result = { ...journal.result, subledgerCount: definition.subledgerItems.length };
-            return executeCommand(write, actor, commandId, "finance.journal.create", commandInput, journalId, 1, result, [...journal.steps, ...invoiceSteps]);
-        }, openingChart: async (facts) => { const { input, actor } = facts; const write = await db(actor); return write.prepare("SELECT id,base_currency,updated_at FROM finance_charts WHERE id=? AND company_id=? AND status='active'").bind(input.chartId, actor.companyId).first<FinanceRow>(); },
-        openingAccounts: async (facts) => { const { accountIds, actor, input } = facts; const write = await db(actor); return (await write.prepare(`SELECT id,code,name,status,is_control,control_kind,updated_at FROM finance_accounts WHERE company_id=? AND chart_id=? AND id IN (${accountIds.map(() => "?").join(",")})`).bind(actor.companyId, input.chartId, ...accountIds).all<FinanceRow>()).results; },
-        openingParties: async (facts) => { const { partyIds, actor } = facts; const write = await db(actor); return (await write.prepare(`SELECT id,kind,currency,status,version,updated_at FROM finance_parties WHERE company_id=? AND id IN (${partyIds.map(() => "?").join(",")})`).bind(actor.companyId, ...partyIds).all<FinanceRow>()).results; },
-        openingReference: async (facts) => { const { references, actor } = facts; const write = await db(actor); return write.prepare(`SELECT kind,invoice_number FROM finance_invoices WHERE company_id=? AND (${[...references].map(() => "(kind=? AND lower(invoice_number)=?)").join(" OR ")}) LIMIT 1`).bind(actor.companyId, ...[...references].flatMap(value => { const split = value.indexOf(":"); return [value.slice(0, split), value.slice(split + 1)]; })).first<FinanceRow>(); },
-        openingExisting: async (facts) => { const { actor, input } = facts; const write = await db(actor); return !!await write.prepare("SELECT id FROM finance_journals WHERE company_id=? AND chart_id=? AND is_opening=1 AND status IN ('draft','in_review','posted') LIMIT 1").bind(actor.companyId, input.chartId).first(); } });
+    const db = (actor: WorkContext) => pending ??= financeOwnedDatabase(actor, provided);
+    return createJournalService({
+        error: (...args) => new ApiError(...args),
+        authorize: requirePermission,
+        ready: async (actor) => { await db(actor); },
+        replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input),
+        prepare: async (actor, input, key) => journalPreparation(await db(actor))(actor, input, key),
+        commitJournal: async ({ actor, input, id, journalId, plan }) => {
+            const write = await db(actor), { steps, result } = journalStatements(write, actor, input, id, 'draft', plan);
+            return executeCommand(write, actor, id, 'finance.journal.create', input, journalId, 1, result, steps);
+        },
+    });
 }
 function accountImportService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;

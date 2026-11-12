@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { hashPassword } from "better-auth/crypto";
 import { seedExpenseCompany } from "../../expenses/company";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import {calculateCloseReconciliations,createAccount,createAccountSchema,createParty,createPeriod,createPeriodSchema,importBankStatement,importOpeningTrialBalance,openingTrialBalanceSchema,postJournalBatch,previewOpeningTrialBalance} from '@erpx/server-finance/public/finance';
+import {calculateCloseReconciliations,createAccount,createAccountSchema,createParty,createPeriod,createPeriodSchema,importBankStatement} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../../tests/support/helpers/finance-journal-seed';
 import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
 import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import type { FileStore, SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
@@ -81,24 +82,28 @@ export async function seedFinanceCloseCompany(db: SqlDatabase, files: FileStore,
   const periodIds: [string, string] = [String(january.id), String(february.id)];
   const customer = await createParty(preparer, { kind: "customer", code: "CLOSE-C", name: "Fictional opening customer", currency: "THB", creditLimit: "0", paymentTermsDays: 30 }, key());
   const supplier = await createParty(preparer, { kind: "supplier", code: "CLOSE-S", name: "Fictional opening supplier", currency: "THB", creditLimit: "0", paymentTermsDays: 30 }, key());
-  const definition = openingTrialBalanceSchema.parse({
-    chartId: f.chart, periodId: periodIds[0], entryDate: "2027-01-01", currency: "THB",
+  const openingJournal = await seedFinanceJournal(db, {
+    companyId: f.company, chartId: f.chart, periodId: periodIds[0], entryDate: "2027-01-01", currency: "THB",
+    key: key(), createdBy: preparer.userId, status: "draft",
+    memo: "Fictional retained opening GL and exact AR/AP schedules",
     lines: [
-      { accountId: accounts.bank, debit: "1000.00", credit: "0", description: "Fictional retained opening bank" },
-      { accountId: accounts.receivable, debit: "300.00", credit: "0", description: "Fictional retained opening AR", subledgerKind: "receivable" },
-      { accountId: accounts.payable, debit: "0", credit: "200.00", description: "Fictional retained opening AP", subledgerKind: "payable" },
-      { accountId: accounts.equity, debit: "0", credit: "1100.00", description: "Fictional retained opening equity" },
-    ],
-    subledgerItems: [
-      { kind: "receivable", partyId: customer.id, reference: "DEMO-OPEN-AR", dueDate: "2027-01-31", controlAccountId: accounts.receivable, offsetAccountId: accounts.equity, amount: "300.00" },
-      { kind: "payable", partyId: supplier.id, reference: "DEMO-OPEN-AP", dueDate: "2027-01-31", controlAccountId: accounts.payable, offsetAccountId: accounts.equity, amount: "200.00" },
+      { accountId: accounts.bank, debit: "1000.00", credit: "0" },
+      { accountId: accounts.receivable, debit: "300.00", credit: "0" },
+      { accountId: accounts.payable, debit: "0", credit: "200.00" },
+      { accountId: accounts.equity, debit: "0", credit: "1100.00" },
     ],
   });
-  const preview = await previewOpeningTrialBalance(preparer, definition);
-  const opening = await importOpeningTrialBalance(preparer, { ...definition, previewToken: preview.previewToken }, key());
+  const openingJournalId = String(openingJournal.id), openedAt = Date.now();
+  await db.batch([
+    db.prepare("UPDATE finance_journals SET source_type='opening_import',source_id=?,is_opening=1,status='posted',posted_by=?,posted_at=?,version=2 WHERE id=? AND company_id=?")
+      .bind(f.chart, approver.userId, openedAt, openingJournalId, f.company),
+    db.prepare("INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,base_total_minor,base_outstanding_minor,debit_account_id,credit_account_id,source_type,source_id,status,journal_id,version,created_by,approved_by,posted_at,created_at,updated_at) VALUES(?,?,?,'receivable','DEMO-OPEN-AR','2027-01-01','2027-01-31','THB',30000,0,30000,30000,30000,30000,?,?,'opening_import',?,'posted',?,1,?,?,?,?,?)")
+      .bind(`${openingJournalId}-subledger-0`, f.company, customer.id, accounts.receivable, accounts.equity, openingJournalId, openingJournalId, preparer.userId, approver.userId, openedAt, openedAt, openedAt),
+    db.prepare("INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,base_total_minor,base_outstanding_minor,debit_account_id,credit_account_id,source_type,source_id,status,journal_id,version,created_by,approved_by,posted_at,created_at,updated_at) VALUES(?,?,?,'payable','DEMO-OPEN-AP','2027-01-01','2027-01-31','THB',20000,0,20000,20000,20000,20000,?,?,'opening_import',?,'posted',?,1,?,?,?,?,?)")
+      .bind(`${openingJournalId}-subledger-1`, f.company, supplier.id, accounts.equity, accounts.payable, openingJournalId, openingJournalId, preparer.userId, approver.userId, openedAt, openedAt, openedAt),
+  ]);
   await db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'journal','draft',?,?,'Independent fictional opening reviewer',?)")
     .bind(f.company, approver.userId, preparer.userId, now).run();
-  await postJournalBatch(approver, { journals: [{ id: String(opening.id), expectedVersion: 1 }], reason: "Independent review of the fictional opening GL and exact AR/AP schedules." }, key());
   const statementIds: string[] = [];
   for (const [statementNumber, statementDate] of [["DEMO-JAN-2027", "2027-01-31"], ["DEMO-FEB-2027", "2027-02-28"]] as const) {
     const statement = await importBankStatement(preparer, {
@@ -107,7 +112,6 @@ export async function seedFinanceCloseCompany(db: SqlDatabase, files: FileStore,
     }, key());
     statementIds.push(String(statement.id));
   }
-  const openingJournalId = String(opening.id);
   const invoiceIds: [string, string] = [`${openingJournalId}-subledger-0`, `${openingJournalId}-subledger-1`];
   for (const periodId of periodIds) {
     const period = await db.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, f.company).first<FinanceRow>();

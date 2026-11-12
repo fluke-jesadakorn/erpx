@@ -27,7 +27,7 @@ import { previewPmsImport,approvePmsImport,applyPmsImport } from "@erpx/server-p
 import { publishHandover,acknowledgeHandover,handoverView } from "@erpx/server-operations/public/handover";
 import {homePosts,postView} from '@erpx/server-collaboration/public/social-home';
 import type { EventMessage } from "@erpx/server-workflow/public/job-projector";
-import {createJournal,postJournal,previewOpeningTrialBalance,importOpeningTrialBalance,openingTrialBalanceSchema} from '@erpx/server-finance/public/finance';
+import {createJournal,postJournal} from '@erpx/server-finance/public/finance';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
@@ -1189,11 +1189,19 @@ it("settles the original opening receivable and invoices only new hotel service 
   await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,'Opening equity','equity','THB',1,1)").bind(equityId,f.chart,f.company,equityId).run();
   await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) VALUES(?,?,'customer',?,'Imported guest','THB','active',1,1)").bind(partyId,f.company,partyId).run();
   await db.prepare("UPDATE finance_accounts SET is_control=1,control_kind='receivable' WHERE id=?").bind(accounts.receivable).run();
-  const definition=openingTrialBalanceSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",
-    lines:[{accountId:accounts.receivable,debit:"200.00",credit:"0",subledgerKind:"receivable"},{accountId:equityId,debit:"0",credit:"200.00",subledgerKind:"none"}],
-    subledgerItems:[{kind:"receivable",partyId,reference:"LEGACY-HOTEL-1",dueDate:"2026-09-02",controlAccountId:accounts.receivable,offsetAccountId:equityId,amount:"200.00"}]});
-  const financePreview=await previewOpeningTrialBalance(owner,definition);
-  const journal=await importOpeningTrialBalance(owner,{...definition,previewToken:financePreview.previewToken},key());
+  // Native opening preview/import owns production; this PMS oracle needs the
+  // same retained draft opening journal and subledger invoice as SQL facts.
+  const journalId=`journal-seed-${key()}`,journal={id:journalId,version:1},invoiceId=`${journalId}-subledger-0`,at=Date.now();
+  await db.batch([
+    db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,is_opening,status,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'2026-09-01','THB',1000000,'opening_import',?,'Verified opening trial balance and subledger schedules',1,'draft',1,?,?,?)")
+      .bind(journalId,f.company,f.chart,f.period,`J-SEED-${journalId}`,f.chart,owner.userId,at,at),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'Imported opening receivable',20000,0,20000,0,'{}',0)")
+      .bind(`${journalId}-0`,journalId,accounts.receivable),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'Opening equity',0,20000,0,20000,'{}',1)")
+      .bind(`${journalId}-1`,journalId,equityId),
+    db.prepare("INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,base_total_minor,base_outstanding_minor,debit_account_id,credit_account_id,source_type,source_id,status,journal_id,version,created_by,created_at,updated_at) VALUES(?,?,?,'receivable','LEGACY-HOTEL-1','2026-09-01','2026-09-02','THB',20000,0,20000,20000,20000,20000,?,?,'opening_import',?,'draft',?,1,?,?,?)")
+      .bind(invoiceId,f.company,partyId,accounts.receivable,equityId,journalId,journalId,owner.userId,at,at),
+  ]);
   const flow=await resolveFlow(db,owner,"journal",journal.id);
   await assignFlowPrimary(db,owner,"journal",journal.id,{stepKey:"draft",userId:reviewer.userId,reason:"Assign independent opening balance posting",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
   await postJournal(reviewer,journal.id,key(),{expectedVersion:journal.version});
