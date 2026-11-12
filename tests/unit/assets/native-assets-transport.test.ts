@@ -4,7 +4,7 @@ import {capabilityDelivery} from '../../../packages/catalogue/src/capability-del
 vi.mock('server-only',()=>({}));
 const purchaseOracle=vi.hoisted(()=>({run:vi.fn(async(_actor:unknown,command:unknown)=>command)}));
 vi.mock('@erpx/server-assets/adapters/purchases',()=>({withAssetPurchasedCommand:purchaseOracle.run,withAssetPurchasedRead:vi.fn(),assetPurchaseControls:vi.fn()}));
-import {createAsset as legacyCreateAsset,changeAsset as legacyChangeAsset} from '../../../packages/server-assets/src/adapters/assets';
+import {createAsset as legacyCreateAsset} from '../../../packages/server-assets/src/adapters/assets';
 import type {WorkContext} from '../../../packages/server-identity_access/src/public/authorization';
 import {createNativeAssetsClient,type NativeAssetsPageContext} from '../../../packages/feature-assets/src/adapters/server/native-assets';
 import {currencyScale,decimalUnits} from '../../../packages/feature-finance/src/lib/company-money';
@@ -199,20 +199,10 @@ describe('native Assets transport',()=>{
 
 
 describe('legacy Asset purchase routing oracle',()=>{
- it('derives create and every valid action from parsed owner input',async()=>{
+ it('derives residual create capability from parsed owner input',async()=>{
   const context=actor as unknown as WorkContext;
   const create={branchId:'branch',code:'A',name:'Asset',category:'equipment',currency:'THB',costMinor:0,acquiredDate:'2026-01-01'};
   expect(await legacyCreateAsset(context,create,'key')).toMatchObject({operation:'asset.create',capability:'assets.register',purpose:'new-work',creating:true,permissions:['records.write']});
   expect(await legacyCreateAsset(context,{...create,financeAssetId:'finance-1',financeAssetVersion:2},'key')).toMatchObject({permissions:['records.write','finance.write']});
-  for(const [body,capability,purpose,permissions] of [
-   [{action:'place',expectedVersion:1,placement:'Desk',custodianId:'user',reason:'Place'},'assets.custody','new-work',['records.write']],
-   [{action:'condition',expectedVersion:1,condition:'good',reason:'Inspect'},'assets.register','settle-existing',['records.write']],
-   [{action:'retire-request',expectedVersion:1,reason:'Retire'},'assets.register','settle-existing',['records.write']],
-   [{action:'retire-approve',expectedVersion:1,reason:'Approve'},'assets.register','settle-existing',['records.write','records.review']],
-   [{action:'link-finance',expectedVersion:1,financeAssetId:'finance-1',financeAssetVersion:2,reason:'Link'},'assets.register','settle-existing',['records.write','finance.write']],
-  ] as const) expect(await legacyChangeAsset(context,'asset-1',body,'key')).toMatchObject({operation:`asset.${body.action}`,capability,purpose,permissions});
-  purchaseOracle.run.mockClear();
-  await expect(legacyChangeAsset(context,'asset-1',{action:'unknown',expectedVersion:1,reason:'Bad'},'key')).rejects.toThrow();
-  expect(purchaseOracle.run).not.toHaveBeenCalled();
  });
 });

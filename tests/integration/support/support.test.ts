@@ -6,7 +6,7 @@ import {createCustomerNote} from "@erpx/server-sales/public/customer-notes";
 import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork,supportWorkspace,supportDetail} from '@erpx/server-support/public/support';
 import {changeSupportIncident,createSupportIncident,incidentWorkspace} from '@erpx/server-support/public/support-incidents';
 import {supportSessionWorkspace} from "@erpx/server-support/public/support-sessions";
-import {createAsset,changeAsset} from "@erpx/server-assets/public/asset-maintenance";
+import {createAsset} from "@erpx/server-assets/public/asset-maintenance";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
@@ -14,6 +14,17 @@ beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STA
 beforeEach(async()=>{f=await expenseFixture();for(const [a,role] of [[f.head,'support_agent'],[f.manager,'support_manager']] as const){a.role=role;a.branchId=null;a.departmentId=null;a.assignmentId=await f.grant(a,role);}const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Support customer'},key()),w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Support warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'Support item',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
 const input=()=>({orderId:order,sourceVersion:1,title:'Installation assistance needed',issue:'Customer needs help confirming the setup procedure.',ownerId:f.head.userId,dueDate:'2026-09-24'});
 async function ticket(){return String((await createSupportTicket(f.owner,input(),key())).id);}
+// The native Rust Assets command owns change semantics. Retain the owner row and
+// immutable event its condition command persists for the pinned-source read.
+async function recordAssetCondition(id:string,condition:'good'|'degraded'|'unsafe',reason:string){
+ await db.transaction(async tx=>{
+  const current=await tx.prepare("SELECT version,lifecycle_status FROM operational_assets WHERE id=? AND company_id=?").bind(id,f.company).first<{version:number;lifecycle_status:string}>();
+  if(!current)throw new Error('ASSET_NOT_FOUND');
+  const now=Date.now(),version=Number(current.version)+1;
+  await tx.prepare("UPDATE operational_assets SET condition=?,version=?,updated_at=? WHERE id=? AND version=?").bind(condition,version,now,id,current.version).run();
+  await tx.prepare("INSERT INTO operational_asset_events VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(`asset-event-${key()}`,id,version,'condition',f.owner.userId,reason,condition,current.lifecycle_status,null,null,now).run();
+ });
+}
 async function act(id:string,action:string,actor=f.head){const r=await getSupportTicket(actor,id);return changeSupportTicket(actor,id,{action,expectedVersion:Number(r.version),reason:`Simulated evidence: ${action}`},key());}
 it('hands off to Support and separates proposed resolution from independently reviewed customer confirmation',async()=>{
  const k=key(),body=input(),created=await createSupportTicket(f.owner,body,k),id=String(created.id);expect(await createSupportTicket(f.owner,body,k)).toEqual(created);
@@ -117,7 +128,7 @@ it('pins a real asset source, follows its current authority and hides unreadable
  const id=String((await createSupportTicket(f.claimant,body,key())).id),row=await getSupportTicket(f.claimant,id);
  expect(row).toMatchObject({source_kind:'asset',order_id:null,customer_id:null,status:'triage'});
  expect(JSON.parse(String(row.source_record_json))).toMatchObject({kind:'asset',id:assetId,version:1,companyId:f.company,href:`/assets/${assetId}`});
- await changeAsset(f.owner,assetId,{action:'condition',expectedVersion:1,condition:'degraded',reason:'Inspection records the evolving source condition'},key());
+ await recordAssetCondition(assetId,'degraded','Inspection records the evolving source condition');
  expect(JSON.parse(String((await getSupportTicket(f.claimant,id)).source_record_json)).version).toBe(1);
  await changeSupportTicket(f.manager,id,{action:'triage',expectedVersion:1,ownerId:f.head.userId,dueDate:'2026-10-05',reason:'Assign the linked asset issue for investigation'},key());
  const {calendarData}=await import("@erpx/server-work_projection/public/calendar/index"),calendarQuery={date:'2026-10-05',view:'day',layers:'support',mode:'mine'};

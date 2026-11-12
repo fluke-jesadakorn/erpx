@@ -1,6 +1,5 @@
 import { expect, it, vi } from "vitest";
 vi.mock("@erpx/feature-shared/lib/destination-router",()=>({useRouter:()=>({push:vi.fn(),refresh:vi.fn()})}));
-import { createAssetApplication, type AssetRepository } from "@erpx/server-assets/application/assets";
 import type { Asset } from "@erpx/server-assets/domain/assets";
 import { createMaintenanceApplication, type MaintenanceRepository } from "@erpx/server-maintenance/application/work";
 
@@ -13,28 +12,6 @@ function repository<Repository extends object>(operations: Partial<Repository>):
 }
 const error = (_status: number, code: string) => new Error(code);
 const asset: Asset = { id: "asset", version: 2, created_by: "author", updated_at: 50, lifecycle_status: "retirement_pending", condition: "good", placement: "Floor 1", custodian_id: "custodian", retirement_reason: "End of service", finance_asset_id: "finance-asset", finance_asset_version: 2, cost_minor: 50000 };
-function assets(source: AssetRepository, overrides: Partial<Parameters<typeof createAssetApplication>[0]> = {}) {
-  return createAssetApplication({ actorId: "reviewer", authorize: () => {}, authorizeFinance: () => {}, authorizeReview: () => {}, canReadFinance: () => true, canWrite: () => true, canWriteFinance: () => true, repository: async () => source, clock: { now: () => 100 }, error, ...overrides });
-}
-it("physical retirement cannot persist before Finance has posted the linked disposal", async () => {
-  const source = repository<AssetRepository>({ replay: async () => null, asset: async () => asset, hasPostedDisposal: async id => { expect(id).toBe("finance-asset"); return false; } });
-  await expect(assets(source).changeAsset("asset", { action: "retire-approve", expectedVersion: 2, reason: "Independent approval" }, "key")).rejects.toThrow("ASSET_FINANCE_DISPOSAL_REQUIRED");
-});
-it("an independently approved retirement carries the original request reason and clears physical custody", async () => {
-  let changes = 0;
-  const source = repository<AssetRepository>({ replay: async () => null, asset: async () => asset, hasPostedDisposal: async () => true, change: async (command, current, state, now) => { expect(current).toBe(asset); expect(command.operation).toBe("asset.retire-approve"); expect(state).toEqual({ status: "retired", condition: "good", placement: null, custodian: null, retirement: "End of service" }); expect(now).toBe(100); changes++; return { id: "asset", version: 3, status: state.status }; } });
-  expect(await assets(source).changeAsset("asset", { action: "retire-approve", expectedVersion: 2, reason: "Independent approval" }, "key")).toMatchObject({ status: "retired", version: 3 });
-  expect(changes).toBe(1);
-});
-it("unsafe placement and revoked access stop before owner persistence", async () => {
-  const source = repository<AssetRepository>({ replay: async () => null, asset: async () => ({ ...asset, lifecycle_status: "registered", condition: "unsafe" }) });
-  await expect(assets(source).changeAsset("asset", { action: "place", expectedVersion: 2, reason: "Place at branch", placement: "Floor 1", custodianId: "custodian" }, "key")).rejects.toThrow("ASSET_UNSAFE");
-  await expect(assets(source, { authorize: () => { throw new Error("revoked"); } }).changeAsset("asset", {}, "key")).rejects.toThrow("revoked");
-});
-it("an asset receipt replay uses no clock, source read, or new physical effect", async () => {
-  const source = repository<AssetRepository>({ replay: async () => ({ id: "asset", version: 3, status: "retired" }) });
-  expect(await assets(source, { clock: { now: () => { throw new Error("unexpected clock"); } } }).changeAsset("asset", { action: "retire-approve", expectedVersion: 2, reason: "Independent approval" }, "key")).toMatchObject({ version: 3 });
-});
 function maintenance(source: MaintenanceRepository, overrides: Partial<Parameters<typeof createMaintenanceApplication>[0]> = {}) {
   return createMaintenanceApplication({ actorId: "owner", authorize: () => {}, canRead: () => true, canWrite: () => true, canReview: () => false, repository: async () => source, clock: { now: () => 100 }, error, ...overrides });
 }
@@ -70,18 +47,6 @@ it('renders original Assets and Work creation controls disabled for draining pur
  expect(renderToStaticMarkup(createElement(AssetConsole,{base:"/holdings/test",data:{...assets,canCreate:false}}))).not.toContain("Register asset");
 });
 
-
-it('lets the original requester explicitly renew the current pending retirement through the existing owner command',async()=>{
- const current={...asset,version:3},reason='Original requester reviewed the current Finance linkage and explicitly renews retirement',history=[{action:'retire-request',actor_id:'requester',version:2},{action:'link-finance',actor_id:'finance-writer',version:3}];let saved=0;
- const source=repository<AssetRepository>({replay:async()=>null,asset:async()=>current,history:async()=>history,change:async(command,actual,state)=>{expect(actual).toBe(current);expect(command).toMatchObject({operation:'asset.retire-request',input:{action:'retire-request',expectedVersion:3,reason}});expect(state).toEqual({status:'retirement_pending',condition:'good',placement:'Floor 1',custodian:'custodian',retirement:reason});saved++;return{id:'asset',version:4,status:'retirement_pending'};}});
- expect(await assets(source,{actorId:'requester'}).changeAsset('asset',{action:'retire-request',expectedVersion:3,reason},'renewal-key')).toEqual({id:'asset',version:4,status:'retirement_pending'});expect(saved).toBe(1);
-});
-
-it('does not replace the pending retirement requester or infer ownership from registration or missing history',async()=>{
- for(const history of [[{action:'retire-request',actor_id:'requester',version:2}],[]]){
-  const source=repository<AssetRepository>({replay:async()=>null,asset:async()=>asset,history:async()=>history});await expect(assets(source,{actorId:'author'}).changeAsset('asset',{action:'retire-request',expectedVersion:2,reason:'Another writer must not take over a pending retirement'},'foreign-renewal')).rejects.toThrow('ASSET_RETIREMENT_REFRESH_FORBIDDEN');
- }
-});
 
 it('offers an explicit current-source retirement review drawer only to its original requester',async()=>{
  const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server'),{AssetConsole}=await import('@erpx/feature-assets/components/asset-maintenance-console');
