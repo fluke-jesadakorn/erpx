@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 829,
+    "revision": 832,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -13874,14 +13874,52 @@
           "owner:collaboration"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261112-o",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T11:06:32.700Z",
+          "heartbeatAt": "2026-11-12T11:06:32.700Z",
+          "expiresAt": "2026-11-12T11:36:32.700Z",
+          "generation": 40
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-collaboration dead field-service notification shim",
+            "result": "passed",
+            "before": 219,
+            "after": 218,
+            "sourceSha": "a1049ac1f604c8273fa00773c3321eb431e6bf89",
+            "sourceKind": "committed",
+            "note": "Deleted adapters/field-service-notifications.ts + public barrel + package exports; the native Rust prepare_field_service_notification owns the notification and no consumer imported the TS symbol. Also repaired a pre-existing invalid trailing comma in packages/contracts/src/ownership.json and dropped its stale path."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --locked",
+            "result": "passed",
+            "sourceSha": "a1049ac1f604c8273fa00773c3321eb431e6bf89",
+            "sourceKind": "committed",
+            "note": "Native collaboration crate remains green."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "a1049ac1f604c8273fa00773c3321eb431e6bf89",
+            "sourceKind": "committed",
+            "note": "0 errors; no remaining import of the deleted module."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "a1049ac1f604c8273fa00773c3321eb431e6bf89",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID:33 modules,1185 suites."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after benefits ports commit; WIP reviewed",
-        "nextAction": "Messaging history (1435f0cf6) and file content (03e632750) are native and switched; attachments bind/content port wired at ec0472b44 with fail-closed absence. Remaining: native messaging upload/discard intake does not exist in Rust (stays TS), inbox notifications need owner visibility port, feed subpaths/CSV/mention drain.",
+        "blocker": null,
+        "nextAction": "Messaging history/file content native; attachments bind/content port wired fail-closed. Retired the dead TS field-service notification shim (collaboration KPI 219->218, a1049ac1f) since the native Rust notification port is authoritative and nothing imported the TS symbol. Remaining: native messaging upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain.",
         "handoff": {
           "runId": "run-20261110-g10",
           "agentId": "lead",
@@ -18885,22 +18923,22 @@
           "owner:collaboration"
         ],
         "status": "blocked",
-        "claim": {
-          "runId": "run-20261112-o",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T10:50:50.078Z",
-          "heartbeatAt": "2026-11-12T10:50:50.078Z",
-          "expiresAt": "2026-11-12T11:20:50.078Z",
-          "generation": 40
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "Already satisfied in code (generator deleted at 008aa4498; no import/path remains; collaboration crate + native corpus pass). Cannot pass the migration retirement gate: the deleted script contained zero counted TS SQL statements, so no before/after KPI drop exists. Lead decision required: reclassify this stale task as inventory/done or remove it from the execution plan; do not reopen the deleted generator.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261112-o",
+          "agentId": "lead",
+          "at": "2026-11-12T11:06:32.670Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "Already satisfied in code (generator deleted at 008aa4498; no import/path remains; collaboration crate + native corpus pass). Cannot pass the migration retirement gate: the deleted script contained zero counted TS SQL statements, so no before/after KPI drop exists. Lead decision required: reclassify this stale task as inventory/done or remove it from the execution plan; do not reopen the deleted generator."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -21116,7 +21154,7 @@
       }
     },
     "lastCoordinatorGeneration": 40,
-    "updatedAt": "2026-11-12T10:58:38.508Z",
+    "updatedAt": "2026-11-12T11:06:42.413Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
