@@ -11,5 +11,6 @@ pub mod project_actuals;
 pub mod project_actuals_http;
 pub mod project_attachment;
 pub mod project_attachment_http;
+pub mod project_attachment_read_http;
 
 pub mod staff_facts;

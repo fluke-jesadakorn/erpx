@@ -6,9 +6,14 @@ use crate::application::project_attachment::{
     ProjectAttachmentCommandRepository, ProjectAttachmentFactsRepository, ProjectAttachmentFuture,
     ProjectAttachmentReceiptPlan, StoredProjectAttachmentReceipt,
 };
-use crate::domain::project_attachment::{ProjectAttachmentTargetFacts, idempotency_conflict};
+use crate::domain::project_attachment::{
+    ProjectAttachmentActor, ProjectAttachmentTargetFacts, attachment_not_found, authorize_read,
+    idempotency_conflict,
+};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
+use erpx_server_shared::public::{
+    BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
+};
 use sqlx::{Connection, PgConnection};
 
 type Error = PgTransactionError<BusinessError>;
@@ -18,6 +23,86 @@ fn serializable_checked(connection: &mut PgConnection) -> Result<(), Error> {
         return Err(PersistenceError::new("PROJECT_ATTACHMENT_TRANSACTION_REQUIRED").into());
     }
     Ok(())
+}
+
+fn read_unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "PROJECT_ATTACHMENT_UNAVAILABLE",
+        "The Project file source is temporarily unavailable.",
+    )
+}
+
+/// The current Projects-owned authority for one already-authorized Project file
+/// read. The version is the same current project version that the bind port
+/// compares, so Files can derive the retained `bindable` status without reading
+/// a Projects table itself.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectAttachmentReadAuthority {
+    pub target_id: String,
+    pub version: i64,
+}
+
+/// Authorize one Project attachment read on the caller's retained connection.
+///
+/// This is the small owner port the Files read layer invokes before reading set,
+/// link, status or content facts. It reads no attachment table and never writes.
+/// Outsiders and former members are hidden as not found, matching the retained
+/// Files read path.
+pub async fn authorize_project_attachment_read_with_connection(
+    connection: &mut PgConnection,
+    actor: &ProjectAttachmentActor,
+    target_id: &str,
+    now: TimestampMillis,
+) -> Result<ProjectAttachmentReadAuthority, BusinessError> {
+    if !connection.is_in_transaction() {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "PROJECT_ATTACHMENT_TRANSACTION_REQUIRED",
+            "A retained transaction is required to read Project files.",
+        ));
+    }
+    actor.require_read(now)?;
+    let target_id = RecordId::new(target_id).map_err(|_| attachment_not_found())?;
+    let row: Option<(String, String, String, String, i64, bool, bool)> = sqlx::query_as(
+        "SELECT p.company_id,p.id,p.owner_user_id,p.lifecycle_status,p.version,\
+         iam_same_person(p.owner_user_id,$3,p.company_id) AS is_owner,\
+         EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id \
+           AND iam_same_person(m.user_id,$3,p.company_id)) AS is_member \
+         FROM staff_projects p WHERE p.id=$1 AND p.company_id=$2",
+    )
+    .bind(target_id.as_str())
+    .bind(actor.company_id.as_str())
+    .bind(actor.user_id.as_str())
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|_| read_unavailable())?;
+    let facts = row
+        .map(
+            |(
+                company_id,
+                target_id,
+                owner_user_id,
+                lifecycle_status,
+                version,
+                is_owner,
+                is_member,
+            )| ProjectAttachmentTargetFacts {
+                company_id,
+                target_id,
+                owner_user_id,
+                lifecycle_status,
+                version,
+                is_owner,
+                is_member,
+            },
+        )
+        .ok_or_else(attachment_not_found)?;
+    authorize_read(actor, &facts, now)?;
+    Ok(ProjectAttachmentReadAuthority {
+        target_id: facts.target_id,
+        version: facts.version,
+    })
 }
 
 pub struct PgProjectAttachmentFacts<'a> {

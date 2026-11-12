@@ -4,11 +4,13 @@
 //! adapter binds the exact current draft Files links and applies the Project
 //! version step inside the caller's retained serializable transaction. It never
 //! creates, scans, stores or reads attachment bytes and never commits.
+use crate::application::canonical_original::OriginalByteStore;
 use erpx_server_projects::public::project_attachment::{
     PgProjectAttachmentFacts, ProjectAttachmentActor, ProjectAttachmentBindingCommand,
     ProjectAttachmentBindingReceipt, ProjectAttachmentFactsRepository, ProjectAttachmentFilesPort,
-    ProjectAttachmentFuture, ProjectAttachmentGrant, ProjectAttachmentTargetFacts,
-    ProjectAttachmentTargetType, bind_project_attachment,
+    ProjectAttachmentFuture, ProjectAttachmentGrant, ProjectAttachmentReadAuthority,
+    ProjectAttachmentTargetFacts, ProjectAttachmentTargetType,
+    authorize_project_attachment_read_with_connection, bind_project_attachment,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind, RecordId, TimestampMillis};
@@ -355,6 +357,590 @@ pub async fn project_attachment_bound_manifest(
             },
         )
         .collect()
+}
+
+/// One retained Project attachment link shape. It intentionally mirrors the
+/// Files `AttachmentLinkDto` returned by the generic attachment list read; no
+/// storage key or checksum crosses the owner boundary.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectAttachmentLinkRead {
+    pub id: String,
+    pub source_id: Option<String>,
+    pub filename: String,
+    pub media_type: String,
+    pub bytes: Option<i64>,
+    pub source_state: Option<String>,
+    pub link_state: String,
+    pub caption: Option<String>,
+    pub preview_available: bool,
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub bound_at: Option<i64>,
+}
+
+/// One retained Project attachment set shape. It mirrors the Files
+/// `AttachmentSetDto` returned by the generic attachment list read, including
+/// the nested links and bounded counts.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectAttachmentSetRead {
+    pub id: String,
+    pub target_type: String,
+    pub target_id: String,
+    pub component_kind: String,
+    pub component_ref: Option<String>,
+    pub purpose_key: String,
+    pub expected_target_version: i64,
+    pub policy_version: i64,
+    pub classification: String,
+    pub required_count: i64,
+    pub max_files: i64,
+    pub state: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub links: Vec<ProjectAttachmentLinkRead>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectAttachmentScanRead {
+    pub attempts: i64,
+    pub last_result: Option<String>,
+    pub last_error: Option<String>,
+    pub signature: Option<String>,
+    pub definition_updated_at: Option<i64>,
+    pub scanned_at: Option<i64>,
+}
+
+/// Exact retained `attachmentLinkStatus` projection for one Project link.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectAttachmentLinkStatusRead {
+    pub link_id: String,
+    pub set_id: String,
+    pub source_id: Option<String>,
+    pub source_state: Option<String>,
+    pub link_state: String,
+    pub scan: ProjectAttachmentScanRead,
+    pub preview_available: bool,
+    pub bindable: bool,
+    pub expires_at: i64,
+    pub bound_at: Option<i64>,
+    pub withdrawn_at: Option<i64>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectAttachmentContentVariant {
+    Original,
+    Preview,
+}
+
+impl ProjectAttachmentContentVariant {
+    pub fn parse(value: &str) -> Result<Self, BusinessError> {
+        match value {
+            "original" => Ok(Self::Original),
+            "preview" => Ok(Self::Preview),
+            _ => Err(BusinessError::invalid(
+                "ATTACHMENT_VARIANT",
+                "Choose original or preview.",
+            )),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Original => "original",
+            Self::Preview => "preview",
+        }
+    }
+}
+
+/// Verified private bytes plus the retained content-disposition facts.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectAttachmentContentRead {
+    pub media_type: String,
+    pub filename: String,
+    pub body: Vec<u8>,
+    pub inline: bool,
+}
+
+const MAX_SETS: usize = 100;
+const MAX_SET_RESPONSE_BYTES: i64 = 2 * 1024 * 1024;
+const PROJECT_SETS_SQL: &str = r#"
+SELECT CASE WHEN octet_length(image::text) <= $5 THEN image END
+FROM (
+  SELECT COALESCE(jsonb_agg(row_json ORDER BY created_at DESC, id DESC), '[]'::jsonb) AS image
+  FROM (
+    SELECT s.created_at, s.id, jsonb_build_object(
+      'id', s.id,
+      'targetType', s.target_type,
+      'targetId', s.target_id,
+      'componentKind', s.component_kind,
+      'componentRef', s.component_ref,
+      'purposeKey', s.purpose_key,
+      'expectedTargetVersion', s.expected_target_version,
+      'policyVersion', s.policy_version,
+      'classification', s.classification,
+      'requiredCount', s.required_count,
+      'maxFiles', s.max_files,
+      'state', s.state,
+      'createdAt', s.created_at,
+      'updatedAt', s.updated_at,
+      'links', COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'id', links.id,
+          'sourceId', links.attachment_id,
+          'filename', COALESCE(links.original_name, links.intent_original_name, 'file'),
+          'mediaType', COALESCE(links.media_type, links.intent_media_type, 'application/octet-stream'),
+          'bytes', COALESCE(links.bytes, links.declared_bytes),
+          'sourceState', links.source_state,
+          'linkState', links.state,
+          'caption', links.caption,
+          'previewAvailable', links.preview_object_key IS NOT NULL,
+          'createdAt', links.created_at,
+          'expiresAt', links.expires_at,
+          'boundAt', links.bound_at
+        ) ORDER BY links.created_at, links.id)
+        FROM (
+          SELECT l.id,l.attachment_id,l.state,l.caption,l.created_at,l.expires_at,l.bound_at,
+                 a.original_name,a.media_type,a.bytes,a.source_state,a.preview_object_key,
+                 u.original_name intent_original_name,u.media_type intent_media_type,
+                 u.declared_bytes
+          FROM attachment_links l
+          LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id
+          LEFT JOIN upload_intents u ON u.id=l.upload_intent_id AND u.company_id=s.company_id
+          WHERE l.set_id=s.id
+            AND (l.attachment_id IS NULL OR a.id IS NOT NULL)
+            AND (l.upload_intent_id IS NULL OR u.id IS NOT NULL)
+          ORDER BY l.created_at,l.id
+          LIMIT 101
+        ) links
+      ), '[]'::jsonb)
+    ) AS row_json
+    FROM attachment_sets s
+    WHERE s.company_id=$1
+      AND s.target_type='project'
+      AND s.target_id=$2
+      AND (s.state='bound' OR (s.state='draft' AND s.created_by=$3))
+    ORDER BY s.created_at DESC, s.id DESC
+    LIMIT $4
+  ) bounded
+) sized
+"#;
+
+const PROJECT_LINKS_SQL: &str = r#"
+SELECT CASE WHEN octet_length(image::text) <= $5 THEN image END
+FROM (
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'id', links.id,
+    'sourceId', links.attachment_id,
+    'filename', COALESCE(links.original_name, links.intent_original_name, 'file'),
+    'mediaType', COALESCE(links.media_type, links.intent_media_type, 'application/octet-stream'),
+    'bytes', COALESCE(links.bytes, links.declared_bytes),
+    'sourceState', links.source_state,
+    'linkState', links.state,
+    'caption', links.caption,
+    'previewAvailable', links.preview_object_key IS NOT NULL,
+    'createdAt', links.created_at,
+    'expiresAt', links.expires_at,
+    'boundAt', links.bound_at
+  ) ORDER BY links.created_at, links.id), '[]'::jsonb) AS image
+  FROM (
+    SELECT l.id,l.attachment_id,l.state,l.caption,l.created_at,l.expires_at,l.bound_at,
+           a.original_name,a.media_type,a.bytes,a.source_state,a.preview_object_key,
+           u.original_name intent_original_name,u.media_type intent_media_type,u.declared_bytes
+    FROM attachment_links l
+    JOIN attachment_sets s ON s.id=l.set_id
+    LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id
+    LEFT JOIN upload_intents u ON u.id=l.upload_intent_id AND u.company_id=s.company_id
+    WHERE l.set_id=$1
+      AND s.company_id=$2
+      AND s.target_type='project'
+      AND s.target_id=$3
+      AND (s.state='bound' OR (s.state='draft' AND s.created_by=$4))
+      AND (l.attachment_id IS NULL OR a.id IS NOT NULL)
+      AND (l.upload_intent_id IS NULL OR u.id IS NOT NULL)
+    ORDER BY l.created_at,l.id
+    LIMIT $6
+  ) links
+) sized
+"#;
+
+fn read_changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "ATTACHMENT_READ_CHANGED",
+        "The file metadata changed while it was being read.",
+    )
+}
+
+fn list_too_large() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "ATTACHMENT_LIST_TOO_LARGE",
+        "This Project has too many files to show at once.",
+    )
+}
+
+fn set_not_found() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "ATTACHMENT_SET_NOT_FOUND",
+        "Attachment set not found.",
+    )
+}
+
+fn link_not_found() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "ATTACHMENT_LINK_NOT_FOUND",
+        "File link not found.",
+    )
+}
+
+fn not_available() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "ATTACHMENT_NOT_AVAILABLE",
+        "The file is still quarantined or was rejected.",
+    )
+}
+
+fn preview_not_found() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "ATTACHMENT_PREVIEW_NOT_FOUND",
+        "A safe preview is not available.",
+    )
+}
+
+async fn authorize_project_read(
+    connection: &mut PgConnection,
+    actor: &ProjectAttachmentActor,
+    project_id: &str,
+    now: TimestampMillis,
+) -> Result<ProjectAttachmentReadAuthority, BusinessError> {
+    authorize_project_attachment_read_with_connection(&mut *connection, actor, project_id, now)
+        .await
+}
+
+/// List the current Project attachment sets visible to the actor. Bound sets are
+/// visible to current project readers; draft sets remain private to their
+/// creator, exactly as the retained Files list read. The complete image is
+/// bounded by count and serialized bytes, and never exposes storage facts.
+pub async fn project_attachment_sets(
+    connection: &mut PgConnection,
+    actor: &ProjectAttachmentActor,
+    project_id: &str,
+    now: TimestampMillis,
+) -> Result<Vec<ProjectAttachmentSetRead>, BusinessError> {
+    authorize_project_read(&mut *connection, actor, project_id, now).await?;
+    let image: Option<serde_json::Value> = sqlx::query_scalar(PROJECT_SETS_SQL)
+        .bind(actor.company_id.as_str())
+        .bind(project_id)
+        .bind(actor.user_id.as_str())
+        .bind((MAX_SETS + 1) as i64)
+        .bind(MAX_SET_RESPONSE_BYTES)
+        .fetch_one(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    let sets: Vec<ProjectAttachmentSetRead> =
+        serde_json::from_value(image.ok_or_else(list_too_large)?).map_err(|_| read_changed())?;
+    if sets.len() > MAX_SETS || sets.iter().any(|set| set.links.len() > MAX_LINKS) {
+        return Err(list_too_large());
+    }
+    Ok(sets)
+}
+
+/// List one visible Project set's links with the exact retained link shape.
+pub async fn project_attachment_links(
+    connection: &mut PgConnection,
+    actor: &ProjectAttachmentActor,
+    project_id: &str,
+    set_id: &str,
+    now: TimestampMillis,
+) -> Result<Vec<ProjectAttachmentLinkRead>, BusinessError> {
+    authorize_project_read(&mut *connection, actor, project_id, now).await?;
+    let visible: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM attachment_sets s WHERE s.id=$1 AND s.company_id=$2 \
+         AND s.target_type='project' AND s.target_id=$3 \
+         AND (s.state='bound' OR (s.state='draft' AND s.created_by=$4)))",
+    )
+    .bind(set_id)
+    .bind(actor.company_id.as_str())
+    .bind(project_id)
+    .bind(actor.user_id.as_str())
+    .fetch_one(&mut *connection)
+    .await
+    .map_err(|_| unavailable())?;
+    if !visible {
+        return Err(set_not_found());
+    }
+    let image: Option<serde_json::Value> = sqlx::query_scalar(PROJECT_LINKS_SQL)
+        .bind(set_id)
+        .bind(actor.company_id.as_str())
+        .bind(project_id)
+        .bind(actor.user_id.as_str())
+        .bind(MAX_SET_RESPONSE_BYTES)
+        .bind((MAX_LINKS + 1) as i64)
+        .fetch_one(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    let links: Vec<ProjectAttachmentLinkRead> =
+        serde_json::from_value(image.ok_or_else(list_too_large)?).map_err(|_| read_changed())?;
+    if links.len() > MAX_LINKS {
+        return Err(list_too_large());
+    }
+    Ok(links)
+}
+
+/// Exact retained Project link status, including the latest scan attempt and
+/// the retained `bindable` derivation. Draft links stay private to their
+/// creator; the allowed status read is recorded as Files access evidence.
+pub async fn project_attachment_link_status(
+    connection: &mut PgConnection,
+    actor: &ProjectAttachmentActor,
+    project_id: &str,
+    link_id: &str,
+    now: TimestampMillis,
+) -> Result<ProjectAttachmentLinkStatusRead, BusinessError> {
+    let authority = authorize_project_read(&mut *connection, actor, project_id, now).await?;
+    let row = sqlx::query(
+        "SELECT l.id,l.set_id,l.created_by,l.state link_state,l.expires_at,l.bound_at,\
+         l.withdrawn_at,s.target_type,s.target_id,s.expected_target_version,\
+         a.id source_id,a.source_state,a.preview_object_key IS NOT NULL preview_available \
+         FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id \
+         LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id \
+         WHERE l.id=$1 AND s.company_id=$2 AND s.target_type='project' AND s.target_id=$3 \
+           AND (l.attachment_id IS NULL OR a.id IS NOT NULL)",
+    )
+    .bind(link_id)
+    .bind(actor.company_id.as_str())
+    .bind(project_id)
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|_| unavailable())?
+    .ok_or_else(link_not_found)?;
+    let link_state: String = row.get("link_state");
+    let created_by: String = row.get("created_by");
+    if link_state == "draft" && created_by != actor.user_id {
+        return Err(link_not_found());
+    }
+    let source_id: Option<String> = row.get("source_id");
+    let scan = match source_id.as_deref() {
+        Some(attachment_id) => {
+            let scan: Option<(
+                i64,
+                String,
+                Option<String>,
+                Option<String>,
+                Option<i64>,
+                Option<i64>,
+            )> = sqlx::query_as(
+                "SELECT attempt,state,error_code,scanner_signature,scanner_definition_at,\
+                     completed_at FROM attachment_scan_attempts WHERE attachment_id=$1 \
+                     ORDER BY attempt DESC LIMIT 1",
+            )
+            .bind(attachment_id)
+            .fetch_optional(&mut *connection)
+            .await
+            .map_err(|_| unavailable())?;
+            match scan {
+                Some((
+                    attempts,
+                    last_result,
+                    last_error,
+                    signature,
+                    definition_updated_at,
+                    scanned_at,
+                )) => ProjectAttachmentScanRead {
+                    attempts,
+                    last_result: Some(last_result),
+                    last_error,
+                    signature,
+                    definition_updated_at,
+                    scanned_at,
+                },
+                None => ProjectAttachmentScanRead {
+                    attempts: 0,
+                    last_result: None,
+                    last_error: None,
+                    signature: None,
+                    definition_updated_at: None,
+                    scanned_at: None,
+                },
+            }
+        }
+        None => ProjectAttachmentScanRead {
+            attempts: 0,
+            last_result: None,
+            last_error: None,
+            signature: None,
+            definition_updated_at: None,
+            scanned_at: None,
+        },
+    };
+    let source_state: Option<String> = row.get("source_state");
+    let expected_target_version: i64 = row.get("expected_target_version");
+    let bindable = source_state.as_deref() == Some("available")
+        && link_state == "draft"
+        && authority.version == expected_target_version;
+    if let Some(attachment_id) = source_id.as_deref() {
+        sqlx::query(
+            "INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,\
+             variant,outcome,created_at) VALUES($1,$2,$3,$4,$5,'status','allowed',$6)",
+        )
+        .bind(format!("attachment-access-{}", uuid::Uuid::new_v4()))
+        .bind(actor.company_id.as_str())
+        .bind(attachment_id)
+        .bind(link_id)
+        .bind(actor.user_id.as_str())
+        .bind(now.get())
+        .execute(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    }
+    Ok(ProjectAttachmentLinkStatusRead {
+        link_id: row.get("id"),
+        set_id: row.get("set_id"),
+        source_id,
+        source_state,
+        link_state,
+        scan,
+        preview_available: row.get("preview_available"),
+        bindable,
+        expires_at: row.get("expires_at"),
+        bound_at: row.get("bound_at"),
+        withdrawn_at: row.get("withdrawn_at"),
+    })
+}
+
+/// Read one Project link's verified private bytes. Quarantine/scan state,
+/// revocation and destruction, checksum, media type and the ten-megabyte bound
+/// are all rechecked before the injected store is called; the returned body is
+/// re-hashed against the stored checksum and its length.
+pub async fn project_attachment_content<S: OriginalByteStore>(
+    connection: &mut PgConnection,
+    store: &S,
+    actor: &ProjectAttachmentActor,
+    project_id: &str,
+    link_id: &str,
+    variant: ProjectAttachmentContentVariant,
+    now: TimestampMillis,
+) -> Result<ProjectAttachmentContentRead, BusinessError> {
+    authorize_project_read(&mut *connection, actor, project_id, now).await?;
+    let row = sqlx::query(
+        "SELECT l.id,l.created_by,l.state link_state,s.state set_state,s.target_type,\
+         s.target_id,s.company_id,a.id source_id,a.source_state,a.original_name,a.media_type,\
+         a.bytes,a.checksum_sha256,a.object_key,a.preview_object_key,a.preview_bytes,\
+         a.preview_checksum_sha256,a.preview_media_type,a.revoked_at,a.destroyed_at,\
+         a.scanned_at,a.scanner_definition_at \
+         FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id \
+         LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id \
+         WHERE l.id=$1 AND s.company_id=$2 AND s.target_type='project' AND s.target_id=$3 \
+           AND a.id IS NOT NULL",
+    )
+    .bind(link_id)
+    .bind(actor.company_id.as_str())
+    .bind(project_id)
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|_| unavailable())?
+    .ok_or_else(link_not_found)?;
+    let link_state: String = row.get("link_state");
+    let created_by: String = row.get("created_by");
+    if link_state == "withdrawn" || link_state == "expired" {
+        return Err(link_not_found());
+    }
+    if link_state == "draft" && created_by != actor.user_id {
+        return Err(link_not_found());
+    }
+    let source_state: Option<String> = row.get("source_state");
+    let scanned_at: Option<i64> = row.get("scanned_at");
+    let scanner_definition_at: Option<i64> = row.get("scanner_definition_at");
+    let revoked_at: Option<i64> = row.get("revoked_at");
+    let destroyed_at: Option<i64> = row.get("destroyed_at");
+    let source_bytes: Option<i64> = row.get("bytes");
+    let source_checksum: Option<String> = row.get("checksum_sha256");
+    let source_media_type: Option<String> = row.get("media_type");
+    if source_state.as_deref() != Some("available")
+        || scanned_at.is_none()
+        || scanner_definition_at.is_none()
+        || revoked_at.is_some()
+        || destroyed_at.is_some()
+        || source_checksum
+            .as_deref()
+            .is_none_or(|value| !valid_hash(value))
+        || source_media_type.as_deref().is_none_or(str::is_empty)
+        || source_bytes.is_none_or(|value| !(1..=MAX_BYTES).contains(&value))
+    {
+        return Err(not_available());
+    }
+    let (object_key, bytes, checksum, media_type, filename, inline) = match variant {
+        ProjectAttachmentContentVariant::Original => {
+            let object_key: Option<String> = row.get("object_key");
+            let filename: Option<String> = row.get("original_name");
+            (
+                object_key.ok_or_else(preview_not_found)?,
+                source_bytes.ok_or_else(not_available)?,
+                source_checksum.ok_or_else(not_available)?,
+                source_media_type.ok_or_else(not_available)?,
+                filename.unwrap_or_else(|| "file".into()),
+                false,
+            )
+        }
+        ProjectAttachmentContentVariant::Preview => {
+            let object_key: Option<String> = row.get("preview_object_key");
+            let bytes: Option<i64> = row.get("preview_bytes");
+            let checksum: Option<String> = row.get("preview_checksum_sha256");
+            let media_type: Option<String> = row.get("preview_media_type");
+            let filename: Option<String> = row.get("original_name");
+            let checksum = checksum.filter(|value| valid_hash(value));
+            (
+                object_key.ok_or_else(preview_not_found)?,
+                bytes.ok_or_else(preview_not_found)?,
+                checksum.ok_or_else(preview_not_found)?,
+                media_type
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(preview_not_found)?,
+                filename.unwrap_or_else(|| "preview".into()),
+                true,
+            )
+        }
+    };
+    if !(1..=MAX_BYTES).contains(&bytes) {
+        return Err(not_available());
+    }
+    let body = store
+        .read_verified(&object_key, bytes as usize, &checksum, MAX_BYTES as usize)
+        .await?;
+    if body.len() != bytes as usize || hex::encode(Sha256::digest(&body)) != checksum {
+        return Err(read_changed());
+    }
+    let source_id: Option<String> = row.get("source_id");
+    if let Some(attachment_id) = source_id.as_deref() {
+        sqlx::query(
+            "INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,\
+             variant,outcome,created_at) VALUES($1,$2,$3,$4,$5,$6,'allowed',$7)",
+        )
+        .bind(format!("attachment-access-{}", uuid::Uuid::new_v4()))
+        .bind(actor.company_id.as_str())
+        .bind(attachment_id)
+        .bind(link_id)
+        .bind(actor.user_id.as_str())
+        .bind(variant.as_str())
+        .bind(now.get())
+        .execute(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    }
+    Ok(ProjectAttachmentContentRead {
+        media_type,
+        filename,
+        body,
+        inline,
+    })
 }
 
 struct ProjectLinkRow {

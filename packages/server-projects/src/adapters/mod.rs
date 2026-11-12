@@ -10,5 +10,6 @@ pub(crate) mod project_actuals;
 pub(crate) mod project_actuals_http;
 pub(crate) mod project_attachment;
 pub(crate) mod project_attachment_http;
+pub(crate) mod project_attachment_read_http;
 
 pub(crate) mod staff_facts;

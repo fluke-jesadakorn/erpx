@@ -1,6 +1,7 @@
 //! Native Projects attachment target policy and Files port.
 pub use crate::adapters::project_attachment::{
-    PgProjectAttachmentCommandReceipts, PgProjectAttachmentFacts,
+    PgProjectAttachmentCommandReceipts, PgProjectAttachmentFacts, ProjectAttachmentReadAuthority,
+    authorize_project_attachment_read_with_connection,
 };
 pub use crate::application::project_attachment::{
     PROJECT_ATTACHMENT_BIND_OPERATION, ProjectAttachmentCommandReceipt,
