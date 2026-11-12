@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1290,
+    "revision": 1297,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-d",
+      "runId": "run-20261113-e",
       "agentId": "lead",
-      "startedAt": "2026-11-12T22:41:12.042Z",
-      "heartbeatAt": "2026-11-12T22:41:12.042Z",
-      "expiresAt": "2026-11-12T23:11:12.044Z",
-      "generation": 48,
-      "tokenHash": "1f7a17ee7d79358815534149ce7d1d4afecd911229561391f728efb856d55c1a"
+      "startedAt": "2026-11-12T23:14:53.970Z",
+      "heartbeatAt": "2026-11-12T23:14:53.970Z",
+      "expiresAt": "2026-11-12T23:44:53.972Z",
+      "generation": 49,
+      "tokenHash": "15dbbf1e3782dfb057a1e1646874ab7bb61142b93e40eee979622fff7c0052f3"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -21770,22 +21770,28 @@
           "packages/server-organization/Cargo.toml",
           "packages/server-organization/package.json",
           "packages/feature-organization/**",
-          "fixtures/**",
           "tests/unit/organization/**",
           "tests/integration/organization/**"
         ],
         "resources": [
           "owner:organization"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-e",
+          "agentId": "worker-organization-retire",
+          "claimedAt": "2026-11-12T23:14:54.074Z",
+          "heartbeatAt": "2026-11-12T23:14:54.074Z",
+          "expiresAt": "2026-11-12T23:44:54.074Z",
+          "generation": 49
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "BLOCKED ON A NATIVE FILES PORT: the native node-change command explicitly leaves attachment proof unavailable (rust-organization-nodes.test.rs: attachment_proof_stays_explicitly_unavailable_until_a_native_binding_port_exists). The foundation attachment-evidence journeys bind Files sets through the TS decideOrganizationNodeChange review transaction. Port Files attachment binding into the native node-change review first; then fail the People route closed for organization/changes* and delete the TS node-change writers (about 10 statements).",
+        "nextAction": "Classify the organization TS writers against the native organization crate and delete only members whose native command owns the table and whose TS caller is native-only or dead; move oracles and record the owner KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -28133,23 +28139,116 @@
         "resources": [
           "owner:sales"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-d",
-          "agentId": "worker-sales-reconciliation",
-          "claimedAt": "2026-11-12T22:41:32.618Z",
-          "heartbeatAt": "2026-11-12T22:41:32.618Z",
-          "expiresAt": "2026-11-12T23:11:32.618Z",
-          "generation": 48
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+        "lastPushedSha": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-sales/src",
+            "result": "passed",
+            "before": 22,
+            "after": 19,
+            "sourceSha": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-sales/src/adapters/notes.ts",
+                "writes": 6,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native customer-note command/HTTP ingress ships and CRM/Customer360 producers switch native-only."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/followups.ts",
+                "writes": 4,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native follow-up command/read ships; reminder producers switch."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notifications.ts",
+                "writes": 3,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native notification settings/queue/retry ingress ships; retained TS path switches."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notification-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native notification purchase boundary owns queue/retry authorization."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/pricing-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native pricing purchase boundary owns command assertions."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/followup-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native follow-up purchase boundary ships."
+              }
+            ],
+            "note": "Provider-truth reconciliation moved native; TS writer/barrel deleted. Baseline was 22 after the concurrent pricing retirement."
+          },
+          {
+            "command": "cargo check -p erpx-server-sales",
+            "result": "passed",
+            "sourceSha": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business",
+            "result": "passed",
+            "sourceSha": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo test -p erpx-server-sales --test sales_notification_reconciliation",
+            "result": "passed",
+            "sourceSha": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+            "sourceKind": "committed",
+            "note": "9/9"
+          },
+          {
+            "command": "cargo test -p erpx-server-sales --test sales_notification_reconciliation_postgres",
+            "result": "passed",
+            "sourceSha": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+            "sourceKind": "committed",
+            "note": "4/4"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+            "sourceKind": "committed",
+            "note": "1207 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "4f274a89aa2fc5f1014e03f6dccda4aa77c513cd",
+            "sourceKind": "committed"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "BLOCKED BY ACTIVE CLAIM (2026-11-12 19:41Z): migrate.commerce.sales-delivery (worker-commerce-delivery) held packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**, the reconciliation route and the pricing command route. server-sales/feature-sales alone cannot switch route authority. After the commerce claim is handed off: add the native reconcile command/route in server-sales (reuse the sales notification execution source/authority/attempt model), switch commerce/customer-notifications/{id}/reconcile to native-only, delete notification-reconciliation.ts (3 writes) + barrel, move the four reconciliation oracle cases to native seeding, and record sales KPI 29->26.",
-        "handoff": null,
+        "nextAction": "Closed. Remaining 19 producer-first writes bound to retire.sales.residual-writers.",
+        "handoff": {
+          "runId": "run-20261113-d",
+          "agentId": "worker-sales-reconciliation",
+          "at": "2026-11-12T23:14:53.969Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired after the legal slice push; worker WIP preserved, claims re-established",
+          "nextAction": "BLOCKED BY ACTIVE CLAIM (2026-11-12 19:41Z): migrate.commerce.sales-delivery (worker-commerce-delivery) held packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**, the reconciliation route and the pricing command route. server-sales/feature-sales alone cannot switch route authority. After the commerce claim is handed off: add the native reconcile command/route in server-sales (reuse the sales notification execution source/authority/attempt model), switch commerce/customer-notifications/{id}/reconcile to native-only, delete notification-reconciliation.ts (3 writes) + barrel, move the four reconciliation oracle cases to native seeding, and record sales KPI 29->26."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -29903,20 +30002,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 143,
-      "migratedPackets": 75,
+      "migratedPackets": 76,
       "statusCounts": {
-        "pending": 23,
+        "pending": 22,
         "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 75,
+        "migrated": 76,
         "blocked": 31,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 48,
-    "updatedAt": "2026-11-12T23:10:13.218Z",
+    "lastCoordinatorGeneration": 49,
+    "updatedAt": "2026-11-12T23:19:48.619Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -29959,10 +30058,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-c",
-      "runId": "run-20261113-d",
-      "at": "2026-11-12T22:41:12.044Z",
-      "reason": "Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
+      "previousRunId": "run-20261113-d",
+      "runId": "run-20261113-e",
+      "at": "2026-11-12T23:14:53.972Z",
+      "reason": "Lease expired after the legal slice push; worker WIP preserved, claims re-established",
       "wipReviewed": true,
       "previousRunStopped": true
     }
