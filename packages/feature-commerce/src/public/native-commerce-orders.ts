@@ -130,6 +130,26 @@ export type NativeCommerceServiceCompletionInput = Readonly<{
   lines: readonly Readonly<{ lineId: string; quantity: string }>[];
 }>;
 
+export type NativeCommerceGoodsAllocationInput = Readonly<{
+  lotCode?: string;
+  serialNumber?: string;
+  quantity: string;
+  manufacturedDate?: string;
+  expiryDate?: string;
+  disposition?: 'available' | 'quarantine';
+  quarantineReason?: string;
+  quarantineDueDate?: string;
+}>;
+export type NativeCommerceGoodsReceiptInput = Readonly<{
+  expectedVersion: number;
+  date: string;
+  lines: readonly Readonly<{
+    lineId: string;
+    quantity: string;
+    allocations?: readonly NativeCommerceGoodsAllocationInput[];
+  }>[];
+}>;
+
 export type NativeCommerceFulfillmentReceipt = Readonly<{
   id: string;
   fulfillmentId: string;
@@ -190,6 +210,8 @@ const integer = (value: unknown, min = 0): value is number =>
 const optionalInteger = (value: unknown, min = 0) => value === null || integer(value, min);
 const date = (value: unknown): value is string =>
   typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+const quantityString = (value: unknown): value is string =>
+  typeof value === 'string' && /^\d+(\.\d{1,3})?$/.test(value);
 const texts = (value: unknown, max = 512): value is string[] =>
   Array.isArray(value) && value.length <= max && value.every((item) => text(item, 256));
 const sameSet = (left: readonly string[], right: readonly string[]) => {
@@ -446,6 +468,36 @@ function saveInput(input: NativeCommerceOrderSaveInput): string {
     })),
     ...(input.expectedVersion !== undefined ? { expectedVersion: input.expectedVersion } : {}),
   });
+}
+
+function goodsReceiptInput(input: NativeCommerceGoodsReceiptInput): string {
+  if (
+    !integer(input.expectedVersion, 1) ||
+    !date(input.date) ||
+    !Array.isArray(input.lines) ||
+    input.lines.length < 1 ||
+    input.lines.length > 200
+  )
+    return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+  for (const line of input.lines) {
+    if (!identifier(line.lineId) || !quantityString(line.quantity)) return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+    if (line.allocations !== undefined) {
+      if (!Array.isArray(line.allocations) || line.allocations.length < 1 || line.allocations.length > 200)
+        return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+      for (const allocation of line.allocations) {
+        if (!quantityString(allocation.quantity)) return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+        if (allocation.lotCode !== undefined && !identifier(allocation.lotCode)) return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+        if (allocation.serialNumber !== undefined && !identifier(allocation.serialNumber)) return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+        for (const value of [allocation.manufacturedDate, allocation.expiryDate, allocation.quarantineDueDate])
+          if (value !== undefined && !date(value)) return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+        if (allocation.disposition !== undefined && !['available', 'quarantine'].includes(allocation.disposition))
+          return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+        if (allocation.quarantineReason !== undefined && !text(allocation.quarantineReason, 3000))
+          return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+      }
+    }
+  }
+  return JSON.stringify({ completionMode: 'goods', ...input });
 }
 
 function context(
@@ -906,6 +958,31 @@ export function createNativeCommerceOrdersClient(
         `${encodeURIComponent(orderId)}/fulfill`,
         'POST',
         serviceCompletionInput(command),
+        key,
+        signal,
+      );
+      if (!exact(value, ['data', 'context'])) return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
+      const data = fulfillmentReceipt(value.data);
+      context(value.context, actor, input);
+      return data;
+    },
+    async goodsReceipt(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeCommerceOrdersPageContext,
+      orderId: string,
+      command: NativeCommerceGoodsReceiptInput,
+      key: string,
+      input: NativeCommerceOrdersReadInput,
+      signal?: AbortSignal,
+    ): Promise<NativeCommerceFulfillmentReceipt> {
+      if (!identifier(orderId)) return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+      const value = await run(
+        incoming,
+        actor,
+        input,
+        `${encodeURIComponent(orderId)}/goods-receipts`,
+        'POST',
+        goodsReceiptInput(command),
         key,
         signal,
       );

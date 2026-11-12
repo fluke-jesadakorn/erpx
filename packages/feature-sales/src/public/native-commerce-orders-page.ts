@@ -15,6 +15,7 @@ import {
   type NativeCommerceOrderSaveInput,
   type NativeCommerceOrderSaveReceipt,
   type NativeCommerceFulfillmentReceipt,
+  type NativeCommerceGoodsReceiptInput,
   type NativeCommerceServiceCompletionInput,
   type NativeCommerceOrderTransitionInput,
   type NativeCommerceOrdersPageContext,
@@ -185,6 +186,37 @@ export async function nativeCommerceOrderFulfill(
     return undefined;
   try {
     return await native.fulfill(await headers(), context, id, input, key, readInput(context));
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** Native purchase goods-receipt gate for the retained fulfill route. */
+export async function nativeCommerceGoodsReceipt(
+  actor: WorkContext,
+  id: string,
+  input: NativeCommerceGoodsReceiptInput,
+  key: string,
+): Promise<NativeCommerceFulfillmentReceipt | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  let context: NativeCommerceOrdersPageContext;
+  let facts: { kind: string; state: string } | null;
+  try {
+    context = nativeCommerceOrdersPageContext(actor);
+    const write = (await holdingResources(actor.holdingId)).write;
+    facts = await commerceEntrypointFacts(write).orderFacts(id, actor.companyId);
+  } catch {
+    throw new ApiError(
+      503,
+      'NATIVE_COMMERCE_ORDER_UNAVAILABLE',
+      'The native Commerce order service is unavailable.',
+    );
+  }
+  if (!facts || facts.kind !== 'purchase' || !['confirmed', 'partially_fulfilled'].includes(facts.state))
+    return undefined;
+  try {
+    return await native.goodsReceipt(await headers(), context, id, input, key, readInput(context));
   } catch (error) {
     return fail(error);
   }
