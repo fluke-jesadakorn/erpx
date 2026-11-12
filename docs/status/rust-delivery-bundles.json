@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 937,
+    "revision": 941,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-r",
       "agentId": "lead",
       "startedAt": "2026-11-12T12:26:25.188Z",
-      "heartbeatAt": "2026-11-12T13:23:26.467Z",
-      "expiresAt": "2026-11-12T13:53:26.467Z",
+      "heartbeatAt": "2026-11-12T13:45:42.329Z",
+      "expiresAt": "2026-11-12T14:15:42.329Z",
       "generation": 43,
       "tokenHash": "5b4ad559b97c4405a45b9abc4fabf4994bff5188858e4fe091f6fa8e9c104d1e"
     },
@@ -19943,8 +19943,8 @@
           "runId": "run-20261112-r",
           "agentId": "lead",
           "claimedAt": "2026-11-12T13:38:46.765Z",
-          "heartbeatAt": "2026-11-12T13:38:46.765Z",
-          "expiresAt": "2026-11-12T14:08:46.765Z",
+          "heartbeatAt": "2026-11-12T13:45:42.329Z",
+          "expiresAt": "2026-11-12T14:15:42.329Z",
           "generation": 43
         },
         "baseSha": null,
@@ -22580,8 +22580,8 @@
           "runId": "run-20261112-r",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T13:09:34.797Z",
-          "heartbeatAt": "2026-11-12T13:23:26.467Z",
-          "expiresAt": "2026-11-12T13:53:26.467Z",
+          "heartbeatAt": "2026-11-12T13:45:42.329Z",
+          "expiresAt": "2026-11-12T14:15:42.329Z",
           "generation": 43
         },
         "baseSha": null,
@@ -22700,26 +22700,75 @@
         "resources": [
           "owner:support"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-r",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T13:23:26.553Z",
-          "heartbeatAt": "2026-11-12T13:23:26.553Z",
-          "expiresAt": "2026-11-12T13:53:26.553Z",
-          "generation": 43
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "2a1ea11f10b03853236698dd59286fb1be3fb6ef",
+        "lastPushedSha": "2a1ea11f10b03853236698dd59286fb1be3fb6ef",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2a1ea11f10b03853236698dd59286fb1be3fb6ef",
+            "before": 42,
+            "after": 35,
+            "note": "The remaining 35 writes are support-sessions/service-teams/ticket-portal/evidence/planning/attachment-purchases, bound to retire.support.residual-writers."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "2a1ea11f10b03853236698dd59286fb1be3fb6ef",
+            "note": "33 modules, 1183 suites."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "2a1ea11f10b03853236698dd59286fb1be3fb6ef"
+          },
+          {
+            "command": "bunx tsc -p packages/server-support/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "2a1ea11f10b03853236698dd59286fb1be3fb6ef"
+          },
+          {
+            "command": "bun run test:unit -- --suite=support.services.unit",
+            "result": "passed",
+            "sourceSha": "2a1ea11f10b03853236698dd59286fb1be3fb6ef",
+            "note": "56/56; incident command tests removed with the dead TS use cases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.package-obligations.integration",
+            "result": "passed",
+            "sourceSha": "2a1ea11f10b03853236698dd59286fb1be3fb6ef",
+            "note": "14/14; incident setup seeded as native owner rows."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.package-surfaces.integration (incident/executive/calendar cases)",
+            "result": "passed",
+            "sourceSha": "2a1ea11f10b03853236698dd59286fb1be3fb6ef",
+            "note": "Incident file-authority + metric/evidence cases 2/2 and calendar incident case 1/1; the unrelated native Field fixture case remains the pre-existing 120s environment blocker."
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-support/src/adapters/support-incidents.ts",
+            "result": "passed",
+            "sourceSha": "2a1ea11f10b03853236698dd59286fb1be3fb6ef",
+            "before": 7,
+            "after": 0,
+            "note": "TS incident create/change writers and dead application use cases/exports are gone; the native Support incident route is the only command authority."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete the TS incident writers/use cases/barrels; seed incident/link/event owner rows in retained tests; run support KPI and incident/obligation/surface suites.",
+        "nextAction": "Support incident commands are native-only: TS writers/use cases/barrels deleted; tests seed support_incidents/link/event owner rows; support-incidents.ts 7->0 and owner 42->35. Pushed 2a1ea11f1.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate.collaboration.social-drafts",
@@ -23016,20 +23065,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 112,
-      "migratedPackets": 45,
+      "migratedPackets": 46,
       "statusCounts": {
         "pending": 34,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 45,
+        "migrated": 46,
         "blocked": 17,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T13:39:58.700Z",
+    "updatedAt": "2026-11-12T13:45:51.058Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
