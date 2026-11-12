@@ -31,7 +31,7 @@ type Error = PgTransactionError<BusinessError>;
 /// Current Commerce delivery + Finance customer + provider source image. The
 /// `image` array is byte-identical to the retained TypeScript source hash so
 /// existing immutable attempts and authorizations stay valid.
-const SOURCE_IMAGE: &str = "jsonb_build_array(\
+pub(crate) const SOURCE_IMAGE: &str = "jsonb_build_array(\
  n.id,n.company_id,n.branch_id,n.order_id,n.fulfillment_id,n.party_id,n.party_version,\
  n.recipient_email,n.subject,n.body_text,n.adapter,n.created_by,n.created_at,\
  delivery.fulfillment_id,delivery.order_id,delivery.company_id,delivery.branch_id,\
@@ -41,11 +41,11 @@ const SOURCE_IMAGE: &str = "jsonb_build_array(\
 /// Development keeps the retained `TRUE` predicate. Sales is not a release
 /// module, so production selects only the enabled, unexpired isolated
 /// engineering-verification context exactly like the retained scheduled gate.
-const RELEASE_READY: &str = "(NOT $2::boolean \
+pub(crate) const RELEASE_READY: &str = "(NOT $2::boolean \
  OR EXISTS(SELECT 1 FROM engineering_verification_contexts e WHERE e.company_id=n.company_id \
    AND e.enabled AND e.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint))";
 
-const AUTHORITY: &str = "SELECT EXISTS(SELECT 1 FROM assignments g \
+pub(crate) const AUTHORITY: &str = "SELECT EXISTS(SELECT 1 FROM assignments g \
  WHERE g.id=$1 AND g.user_id=$2 AND ($3::text IS NULL OR g.role=$3) AND g.company_id=$4 \
  AND iam_assignment_active(g.id,$5) AND iam_principal_active(g.user_id,g.company_id,$5) \
  AND iam_role_allows(g.role,g.company_id,'commerce.sales') \

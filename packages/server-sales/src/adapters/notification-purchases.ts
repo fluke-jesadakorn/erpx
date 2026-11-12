@@ -1,6 +1,7 @@
 import 'server-only';
 import {createHash,randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import {samePerson} from '@erpx/feature-identity_access/lib/iam';
 import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public/owner-source-locks';
 import {salesNotificationDeliverySources} from '@erpx/server-commerce/public/sales-notification-sources';
@@ -61,3 +62,16 @@ export async function withSalesNotificationPurchase(actor:WorkContext,command:Co
  });
 }
 export async function requireSalesNotificationRead(database:SqlDatabase,actor:WorkContext){const mode=await commercePackageEnforcementMode();if(mode==='disabled')return;await requireQueuedCommandAuthority(database,actor,'commerce.read');await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'sales.orders',purpose:'history'});}
+
+/** Minimal presentation flags after the original Sales record reader. No
+ * provider response, private message or capability snapshot crosses the
+ * server/client boundary. Reconciliation itself is native-owned; this retained
+ * read only advertises whether the current reviewer may invoke it. */
+export async function customerNotificationReconciliationControls(actor:WorkContext,id:string){
+ const mode=await commercePackageEnforcementMode();if(mode==='disabled')return undefined;const database=(await holdingResources(actor.holdingId)).write;await requireQueuedCommandAuthority(database,actor,'commerce.read');await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'sales.orders',purpose:'history'});const source=await salesNotificationSource(database,id);
+ if(!source||source.company_id!==actor.companyId||source.source_company!==actor.companyId||source.customer_company!==actor.companyId||actor.branchId&&actor.branchId!==source.branch_id||actor.departmentId&&actor.departmentId!==source.department_id)throw new ApiError(404,'CUSTOMER_NOTIFICATION_NOT_FOUND','The original customer notice is unavailable in this work scope.');
+ const attempt=source.status==='unknown'?await database.prepare("SELECT attempt.id,attempt.source_hash,attempt.provider_message_id,authority.actor_id FROM sales_notification_execution_attempts attempt JOIN sales_notification_execution_authorizations authority ON authority.command_id=attempt.authorization_command_id AND authority.company_id=attempt.company_id AND authority.notification_id=attempt.notification_id WHERE attempt.notification_id=? AND attempt.company_id=? AND attempt.attempt=? AND attempt.state='unknown'").bind(id,actor.companyId,source.attempts).first<{id:string;source_hash:string;provider_message_id:string|null;actor_id:string}>():null;
+ if(!attempt)return undefined;const hasProviderIdentity=source.adapter==='resend'&&!!attempt.provider_message_id&&attempt.provider_message_id===source.provider_message_id&&attempt.source_hash===salesNotificationSourceHash(source);let canReview=false;
+ if(hasProviderIdentity&&source.release_ready&&!samePerson(actor,source.created_by)&&!samePerson(actor,attempt.actor_id)&&await database.prepare("SELECT to_regclass('sales_notification_reconciliations') IS NOT NULL installed").first<boolean>('installed'))try{await requireQueuedCommandAuthority(database,actor,'commerce.approve');await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'sales.orders',purpose:'settle-existing'});canReview=true;}catch(error){if(!(error instanceof ApiError)||![403,409,402].includes(error.status))throw error;}
+ return {attemptId:attempt.id,hasProviderIdentity,canReview};
+}

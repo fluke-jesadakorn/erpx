@@ -86669,6 +86669,56 @@
       ]
     },
     {
+      "id": "sales.native-sales-notification-reconciliation-transport.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/native-sales-notification-reconciliation-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales customer-notice reconciliation transport validates exact context receipt key and body and fails closed without fallback."
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-organization",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-commercial",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-legal",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-platform_administration",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ]
+    },
+    {
       "id": "operations.rust-operations-commands.unit",
       "lane": "unit",
       "owner": "operations",
@@ -95265,6 +95315,125 @@
         "package": "erpx-server-sales",
         "targets": [
           "sales_notification_execution_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
+    },
+    {
+      "id": "sales.rust-sales-notification-reconciliation.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/rust-sales-notification-reconciliation.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales customer-notice reconciliation retains independent review, exact provider truth, immutable attempt and idempotent replay."
+      },
+      "apps": [
+        "sales"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_notification_reconciliation"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-notification-reconciliation-http.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/rust-sales-notification-reconciliation-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales customer-notice reconciliation HTTP ingress retains exact Host/Origin/key/body mapping and bounded error statuses."
+      },
+      "apps": [
+        "sales"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_notification_reconciliation_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-notification-reconciliation-postgres.integration",
+      "lane": "integration",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/integration/sales/rust-sales-notification-reconciliation-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales customer-notice reconciliation retains provider-truth matching, immutable evidence, late-authority rollback, draining settlement and two-Company concurrency."
+      },
+      "apps": [
+        "sales"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_notification_reconciliation_postgres"
         ]
       },
       "verificationInputs": [

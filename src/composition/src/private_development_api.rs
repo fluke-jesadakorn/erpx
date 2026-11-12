@@ -3039,6 +3039,8 @@ async fn assemble_checked(
         let mut sales_cancellation_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut sales_price_lists_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut sales_notification_reconciliation_targets = Vec::new();
         let mut files_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut portal_attachment_targets = Vec::new();
@@ -4659,6 +4661,30 @@ async fn assemble_checked(
                         )),
                     )),
                 ));
+                #[cfg(feature = "existing-business")]
+                sales_notification_reconciliation_targets.push(
+                    crate::sales_notification_reconciliation::target(
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        Arc::new(
+                            crate::sales_notification_reconciliation::SalesNotificationReconciliationBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(
+                                    crate::sales_notification_reconciliation::SalesNotificationReconciliationService::from_runtime(
+                                        authorizer.clone(),
+                                        crate::sales_notification_reconciliation::SalesNotificationReconciliationConfiguration::new(
+                                            holding.registration.holding_id.clone(),
+                                            company.clone(),
+                                        ),
+                                        Arc::new(SharedClock(clock.clone())),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                );
                 sales_documents_targets.push(
                     erpx_server_sales::public::sales_documents_http::SalesDocumentsHttpTarget {
                         host: holding.host.clone(),
@@ -5923,6 +5949,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_sales::public::sales_price_lists_http::sales_price_lists_router(
                     sales_price_lists_targets,
+                )
+                .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !sales_notification_reconciliation_targets.is_empty() {
+            router = router.merge(
+                erpx_server_sales::public::sales_notification_reconciliation::sales_notification_reconciliation_router(
+                    sales_notification_reconciliation_targets,
                 )
                 .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
             );

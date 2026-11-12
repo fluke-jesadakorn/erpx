@@ -15,7 +15,8 @@ import {nativeSalesConfirmedCancellation} from '@erpx/feature-sales/public/nativ
 import {nativeSalesPricingCommand} from '@erpx/feature-sales/public/native-sales-pricing';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {pricingWorkspace} from "@erpx/server-sales/public/sales-pricing";
-import {customerNotificationReconciliationSchema,reconcileCustomerNotification,customerNotificationRetrySchema,customerNotificationSchema,customerNotificationSettingsSchema,queueDeliveryNotification,retryCustomerNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
+import {customerNotificationRetrySchema,customerNotificationSchema,customerNotificationSettingsSchema,queueDeliveryNotification,retryCustomerNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
+import {nativeSalesNotificationReconcile,salesNotificationReconciliationInput} from "@erpx/feature-sales/public/native-sales-notification-reconciliation";
 import { inventoryReorderPolicyActionSchema, inventoryReorderPolicySchema, listInventoryReorderPolicies, saveInventoryReorderPolicy, transitionInventoryReorderPolicy } from "@erpx/server-inventory/public/inventory-reorder-policies";
 import {commercePostingSetup,initializeCommercePostingSetup,commercePostingSetupSchema} from "@erpx/server-commerce/public/posting-setup";
 import {supplyPostingPrerequisites,createSupplyPostingChart,createSupplyPostingAccount,createSupplyPostingPeriod,confirmSupplyPostingRate,supplyPostingChartSchema,supplyPostingAccountSchema,supplyPostingPeriodSchema,supplyPostingRateSchema} from "@erpx/server-finance/public/supply-posting-prerequisites";
@@ -90,7 +91,7 @@ export async function POST(request:Request,context:Context) {
     else if(p[0]==="fulfillments"&&p[2]==="invoice")data=await invoiceFulfillment(actor,p[1],invoiceFromDeliverySchema.parse(input),key);
     else if(p[0]==='fulfillments'&&p[2]==='notify')data=await queueDeliveryNotification(actor,p[1],customerNotificationSchema.parse(input),key);
     else if(p[0]==='customer-notifications'&&p[1]==='settings')data=await updateCustomerNotificationSettings(actor,customerNotificationSettingsSchema.parse(input),key);
-    else if(p[0]==='customer-notifications'&&p[2]==='reconcile')data=await reconcileCustomerNotification(actor,p[1],customerNotificationReconciliationSchema.parse(input),key);
+    else if(p[0]==='customer-notifications'&&p[2]==='reconcile')data=await nativeSalesNotificationReconcile(actor,p[1],salesNotificationReconciliationInput(input),key,request.headers);
     else if(p[0]==='customer-notifications'&&p[2]==='retry')data=await retryCustomerNotification(actor,p[1],customerNotificationRetrySchema.parse(input),key);
     else if(p[0]==="invoices"&&p[2]==="settle")data=await settleInvoice(actor,p[1],settlementSchema.parse(input),key);
     else if(p[0]==="fulfillments"&&p[2]==="returns")data=await requestCommerceReturn(actor,p[1],returnRequestSchema.parse(input),key);

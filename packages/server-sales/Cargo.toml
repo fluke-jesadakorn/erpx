@@ -23,6 +23,7 @@ reqwest.workspace = true
 rustls.workspace = true
 webpki-roots.workspace = true
 uuid.workspace = true
+time.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
@@ -71,6 +72,18 @@ path = "../../tests/unit/sales/rust-sales-notification-execution.test.rs"
 [[test]]
 name = "sales_notification_execution_postgres"
 path = "../../tests/integration/sales/rust-sales-notification-execution-postgres.test.rs"
+
+[[test]]
+name = "sales_notification_reconciliation"
+path = "../../tests/unit/sales/rust-sales-notification-reconciliation.test.rs"
+
+[[test]]
+name = "sales_notification_reconciliation_http"
+path = "../../tests/unit/sales/rust-sales-notification-reconciliation-http.test.rs"
+
+[[test]]
+name = "sales_notification_reconciliation_postgres"
+path = "../../tests/integration/sales/rust-sales-notification-reconciliation-postgres.test.rs"
 
 [lints]
 workspace = true

@@ -8,4 +8,7 @@ pub(crate) mod sales_documents_http;
 pub(crate) mod sales_order_cancellation;
 pub(crate) mod sales_order_cancellation_http;
 pub(crate) mod sales_notification_email;
+pub(crate) mod sales_notification_observation;
+pub(crate) mod sales_notification_reconciliation;
+pub(crate) mod sales_notification_reconciliation_http;
 pub(crate) mod sales_notification_execution;

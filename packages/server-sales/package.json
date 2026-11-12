@@ -17,7 +17,6 @@
     "./adapters/followup-notification-source": "./src/adapters/followup-notification-source.ts",
     "./adapters/followups": "./src/adapters/followups.ts",
     "./adapters/notes": "./src/adapters/notes.ts",
-    "./adapters/notification-reconciliation": "./src/adapters/notification-reconciliation.ts",
     "./adapters/recipient": "./src/adapters/recipient.ts",
     "./adapters/executive-followup-evidence-sources": "./src/adapters/executive-followup-evidence-sources.ts",
     "./adapters/redirect": "./src/adapters/redirect.ts",

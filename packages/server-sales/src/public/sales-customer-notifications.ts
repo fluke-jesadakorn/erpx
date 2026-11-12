@@ -1,2 +1,2 @@
 export {customerNotificationSchema,customerNotificationRetrySchema,customerNotificationSettingsSchema,customerNotificationSettings,updateCustomerNotificationSettings,queueDeliveryNotification,retryCustomerNotification,deliverCustomerNotification} from '@erpx/server-sales/adapters/notifications';
-export {customerNotificationReconciliationSchema,reconcileCustomerNotification,customerNotificationReconciliationControls} from '@erpx/server-sales/adapters/notification-reconciliation';
+export {customerNotificationReconciliationControls} from '@erpx/server-sales/adapters/notification-purchases';
