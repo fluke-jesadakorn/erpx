@@ -6,6 +6,7 @@ import {
   nativeManageErpxConfiguration,
   NativeManageErpxError,
   nativeManageErpxFailure,
+  type NativeManageErpxOnboardingReceipt,
   type NativeManageErpxOnboardingView,
 } from '@erpx/feature-platform_administration/public/native-manage-erpx';
 
@@ -58,4 +59,26 @@ export async function nativeManageErpxOnboardingViewForPage(
   signal?: AbortSignal,
 ): Promise<NativeManageErpxOnboardingView | undefined> {
   return nativeManageErpxOnboardingView(await headers(), userId, signal);
+}
+
+/** Dispatch the verified onboarding POST to the native owner. A missing
+ * configuration is reported as unavailable so the route fails closed instead of
+ * falling back to the retired TypeScript onboarding path. */
+export async function nativeManageErpxOnboardingCommand(
+  incoming: Pick<Headers, 'get'>,
+  payload: unknown,
+  signal?: AbortSignal,
+): Promise<NativeManageErpxOnboardingReceipt | undefined> {
+  let native;
+  try {
+    native = client();
+  } catch (error) {
+    return unavailable(error);
+  }
+  if (!native) return undefined;
+  try {
+    return await native.onboardingCommand(incoming, payload, signal);
+  } catch (error) {
+    return unavailable(error);
+  }
 }

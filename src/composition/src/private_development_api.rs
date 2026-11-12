@@ -455,6 +455,17 @@ impl fmt::Debug for DevelopmentApiConfiguration {
 }
 /// The private production service is loopback-only behind Cloudflare Tunnel.
 /// Unlike a disposable development port it may use the installed 3101 slot.
+/// Deployment-owned onboarding capacity. Values are explicit positive integers;
+/// an unset or invalid value uses the retained default instead of minting
+/// unbounded limits.
+fn onboarding_limit(name: &str, fallback: i64) -> i64 {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(fallback)
+}
+
 fn validate_private_production_address(address: &str) -> Result<SocketAddr, &'static str> {
     let address: SocketAddr = address
         .parse()
@@ -2917,6 +2928,48 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut crm_command_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
+        let mut manage_erpx_command_targets = Vec::new();
+        let onboarding_holdings: BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool> = config
+            .holdings
+            .iter()
+            .enumerate()
+            .map(|(index, holding)| {
+                (
+                    holding.registration.holding_id.as_str().to_owned(),
+                    pools[index + 1].clone(),
+                )
+            })
+            .collect();
+        let onboarding_resources: Vec<erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandResource> = config
+            .holdings
+            .iter()
+            .map(|holding| erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandResource {
+                holding_id: holding.registration.holding_id.as_str().to_owned(),
+                write_binding: holding.registration.write_binding.clone(),
+                read_binding: holding.registration.read_binding.clone(),
+                files_binding: holding.registration.files_binding.clone(),
+                beta: true,
+            })
+            .collect();
+        let onboarding_limits = erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandLimits {
+            members: onboarding_limit("BETA_MEMBER_LIMIT", 20),
+            branches: onboarding_limit("BETA_BRANCH_LIMIT", 5),
+            ai: onboarding_limit("BETA_AI_LIMIT", 100),
+            storage: onboarding_limit("BETA_STORAGE_BYTES", 1_073_741_824),
+        };
+        let onboarding_enabled = std::env::var("ERPX_PUBLIC_BETA").is_ok_and(|value| value == "true");
+        let onboarding_backend = Arc::new(
+            crate::manage_erpx::ManageErpxOnboardingCommandBackend::new(
+                config.policy.clone(),
+                config.holdings_registry.clone(),
+                pools[0].clone(),
+                onboarding_holdings,
+                onboarding_resources,
+                onboarding_limits,
+                onboarding_enabled,
+                clock.clone(),
+            ),
+        );
         let mut agent_evidence_targets = Vec::new();
         let mut records_context_targets = Vec::new();
         let mut records_details_targets = Vec::new();
@@ -4542,6 +4595,12 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                manage_erpx_command_targets.push(
+                    erpx_server_manage_erpx::public::onboarding_command_http::ManageErpxOnboardingCommandTarget {
+                        host: holding.host.clone(),
+                        backend: onboarding_backend.clone(),
+                    },
+                );
 
                 if holding.registration.holding_id.as_str() == "h003" {
                     agent_evidence_targets.push(
@@ -5474,6 +5533,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_manage_erpx::public::onboarding_http::manage_erpx_router(
                     manage_erpx_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !manage_erpx_command_targets.is_empty() {
+            router = router.merge(
+                erpx_server_manage_erpx::public::onboarding_command_http::manage_erpx_onboarding_command_router(
+                    manage_erpx_command_targets,
                 )
                 .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
             );

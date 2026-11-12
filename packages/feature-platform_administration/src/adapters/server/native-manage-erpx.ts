@@ -26,11 +26,16 @@ export type NativeManageErpxOnboardingView = Readonly<{
   slot: NativeManageErpxOnboardingSlot | null;
 }>;
 
+export type NativeManageErpxOnboardingReceipt = Readonly<{
+  state: 'active' | 'waitlisted';
+  href: string | null;
+}>;
+
 export type NativeManageErpxTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
 
@@ -286,7 +291,70 @@ export function createNativeManageErpxClient(
         signal?.removeEventListener('abort', cancel);
       }
     },
+    async onboardingCommand(
+      incoming: Pick<Headers, 'get'>,
+      payload: unknown,
+      signal?: AbortSignal,
+    ): Promise<NativeManageErpxOnboardingReceipt> {
+      const host = incoming.get('host');
+      if (!host || !config.hosts.has(host))
+        return failure('NATIVE_MANAGE_ERPX_AUTHORITY_INVALID');
+      const body = JSON.stringify(payload);
+      if (new TextEncoder().encode(body).length > 24_000)
+        return failure('NATIVE_MANAGE_ERPX_REQUEST_INVALID');
+      const headers = new Headers({
+        host,
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'cache-control': 'no-cache',
+      });
+      const cookie = incoming.get('cookie');
+      if (cookie) {
+        if (new TextEncoder().encode(cookie).length > 8192)
+          return failure('NATIVE_MANAGE_ERPX_COOKIE_LIMIT');
+        headers.set('cookie', cookie);
+      }
+      const origin = incoming.get('origin');
+      if (origin) headers.set('origin', origin);
+      const controller = new AbortController();
+      const cancel = () => controller.abort();
+      signal?.addEventListener('abort', cancel, { once: true });
+      if (signal?.aborted) controller.abort();
+      const timer = setTimeout(cancel, config.timeout);
+      try {
+        const response = await transport(
+          'POST',
+          new URL('/api/v1/onboarding', config.base),
+          headers,
+          body,
+          controller.signal,
+        );
+        return onboardingReceipt(await boundedJson(response));
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', cancel);
+      }
+    },
   };
+}
+
+function onboardingReceipt(value: unknown): NativeManageErpxOnboardingReceipt {
+  if (!exact(value, ['data', 'context']) || !exact(value.context, ['userId']))
+    return failure('NATIVE_MANAGE_ERPX_RESPONSE_INVALID');
+  if (!identifier(value.context.userId))
+    return failure('NATIVE_MANAGE_ERPX_RESPONSE_INVALID');
+  const data = value.data;
+  if (
+    !exact(data, ['state', 'href']) ||
+    !['active', 'waitlisted'].includes(String(data.state))
+  )
+    return failure('NATIVE_MANAGE_ERPX_RESPONSE_INVALID');
+  if (data.state === 'active') {
+    if (!text(data.href, 512)) return failure('NATIVE_MANAGE_ERPX_RESPONSE_INVALID');
+  } else if (data.href !== null) {
+    return failure('NATIVE_MANAGE_ERPX_RESPONSE_INVALID');
+  }
+  return data as unknown as NativeManageErpxOnboardingReceipt;
 }
 
 /** Bounded error mapping for the retained Next route and page shells. */
