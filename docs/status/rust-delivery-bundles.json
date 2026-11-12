@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 760,
+    "revision": 767,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -18000,17 +18000,15 @@
           "tests/integration/ecommerce/**",
           "tests/integration/inventory/**",
           "tests/integration/sales/**",
-          "tests/support/helpers/business-file-targets.ts",
           "tests/unit/quality/**",
           "tests/integration/quality/**",
-          "fixtures/quality/**",
           "tests/catalogue/suite-manifest.json"
         ],
         "resources": [
           "owner:quality"
         ],
-        "status": "blocked",
-        "nextAction": "Move the cross-owner oracles to native seeding, delete the remaining Quality TS writers, and measure retirement:ts-writes.",
+        "status": "migrated",
+        "nextAction": "Quality inspect/release/disposition/cancel writers retired; KPI 26 -> 15 at 29d3fca8b; 15 residual writes classified under retire.quality.residual-writers.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -18024,18 +18022,84 @@
         ],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "29d3fca8baf89f8fafe053a22c743ba9a15ff651",
+        "lastPushedSha": "29d3fca8baf89f8fafe053a22c743ba9a15ff651",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-quality/src",
+            "result": "passed",
+            "before": 26,
+            "after": 15,
+            "sourceSha": "29d3fca8baf89f8fafe053a22c743ba9a15ff651",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-quality/src/adapters/quality.ts",
+                "writes": 1,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native goods-receipt/customer-return hold preparation port replaces receiptQualityHoldSteps."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/inventory-count-effects.ts",
+                "writes": 5,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Move Count quality effects to the native Count port."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Retire the TS purchase-boundary helpers once every Quality writer is native."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/alerts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Native alert acknowledge/drain port replaces acknowledgeQualityAlert."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Move Files attachment purchase guards to the native Files port."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/product-entry.ts",
+                "writes": 1,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Move product-entry writer to the native Commerce/Inventory port."
+              }
+            ]
+          },
+          {
+            "command": "cargo check -p erpx-server-quality --locked",
+            "result": "passed",
+            "sourceSha": "29d3fca8baf89f8fafe053a22c743ba9a15ff651",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles after the writer deletion."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "29d3fca8baf89f8fafe053a22c743ba9a15ff651",
+            "sourceKind": "committed",
+            "note": "Repository layout passed; catalogue valid."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
+        "blocker": null,
         "handoff": {
-          "runId": "run-20261112-i",
+          "runId": "run-20261112-l",
           "agentId": "worker-quality",
-          "at": "2026-11-12T07:22:45.170Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
-          "nextAction": "Move the cross-owner oracles to native seeding, delete the remaining Quality TS writers, and measure retirement:ts-writes."
+          "at": "2026-11-12T08:43:20.899Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: mark migrated with cutover flags."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
         }
       },
       {
@@ -18773,6 +18837,62 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.quality.residual-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "quality",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the residual Quality TS writers (count effects, alerts, boundaries, receipt hold)",
+        "scope": "Delete the classified residual Quality writers as their native ports land: receiptQualityHoldSteps (1), inventory-count-effects (5), purchases boundary (3), alerts/acknowledge (3), attachment-purchases (2), product-entry (1); move any in-lane oracles to native seeding and record the owner KPI delta.",
+        "dependsOn": [
+          "inventory.quality",
+          "ports.trade"
+        ],
+        "requiredPorts": [
+          "inventory",
+          "finance",
+          "files",
+          "identity_access"
+        ],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "packages/feature-quality/**",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "status": "pending",
+        "nextAction": "Land the native ports (Count effects, Files attachment boundary, alert acknowledge, product entry, goods-receipt hold) then delete the residual writers and measure retirement:ts-writes.",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-quality",
+        "plannedPackage": "erpx-server-quality",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "deliverables": [
+          "Native-quality workspace/detail client parity",
+          "Native-only route authority",
+          "Deleted TS readers and exports",
+          "Moved oracles and KPI delta"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -18781,21 +18901,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 71,
-      "migratedPackets": 33,
+      "totalPackets": 72,
+      "migratedPackets": 34,
       "statusCounts": {
-        "pending": 11,
+        "pending": 12,
         "in_progress": 2,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 33,
-        "blocked": 15,
+        "migrated": 34,
+        "blocked": 14,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 37,
-    "updatedAt": "2026-11-12T08:38:37.607Z",
+    "updatedAt": "2026-11-12T08:43:20.953Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
