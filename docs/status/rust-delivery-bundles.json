@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1156,
+    "revision": 1159,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21082,22 +21082,33 @@
           "packages/server-customer_authority/Cargo.toml",
           "packages/server-customer_authority/package.json",
           "packages/feature-customer_authority/**",
+          "packages/server-runtime/src/adapters/runtime/jobs.ts",
+          "src/composition/src/**",
+          "Cargo.lock",
           "fixtures/**",
           "tests/unit/customer_authority/**",
-          "tests/integration/customer_authority/**"
+          "tests/integration/customer_authority/**",
+          "tests/catalogue/suite-manifest.json"
         ],
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-b",
+          "agentId": "worker-portal-invitation",
+          "claimedAt": "2026-11-12T19:44:19.232Z",
+          "heartbeatAt": "2026-11-12T19:44:19.232Z",
+          "expiresAt": "2026-11-12T20:14:19.232Z",
+          "generation": 46
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/portal-invitation-delivery.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Port the portal invitation delivery job natively using the sales notification worker as the template: claim/recover/current/terminal over customer_portal_invitations + events, token HMAC verification, binding/order/consent source checks, EmailDispatchPort (Resend, fail closed), composition worker registration, native-only runtime jobs switch, delete adapters/portal-invitation-delivery.ts + application + barrels, migrate the oracle, and record the customer_authority KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -27273,7 +27284,7 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261113-b",
           "agentId": "worker-commerce-delivery",
@@ -27283,8 +27294,8 @@
           "generation": 46
         },
         "baseSha": null,
-        "implementedCommit": "e2cda8f03eab5f2658c7316c07b755b6eaa926b8",
-        "lastPushedSha": "e2cda8f03eab5f2658c7316c07b755b6eaa926b8",
+        "implementedCommit": "0ae4e2a88caf9a0397937fad90b283ccc1dd6f5b",
+        "lastPushedSha": "0ae4e2a88caf9a0397937fad90b283ccc1dd6f5b",
         "checks": [
           {
             "command": "cargo check -p erpx-server-commerce",
@@ -27311,11 +27322,50 @@
             "before": 58,
             "after": 58,
             "note": "Owner-side capability only; the TS fulfillOrder goods branch is still authoritative until composition mounts the delivery backend and the workplace route is switched, so the retirement delta is not claimed yet."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "0ae4e2a88caf9a0397937fad90b283ccc1dd6f5b",
+            "note": "Composition compiles with ComposedStockIssue, the Delivery goods port and the mounted sales delivery router."
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test sales_delivery --test sales_delivery_postgres",
+            "result": "passed",
+            "sourceSha": "0ae4e2a88caf9a0397937fad90b283ccc1dd6f5b",
+            "note": "12/12 and 4/4; commerce owner source unchanged since e2cda8f03."
+          },
+          {
+            "command": "kpi:ts-writes -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0ae4e2a88caf9a0397937fad90b283ccc1dd6f5b",
+            "before": 58,
+            "after": 58,
+            "note": "Route authority switched for sales goods/mixed; the TS fulfillOrder oracle and the service-branch fallback remain and are retained with removalTaskId."
           }
         ],
-        "retainedLegacy": [],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-commerce/src/application/commerce.ts",
+            "capability": "commerce.order.fulfill (service branch + test oracle)",
+            "removalTaskId": "retire.commerce.commerce",
+            "removalCondition": "Native service-completion covers every branch the retained fulfillOrder handles and the 21 oracle suites are moved to native seeding."
+          },
+          {
+            "path": "packages/server-commerce/src/adapters/commerce.ts",
+            "capability": "fulfillOrder purchase-boundary wrapper",
+            "removalTaskId": "retire.commerce.commerce",
+            "removalCondition": "Deleted together with the application fulfillOrder and its public barrel exports."
+          },
+          {
+            "path": "packages/server-commerce/src/public/commerce.ts",
+            "capability": "fulfillOrder public export",
+            "removalTaskId": "retire.commerce.commerce",
+            "removalCondition": "Export removed after the remaining test/fixture oracles move to native seeding."
+          }
+        ],
         "blocker": null,
-        "nextAction": "Owner-side sales delivery is live at e2cda8f03 (Commerce KPI unchanged 58; TS branch still authoritative). Remaining cutover: bind Inventory apply_stock_issue + Finance Delivery journal in src/composition/src/commerce.rs and mount commerce_order_http_router_with_sales_delivery; call it from feature-sales nativeCommerceOrderFulfill; switch workplace commerce route line 88 to native-only; delete the TS fulfillOrder goods branch/export; move oracles; record retirement:ts-writes commerce before/after.",
+        "nextAction": "Lead review: sales goods/mixed fulfillment is native-only from the workplace route (purchase receipts stay on their native backend); composition mounts the delivery router. Remaining to close: move the 21 fulfillOrder oracle suites to native seeding and delete the TS service-branch fallback plus fulfillOrder export under retire.commerce.commerce, then record the retirement delta.",
         "handoff": {
           "runId": "run-20261113-a",
           "agentId": "worker-commerce-delivery",
@@ -27822,9 +27872,9 @@
       "totalPackets": 131,
       "migratedPackets": 64,
       "statusCounts": {
-        "pending": 30,
+        "pending": 29,
         "in_progress": 6,
-        "ready_for_integration": 9,
+        "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 64,
         "blocked": 22,
@@ -27833,7 +27883,7 @@
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T19:43:37.867Z",
+    "updatedAt": "2026-11-12T19:47:33.189Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
