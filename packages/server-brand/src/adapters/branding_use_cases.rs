@@ -2,12 +2,15 @@
 //! the transaction; this layer never opens a transaction or reads HTTP.
 use crate::adapters::identity_use_cases::BrandActor;
 use crate::domain::branding::{
-    BrandMediaInput, BrandScopeKind, BrandVariant, BrandingAttachment, BrandingBranch,
-    BrandingProfile, BrandingPublication, BrandingStorefront, BrandingWorkspace, DocumentMode,
-    UpdateProfileInput, UpdateStorefrontInput,
+    BrandMediaInput, BrandPresentationContext, BrandProfileEvidence, BrandScopeKind, BrandVariant,
+    BrandingAttachment, BrandingBranch, BrandingProfile, BrandingProfiles, BrandingPublication,
+    BrandingStorefront, BrandingWorkspace, DocumentBrand, DocumentMode, StorefrontAppBrand,
+    UpdateProfileInput, UpdateStorefrontInput, WorkspaceBrand, brand_presentation,
+    storefront_presentation,
 };
+use crate::domain::identity::ActiveBrandIdentity;
 use erpx_server_shared::public::{BusinessError, FailureKind};
-use erpx_server_workflow::public::commands::CommandJson;
+use erpx_server_workflow::public::commands::{CommandField, CommandJson};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::future::Future;
@@ -572,4 +575,232 @@ pub fn branding_version(now: i64) -> Result<i64, BusinessError> {
             "The Branding version is unavailable.",
         ))
     }
+}
+
+fn company_required() -> BusinessError {
+    conflict("COMPANY_REQUIRED", "The Company storefront is unavailable.")
+}
+
+fn branch_not_found() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "BRANCH_NOT_FOUND",
+        "The document Branch is unavailable.",
+    )
+}
+
+fn selected_branch(actor: &BrandActor) -> Option<&str> {
+    match &actor.command.branch_id {
+        CommandField::Value(branch) if !branch.is_empty() => Some(branch.as_str()),
+        _ => None,
+    }
+}
+
+/// Native presentation reads. The caller retains the current Holding transaction
+/// and WorkContext; every query is Company-scoped inside the adapter.
+pub trait BrandingPresentationPorts {
+    type Error: From<BusinessError> + Send;
+
+    fn actor(&self) -> &BrandActor;
+    fn authorize(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
+    fn profile(
+        &mut self,
+        scope_kind: BrandScopeKind,
+        scope_id: &str,
+    ) -> impl Future<Output = Result<Option<BrandingProfile>, Self::Error>> + Send;
+    fn profiles(
+        &mut self,
+    ) -> impl Future<Output = Result<Vec<BrandingProfile>, Self::Error>> + Send;
+    fn branch(
+        &mut self,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<BrandingBranch>, Self::Error>> + Send;
+    fn branches(&mut self)
+    -> impl Future<Output = Result<Vec<BrandingBranch>, Self::Error>> + Send;
+    fn storefront(
+        &mut self,
+    ) -> impl Future<Output = Result<Option<BrandingStorefront>, Self::Error>> + Send;
+    fn active_identity(
+        &mut self,
+    ) -> impl Future<Output = Result<Option<ActiveBrandIdentity>, Self::Error>> + Send;
+    fn evidence(
+        &mut self,
+        branch_id: &str,
+    ) -> impl Future<Output = Result<Option<BrandProfileEvidence>, Self::Error>> + Send;
+}
+
+/// The workspace brand for the selected scope. A selected Branch that is not an
+/// active Branch of this Company falls back to the Holding brand exactly as the
+/// retained reader did.
+pub async fn resolve_workspace_brand<P: BrandingPresentationPorts>(
+    ports: &mut P,
+    context: &BrandPresentationContext,
+) -> Result<WorkspaceBrand, P::Error> {
+    ports.authorize().await?;
+    let actor = ports.actor().clone();
+    let branch_id = selected_branch(ports.actor()).map(str::to_owned);
+    if let Some(branch_id) = branch_id
+        && let Some(branch) = ports.branch(&branch_id).await?
+    {
+        let profile = ports
+            .profile(BrandScopeKind::Branch, &branch.id)
+            .await?;
+        return Ok(brand_presentation(
+            BrandScopeKind::Branch,
+            &branch.id,
+            &branch.display_name,
+            profile.as_ref(),
+            context.media(),
+            context.legacy_media_readable(),
+        ));
+    }
+    let profile = ports
+        .profile(BrandScopeKind::Holding, &actor.holding_id)
+        .await?;
+    Ok(brand_presentation(
+        BrandScopeKind::Holding,
+        &actor.holding_id,
+        context.holding_name(),
+        profile.as_ref(),
+        context.media(),
+        context.legacy_media_readable(),
+    ))
+}
+
+/// The document brand choice. A document without a Branch uses Holding mode and
+/// ignores a requested Branch mode; a Branch document defaults to its stored
+/// document mode.
+pub async fn resolve_document_brand<P: BrandingPresentationPorts>(
+    ports: &mut P,
+    context: &BrandPresentationContext,
+    branch_id: Option<&str>,
+    requested_mode: Option<&str>,
+) -> Result<DocumentBrand, P::Error> {
+    ports.authorize().await?;
+    let actor = ports.actor().clone();
+    let storefront = ports.storefront().await?.ok_or_else(company_required)?;
+    let holding_profile = ports
+        .profile(BrandScopeKind::Holding, &actor.holding_id)
+        .await?;
+    let holding = brand_presentation(
+        BrandScopeKind::Holding,
+        &actor.holding_id,
+        context.holding_name(),
+        holding_profile.as_ref(),
+        context.media(),
+        context.legacy_media_readable(),
+    );
+    let Some(branch_id) = branch_id else {
+        return Ok(DocumentBrand {
+            mode: DocumentMode::Holding.as_str().into(),
+            company_name: storefront.company_name,
+            branch_name: None,
+            holding,
+            branch: None,
+        });
+    };
+    let branch = ports.branch(branch_id).await?.ok_or_else(branch_not_found)?;
+    let profile = ports.profile(BrandScopeKind::Branch, &branch.id).await?;
+    let mode = requested_mode
+        .and_then(DocumentMode::parse)
+        .or_else(|| {
+            profile
+                .as_ref()
+                .and_then(|row| DocumentMode::parse(&row.document_mode))
+        })
+        .unwrap_or(DocumentMode::Branch);
+    let presentation = brand_presentation(
+        BrandScopeKind::Branch,
+        &branch.id,
+        &branch.display_name,
+        profile.as_ref(),
+        context.media(),
+        context.legacy_media_readable(),
+    );
+    Ok(DocumentBrand {
+        mode: mode.as_str().into(),
+        company_name: storefront.company_name,
+        branch_name: Some(branch.display_name),
+        holding,
+        branch: Some(presentation),
+    })
+}
+
+/// The Branding administration projection. Holding and Branch profiles are
+/// restricted to this Holding/Company so another tenant's values cannot win.
+pub async fn list_brand_profiles<P: BrandingPresentationPorts>(
+    ports: &mut P,
+    context: &BrandPresentationContext,
+) -> Result<BrandingProfiles, P::Error> {
+    ports.authorize().await?;
+    let actor = ports.actor().clone();
+    let branches = ports.branches().await?;
+    let profiles = ports.profiles().await?;
+    let storefront = ports.storefront().await?.ok_or_else(company_required)?;
+    let published = ports.active_identity().await?;
+    let find = |kind: BrandScopeKind, id: &str| {
+        profiles
+            .iter()
+            .find(|row| row.scope_kind == kind.as_str() && row.scope_id == id)
+    };
+    let holding = brand_presentation(
+        BrandScopeKind::Holding,
+        &actor.holding_id,
+        context.holding_name(),
+        find(BrandScopeKind::Holding, &actor.holding_id),
+        context.media(),
+        context.legacy_media_readable(),
+    );
+    let branches = branches
+        .iter()
+        .map(|branch| {
+            brand_presentation(
+                BrandScopeKind::Branch,
+                &branch.id,
+                &branch.display_name,
+                find(BrandScopeKind::Branch, &branch.id),
+                context.media(),
+                context.legacy_media_readable(),
+            )
+        })
+        .collect();
+    Ok(BrandingProfiles {
+        holding,
+        branches,
+        storefront: storefront_presentation(
+            &storefront.company_id,
+            context,
+            &storefront,
+            published.as_ref(),
+            context.media(),
+        ),
+    })
+}
+
+/// The Company storefront brand for the front-app shell.
+pub async fn read_storefront_app_brand<P: BrandingPresentationPorts>(
+    ports: &mut P,
+    context: &BrandPresentationContext,
+) -> Result<StorefrontAppBrand, P::Error> {
+    ports.authorize().await?;
+    let company_id = ports.actor().company_id().to_owned();
+    let storefront = ports.storefront().await?.ok_or_else(company_required)?;
+    let published = ports.active_identity().await?;
+    Ok(storefront_presentation(
+        &company_id,
+        context,
+        &storefront,
+        published.as_ref(),
+        context.media(),
+    ))
+}
+
+/// Retained executive Brand evidence: the active Branch profile joined to its
+/// Company Branch record. `None` keeps the retained reader's null row.
+pub async fn read_brand_profile_evidence<P: BrandingPresentationPorts>(
+    ports: &mut P,
+    branch_id: &str,
+) -> Result<Option<BrandProfileEvidence>, P::Error> {
+    ports.authorize().await?;
+    ports.evidence(branch_id).await
 }

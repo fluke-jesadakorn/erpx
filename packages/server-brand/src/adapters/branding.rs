@@ -3,22 +3,38 @@
 //! audit and outbox evidence in that same unit.
 use crate::adapters::identity::{authorize, read_active_brand_identity};
 use crate::adapters::branding_use_cases::{
-    BrandingMutation, BrandingMutationAction, BrandingPorts,
+    BrandingMutation, BrandingMutationAction, BrandingPorts, BrandingPresentationPorts,
 };
 use crate::adapters::identity_use_cases::BrandActor;
 use crate::domain::branding::{
-    BrandScopeKind, BrandVariant, BrandingAttachment, BrandingBranch, BrandingProfile,
-    BrandingPublication, BrandingStorefront,
+    BrandProfileEvidence, BrandScopeKind, BrandVariant, BrandingAttachment, BrandingBranch,
+    BrandingProfile, BrandingPublication, BrandingStorefront,
 };
+use crate::domain::identity::ActiveBrandIdentity;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use erpx_server_workflow::public::commands::{
     CommandEventScope, CommandJson, command_fingerprint,
 };
 use serde_json::Value;
+use sqlx::postgres::PgRow;
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 pub type BrandingError = PgTransactionError<BusinessError>;
+
+fn profile_row(row: &PgRow) -> BrandingProfile {
+    BrandingProfile {
+        scope_kind: row.get("scope_kind"),
+        scope_id: row.get("scope_id"),
+        company_id: row.get("company_id"),
+        primary_attachment_id: row.get("primary_attachment_id"),
+        inverse_attachment_id: row.get("inverse_attachment_id"),
+        primary_publication_id: row.get("primary_publication_id"),
+        inverse_publication_id: row.get("inverse_publication_id"),
+        document_mode: row.get("document_mode"),
+        updated_at: row.get("updated_at"),
+    }
+}
 
 fn conflict() -> BusinessError {
     BusinessError::new(
@@ -113,17 +129,7 @@ impl<'c> PgBranding<'c> {
         .bind(scope_id)
         .fetch_optional(&mut *self.connection)
         .await?;
-        Ok(row.map(|row| BrandingProfile {
-            scope_kind: row.get("scope_kind"),
-            scope_id: row.get("scope_id"),
-            company_id: row.get("company_id"),
-            primary_attachment_id: row.get("primary_attachment_id"),
-            inverse_attachment_id: row.get("inverse_attachment_id"),
-            primary_publication_id: row.get("primary_publication_id"),
-            inverse_publication_id: row.get("inverse_publication_id"),
-            document_mode: row.get("document_mode"),
-            updated_at: row.get("updated_at"),
-        }))
+        Ok(row.map(|row| profile_row(&row)))
     }
 
     async fn branch_inner(&mut self, id: &str) -> Result<Option<BrandingBranch>, BrandingError> {
@@ -193,6 +199,55 @@ impl<'c> PgBranding<'c> {
             })?)),
             None => Ok(None),
         }
+    }
+
+    /// Both profile scopes are resolved in one Company-scoped read: the Holding
+    /// profile by its exact Holding id and Branch profiles by Company.
+    async fn profiles_inner(&mut self) -> Result<Vec<BrandingProfile>, BrandingError> {
+        let rows = sqlx::query(
+            "SELECT scope_kind,scope_id,company_id,primary_attachment_id,inverse_attachment_id,\
+             primary_publication_id,inverse_publication_id,document_mode,updated_at \
+             FROM organization_brand_profiles \
+             WHERE (scope_kind='holding' AND scope_id=$1) \
+             OR (scope_kind='branch' AND company_id=$2) ORDER BY scope_kind,scope_id",
+        )
+        .bind(&self.actor.holding_id)
+        .bind(self.actor.company_id())
+        .fetch_all(&mut *self.connection)
+        .await?;
+        Ok(rows.iter().map(profile_row).collect())
+    }
+
+    async fn active_identity_inner(
+        &mut self,
+    ) -> Result<Option<ActiveBrandIdentity>, BrandingError> {
+        read_active_brand_identity(&mut *self.connection, self.actor.company_id()).await
+    }
+
+    async fn evidence_inner(
+        &mut self,
+        branch_id: &str,
+    ) -> Result<Option<BrandProfileEvidence>, BrandingError> {
+        let row = sqlx::query(
+            "SELECT p.scope_id id,b.display_name branch_name,p.document_mode,p.updated_at,\
+             p.primary_attachment_id,p.inverse_attachment_id \
+             FROM organization_brand_profiles p \
+             JOIN organization_nodes b ON b.id=p.scope_id AND b.company_id=p.company_id \
+             AND b.kind='branch' AND b.status='active' \
+             WHERE p.scope_kind='branch' AND p.company_id=$1 AND p.scope_id=$2 LIMIT 1",
+        )
+        .bind(self.actor.company_id())
+        .bind(branch_id)
+        .fetch_optional(&mut *self.connection)
+        .await?;
+        Ok(row.map(|row| BrandProfileEvidence {
+            id: row.get("id"),
+            branch_name: row.get("branch_name"),
+            document_mode: row.get("document_mode"),
+            updated_at: row.get("updated_at"),
+            primary_attachment_id: row.get("primary_attachment_id"),
+            inverse_attachment_id: row.get("inverse_attachment_id"),
+        }))
     }
 
     async fn attachment_inner(
@@ -765,5 +820,69 @@ impl BrandingPorts for PgBranding<'_> {
         result: &Value,
     ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send {
         self.commit_inner(mutation, result)
+    }
+}
+
+impl BrandingPresentationPorts for PgBranding<'_> {
+    type Error = BrandingError;
+
+    fn actor(&self) -> &BrandActor {
+        self.actor
+    }
+
+    fn authorize(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send {
+        self.authorize_inner(false, false)
+    }
+
+    fn profile(
+        &mut self,
+        scope_kind: BrandScopeKind,
+        scope_id: &str,
+    ) -> impl std::future::Future<Output = Result<Option<BrandingProfile>, Self::Error>> + Send {
+        self.profile_inner(scope_kind, scope_id)
+    }
+
+    fn profiles(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<Vec<BrandingProfile>, Self::Error>> + Send {
+        self.profiles_inner()
+    }
+
+    fn branch(
+        &mut self,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<Option<BrandingBranch>, Self::Error>> + Send {
+        self.branch_inner(id)
+    }
+
+    fn branches(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<Vec<BrandingBranch>, Self::Error>> + Send {
+        self.branches_inner()
+    }
+
+    fn storefront(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<Option<BrandingStorefront>, Self::Error>> + Send {
+        self.storefront_inner()
+    }
+
+    fn active_identity(
+        &mut self,
+    ) -> impl std::future::Future<
+        Output = Result<Option<ActiveBrandIdentity>, Self::Error>,
+    > + Send {
+        self.active_identity_inner()
+    }
+
+    fn evidence(
+        &mut self,
+        branch_id: &str,
+    ) -> impl std::future::Future<
+        Output = Result<Option<BrandProfileEvidence>, Self::Error>,
+    > + Send {
+        self.evidence_inner(branch_id)
     }
 }

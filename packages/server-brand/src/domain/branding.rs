@@ -3,6 +3,7 @@
 //! These are the native owner contracts. The retained TypeScript read helpers
 //! keep their accepted shapes; all mutations are parsed here and executed by
 //! the Brand owner transaction.
+use crate::domain::identity::ActiveBrandIdentity;
 use erpx_server_shared::public::BusinessError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -341,4 +342,309 @@ pub struct BrandingWorkspace {
     pub branches: Vec<(BrandingBranch, Option<BrandingProfile>)>,
     pub storefront: BrandingStorefront,
     pub published_identity: Option<Value>,
+}
+
+/// Rendered workspace brand for the front-app shell and document headers.
+/// Mirrors the retained `WorkspaceBrand` values without exposing SQL readers.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceBrand {
+    pub scope_kind: String,
+    pub scope_id: String,
+    pub label: String,
+    pub initials: String,
+    pub primary_url: Option<String>,
+    pub inverse_url: Option<String>,
+    pub document_mode: String,
+}
+
+/// Rendered Company storefront values. The published Brand identity overlays the
+/// retained storefront row without changing its stored values.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct StorefrontAppBrand {
+    pub company_id: String,
+    pub holding_slug: String,
+    pub company_slug: String,
+    pub company_name: String,
+    pub short_name: String,
+    pub accent_color: String,
+    pub logo_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identity_revision: Option<i64>,
+}
+
+/// Holding and Branch brand choice for a business document.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentBrand {
+    pub mode: String,
+    pub company_name: String,
+    pub branch_name: Option<String>,
+    pub holding: WorkspaceBrand,
+    pub branch: Option<WorkspaceBrand>,
+}
+
+/// Branding administration projection: the Holding profile, every active Branch
+/// profile and the Company storefront in one read.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BrandingProfiles {
+    pub holding: WorkspaceBrand,
+    pub branches: Vec<WorkspaceBrand>,
+    pub storefront: StorefrontAppBrand,
+}
+
+/// Retained executive Brand evidence row. The field names stay the accepted
+/// snake_case reader shape consumed by the retained runtime evidence types.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct BrandProfileEvidence {
+    pub id: String,
+    pub branch_name: String,
+    pub document_mode: String,
+    pub updated_at: i64,
+    pub primary_attachment_id: Option<String>,
+    pub inverse_attachment_id: Option<String>,
+}
+
+fn invalid_presentation() -> BusinessError {
+    invalid(
+        "BRAND_PRESENTATION_INVALID",
+        "The Brand presentation context is unavailable.",
+    )
+}
+
+fn valid_slug(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_'))
+}
+
+fn valid_workspace_base(value: &str) -> bool {
+    value.len() > 1
+        && value.len() <= 512
+        && value.starts_with('/')
+        && !value.ends_with('/')
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || matches!(
+                    byte,
+                    b'/' | b'-' | b'_' | b'.' | b'~' | b':' | b'%' | b'!' | b'*' | b'\'' | b'(' | b')'
+                )
+        })
+}
+
+/// `encodeURIComponent` for path segments. Brand/attachment identifiers are
+/// opaque; escaping keeps one identifier from changing the URL path.
+fn encode_component(value: &str) -> String {
+    use std::fmt::Write;
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric()
+            || matches!(
+                byte,
+                b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')'
+            )
+        {
+            encoded.push(*byte as char);
+        } else {
+            let _ = write!(encoded, "%{byte:02X}");
+        }
+    }
+    encoded
+}
+
+fn present_id(value: Option<&str>) -> Option<&str> {
+    value.filter(|value| !value.is_empty())
+}
+
+/// The two retained media URL shapes. The caller supplies the current workspace
+/// API base; the owner supplies the public Holding publication base.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrandMediaUrls {
+    attachment_base: String,
+    publication_base: String,
+}
+
+impl BrandMediaUrls {
+    fn new(workspace_api_base: &str, holding_slug: &str) -> Self {
+        Self {
+            attachment_base: format!("{workspace_api_base}/attachments"),
+            publication_base: format!(
+                "/api/public/holdings/{}/media-publications",
+                encode_component(holding_slug)
+            ),
+        }
+    }
+
+    pub fn attachment(&self, id: Option<&str>) -> Option<String> {
+        present_id(id).map(|id| format!("{}/{}/content", self.attachment_base, encode_component(id)))
+    }
+
+    pub fn publication(&self, id: Option<&str>) -> Option<String> {
+        present_id(id).map(|id| format!("{}/{}/content", self.publication_base, encode_component(id)))
+    }
+}
+
+/// Presentation facts the Brand owner cannot derive: the selected Holding name
+/// and public slug plus the current workspace API base and the Files owner's
+/// legacy-attachment readability. Every value is validated once; a malformed
+/// context fails closed instead of rendering a partial URL.
+#[derive(Clone, Debug)]
+pub struct BrandPresentationContext {
+    holding_name: String,
+    holding_slug: String,
+    media: BrandMediaUrls,
+    legacy_media_readable: bool,
+}
+
+impl BrandPresentationContext {
+    pub fn new(
+        holding_name: &str,
+        holding_slug: &str,
+        workspace_api_base: &str,
+        legacy_media_readable: bool,
+    ) -> Result<Self, BusinessError> {
+        let holding_name = holding_name.trim();
+        let holding_slug = holding_slug.trim();
+        let workspace_api_base = workspace_api_base.trim_end_matches('/');
+        if holding_name.is_empty()
+            || holding_name.chars().count() > 200
+            || !valid_slug(holding_slug)
+            || !valid_workspace_base(workspace_api_base)
+        {
+            return Err(invalid_presentation());
+        }
+        Ok(Self {
+            holding_name: holding_name.to_owned(),
+            holding_slug: holding_slug.to_owned(),
+            media: BrandMediaUrls::new(workspace_api_base, holding_slug),
+            legacy_media_readable,
+        })
+    }
+
+    pub fn holding_name(&self) -> &str {
+        &self.holding_name
+    }
+
+    pub fn holding_slug(&self) -> &str {
+        &self.holding_slug
+    }
+
+    pub fn media(&self) -> &BrandMediaUrls {
+        &self.media
+    }
+
+    pub fn legacy_media_readable(&self) -> bool {
+        self.legacy_media_readable
+    }
+}
+
+/// The retained initials rule: first and last word initial, uppercase, three
+/// characters, or an em dash when the label has no word.
+fn brand_initials(label: &str) -> String {
+    let words: Vec<&str> = label.split_whitespace().collect();
+    let selected: Vec<&str> = if words.len() > 1 {
+        vec![words[0], words[words.len() - 1]]
+    } else {
+        words
+    };
+    let initials: String = selected
+        .into_iter()
+        .filter_map(|word| word.chars().next())
+        .flat_map(char::to_uppercase)
+        .take(3)
+        .collect();
+    if initials.is_empty() {
+        "—".into()
+    } else {
+        initials
+    }
+}
+
+/// Approved public media wins; the legacy attachment URL is only rendered while
+/// the caller reports legacy reads still available.
+pub fn brand_presentation(
+    kind: BrandScopeKind,
+    scope_id: &str,
+    label: &str,
+    profile: Option<&BrandingProfile>,
+    urls: &BrandMediaUrls,
+    legacy_media_readable: bool,
+) -> WorkspaceBrand {
+    let publication = |column: Option<&str>| urls.publication(column);
+    let attachment = |column: Option<&str>| {
+        if legacy_media_readable {
+            None
+        } else {
+            urls.attachment(column)
+        }
+    };
+    let primary_publication = profile.and_then(|row| row.primary_publication_id.as_deref());
+    let inverse_publication = profile.and_then(|row| row.inverse_publication_id.as_deref());
+    WorkspaceBrand {
+        scope_kind: kind.as_str().into(),
+        scope_id: scope_id.into(),
+        label: label.into(),
+        initials: brand_initials(label),
+        primary_url: publication(primary_publication).or_else(|| {
+            attachment(profile.and_then(|row| row.primary_attachment_id.as_deref()))
+        }),
+        inverse_url: publication(inverse_publication).or_else(|| {
+            attachment(profile.and_then(|row| row.inverse_attachment_id.as_deref()))
+        }),
+        document_mode: match kind {
+            BrandScopeKind::Holding => "holding".into(),
+            BrandScopeKind::Branch => profile
+                .map(|row| row.document_mode.clone())
+                .unwrap_or_else(|| "branch".into()),
+        },
+    }
+}
+
+/// The retained storefront overlay: the active published identity replaces the
+/// short name, accent and logo; the stored storefront row remains the fallback.
+pub fn storefront_presentation(
+    company_id: &str,
+    context: &BrandPresentationContext,
+    storefront: &BrandingStorefront,
+    published: Option<&ActiveBrandIdentity>,
+    urls: &BrandMediaUrls,
+) -> StorefrontAppBrand {
+    let publication = published
+        .map(|active| active.identity.visual.logo_publication_id.as_deref())
+        .unwrap_or(storefront.logo_publication_id.as_deref());
+    let logo_url = urls.publication(publication).or_else(|| {
+        if published.is_some() || context.legacy_media_readable() {
+            None
+        } else {
+            urls.attachment(storefront.logo_attachment_id.as_deref())
+        }
+    });
+    let short_name = match published {
+        Some(active) => active.identity.identity.short_name.clone(),
+        None => storefront
+            .short_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| storefront.company_name.trim().chars().take(40).collect()),
+    };
+    let accent_color = published
+        .map(|active| active.identity.visual.accent_color.clone())
+        .or_else(|| storefront.accent_color.clone())
+        .unwrap_or_else(|| "#3659c9".into());
+    StorefrontAppBrand {
+        company_id: company_id.into(),
+        holding_slug: context.holding_slug().into(),
+        company_slug: storefront.company_slug.clone(),
+        company_name: storefront.company_name.clone(),
+        short_name,
+        accent_color,
+        logo_url,
+        identity_revision: published.map(|active| active.revision),
+    }
 }
