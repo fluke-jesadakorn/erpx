@@ -64948,7 +64948,6 @@
         "packages/server-identity_access/src/domain/mfa.ts",
         "packages/server-identity_access/src/application/mfa.ts",
         "packages/server-identity_access/src/adapters/iam-mfa.ts",
-        "packages/server-identity_access/src/adapters/account-session-security.ts",
         "packages/server-identity_access/src/domain/product-sso.ts"
       ]
     },
@@ -65060,7 +65059,6 @@
         "packages/server-identity_access/src/domain/mfa.ts",
         "packages/server-identity_access/src/application/mfa.ts",
         "packages/server-identity_access/src/adapters/iam-mfa.ts",
-        "packages/server-identity_access/src/adapters/account-session-security.ts",
         "packages/server-identity_access/src/domain/product-sso.ts"
       ],
       "postgres": {
@@ -65186,7 +65184,6 @@
         "packages/server-identity_access/src/domain/mfa.ts",
         "packages/server-identity_access/src/application/mfa.ts",
         "packages/server-identity_access/src/adapters/iam-mfa.ts",
-        "packages/server-identity_access/src/adapters/account-session-security.ts",
         "packages/server-identity_access/src/domain/product-sso.ts"
       ],
       "postgres": {
@@ -78126,6 +78123,53 @@
         "Cargo.lock",
         "rust-toolchain.toml",
         "packages/server-operations/Cargo.toml"
+      ],
+      "apps": [
+        "apps",
+        "service"
+      ],
+      "packages": [
+        "@erpx/server-operations",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "operations.rust-routine-commands.unit",
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations",
+        "field_service"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native routine template/schedule commands must preserve validation, CAS, receipts, audit/outbox and bounded owner reads."
+      },
+      "files": [
+        "tests/unit/operations/rust-routine-commands.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "routine_commands"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-operations/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/src/domain/routine_commands.rs",
+        "packages/server-operations/src/application/routine_commands.rs",
+        "packages/server-operations/src/adapters/routine_commands.rs",
+        "packages/server-operations/src/adapters/routine_sources.rs"
       ],
       "apps": [
         "apps",
@@ -95101,6 +95145,124 @@
       },
       "verificationInputs": [
         "packages/server-identity_access/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ]
+    },
+    {
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Project create/edit commands must preserve purchase admission, owner/version guards, membership replacement, receipts and exact replay."
+      },
+      "framework": "cargo",
+      "apps": [
+        "projects"
+      ],
+      "packages": [
+        "@erpx/server-projects"
+      ],
+      "id": "projects.rust-project-save.unit",
+      "lane": "unit",
+      "fixture": "none",
+      "files": [
+        "tests/unit/projects/rust-project-save.test.rs"
+      ],
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_save"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-projects/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ]
+    },
+    {
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Project create/edit commands must preserve purchase admission, owner/version guards, membership replacement, receipts and exact replay."
+      },
+      "framework": "cargo",
+      "apps": [
+        "projects"
+      ],
+      "packages": [
+        "@erpx/server-projects"
+      ],
+      "id": "projects.rust-project-save-http.unit",
+      "lane": "unit",
+      "fixture": "none",
+      "files": [
+        "tests/unit/projects/rust-project-save-http.test.rs"
+      ],
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_save_http"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-projects/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ]
+    },
+    {
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Project create/edit commands must preserve purchase admission, owner/version guards, membership replacement, receipts and exact replay."
+      },
+      "framework": "cargo",
+      "apps": [
+        "projects"
+      ],
+      "packages": [
+        "@erpx/server-projects"
+      ],
+      "id": "projects.rust-project-save-postgres.postgres.integration",
+      "lane": "integration",
+      "fixture": "postgres",
+      "files": [
+        "tests/integration/projects/rust-project-save-postgres.test.rs"
+      ],
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_save_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-projects/Cargo.toml",
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",

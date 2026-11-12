@@ -34,10 +34,28 @@ const context={userId:'user',holdingId:'h001',companyId:'company',branchId:null,
 const summary={pay_month:'2026-10',currency:'THB',run_count:1,headcount:2,
   gross_minor:1_500_000,deductions_minor:150_000,employer_cost_minor:75_000,
   net_minor:1_350_000};
-const run={id:'run',period_start:'2026-10-01',period_end:'2026-10-31',
+const run={id:'run',pay_group_id:'group',period_start:'2026-10-01',period_end:'2026-10-31',
   pay_date:'2026-10-31',currency:'THB',status:'posted',mode:'production',
   revision:1,version:1,totals_json:'{"gross":1500000}',payment_batch_id:'batch',
   payment_status:'settled',net_payable_minor:1_350_000};
+const detail={
+  run:{id:'run',company_id:'company',pay_group_id:'group',country_pack_id:'pack',
+    scope_engagement_id:null,period_start:'2026-10-01',period_end:'2026-10-31',
+    pay_date:'2026-10-31',currency:'THB',mode:'production',status:'posted',revision:1,
+    totals_json:'{"gross":1500000}',input_digest:'a'.repeat(64),error_message:null,
+    version:2,created_by:'user',submitted_by:'user',submitted_digest:'b'.repeat(64),
+    submitted_at:1_700_000_000_000,approved_by:'reviewer',posted_by:'poster',
+    adjustment_of_run_id:null,created_at:1_700_000_000_000,updated_at:1_700_000_100_000,
+    overtime_multiplier_bps:15000,proration_method:'calendar'},
+  items:[{id:'item',run_id:'run',engagement_id:'engagement',legal_name:'Employee',
+    person_id:'person',worker_type:'employee',input_snapshot_json:'{}',result_json:'{}',
+    gross_minor:1000,deductions_minor:10,employer_cost_minor:5,net_minor:990,
+    currency:'THB',status:'posted',created_at:1_700_000_000_000}],
+  exports:[{id:'export',run_revision:1,checksum_sha256:'c'.repeat(64),created_at:1_700_000_000_000}],
+  corrections:[],
+  paymentBatch:{id:'batch',company_id:'company',status:'settled',total_minor:990},
+  paymentItems:[{id:'payment',batch_id:'batch',reference:'ref',amount_minor:990,status:'settled'}],
+};
 const input={holdingSlug:'acme',expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3}};
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 
@@ -74,8 +92,42 @@ describe('native People Payroll summary transport',()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:[run],context}));
   const client=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),transport);
   const result=await client.runs(incoming(),actor,input);
-  expect(result[0]).toMatchObject({id:'run',payment_batch_id:'batch',payment_status:'settled'});
+  expect(result[0]).toMatchObject({id:'run',pay_group_id:'group',payment_batch_id:'batch',payment_status:'settled'});
   expect(transport.mock.calls[0][1].toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/people/payroll/runs');
+ });
+
+ it('reads one native run detail with its audit columns, stored error and bounded collections',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:detail,context}));
+  const client=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),transport);
+  const result=await client.detail(incoming(),actor,input,'run');
+  expect(result.run).toMatchObject({
+    created_by:'user',submitted_by:'user',approved_by:'reviewer',posted_by:'poster',
+    submitted_digest:'b'.repeat(64),submitted_at:1_700_000_000_000,
+    adjustment_of_run_id:null,country_pack_id:'pack',scope_engagement_id:null,
+    created_at:1_700_000_000_000,updated_at:1_700_000_100_000,error_message:null,
+  });
+  expect(result.items).toHaveLength(1);
+  expect(result.paymentBatch).toMatchObject({status:'settled'});
+  const [method,url,headers]=transport.mock.calls[0];
+  expect(method).toBe('GET');
+  expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/people/payroll/runs/run');
+  expect(headers.get('idempotency-key')).toBeNull();
+ });
+
+ it('rejects a detail response that drops an owner audit column or exceeds a bounded collection',async()=>{
+  const missing=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),vi.fn().mockResolvedValue(
+    ok({data:{...detail,run:{...detail.run,posted_by:undefined}},context}),
+  ));
+  await expect(missing.detail(incoming(),actor,input,'run'))
+    .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID'});
+  const unbounded=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),vi.fn().mockResolvedValue(
+    ok({data:{...detail,paymentItems:Array.from({length:5001},()=>detail.paymentItems[0])},context}),
+  ));
+  await expect(unbounded.detail(incoming(),actor,input,'run'))
+    .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID'});
+  const client=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),vi.fn());
+  await expect(client.detail(incoming(),actor,input,'run/approve'))
+    .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_REQUEST_INVALID'});
  });
 
  it('surfaces a bounded owner error with its status, code and message',async()=>{

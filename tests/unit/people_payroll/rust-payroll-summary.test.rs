@@ -1,6 +1,6 @@
 use erpx_server_people_payroll::public::payroll_summary::{
     PayrollReadActor, PayrollReadFuture, PayrollReadRepository, PayrollRunRow, PayrollSummaryRow,
-    payroll_runs, payroll_summary,
+    PayrollWorkRow, payroll_runs, payroll_summary, payroll_work_rows,
 };
 use erpx_server_people_payroll::public::payroll_summary_http::{
     PayrollReadHttpBackend, PayrollReadHttpFuture, PayrollReadHttpRequest, PayrollReadHttpResponse,
@@ -49,6 +49,7 @@ fn run_row(id: &str) -> PayrollRunRow {
     PayrollRunRow {
         company_id: "company".into(),
         id: id.into(),
+        pay_group_id: Some("group".into()),
         period_start: "2026-10-01".into(),
         period_end: "2026-10-31".into(),
         pay_date: "2026-10-31".into(),
@@ -64,11 +65,26 @@ fn run_row(id: &str) -> PayrollRunRow {
     }
 }
 
+fn work_row(id: &str, updated_at: i64) -> PayrollWorkRow {
+    PayrollWorkRow {
+        company_id: "company".into(),
+        id: id.into(),
+        pay_group_id: "group".into(),
+        pay_date: "2026-10-31".into(),
+        status: "preview".into(),
+        mode: "production".into(),
+        created_by: "user".into(),
+        updated_at,
+    }
+}
+
 struct FakeRepo {
     summary: Vec<PayrollSummaryRow>,
     runs: Vec<PayrollRunRow>,
+    work: Vec<PayrollWorkRow>,
     summary_calls: usize,
     run_calls: usize,
+    work_calls: usize,
 }
 
 impl PayrollReadRepository for FakeRepo {
@@ -91,14 +107,24 @@ impl PayrollReadRepository for FakeRepo {
         self.run_calls += 1;
         Box::pin(async move { Ok(self.runs.clone()) })
     }
+
+    fn work_rows<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+    ) -> PayrollReadFuture<'a, Vec<PayrollWorkRow>, Self::Error> {
+        self.work_calls += 1;
+        Box::pin(async move { Ok(self.work.clone()) })
+    }
 }
 
 fn repo() -> FakeRepo {
     FakeRepo {
         summary: vec![summary_row("2026-10", "THB")],
         runs: vec![run_row("run")],
+        work: vec![work_row("newest", 20), work_row("older", 10)],
         summary_calls: 0,
         run_calls: 0,
+        work_calls: 0,
     }
 }
 
@@ -173,8 +199,7 @@ async fn runs_allow_payment_only_read_but_never_branch_scope_or_a_foreign_compan
 }
 
 #[tokio::test]
-async fn invalid_source_rows_duplicate_keys_and_cross_company_rows_fail_closed() {
-    let mut source = repo();
+async fn invalid_source_rows_duplicate_keys_and_cross_company_rows_fail_closed() {    let mut source = repo();
     source.summary = vec![summary_row("2026-10", "THB"), summary_row("2026-10", "THB")];
     let error = payroll_summary(&actor(&["payroll.read"]), &mut source, None, NOW)
         .await
@@ -322,4 +347,86 @@ async fn owner_router_forwards_exact_targets_queries_and_bounded_errors() {
     );
     assert!(seen.iter().any(|value| value == "read:Runs"));
     server.abort();
+}
+
+#[tokio::test]
+async fn work_rows_keep_company_payroll_scope_and_updated_at_desc_ordering() {
+    let mut source = repo();
+    let rows = payroll_work_rows(&actor(&["payroll.read"]), &mut source, NOW)
+        .await
+        .unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|row| (row.id.as_str(), row.updated_at))
+            .collect::<Vec<_>>(),
+        vec![("newest", 20), ("older", 10)]
+    );
+    assert_eq!(source.work_calls, 1);
+
+    let serialized = serde_json::to_value(&rows[0]).unwrap();
+    assert_eq!(serialized["pay_group_id"], "group");
+    assert_eq!(serialized["created_by"], "user");
+    assert_eq!(serialized["updated_at"], 20);
+    assert!(serialized.get("company_id").is_none());
+
+    let error = payroll_work_rows(&actor(&["payroll.payment.read"]), &mut source, NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "PERMISSION_REQUIRED");
+
+    let mut branch = actor(&["payroll.read"]);
+    branch.branch_id = Some(RecordId::new("branch").unwrap());
+    let error = payroll_work_rows(&branch, &mut source, NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "COMPANY_PAYROLL_SCOPE_REQUIRED");
+
+    let mut expired = actor(&["payroll.read"]);
+    expired.expires_at = NOW.get();
+    let error = payroll_work_rows(&expired, &mut source, NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "WORK_CONTEXT_CHANGED");
+    assert_eq!(source.work_calls, 1, "denied policy must not read");
+
+    source.work = vec![work_row("older", 10), work_row("newest", 20)];
+    let error = payroll_work_rows(&actor(&["payroll.read"]), &mut source, NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "PAYROLL_READ_SOURCE_INVALID");
+
+    source.work = vec![work_row("run", 10), work_row("run", 5)];
+    let error = payroll_work_rows(&actor(&["payroll.read"]), &mut source, NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "PAYROLL_READ_SOURCE_INVALID");
+
+    source.work = vec![work_row("run", 10)];
+    source.work[0].company_id = "foreign".into();
+    let error = payroll_work_rows(&actor(&["payroll.read"]), &mut source, NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "PAYROLL_READ_SOURCE_INVALID");
+}
+
+#[tokio::test]
+async fn run_rows_project_the_selected_pay_group_and_keep_payment_only_rows_absent() {
+    let mut source = repo();
+    let rows = payroll_runs(&actor(&["payroll.read"]), &mut source, NOW)
+        .await
+        .unwrap();
+    let serialized = serde_json::to_value(&rows[0]).unwrap();
+    assert_eq!(serialized["pay_group_id"], "group");
+
+    let mut payment_only = run_row("run");
+    payment_only.pay_group_id = None;
+    let serialized = serde_json::to_value(&payment_only).unwrap();
+    assert!(serialized["pay_group_id"].is_null());
+
+    payment_only.pay_group_id = Some(String::new());
+    source.runs = vec![payment_only];
+    let error = payroll_runs(&actor(&["payroll.read"]), &mut source, NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "PAYROLL_READ_SOURCE_INVALID");
 }

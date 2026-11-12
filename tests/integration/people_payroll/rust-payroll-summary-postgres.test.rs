@@ -6,7 +6,8 @@
 mod fixture;
 
 use erpx_server_people_payroll::public::payroll_summary::{
-    PayrollReadActor, PgPayrollRead, payroll_runs, payroll_summary,
+    PayrollReadActor, PgPayrollRead, payroll_runs, payroll_summary, payroll_work_rows,
+    payroll_work_rows_on,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -125,6 +126,11 @@ async fn summary_and_runs_are_company_scoped_posted_and_read_back_persisted_rows
                     assert_eq!(full[0].status, "preview");
                     assert!(full.iter().all(|row| row.id != "run-foreign"));
                     assert!(full.iter().all(|row| row.totals_json.is_some()));
+                    assert!(
+                        full.iter()
+                            .all(|row| row.pay_group_id.as_deref() == Some("group")),
+                        "the full run list projects the selected pay group for the period lookup"
+                    );
 
                     let payment_only_actor = actor("company", &["payroll.payment.read"]);
                     let payment_only = payroll_runs(&payment_only_actor, &mut reader, NOW).await?;
@@ -141,6 +147,22 @@ async fn summary_and_runs_are_company_scoped_posted_and_read_back_persisted_rows
                     assert_eq!(batch.payment_batch_id.as_deref(), Some("batch"));
                     assert_eq!(batch.payment_status.as_deref(), Some("settled"));
                     assert_eq!(batch.net_payable_minor, Some(1_350_000));
+                    assert!(
+                        payment_only.iter().all(|row| row.pay_group_id.is_none()),
+                        "a payment-only reader never receives the pay group"
+                    );
+
+                    let work = payroll_work_rows(&current, &mut reader, NOW).await?;
+                    assert_eq!(
+                        work.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
+                        vec!["run-nov-thb", "run-oct-usd", "run-oct-thb"]
+                    );
+                    assert!(work.iter().all(|row| row.created_by == "user"));
+                    assert!(work.iter().all(|row| row.pay_group_id == "group"));
+                    assert_eq!(
+                        work.iter().map(|row| row.updated_at).collect::<Vec<_>>(),
+                        vec![3, 2, 1]
+                    );
                     Ok(())
                 })
             })
@@ -281,6 +303,74 @@ async fn policy_negatives_transaction_guards_and_rollback_preserve_the_source() 
                 if value.code == "PAYROLL_READ_SERIALIZABLE_REQUIRED"
         ));
         other.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn in_process_work_rows_require_the_callers_serializable_transaction_and_company_scope() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+
+        let mut outside = pool.raw().acquire().await.unwrap();
+        let error = payroll_work_rows_on(
+            &mut outside,
+            &actor("company", &["payroll.read"]),
+            NOW,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "PAYROLL_READ_TRANSACTION_REQUIRED");
+        drop(outside);
+
+        let mut plain = pool.raw().begin().await.unwrap();
+        let error = payroll_work_rows_on(&mut plain, &actor("company", &["payroll.read"]), NOW)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "PAYROLL_READ_SERIALIZABLE_REQUIRED");
+        plain.rollback().await.unwrap();
+
+        let read_actor = actor("company", &["payroll.read"]);
+        PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let current = read_actor.clone();
+                Box::pin(async move {
+                    let rows = payroll_work_rows_on(&mut *connection, &current, NOW).await?;
+                    assert_eq!(
+                        rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
+                        vec!["run-nov-thb", "run-oct-usd", "run-oct-thb"]
+                    );
+                    let serialized = serde_json::to_value(&rows[0]).unwrap();
+                    assert_eq!(serialized["pay_group_id"], "group");
+                    assert_eq!(serialized["created_by"], "user");
+                    assert_eq!(serialized["updated_at"], 3);
+
+                    let mut denied = current.clone();
+                    denied.permissions = vec!["payroll.payment.read".into()];
+                    let error = payroll_work_rows_on(&mut *connection, &denied, NOW)
+                        .await
+                        .unwrap_err();
+                    assert_eq!(error.code, "PERMISSION_REQUIRED");
+                    assert_eq!(error.kind, FailureKind::Forbidden);
+
+                    let mut branch = current.clone();
+                    branch.branch_id = Some(RecordId::new("branch").unwrap());
+                    let error = payroll_work_rows_on(&mut *connection, &branch, NOW)
+                        .await
+                        .unwrap_err();
+                    assert_eq!(error.code, "COMPANY_PAYROLL_SCOPE_REQUIRED");
+
+                    let mut expired = current.clone();
+                    expired.expires_at = NOW.get();
+                    let error = payroll_work_rows_on(&mut *connection, &expired, NOW)
+                        .await
+                        .unwrap_err();
+                    assert_eq!(error.code, "WORK_CONTEXT_CHANGED");
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
     })
     .await;
 }

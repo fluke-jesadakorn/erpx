@@ -4,10 +4,14 @@
 //! People-owned payroll tables are read; the payment-batch join is a Payroll
 //! source fact owned by this owner. No command, purchase, IAM or independent
 //! transaction is created here.
-use crate::application::payroll_summary::{PayrollReadFuture, PayrollReadRepository};
-use crate::domain::payroll_summary::{PayrollMonth, PayrollRunRow, PayrollSummaryRow};
+use crate::application::payroll_summary::{
+    PayrollReadFuture, PayrollReadRepository, payroll_work_rows,
+};
+use crate::domain::payroll_summary::{
+    PayrollMonth, PayrollReadActor, PayrollRunRow, PayrollSummaryRow, PayrollWorkRow,
+};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, CompanyId};
+use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
@@ -84,8 +88,8 @@ impl<'a> PgPayrollRead<'a> {
         serializable(&mut *self.connection).await?;
         let rows = if full {
             sqlx::query(
-                "SELECT company_id,id,period_start,period_end,pay_date,currency,status,mode,\
-                 revision,version,totals_json,NULL::text AS payment_batch_id,\
+                "SELECT company_id,id,pay_group_id,period_start,period_end,pay_date,currency,\
+                 status,mode,revision,version,totals_json,NULL::text AS payment_batch_id,\
                  NULL::text AS payment_status,NULL::bigint AS net_payable_minor \
                  FROM hr_payroll_runs WHERE company_id=$1 \
                  ORDER BY pay_date DESC,created_at DESC,id ASC LIMIT 2001",
@@ -95,10 +99,10 @@ impl<'a> PgPayrollRead<'a> {
             .await?
         } else {
             sqlx::query(
-                "SELECT r.company_id,r.id,r.period_start,r.period_end,r.pay_date,r.currency,\
-                 r.status,r.mode,r.revision,r.version,NULL::text AS totals_json,\
-                 b.id AS payment_batch_id,b.status AS payment_status,\
-                 b.total_minor AS net_payable_minor \
+                "SELECT r.company_id,r.id,NULL::text AS pay_group_id,r.period_start,\
+                 r.period_end,r.pay_date,r.currency,r.status,r.mode,r.revision,r.version,\
+                 NULL::text AS totals_json,b.id AS payment_batch_id,\
+                 b.status AS payment_status,b.total_minor AS net_payable_minor \
                  FROM hr_payroll_runs r LEFT JOIN LATERAL (\
                    SELECT b.id,b.status,b.total_minor FROM hr_payment_batches b \
                    WHERE b.source_type='payroll' AND b.source_id=r.id \
@@ -117,6 +121,7 @@ impl<'a> PgPayrollRead<'a> {
                 Ok(PayrollRunRow {
                     company_id: row.try_get("company_id")?,
                     id: row.try_get("id")?,
+                    pay_group_id: row.try_get("pay_group_id")?,
                     period_start: row.try_get("period_start")?,
                     period_end: row.try_get("period_end")?,
                     pay_date: row.try_get("pay_date")?,
@@ -133,6 +138,67 @@ impl<'a> PgPayrollRead<'a> {
             })
             .collect()
     }
+
+    /// Work rows stay ordered by owner `updated_at DESC` so Workflow can keep
+    /// recency and own-item ordering without reading payroll SQL itself.
+    pub async fn work_rows(
+        &mut self,
+        company: &CompanyId,
+    ) -> Result<Vec<PayrollWorkRow>, Error> {
+        serializable(&mut *self.connection).await?;
+        let rows = sqlx::query(
+            "SELECT r.company_id,r.id,r.pay_group_id,r.pay_date,r.status,r.mode,\
+             r.created_by,r.updated_at \
+             FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id \
+             WHERE r.company_id=$1 \
+             ORDER BY r.updated_at DESC,r.id ASC LIMIT 2001",
+        )
+        .bind(company.as_str())
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.iter()
+            .map(|row| {
+                Ok(PayrollWorkRow {
+                    company_id: row.try_get("company_id")?,
+                    id: row.try_get("id")?,
+                    pay_group_id: row.try_get("pay_group_id")?,
+                    pay_date: row.try_get("pay_date")?,
+                    status: row.try_get("status")?,
+                    mode: row.try_get("mode")?,
+                    created_by: row.try_get("created_by")?,
+                    updated_at: row.try_get("updated_at")?,
+                })
+            })
+            .collect()
+    }
+}
+
+fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
+    match error {
+        PgTransactionError::Business(error) => error,
+        PgTransactionError::Persistence(error) => BusinessError::new(
+            erpx_server_shared::public::FailureKind::Unavailable,
+            error.code,
+            "The current payroll work rows are unavailable.",
+        ),
+    }
+}
+
+/// In-process payroll work rows on a caller-owned serializable transaction.
+///
+/// No HTTP target, registered Host, cookie or Account session is required: the
+/// composition supplies the current Company payroll actor and owns the
+/// transaction. The owner read still enforces Company scope, selected-context
+/// expiry and the payroll read permission before one bounded query.
+pub async fn payroll_work_rows_on(
+    connection: &mut PgConnection,
+    actor: &PayrollReadActor,
+    now: TimestampMillis,
+) -> Result<Vec<PayrollWorkRow>, BusinessError> {
+    let mut repository = PgPayrollRead::new(connection);
+    payroll_work_rows(actor, &mut repository, now)
+        .await
+        .map_err(business)
 }
 
 impl PayrollReadRepository for PgPayrollRead<'_> {
@@ -152,5 +218,12 @@ impl PayrollReadRepository for PgPayrollRead<'_> {
         full: bool,
     ) -> PayrollReadFuture<'a, Vec<PayrollRunRow>, Self::Error> {
         Box::pin(async move { PgPayrollRead::runs(self, company, full).await })
+    }
+
+    fn work_rows<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+    ) -> PayrollReadFuture<'a, Vec<PayrollWorkRow>, Self::Error> {
+        Box::pin(async move { PgPayrollRead::work_rows(self, company).await })
     }
 }

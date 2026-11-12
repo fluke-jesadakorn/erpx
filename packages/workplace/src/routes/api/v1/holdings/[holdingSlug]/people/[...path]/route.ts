@@ -18,7 +18,7 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import {organizationOverview,positionSchema,savePosition,organizationTemplateSchema,saveOrganizationTemplate,applyOrganizationTemplateSchema,applyOrganizationTemplate,installStaffLevels,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
 import { nativeOrganizationChange, nativeOrganizationFailure, nativeOrganizationOverview, nativeOrganizationPositionMoveCommand, nativeOrganizationPositionMoveList, nativeOrganizationWorkspace } from "@erpx/feature-organization/lib/native-organization";
-import { ownedPeoplePayrollRuns, ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
+import { ownedPeoplePayrollRun, ownedPeoplePayrollRuns, ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
 import { nativePeoplePayrollCommand, nativePeoplePayrollFailure, peoplePayrollPageContext } from "@erpx/feature-people_payroll/public/native-payroll-summary-page";
 import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@erpx/server-finance/public/company-business-acceptance";
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@erpx/server-identity_access/public/account-access";
@@ -55,7 +55,6 @@ import {
   createPersonSchema,
   createEngagementSchema,
   exportPaymentBatch,
-  getPayrollRun,
   listPeople,
   getPerson,
   peopleSummary,
@@ -174,7 +173,7 @@ export async function GET(request: Request, context: Context) {
       throw new ApiError(404,'NOT_FOUND','Payroll remittance resource not found.');
     }
     if (p[0] === "payroll" && p[1] === "runs" && p[2] && p[3] === "liabilities") return Response.json(canonicalDestinationLinks({data:await getPayrollLiabilities(actor,p[2])}),{headers:{"Cache-Control":"private, no-store"}});
-    if (p[0] === "payroll" && p[1] === "runs" && p[2]) return Response.json(canonicalDestinationLinks({ data: await getPayrollRun(actor,p[2]) }));
+    if (p[0] === "payroll" && p[1] === "runs" && p[2]) { const data=await ownedPeoplePayrollRun(actor,holdingSlug,p[2]); if(data===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll reader is unavailable."); return Response.json(canonicalDestinationLinks({ data })); }
     if (p[0] === "payments" && p[1] === "batches" && p[3] === "file") { const result=await getPaymentFile(actor,p[2]); const headers=new Headers({"Content-Type":"text/csv","Content-Disposition":`attachment; filename="${p[2]}.csv"`,"Cache-Control":"private, no-store"}); if(result.checksum)headers.set("ETag",result.checksum); return new Response(result.object.body,{status:200,headers}); }
     throw new ApiError(404,"NOT_FOUND","People resource not found.");
   } catch (error) { return errorResponse(error); }

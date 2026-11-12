@@ -1,5 +1,5 @@
 //! Native payroll run commands, calculation kernel and Finance journal port.
-pub use crate::adapters::payroll_run::PgPayrollCommand;
+pub use crate::adapters::payroll_run::{PgPayrollCommand, payroll_run_detail_on};
 pub use crate::application::payroll_run::{
     CancelRunCommand, CommitPostCommand, CreateRunCommand, NoPayrollJournalPort,
     PayrollCommandFuture, PayrollCommandRepository, PayrollJournalPort, SaveCalculationCommand,

@@ -1,9 +1,10 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import type {
-  NativePeoplePayrollReadInput,
   NativePayrollRun,
+  NativePayrollRunDetail,
   NativePayrollSummaryRow,
+  NativePeoplePayrollReadInput,
 } from '../../public/native-payroll-summary';
 
 export function createNextNativePeoplePayrollSummaryReader(
@@ -26,4 +27,15 @@ export function createNextNativePeoplePayrollRunsReader(
 ) {
   return async (input: NativePeoplePayrollReadInput, signal?: AbortSignal) =>
     runs(await headers(), input, signal);
+}
+
+export function createNextNativePeoplePayrollDetailReader(
+  detail: (
+    incoming: Pick<Headers, 'get'>,
+    input: NativePeoplePayrollReadInput,
+    signal?: AbortSignal,
+  ) => Promise<NativePayrollRunDetail>,
+) {
+  return async (input: NativePeoplePayrollReadInput, signal?: AbortSignal) =>
+    detail(await headers(), input, signal);
 }

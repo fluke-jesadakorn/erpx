@@ -80,6 +80,20 @@ impl PayrollReadActor {
         self.require_company_scope()?;
         self.require_current(now)
     }
+
+    /// Work rows feed the retained Workflow Work selector, which reads payroll
+    /// only for holders of the preparation read permission.
+    pub fn require_work_rows(&self, now: TimestampMillis) -> Result<(), BusinessError> {
+        if !self.can_read_payroll() {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "PERMISSION_REQUIRED",
+                "Your selected role does not grant payroll read access.",
+            ));
+        }
+        self.require_company_scope()?;
+        self.require_current(now)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -188,6 +202,9 @@ pub struct PayrollRunRow {
     #[serde(skip_serializing)]
     pub company_id: String,
     pub id: String,
+    /// Selected pay group. Only the full run list projects it; the payment-only
+    /// reader leaves it absent so a payment reader cannot group payroll.
+    pub pay_group_id: Option<String>,
     pub period_start: String,
     pub period_end: String,
     pub pay_date: String,
@@ -225,6 +242,9 @@ impl PayrollRunRow {
             if !value.is_object() {
                 return Err(source_invalid());
             }
+        }
+        if let Some(pay_group_id) = &self.pay_group_id {
+            validate_identifier(pay_group_id)?;
         }
         if let Some(batch) = &self.payment_batch_id {
             validate_identifier(batch)?;
@@ -274,6 +294,63 @@ pub(crate) fn validate_run_rows(
         if !seen.insert(row.id.as_str()) {
             return Err(source_invalid());
         }
+    }
+    Ok(rows)
+}
+
+/// Payroll run facts required by the retained Workflow Work selector: the
+/// owner row identity, its pay group, the period title, the creating actor and
+/// the authoritative `updated_at` used for recency and own-item checks.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PayrollWorkRow {
+    #[serde(skip_serializing)]
+    pub company_id: String,
+    pub id: String,
+    pub pay_group_id: String,
+    pub pay_date: String,
+    pub status: String,
+    pub mode: String,
+    pub created_by: String,
+    pub updated_at: i64,
+}
+
+impl PayrollWorkRow {
+    pub fn validate(&self, company: &CompanyId) -> Result<(), BusinessError> {
+        if self.company_id != company.as_str()
+            || validate_identifier(&self.id).is_err()
+            || validate_identifier(&self.pay_group_id).is_err()
+            || validate_date(&self.pay_date).is_err()
+            || validate_identifier(&self.status).is_err()
+            || validate_identifier(&self.mode).is_err()
+            || validate_identifier(&self.created_by).is_err()
+            || self.updated_at < 0
+        {
+            return Err(source_invalid());
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn validate_work_rows(
+    company: &CompanyId,
+    rows: Vec<PayrollWorkRow>,
+) -> Result<Vec<PayrollWorkRow>, BusinessError> {
+    if rows.len() > RUN_LIMIT {
+        return Err(source_invalid());
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    let mut previous: Option<i64> = None;
+    for row in &rows {
+        row.validate(company)?;
+        if !seen.insert(row.id.as_str()) {
+            return Err(source_invalid());
+        }
+        if let Some(updated_at) = previous
+            && updated_at < row.updated_at
+        {
+            return Err(source_invalid());
+        }
+        previous = Some(row.updated_at);
     }
     Ok(rows)
 }

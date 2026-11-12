@@ -63,6 +63,8 @@ export type NativePayrollRun = Readonly<{
   currency: string;
   status: string;
   mode: string;
+  /** Full run lists project the selected pay group; payment-only reads do not. */
+  pay_group_id: string | null;
   revision: number;
   version: number;
   totals_json: string | null;
@@ -70,6 +72,17 @@ export type NativePayrollRun = Readonly<{
   payment_status: string | null;
   net_payable_minor: number | null;
 }> & Record<string, unknown>;
+
+/** Native owner run header plus the bounded detail collections the retained
+ * run screen and GET detail route render. Commands remain separate. */
+export type NativePayrollRunDetail = Readonly<{
+  run: Readonly<Record<string, string | number | null>>;
+  items: readonly Readonly<Record<string, string | number | null>>[];
+  exports: readonly Readonly<Record<string, string | number | null>>[];
+  corrections: readonly Readonly<Record<string, string | number | null>>[];
+  paymentBatch: Readonly<Record<string, string | number | null>> | null;
+  paymentItems: readonly Readonly<Record<string, string | number | null>>[];
+}>;
 
 export type NativePeoplePayrollTransport = (
   method: 'GET' | 'POST',
@@ -141,11 +154,12 @@ const summaryRow = (row: unknown) =>
 
 const runRow = (row: unknown) =>
   exact(row, [
-    'id', 'period_start', 'period_end', 'pay_date', 'currency', 'status', 'mode',
-    'revision', 'version', 'totals_json', 'payment_batch_id', 'payment_status',
+    'id', 'pay_group_id', 'period_start', 'period_end', 'pay_date', 'currency', 'status',
+    'mode', 'revision', 'version', 'totals_json', 'payment_batch_id', 'payment_status',
     'net_payable_minor',
   ]) &&
   identifier(row.id) &&
+  optionalText(row.pay_group_id, 200) &&
   date(row.period_start) &&
   date(row.period_end) &&
   date(row.pay_date) &&
@@ -190,6 +204,116 @@ function runRows(value: unknown): NativePayrollRun[] {
     seen.add(row.id);
   }
   return value as NativePayrollRun[];
+}
+
+const scalar = (value: unknown): value is string | number | null =>
+  value === null || safeInteger(value) || text(value, 2 * 1024 * 1024);
+
+/** Owner-owned `SELECT *` collections stay bounded and stable-field checked
+ * because their column set follows the owner table, not this transport. */
+function boundedRow(value: unknown, required: readonly string[]): value is Readonly<Record<string, string | number | null>> {
+  if (!record(value) || Object.keys(value).length > 96) return false;
+  if (!Object.keys(value).every((key) => /^[a-z0-9_]{1,64}$/.test(key))) return false;
+  return required.every((key) => Object.hasOwn(value, key) && scalar(value[key]));
+}
+function boundedRows(value: unknown, limit: number, required: readonly string[]) {
+  return Array.isArray(value) && value.length <= limit && value.every((row) => boundedRow(row, required));
+}
+
+const RUN_DETAIL_KEYS = [
+  'id', 'company_id', 'pay_group_id', 'country_pack_id', 'scope_engagement_id',
+  'period_start', 'period_end', 'pay_date', 'currency', 'mode', 'status', 'revision',
+  'totals_json', 'input_digest', 'error_message', 'version', 'created_by',
+  'submitted_by', 'submitted_digest', 'submitted_at', 'approved_by', 'posted_by',
+  'adjustment_of_run_id', 'created_at', 'updated_at', 'overtime_multiplier_bps',
+  'proration_method',
+] as const;
+
+function runDetailHeader(value: unknown) {
+  if (!exact(value, RUN_DETAIL_KEYS)) return false;
+  return (
+    identifier(value.id) &&
+    identifier(value.company_id) &&
+    identifier(value.pay_group_id) &&
+    optionalText(value.country_pack_id, 200) &&
+    optionalText(value.scope_engagement_id, 200) &&
+    date(value.period_start) &&
+    date(value.period_end) &&
+    date(value.pay_date) &&
+    currency(value.currency) &&
+    identifier(value.mode) &&
+    identifier(value.status) &&
+    integer(value.revision, 1) &&
+    objectJson(value.totals_json) &&
+    optionalText(value.input_digest, 200) &&
+    optionalText(value.error_message, 4096) &&
+    integer(value.version, 1) &&
+    identifier(value.created_by) &&
+    optionalText(value.submitted_by, 200) &&
+    optionalText(value.submitted_digest, 200) &&
+    optionalInteger(value.submitted_at) &&
+    optionalText(value.approved_by, 200) &&
+    optionalText(value.posted_by, 200) &&
+    optionalText(value.adjustment_of_run_id, 200) &&
+    safeInteger(value.created_at) &&
+    safeInteger(value.updated_at) &&
+    integer(value.overtime_multiplier_bps) &&
+    identifier(value.proration_method)
+  );
+}
+
+const ITEM_KEYS = [
+  'id', 'run_id', 'engagement_id', 'legal_name', 'person_id', 'worker_type',
+  'input_snapshot_json', 'result_json', 'gross_minor', 'deductions_minor',
+  'employer_cost_minor', 'net_minor', 'currency', 'status', 'created_at',
+] as const;
+const EXPORT_KEYS = ['id', 'run_revision', 'checksum_sha256', 'created_at'] as const;
+
+function runDetail(value: unknown): NativePayrollRunDetail {
+  if (
+    !record(value) ||
+    !exact(value, ['run', 'items', 'exports', 'corrections', 'paymentBatch', 'paymentItems'])
+  )
+    return failure('NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID');
+  if (
+    !runDetailHeader(value.run) ||
+    !Array.isArray(value.items) ||
+    value.items.length > 5000 ||
+    !value.items.every(
+      (item) =>
+        exact(item, ITEM_KEYS) &&
+        identifier(item.id) &&
+        identifier(item.run_id) &&
+        identifier(item.engagement_id) &&
+        identifier(item.person_id) &&
+        text(item.legal_name, 512) &&
+        identifier(item.worker_type) &&
+        objectJson(item.input_snapshot_json) &&
+        objectJson(item.result_json) &&
+        safeInteger(item.gross_minor) &&
+        safeInteger(item.deductions_minor) &&
+        safeInteger(item.employer_cost_minor) &&
+        safeInteger(item.net_minor) &&
+        currency(item.currency) &&
+        identifier(item.status) &&
+        safeInteger(item.created_at),
+    ) ||
+    !Array.isArray(value.exports) ||
+    value.exports.length > 500 ||
+    !value.exports.every(
+      (row) =>
+        exact(row, EXPORT_KEYS) &&
+        identifier(row.id) &&
+        integer(row.run_revision, 1) &&
+        text(row.checksum_sha256, 200) &&
+        safeInteger(row.created_at),
+    ) ||
+    !boundedRows(value.corrections, 500, ['id', 'run_id', 'company_id', 'status', 'version']) ||
+    !(value.paymentBatch === null || boundedRow(value.paymentBatch, ['id', 'company_id', 'status', 'total_minor'])) ||
+    !boundedRows(value.paymentItems, 5000, ['id', 'batch_id', 'reference', 'amount_minor', 'status'])
+  )
+    return failure('NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID');
+  return value as unknown as NativePayrollRunDetail;
 }
 
 function context(value: unknown, actor: NativePeoplePayrollPageContext, input: NativePeoplePayrollReadInput): Context {
@@ -381,7 +505,7 @@ async function boundedBytes(response: Response, limit: number): Promise<Uint8Arr
   return data;
 }
 
-async function boundedJson(response: Response): Promise<unknown> {
+async function boundedJson(response: Response, limit = 2 * 1024 * 1024): Promise<unknown> {
   if (response.redirected) {
     void response.body?.cancel().catch(() => undefined);
     return failure('NATIVE_PEOPLE_PAYROLL_UNAVAILABLE', response.status);
@@ -408,7 +532,7 @@ async function boundedJson(response: Response): Promise<unknown> {
     void response.body?.cancel().catch(() => undefined);
     return failure('NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID');
   }
-  const data = await boundedBytes(response, 2 * 1024 * 1024);
+  const data = await boundedBytes(response, limit);
   try {
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(data));
   } catch {
@@ -456,7 +580,7 @@ export function createNativePeoplePayrollClient(
     incoming: Pick<Headers, 'get'>,
     actor: NativePeoplePayrollPageContext,
     input: NativePeoplePayrollReadInput,
-    path: 'summary' | 'runs',
+    path: string,
     signal?: AbortSignal,
   ) => {
     if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
@@ -499,6 +623,26 @@ export function createNativePeoplePayrollClient(
     context(value.context, actor, input);
     return runRows(value.data);
   };
+  const detail = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativePeoplePayrollPageContext,
+    input: NativePeoplePayrollReadInput,
+    runId: string,
+    signal?: AbortSignal,
+  ): Promise<NativePayrollRunDetail> => {
+    if (!identifier(runId) || !/^[A-Za-z0-9_-]{1,200}$/.test(runId))
+      return Promise.reject(
+        new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_REQUEST_INVALID'),
+      );
+    const value = await boundedJson(
+      await request(incoming, actor, input, `runs/${encodeURIComponent(runId)}`, signal),
+      16 * 1024 * 1024,
+    );
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_PEOPLE_PAYROLL_RESPONSE_INVALID');
+    context(value.context, actor, input);
+    return runDetail(value.data);
+  };
   const command = async (
     incoming: Pick<Headers, 'get'>,
     actor: NativePeoplePayrollPageContext,
@@ -536,7 +680,7 @@ export function createNativePeoplePayrollClient(
     return (value as { data: unknown }).data;
   };
 
-  return { summary, runs, command };
+  return { summary, runs, detail, command };
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */

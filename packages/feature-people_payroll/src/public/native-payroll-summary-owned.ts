@@ -4,11 +4,13 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { withPayrollPurchasedRead } from '@erpx/server-people_payroll/public/payroll-purchases';
 import {
   nativePeoplePayrollAvailable,
+  nativePeoplePayrollDetail,
   nativePeoplePayrollFailure,
   nativePeoplePayrollRuns,
   nativePeoplePayrollSummary,
   peoplePayrollPageContext,
   type NativePayrollRun,
+  type NativePayrollRunDetail,
   type NativePayrollSummaryRow,
 } from './native-payroll-summary-page';
 
@@ -65,6 +67,26 @@ export async function ownedPeoplePayrollRuns(
   await admission(actor);
   try {
     const data = await nativePeoplePayrollRuns(peoplePayrollPageContext(actor), holdingSlug);
+    if (!data) unavailable();
+    return data;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+export async function ownedPeoplePayrollRun(
+  actor: WorkContext,
+  holdingSlug: string,
+  runId: string,
+): Promise<NativePayrollRunDetail | undefined> {
+  if (!nativePeoplePayrollAvailable()) return undefined;
+  await admission(actor);
+  try {
+    const data = await nativePeoplePayrollDetail(
+      peoplePayrollPageContext(actor),
+      holdingSlug,
+      runId,
+    );
     if (!data) unavailable();
     return data;
   } catch (error) {

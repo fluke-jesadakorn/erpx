@@ -279,3 +279,99 @@ async fn create_calculate_and_post_retain_receipts_audit_outbox_and_readback() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn in_process_detail_projects_owner_audit_columns_the_stored_error_and_payment_redaction() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,scope_engagement_id,\
+             period_start,period_end,pay_date,currency,mode,status,revision,totals_json,input_digest,\
+             error_message,version,created_by,submitted_by,submitted_digest,submitted_at,approved_by,\
+             posted_by,adjustment_of_run_id,created_at,updated_at) VALUES \
+             ('run-detail','company','group',NULL,NULL,'2026-10-01','2026-10-02','2026-10-02','THB',\
+             'preview','failed',1,'{\"net\":998500}','digest-source','PAYROLL_CALCULATION_FAILED',4,\
+             'owner','owner','submit-digest',1700000000000,'reviewer',NULL,NULL,1700000000000,1700000001000);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+
+        let reader = actor();
+        PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let reader = reader.clone();
+                Box::pin(async move {
+                    let detail = erpx_server_people_payroll::public::payroll_run::payroll_run_detail_on(
+                        &mut *connection,
+                        &reader,
+                        "run-detail",
+                        NOW,
+                    )
+                    .await?;
+                    let run = &detail["run"];
+                    assert_eq!(run["created_by"], "owner");
+                    assert_eq!(run["submitted_by"], "owner");
+                    assert_eq!(run["submitted_digest"], "submit-digest");
+                    assert_eq!(run["submitted_at"], 1_700_000_000_000_i64);
+                    assert_eq!(run["approved_by"], "reviewer");
+                    assert_eq!(run["posted_by"], serde_json::Value::Null);
+                    assert_eq!(run["adjustment_of_run_id"], serde_json::Value::Null);
+                    assert_eq!(run["country_pack_id"], serde_json::Value::Null);
+                    assert_eq!(run["scope_engagement_id"], serde_json::Value::Null);
+                    assert_eq!(run["created_at"], 1_700_000_000_000_i64);
+                    assert_eq!(run["updated_at"], 1_700_000_001_000_i64);
+                    assert_eq!(run["error_message"], "PAYROLL_CALCULATION_FAILED");
+                    assert_eq!(run["input_digest"], "digest-source");
+                    assert_eq!(run["totals_json"], "{\"net\":998500}");
+                    assert_eq!(run["pay_group_id"], "group");
+                    assert!(detail["items"].as_array().unwrap().is_empty());
+
+                    let payment_only = PayrollCommandActor {
+                        permissions: vec!["payroll.payment.read".into()],
+                        ..reader.clone()
+                    };
+                    let redacted = erpx_server_people_payroll::public::payroll_run::payroll_run_detail_on(
+                        &mut *connection,
+                        &payment_only,
+                        "run-detail",
+                        NOW,
+                    )
+                    .await?;
+                    assert_eq!(redacted["run"]["totals_json"], "{}");
+                    assert_eq!(redacted["run"]["input_digest"], serde_json::Value::Null);
+                    assert_eq!(redacted["run"]["error_message"], serde_json::Value::Null);
+                    assert_eq!(redacted["run"]["created_by"], "owner");
+                    assert_eq!(redacted["run"]["submitted_digest"], "submit-digest");
+                    assert!(redacted["items"].as_array().unwrap().is_empty());
+
+                    let mut foreign = reader.clone();
+                    foreign.company_id = CompanyId::new("foreign").unwrap();
+                    let missing = erpx_server_people_payroll::public::payroll_run::payroll_run_detail_on(
+                        &mut *connection,
+                        &foreign,
+                        "run-detail",
+                        NOW,
+                    )
+                    .await
+                    .unwrap_err();
+                    assert_eq!(missing.code, "PAYROLL_RUN_NOT_FOUND");
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+
+        let mut outside = pool.raw().acquire().await.unwrap();
+        let error = erpx_server_people_payroll::public::payroll_run::payroll_run_detail_on(
+            &mut outside,
+            &actor(),
+            "run-detail",
+            NOW,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "PAYROLL_COMMAND_TRANSACTION_REQUIRED");
+    })
+    .await;
+}

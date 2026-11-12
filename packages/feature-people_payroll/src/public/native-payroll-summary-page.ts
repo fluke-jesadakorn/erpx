@@ -6,10 +6,12 @@ import {
   nativePeoplePayrollConfiguration,
   NativePeoplePayrollError,
   type NativePayrollRun,
+  type NativePayrollRunDetail,
   type NativePayrollSummaryRow,
   type NativePeoplePayrollPageContext,
 } from './native-payroll-summary';
 import {
+  createNextNativePeoplePayrollDetailReader,
   createNextNativePeoplePayrollRunsReader,
   createNextNativePeoplePayrollSummaryReader,
 } from '../adapters/server/next-native-payroll-summary';
@@ -17,6 +19,7 @@ import {
 export { nativePeoplePayrollAvailable };
 export type {
   NativePayrollRun,
+  NativePayrollRunDetail,
   NativePayrollSummaryRow,
   NativePeoplePayrollPageContext,
 } from './native-payroll-summary';
@@ -89,6 +92,20 @@ export async function nativePeoplePayrollRuns(
     throw new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_CONTEXT_CHANGED');
   return createNextNativePeoplePayrollRunsReader((incoming, input, signal) =>
     native.runs(incoming, actor, input, signal),
+  )({ holdingSlug, ...scope(actor), expected: expected(actor) });
+}
+
+export async function nativePeoplePayrollDetail(
+  actor: NativePeoplePayrollPageContext,
+  holdingSlug: string,
+  runId: string,
+): Promise<NativePayrollRunDetail | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_CONTEXT_CHANGED');
+  return createNextNativePeoplePayrollDetailReader((incoming, input, signal) =>
+    native.detail(incoming, actor, input, runId, signal),
   )({ holdingSlug, ...scope(actor), expected: expected(actor) });
 }
 

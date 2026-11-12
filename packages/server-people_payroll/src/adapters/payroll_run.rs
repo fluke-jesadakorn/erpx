@@ -1238,32 +1238,21 @@ impl<'a> PayrollCommandRepository for PgPayrollCommand<'a> {
     ) -> PayrollCommandFuture<'b, Option<Value>, Self::Error> {
         Box::pin(async move {
             self.ready().await?;
-            let Some(run) = self.select_run(company, run_id).await? else {
+            let Some(mut run) = select_run_detail(&mut *self.connection, company, run_id).await?
+            else {
                 return Ok(None);
             };
             if payment_only {
+                run["totals_json"] = json!("{}");
+                run["input_digest"] = Value::Null;
+                run["error_message"] = Value::Null;
                 let items: Vec<Value> = Vec::new();
                 let exports: Vec<Value> = Vec::new();
                 let corrections: Vec<Value> = Vec::new();
                 let payment_batch = payment_batch(&mut *self.connection, company, run_id).await?;
                 let payment_items = payment_items(&mut *self.connection, &payment_batch).await?;
                 return Ok(Some(json!({
-                    "run": {
-                        "id": run.id,
-                        "company_id": run.company_id,
-                        "pay_group_id": run.pay_group_id,
-                        "period_start": run.period_start,
-                        "period_end": run.period_end,
-                        "pay_date": run.pay_date,
-                        "currency": run.currency,
-                        "status": run.status,
-                        "mode": run.mode,
-                        "revision": run.revision,
-                        "version": run.version,
-                        "totals_json": "{}",
-                        "input_digest": Value::Null,
-                        "error_message": Value::Null,
-                    },
+                    "run": run,
                     "items": items,
                     "exports": exports,
                     "corrections": corrections,
@@ -1308,24 +1297,7 @@ impl<'a> PayrollCommandRepository for PgPayrollCommand<'a> {
             let payment_batch = payment_batch(&mut *self.connection, company, run_id).await?;
             let payment_items = payment_items(&mut *self.connection, &payment_batch).await?;
             Ok(Some(json!({
-                "run": {
-                    "id": run.id,
-                    "company_id": run.company_id,
-                    "pay_group_id": run.pay_group_id,
-                    "period_start": run.period_start,
-                    "period_end": run.period_end,
-                    "pay_date": run.pay_date,
-                    "currency": run.currency,
-                    "status": run.status,
-                    "mode": run.mode,
-                    "revision": run.revision,
-                    "version": run.version,
-                    "totals_json": run.totals_json,
-                    "input_digest": run.input_digest,
-                    "error_message": Value::Null,
-                    "overtime_multiplier_bps": run.overtime_multiplier_bps,
-                    "proration_method": run.proration_method,
-                },
+                "run": run,
                 "items": items,
                 "exports": exports,
                 "corrections": corrections,
@@ -1394,6 +1366,55 @@ fn row_to_json(row: sqlx::postgres::PgRow) -> Value {
         object.insert(column.name().to_owned(), value);
     }
     Value::Object(object)
+}
+
+/// One bounded Company-scoped run header for the detail read: every current
+/// owner column, the selected pay-group policy and the stored failure message.
+async fn select_run_detail(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    run_id: &str,
+) -> Result<Option<Value>, Error> {
+    Ok(sqlx::query(
+        "SELECT r.id,r.company_id,r.pay_group_id,r.country_pack_id,r.scope_engagement_id,\
+         r.period_start,r.period_end,r.pay_date,r.currency,r.mode,r.status,r.revision,\
+         r.totals_json,r.input_digest,r.error_message,r.version,r.created_by,\
+         r.submitted_by,r.submitted_digest,r.submitted_at,r.approved_by,r.posted_by,\
+         r.adjustment_of_run_id,r.created_at,r.updated_at,\
+         g.overtime_multiplier_bps,g.proration_method \
+         FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id \
+         WHERE r.id=$1 AND r.company_id=$2",
+    )
+    .bind(run_id)
+    .bind(company.as_str())
+    .fetch_optional(&mut *connection)
+    .await?
+    .map(row_to_json))
+}
+
+/// In-process payroll run detail on a caller-owned serializable transaction.
+///
+/// No HTTP target, registered Host, cookie or Account session is required: the
+/// composition supplies the current Company command actor and owns the
+/// transaction. The owner read still enforces the actor's Company payroll scope,
+/// selected-context expiry, the read permission split and one bounded query.
+pub async fn payroll_run_detail_on(
+    connection: &mut PgConnection,
+    actor: &crate::domain::payroll_run::PayrollCommandActor,
+    run_id: &str,
+    now: erpx_server_shared::public::TimestampMillis,
+) -> Result<Value, BusinessError> {
+    let mut repository = PgPayrollCommand::new(connection, actor);
+    crate::application::payroll_run::payroll_run_detail(actor, run_id, &mut repository, now)
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(error) => BusinessError::new(
+                FailureKind::Unavailable,
+                error.code,
+                "The current payroll run detail is unavailable.",
+            ),
+        })
 }
 
 async fn payment_batch(
