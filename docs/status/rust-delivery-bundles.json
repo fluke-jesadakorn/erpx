@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 740,
+    "revision": 748,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -18400,6 +18400,157 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.assets.maintenance-transaction",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "assets",
+        "workflowIds": [
+          "assets/asset-register",
+          "assets/condition",
+          "assets/feature-placement",
+          "assets/feature-maintenance-lifecycle",
+          "assets/feature-retirement"
+        ],
+        "workstream": "S06",
+        "kind": "migration",
+        "title": "Delete the dead Assets maintenance-transaction TS writer module",
+        "scope": "The native Assets/Maintenance routes own the command path; server-assets maintenance-transaction.ts has zero consumers after the maintenance writer retirement. Delete the adapter/public module, package exports and ownership source; record the owner KPI drop.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "finance",
+          "maintenance"
+        ],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "packages/server-assets/package.json",
+          "packages/contracts/src/ownership.json",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "92e3c6e55d89e1ed2dd2f088d9e6555c0d22697a",
+        "lastPushedSha": "92e3c6e55d89e1ed2dd2f088d9e6555c0d22697a",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "92e3c6e55d89e1ed2dd2f088d9e6555c0d22697a",
+            "before": 16,
+            "after": 12,
+            "residual": [
+              {
+                "path": "packages/server-assets/src/adapters/assets.ts",
+                "writes": 8,
+                "removalTaskId": "migrate.assets.register-writers",
+                "removalCondition": "Native asset register/custody route is authoritative and fixtures/tests seed owner rows; delete the TS create/change writers."
+              },
+              {
+                "path": "packages/server-assets/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "migrate.assets.purchase-boundary",
+                "removalCondition": "Native purchased-command boundary replaces the TS assertion cleanup."
+              },
+              {
+                "path": "packages/server-assets/src/adapters/attachment-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.assets.attachments",
+                "removalCondition": "Native Files asset attachment boundary replaces the TS purchase guard."
+              }
+            ]
+          },
+          {
+            "command": "bunx tsc --noEmit -p packages/server-assets/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "92e3c6e55d89e1ed2dd2f088d9e6555c0d22697a"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "92e3c6e55d89e1ed2dd2f088d9e6555c0d22697a"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "92e3c6e55d89e1ed2dd2f088d9e6555c0d22697a"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Deleted dead maintenance-transaction TS writer module/exports/ownership source; KPI assets 16->12 with residual classification; pushed 92e3c6e55.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-assets",
+        "plannedPackage": "erpx-server-assets",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "retire.people_payroll.payroll-run-ts",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "people_payroll",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire TS payroll-run writers, readers and route fallbacks",
+        "scope": "Register rust-payroll-run-command/http/postgres suites; move payroll-run seeds in identity_access/shared.attachments/shared.work/support helpers to SQL or native state; then delete createPayrollRun/calculatePayrollRun/postPayroll/cancelPayrollRun, payrollSummary/listPayrollRuns/getPayrollRun/workPayrollRows and the four people route fallbacks (route.ts:267,271,272,292). Removal condition: native people-payroll ingress configured in dev, no TS fallback on the route, no retired export in packages/fixtures/tests/scripts, and owner KPI drops.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "packages/server-people_payroll/package.json",
+          "packages/feature-people_payroll/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**",
+          "tests/integration/identity_access/**",
+          "tests/integration/shared.attachments/**",
+          "tests/integration/shared.work/**",
+          "tests/support/helpers/**",
+          "tests/catalogue/suite-manifest.json",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-k",
+          "agentId": "worker-people-mount",
+          "claimedAt": "2026-11-12T08:06:21.477Z",
+          "heartbeatAt": "2026-11-12T08:06:21.477Z",
+          "expiresAt": "2026-11-12T08:36:21.477Z",
+          "generation": 36
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Register the three payroll-run cargo suites, migrate the foreign payroll-run seeds, remove the route fallbacks and TS writers/readers, then run owner KPI and affected suites.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -18408,21 +18559,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 67,
-      "migratedPackets": 31,
+      "totalPackets": 69,
+      "migratedPackets": 32,
       "statusCounts": {
         "pending": 11,
-        "in_progress": 1,
+        "in_progress": 2,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 31,
+        "migrated": 32,
         "blocked": 14,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 36,
-    "updatedAt": "2026-11-12T08:00:33.592Z",
+    "updatedAt": "2026-11-12T08:07:04.901Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
