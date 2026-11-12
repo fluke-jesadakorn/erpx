@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1056,
+    "revision": 1061,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-s",
       "agentId": "lead",
       "startedAt": "2026-11-12T16:09:25.074Z",
-      "heartbeatAt": "2026-11-12T16:38:41.573Z",
-      "expiresAt": "2026-11-12T17:08:41.573Z",
+      "heartbeatAt": "2026-11-12T17:01:26.894Z",
+      "expiresAt": "2026-11-12T17:31:26.894Z",
       "generation": 44,
       "tokenHash": "0eabcfe48eaa2e019bd9ff44fd08efe3a2603848f1f8ad8c4b5c16915521bdc5"
     },
@@ -17528,14 +17528,13 @@
           "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/**",
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/**",
           "tests/unit/quality/**",
-          "tests/integration/quality/**",
-          "tests/catalogue/suite-manifest.json"
+          "tests/integration/quality/**"
         ],
         "resources": [
           "owner:quality"
         ],
-        "status": "blocked",
-        "nextAction": "Workspace/detail cutover landed at e0a9cd9dcd (client parity, native-only route authority, TS readers deleted, oracles moved; cargo/typecheck green). KPI 34 -> 34 because the readers were SELECT-only, so this slice is NOT migrated. Remainder (removal task retire.quality.writers): delete the still-reachable TS Quality writers (spec save/transition, inspect, release, disposition/scrap, cancellation) whose POST routes already use native, move their oracles and record the KPI delta; also clean sibling-owner reader helpers commerce quality-workspace-{stock,products} and inventory quality-workspace-lots.",
+        "status": "ready_for_integration",
+        "nextAction": "Lead: rerun tests/integration/quality/quality.test.ts after the executive-connection suites are registered, then close this read slice; writer residual stays with retire.quality.residual-writers.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -17543,8 +17542,8 @@
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "e0a9cd9dcdbc23ea0998a890ff140e2702e0aa03",
-        "lastPushedSha": "e0a9cd9dcdbc23ea0998a890ff140e2702e0aa03",
+        "implementedCommit": "12c96a8d4fe36ec863d3c2dffff48153de8e276b",
+        "lastPushedSha": "12c96a8d4fe36ec863d3c2dffff48153de8e276b",
         "checks": [
           {
             "command": "cargo check -p erpx-server-quality --locked",
@@ -17568,17 +17567,41 @@
             "sourceSha": "e0a9cd9dcdbc23ea0998a890ff140e2702e0aa03",
             "sourceKind": "committed",
             "note": "Read-only reader deletion does not move the write KPI; writer retirement (spec save/transition, inspect, release, disposition/scrap, cancellation) is still required."
+          },
+          {
+            "command": "cargo check -p erpx-server-quality --locked",
+            "result": "passed",
+            "sourceSha": "12c96a8d4fe36ec863d3c2dffff48153de8e276b",
+            "note": "Quality crate compiles with the deleted TS readers on the current integrated source."
+          },
+          {
+            "command": "bunx tsc -p packages/feature-quality/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "12c96a8d4fe36ec863d3c2dffff48153de8e276b"
+          },
+          {
+            "command": "bun run --filter '@erpx/server-quality' typecheck",
+            "result": "passed",
+            "sourceSha": "12c96a8d4fe36ec863d3c2dffff48153de8e276b"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "12c96a8d4fe36ec863d3c2dffff48153de8e276b",
+            "before": 190,
+            "after": 143,
+            "note": "Read-only cutover: qualityWorkspace/qualityDetail and their SELECT statements are gone and the supply route is native-only. The remaining 14 write statements are classified under retire.quality.residual-writers (receiptQualityHoldSteps, inventory-count-effects, purchase boundaries, alerts)."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261112-h",
-          "agentId": "worker-quality",
-          "at": "2026-11-12T06:11:33.323Z",
-          "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Workspace/detail cutover landed at e0a9cd9dcd (client parity, native-only route authority, TS readers deleted, oracles moved; cargo/typecheck green). KPI 34 -> 34 because the readers were SELECT-only, so this slice is NOT migrated. Remainder (removal task retire.quality.writers): delete the still-reachable TS Quality writers (spec save/transition, inspect, release, disposition/scrap, cancellation) whose POST routes already use native, move their oracles and record the KPI delta; also clean sibling-owner reader helpers commerce quality-workspace-{stock,products} and inventory quality-workspace-lots."
+          "runId": "run-20261112-s",
+          "agentId": "worker-quality-retire",
+          "at": "2026-11-12T17:01:57.702Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: rerun tests/integration/quality/quality.test.ts after the executive-connection suites are registered, then close this read slice; writer residual stays with retire.quality.residual-writers."
         },
         "deliverables": [
           "Native-quality workspace/detail client parity",
@@ -20887,8 +20910,8 @@
           "runId": "run-20261112-s",
           "agentId": "lead",
           "claimedAt": "2026-11-12T16:31:39.034Z",
-          "heartbeatAt": "2026-11-12T16:38:41.573Z",
-          "expiresAt": "2026-11-12T17:08:41.573Z",
+          "heartbeatAt": "2026-11-12T17:01:26.894Z",
+          "expiresAt": "2026-11-12T17:31:26.894Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21259,8 +21282,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-runtime-connections",
           "claimedAt": "2026-11-12T16:19:50.652Z",
-          "heartbeatAt": "2026-11-12T16:38:41.573Z",
-          "expiresAt": "2026-11-12T17:08:41.573Z",
+          "heartbeatAt": "2026-11-12T17:01:26.894Z",
+          "expiresAt": "2026-11-12T17:31:26.894Z",
           "generation": 44
         },
         "baseSha": null,
@@ -25146,8 +25169,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T16:12:35.696Z",
-          "heartbeatAt": "2026-11-12T16:38:41.573Z",
-          "expiresAt": "2026-11-12T17:08:41.573Z",
+          "heartbeatAt": "2026-11-12T17:01:26.894Z",
+          "expiresAt": "2026-11-12T17:31:26.894Z",
           "generation": 44
         },
         "baseSha": null,
@@ -25565,16 +25588,16 @@
       "statusCounts": {
         "pending": 29,
         "in_progress": 6,
-        "ready_for_integration": 10,
+        "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 56,
-        "blocked": 21,
+        "blocked": 20,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T16:57:57.646Z",
+    "updatedAt": "2026-11-12T17:01:57.703Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
