@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 728,
+    "revision": 730,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17897,15 +17897,46 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-j",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T07:23:57.393Z",
+          "heartbeatAt": "2026-11-12T07:23:57.393Z",
+          "expiresAt": "2026-11-12T07:53:57.393Z",
+          "generation": 35
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-projects project attachment modules",
+            "result": "passed",
+            "before": 34,
+            "after": 32,
+            "sourceSha": "fae453f082553bef32ddcfaccfb94f7d4a96209c",
+            "sourceKind": "committed",
+            "note": "Deleted attachment-purchases.ts (2 DELETE command_assertions) and attachment-read.ts; removed their server-files integrations, exports and imports. Residual 32 writes are actuals 9, milestones 8, project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "fae453f082553bef32ddcfaccfb94f7d4a96209c",
+            "sourceKind": "committed",
+            "note": "No references remain to the deleted modules."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "fae453f082553bef32ddcfaccfb94f7d4a96209c",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 1178 suites."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Prove project target has no TS writer (guarded 503), delete residual TS exports/barrels, run files/projects suites, record KPI before/after, then link migrate.projects.",
+        "nextAction": "Attachment purchase/read TS modules retired (fae453f08): projects owner KPI 34->32; no imports/exports remain. Residual 32 writes are the still-retained command writers: actuals 9, milestones 8, project-structure-sources 7, staff-projects 4, purchases 2, task-purchases 1, scheduled-tasks 1. Removal condition: native command/read route authoritative + oracles moved, then delete statement/export; keep in_progress until residual 0 or formally reassigned.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -18136,8 +18167,8 @@
       "totalPackets": 63,
       "migratedPackets": 30,
       "statusCounts": {
-        "pending": 9,
-        "in_progress": 1,
+        "pending": 8,
+        "in_progress": 2,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 30,
@@ -18147,7 +18178,7 @@
       }
     },
     "lastCoordinatorGeneration": 35,
-    "updatedAt": "2026-11-12T07:22:52.790Z",
+    "updatedAt": "2026-11-12T07:23:57.418Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
