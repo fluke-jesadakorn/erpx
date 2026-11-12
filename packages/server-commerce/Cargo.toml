@@ -36,6 +36,10 @@ name = "order_http"
 path = "../../tests/unit/commerce/rust-commerce-order-http.test.rs"
 
 [[test]]
+name = "receipt_http"
+path = "../../tests/unit/commerce/rust-commerce-receipt-http.test.rs"
+
+[[test]]
 name = "record_source"
 path = "../../tests/unit/commerce/rust-commerce-record-source.test.rs"
 

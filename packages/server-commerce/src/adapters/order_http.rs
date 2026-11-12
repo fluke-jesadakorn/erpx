@@ -135,11 +135,11 @@ struct ParsedTarget<'a> {
     host: &'a str,
 }
 
-fn missing() -> BusinessError {
+pub(crate) fn missing() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
 }
 
-fn origin_forbidden() -> BusinessError {
+pub(crate) fn origin_forbidden() -> BusinessError {
     BusinessError::new(
         FailureKind::Forbidden,
         "ORIGIN_FORBIDDEN",
@@ -147,14 +147,17 @@ fn origin_forbidden() -> BusinessError {
     )
 }
 
-fn command_key_required() -> BusinessError {
+pub(crate) fn command_key_required() -> BusinessError {
     BusinessError::invalid(
         "COMMAND_KEY_REQUIRED",
         "Use a valid Idempotency-Key for this action.",
     )
 }
 
-fn unique_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, BusinessError> {
+pub(crate) fn unique_header<'a>(
+    headers: &'a HeaderMap,
+    name: &str,
+) -> Result<Option<&'a str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
     let first = values.next();
     if values.next().is_some() {
@@ -173,7 +176,7 @@ pub enum CommerceOriginPolicy {
     NonProduction,
 }
 
-fn valid_origin(origin: &str, host: &str, policy: CommerceOriginPolicy) -> bool {
+pub(crate) fn valid_origin(origin: &str, host: &str, policy: CommerceOriginPolicy) -> bool {
     let Ok(parsed) = url::Url::parse(origin) else {
         return false;
     };
@@ -828,7 +831,7 @@ fn status_code(kind: FailureKind) -> StatusCode {
     }
 }
 
-fn error_response(error: BusinessError) -> Response {
+pub(crate) fn error_response(error: BusinessError) -> Response {
     (
         status_code(error.kind),
         Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
@@ -836,7 +839,7 @@ fn error_response(error: BusinessError) -> Response {
         .into_response()
 }
 
-fn bounded(value: Value) -> Response {
+pub(crate) fn bounded(value: Value) -> Response {
     let mut response = (StatusCode::OK, Json(value)).into_response();
     for (name, value) in [
         (header::CACHE_CONTROL, "private, no-store"),

@@ -6,6 +6,7 @@ pub(crate) mod quality_return_join;
 pub(crate) mod quality_masters;
 pub(crate) mod quality_scrap_stock;
 pub(crate) mod order_http;
+pub(crate) mod receipt_http;
 
 pub(crate) mod postgres_inventory_consumption;
 
