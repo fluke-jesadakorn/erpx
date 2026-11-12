@@ -4,8 +4,6 @@ import {createFollowupApplication,type FollowupRepository,type FollowupMutation}
 import {createCustomerNoteApplication,type CustomerNoteRepository} from "@erpx/server-sales/application/notes";
 import {createSalesCustomerApplication,type SalesCustomerRepository} from "@erpx/server-sales/application/customers";
 import {createCustomerNotificationApplication,type CustomerNotificationRepository,type CustomerNotificationMutation} from "@erpx/server-sales/application/notifications";
-import {createCustomerDeliveryApplication,type CustomerDeliveryRepository} from "@erpx/server-sales/application/notification-delivery";
-import {customerNotificationRetryAt,type CustomerMail} from "@erpx/server-sales/domain/notifications";
 import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
 
 const priceList={name:'Current customer prices',currency:'THB',customerId:null,validFrom:'2026-10-01',validUntil:'2026-10-31',maxAutoDiscountBps:500,items:[{productId:'product',price:'10.25',taxBps:700}]};
@@ -77,23 +75,7 @@ describe('Sales customer projections',()=>{
   await expect(f.app.today({kind:'crm'})).rejects.toMatchObject({code:'SALES_TASK_ACCESS_DENIED'});
  });
 });
-const mail:CustomerMail={id:'mail',company_id:'company',fulfillment_id:'fulfillment',order_id:'order',party_id:'customer',party_version:1,recipient_email:'customer@example.invalid',subject:'Delivery recorded',body_text:'Immutable delivery snapshot',adapter:'resend',attempts:1};
-function deliveryFixture(overrides:Partial<CustomerDeliveryRepository>={}){
- const calls:string[]=[],failures:{retryAt:number;code:string}[]=[];const repository:CustomerDeliveryRepository={async lease(){return mail;},async current(){return {status:'active',notification_email:mail.recipient_email,notification_consent:'granted',adapter:'resend'};},async cancel(_mail,_lease,code){calls.push(code);},async sent(){calls.push('sent');},async failed(_mail,_lease,retryAt,code){failures.push({retryAt,code});},async next(){return null;},...overrides};
- const ports={repository,async send(message:CustomerMail){calls.push('send');expect(message.body_text).toBe(mail.body_text);return 'provider-id';}};return {repository,ports,calls,failures,app:createCustomerDeliveryApplication(ports)};
-}
 describe('Sales customer notification orchestration',()=>{
- test('current consent revocation cancels a leased message before contacting its provider',async()=>{
-  const f=deliveryFixture({async current(){return {status:'active',notification_email:mail.recipient_email,notification_consent:'revoked',adapter:'resend'};}});
-  await f.app.deliver('mail',100);expect(f.calls).toEqual(['CUSTOMER_CONSENT_OR_EMAIL_CHANGED']);expect(f.failures).toEqual([]);
- });
- test('provider failures schedule the immutable message with capped deterministic backoff',async()=>{
-  const f=deliveryFixture();f.ports.send=async()=>{throw new Error('CUSTOMER_EMAIL_DELIVERY_FAILED');};await expect(f.app.deliver('mail',100)).rejects.toThrow('CUSTOMER_EMAIL_DELIVERY_FAILED');
-  expect(f.failures).toEqual([{retryAt:2100,code:'CUSTOMER_EMAIL_DELIVERY_FAILED'}]);expect(customerNotificationRetryAt(100,20)).toBe(1024100);
- });
- test('drain bounds repeated provider failures to ten leased jobs',async()=>{
-  let leased=0;const f=deliveryFixture({async next(){return 'mail';},async lease(){leased++;return mail;}});f.ports.send=async()=>{throw new Error('provider unavailable');};await f.app.drain(100);expect(leased).toBe(10);expect(f.failures).toHaveLength(10);
- });
  test('queue replay returns before reading a customer whose consent has changed',async()=>{
   const mutations:CustomerNotificationMutation[]=[];const repository:CustomerNotificationRepository={async productionEnabled(){},async settings(){return null;},async delivery(){throw new Error('changed customer must not be read');},async existing(){return null;},async lines(){return [];},async notification(){return null;},async replay(){return {id:'saved',status:'pending',version:1};},async commit(m){mutations.push(m);return m.result;}};
   const app=createCustomerNotificationApplication({companyId:'company',authorize(){},clock:{now:()=>42},identifiers:{next:()=>{throw new Error('must not allocate another id');}},async repository(){return repository;}});

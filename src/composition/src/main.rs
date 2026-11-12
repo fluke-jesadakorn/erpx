@@ -199,6 +199,36 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             .await
             .map_err(str::to_owned)
         }
+        #[cfg(feature = "existing-business")]
+        [command, once, option, path, holding_flag, holding]
+            if command == "sales-notification-worker"
+                && once == "--once"
+                && option == "--database-manifest"
+                && holding_flag == "--holding" =>
+        {
+            let outcome = erpx_service::sales_notification_worker::run_once_file(
+                std::path::Path::new(path),
+                holding,
+            )
+            .await?;
+            println!("{outcome}");
+            Ok(())
+        }
+        #[cfg(feature = "existing-business")]
+        [command, once, option, notification_id, manifest_flag, path]
+            if command == "sales-notification-worker"
+                && once == "--once"
+                && option == "--notification"
+                && manifest_flag == "--database-manifest" =>
+        {
+            let outcome = erpx_service::sales_notification_worker::run_once_notification_file(
+                std::path::Path::new(path),
+                notification_id,
+            )
+            .await?;
+            println!("{outcome}");
+            Ok(())
+        }
         [command] if command == "owners" => {
             let (inventory, readiness) = inspect_migration(&EmbeddedMigrationInventory)?;
             println!(
@@ -232,6 +262,11 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             if cfg!(feature = "private-field-api") {
                 usage.push_str(
                     " | erpx-server private-api --development-config /absolute/private.json | erpx-server private-api --test-config /absolute/private.json | erpx-server support-sla-drain --once --development-config /absolute/private.json",
+                );
+            }
+            if cfg!(feature = "existing-business") {
+                usage.push_str(
+                    " | erpx-server sales-notification-worker --once --database-manifest /absolute/databases-jobs.json --holding h001 | erpx-server sales-notification-worker --once --notification <id> --database-manifest /absolute/databases-jobs.json",
                 );
             }
             if cfg!(feature = "production-api") {

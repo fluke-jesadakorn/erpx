@@ -7,11 +7,10 @@ import {Pool} from 'pg';
 import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {LocalFileStore} from "@erpx/server-runtime/adapters/runtime/filesystem";
 import {applyMigrations,env} from "../../support/runtime-env";
-import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {qualityWork} from "@erpx/server-quality/public/quality";
 import {drainQualityAlerts,qualityAlertWork} from "@erpx/server-quality/public/quality-alerts";
 import {escalateInventoryReservations} from "@erpx/server-inventory/public/inventory-reservation-alerts";
-import {deliverCustomerNotification,drainCustomerNotifications,queueDeliveryNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
+import {queueDeliveryNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {enrollEngineeringVerification} from "@erpx/server-platform_administration/public/engineering-verification";
 import {filterWork} from "@erpx/feature-work_projection/lib/work-item";
 import {mergeWorkItems} from "@erpx/server-work_projection/public/work-items";
@@ -55,7 +54,6 @@ const configuredAttachmentTools=attachmentToolEnvironment(process.cwd());
 it('blocks nonattested production alert creation and mail claims without consuming native sources',async()=>{
  vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN','');
  expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});
- const send=vi.fn<typeof fetch>();await deliverCustomerNotification(db,{},enabled.messageId,send,now);await drainCustomerNotifications(db,{},now);expect(send).not.toHaveBeenCalled();
  expect(await counts(enabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
  await expect(updateCustomerNotificationSettings(enabled.reviewer,{expectedVersion:1,adapter:'resend'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
 });
@@ -66,7 +64,7 @@ it('delivers only the attested Company Quality and the remaining Commerce/Manufa
   expect(s.reviewer.userId).not.toBe(s.f.owner.userId);
   expect(stockBefore[index].movements).toHaveLength(3);
  }
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});await drainCustomerNotifications(db,{},now+10000);
+ expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});
  const reservations=(await db.prepare("SELECT record_type,record_id,user_id FROM staff_notifications WHERE company_id=? AND message LIKE 'Stock reservation%' ORDER BY record_type,user_id").bind(enabled.f.company).all<{record_type:string;record_id:string;user_id:string}>()).results;
  // The two Field recipients, deterministic phase IDs and native acknowledgement
  // retention/rollback assertions live in the Rust scheduled Field case, not this TS worker.
@@ -74,47 +72,21 @@ it('delivers only the attested Company Quality and the remaining Commerce/Manufa
  expect(reservations.filter(row=>row.record_type==='commerce_order').map(row=>row.user_id)).toEqual([enabled.f.owner.userId]);
  expect(reservations.filter(row=>row.record_type==='manufacturing_order').map(row=>row.user_id).sort()).toEqual([enabled.reviewer.userId,enabled.f.owner.userId].sort());
  expect(reservations.map(row=>row.record_id)).toEqual(expect.arrayContaining([enabled.salesId,enabled.productionId]));
- expect((await counts(enabled)).mail).toEqual({status:'sent',attempts:1,provider_message_id:`sandbox-${enabled.messageId}`});
+ expect((await counts(enabled)).mail).toEqual({status:'pending',attempts:0,provider_message_id:null});
  expect(await counts(disabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
- const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);expect(await counts(enabled)).toEqual(before);
+ const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});expect(await counts(enabled)).toEqual(before);
  await expect(queueDeliveryNotification(disabled.f.owner,disabled.fulfillmentId,{expectedVersion:1,note:'Disabled Company cannot replay delivery authority'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
  expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);
  expect(await Promise.all([enabled,disabled].map(stockAndDeliveryJournal))).toEqual(stockBefore);
 });
 it('rechecks Company withdrawal and expiry before each worker write and resumes the preserved native sources without duplicates',async()=>{
  await db.prepare('UPDATE engineering_verification_contexts SET enabled=false WHERE company_id=? AND run_id=?').bind(enabled.f.company,run).run();
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);
+ expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});
  expect(await counts(enabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
  await db.prepare('UPDATE engineering_verification_contexts SET enabled=true WHERE company_id=? AND run_id=?').bind(enabled.f.company,run).run();
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});await drainCustomerNotifications(db,{},now+10000);
+ expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});
  const before=await counts(enabled);await db.prepare('UPDATE engineering_verification_contexts SET expires_at=? WHERE company_id=? AND run_id=?').bind(Date.now()-1,enabled.f.company,run).run();
  expect(await drainQualityAlerts(db,now+2*86400000)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now+2*86400000)).toEqual({expiring:0,expired:0});expect(await counts(enabled)).toEqual(before);
-});
-it('holds an in-flight provider result after Company withdrawal and retries the same immutable provider key only when authority returns',async()=>{
- vi.stubEnv('NODE_ENV','development');const extra=await sources('resend');
- await enrollEngineeringVerification(db,{run,sourceFingerprint:source,softwareVersion:version,fileManifestSha256:manifestSha,companyIds:[extra.f.company],disabledCompanyIds:[]});
- vi.stubEnv('NODE_ENV','production');
- const original=await db.prepare('SELECT recipient_email,subject,body_text,adapter FROM commerce_customer_notifications WHERE id=?').bind(extra.messageId).first();
- const send=vi.fn<typeof fetch>().mockImplementationOnce(async()=>{await db.prepare('UPDATE engineering_verification_contexts SET enabled=false WHERE company_id=? AND run_id=?').bind(extra.f.company,run).run();return Response.json({id:'declared-provider-id'});}).mockImplementation(async()=>Response.json({id:'declared-provider-id'}));
- const provider={RESEND_API_KEY:'declared-fixture-key',RESEND_FROM:'sender@engineering.invalid'};
- await deliverCustomerNotification(db,provider,extra.messageId,send,now+10000);expect(send).toHaveBeenCalledTimes(1);
- expect((await counts(extra)).mail).toEqual({status:'sending',attempts:1,provider_message_id:null});
- await deliverCustomerNotification(db,provider,extra.messageId,send,now+100001);expect(send).toHaveBeenCalledTimes(1);
- await db.prepare('UPDATE engineering_verification_contexts SET enabled=true WHERE company_id=? AND run_id=?').bind(extra.f.company,run).run();
- await deliverCustomerNotification(db,provider,extra.messageId,send,now+100001);expect(send).toHaveBeenCalledTimes(2);
- for(const call of send.mock.calls)expect(call[1]?.headers).toMatchObject({'Idempotency-Key':extra.messageId});
- expect(send.mock.calls[0][1]?.body).toEqual(send.mock.calls[1][1]?.body);
- expect((await counts(extra)).mail).toEqual({status:'sent',attempts:2,provider_message_id:'declared-provider-id'});
- await deliverCustomerNotification(db,provider,extra.messageId,send,now+100002);expect(send).toHaveBeenCalledTimes(2);
- expect(await db.prepare('SELECT recipient_email,subject,body_text,adapter FROM commerce_customer_notifications WHERE id=?').bind(extra.messageId).first()).toEqual(original);
-});
-it('cancels a production message after native customer consent revocation without sending or rewriting its retained source snapshot',async()=>{
- const original=await db.prepare('SELECT recipient_email,subject,body_text,adapter FROM commerce_customer_notifications WHERE id=?').bind(enabled.messageId).first();
- await saveMaster(enabled.f.owner,'parties',enabled.party,{kind:'customer',code:key(),name:'Declared notified customer',notificationEmail:'receiver@engineering.invalid',notificationConsent:'revoked',expectedVersion:1},key());
- const send=vi.fn<typeof fetch>();await deliverCustomerNotification(db,{},enabled.messageId,send,now+10000);expect(send).not.toHaveBeenCalled();
- expect(await db.prepare('SELECT status,attempts,last_error FROM commerce_customer_notifications WHERE id=?').bind(enabled.messageId).first()).toEqual({status:'cancelled',attempts:1,last_error:'CUSTOMER_CONSENT_OR_EMAIL_CHANGED'});
- expect(await db.prepare('SELECT recipient_email,subject,body_text,adapter FROM commerce_customer_notifications WHERE id=?').bind(enabled.messageId).first()).toEqual(original);
- await drainCustomerNotifications(db,{},now+10000);expect((await counts(disabled)).mail).toEqual({status:'pending',attempts:0,provider_message_id:null});
 });
 it('rechecks live Quality recipients and cached authority after revocation and recovers missing recipients without duplicating alerts',async()=>{
  await db.prepare('UPDATE assignments SET revoked_at=? WHERE id IN (?,?)').bind(Date.now(),enabled.reviewer.assignmentId,enabled.qualityReviewer.assignmentId).run();

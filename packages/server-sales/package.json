@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./adapters/notification-execution": "./src/adapters/notification-execution.ts",
     "./adapters/calendar-customer-followups-facts": "./src/adapters/calendar-customer-followups-facts.ts",
     "./adapters/customers": "./src/adapters/customers.ts",
     "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
@@ -49,7 +48,6 @@
     "./public/commerce-pricing-contracts": "./src/public/commerce-pricing-contracts.ts",
     "./public/sales-recipient": "./src/public/sales-recipient.ts",
     "./index": "./src/index.ts",
-    "./application/notification-delivery": "./src/application/notification-delivery.ts",
     "./application/customers": "./src/application/customers.ts",
     "./application/order-work": "./src/application/order-work.ts",
     "./application/notifications": "./src/application/notifications.ts",

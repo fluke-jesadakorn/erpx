@@ -18,6 +18,10 @@ import {runtimeJobEffects,type RuntimePendingEvent} from "@erpx/server-workflow/
 import {runtimeLegalJobHealthEffects} from "@erpx/server-legal/public/runtime-job-health-effects";
 import { runNativeLegalWorker } from "@erpx/server-runtime/adapters/runtime/native-legal-worker";
 import {runtimeBetaSlotActive} from "@erpx/server-manage_erpx/public/runtime-active-slot-source";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const exec = promisify(execFile);
 
 export type PendingEvent = RuntimePendingEvent;
 export async function claimJob(db: SqlDatabase, now = Date.now(), excludedSourceSql?: string): Promise<PendingEvent | null> {
@@ -211,10 +215,28 @@ export async function legalWork(env: JobEnv) {
 
 export async function customerNotificationWork(env:JobEnv) {
  for(const slot of await activeSlots(env)) {
-  const write=registeredResources(env,slot.id).write;
-  try{await (await import("@erpx/server-sales/public/sales-customer-notifications")).drainCustomerNotifications(write,env);}
-  catch(error){console.error(JSON.stringify({event:"sales_customer_notification_delivery_failed",holdingId:slot.id,code:error instanceof Error?error.name:"DeliveryError"}));}
-  try{await (await import("@erpx/server-customer_authority/public/portal-invitation-delivery")).drainCustomerPortalInvitations(write,env)();}
+  try{await runNativeSalesNotificationWorker(slot.id);}
+  catch(error){console.error(JSON.stringify({event:"sales_customer_notification_delivery_unavailable",holdingId:slot.id,code:String((error as {code?:string}).code??(error instanceof Error?error.name:"DeliveryError")).slice(0,64)}));}
+  try{await (await import("@erpx/server-customer_authority/public/portal-invitation-delivery")).drainCustomerPortalInvitations(registeredResources(env,slot.id).write,env)();}
   catch(error){console.error(JSON.stringify({event:"customer_portal_invitation_delivery_failed",holdingId:slot.id,code:error instanceof Error?error.name:"DeliveryError"}));}
  }
+}
+
+/**
+ * Runs one bounded native Sales customer-notice cycle for one exact Holding.
+ * The native worker owns claim, lease, authority, provider dispatch and the
+ * terminal commit; this transport only supplies the reviewed manifest path.
+ * A missing native worker is a hard failure, never a TypeScript delivery.
+ */
+async function runNativeSalesNotificationWorker(holdingId:string):Promise<void>{
+ const binary=process.env.ERPX_NATIVE_SERVER_BIN,manifest=process.env.ERPX_DATABASE_MANIFEST;
+ if(!binary||!manifest)throw Object.assign(new Error("The native Sales customer-notice worker is not configured."),{code:"NATIVE_SALES_NOTIFICATION_WORKER_REQUIRED"});
+ let stdout:string;
+ try{({stdout}=await exec(binary,["sales-notification-worker","--once","--database-manifest",manifest,"--holding",holdingId],{timeout:120_000,maxBuffer:2*1024*1024,env:process.env,windowsHide:true}));}
+ catch{throw Object.assign(new Error("The native Sales customer-notice worker did not complete."),{code:"NATIVE_SALES_NOTIFICATION_WORKER_FAILED"});}
+ let outcome:unknown;
+ try{outcome=JSON.parse(stdout);}
+ catch{throw Object.assign(new Error("The native Sales customer-notice worker response is invalid."),{code:"NATIVE_SALES_NOTIFICATION_WORKER_RESPONSE_INVALID"});}
+ const holdings=outcome&&typeof outcome==="object"&&!Array.isArray(outcome)?(outcome as {holdings?:unknown}).holdings:undefined;
+ if(!Array.isArray(holdings)||holdings.length!==1||!holdings[0]||typeof holdings[0]!=="object"||(holdings[0] as {holdingId?:unknown}).holdingId!==holdingId)throw Object.assign(new Error("The native Sales customer-notice worker target is invalid."),{code:"NATIVE_SALES_NOTIFICATION_WORKER_TARGET_MISMATCH"});
 }

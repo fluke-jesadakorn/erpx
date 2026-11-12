@@ -1329,15 +1329,19 @@ dependencies = [
 name = "erpx-server-sales"
 version = "0.1.0"
 dependencies = [
+ "erpx-server-commercial",
  "erpx-server-identity-access",
  "erpx-server-people-payroll",
  "erpx-server-runtime",
  "erpx-server-shared",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "sqlx",
  "tokio",
  "uuid",
+ "webpki-roots",
 ]
 
 [[package]]

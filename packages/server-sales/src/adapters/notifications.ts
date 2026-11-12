@@ -2,6 +2,8 @@ import { commercialOwnerProjectionSources as commerceProjectionSources } from "@
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
 import {salesDeliveryNotificationFacts,salesDeliveryNotificationLines} from "@erpx/server-commerce/public/sales-order-sources";
 import 'server-only';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -10,19 +12,17 @@ import {requirePermission} from "@erpx/server-identity_access/public/iam-permiss
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import {commercePackageEnforcementMode} from '@erpx/server-commercial/public/purchase-command-boundary';
+import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import {withSalesNotificationPurchase,requireSalesNotificationRead} from '@erpx/server-sales/adapters/notification-purchases';
-import {deliverPurchasedCustomerNotification,drainPurchasedCustomerNotifications} from '@erpx/server-sales/adapters/notification-execution';
 
 
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {createCustomerNotificationApplication,type CustomerNotificationRepository,type CustomerNotificationMutation} from '@erpx/server-sales/application/notifications';
-import {createCustomerDeliveryApplication,type CustomerDeliveryRepository} from '@erpx/server-sales/application/notification-delivery';
-import type {CustomerNotification,CustomerNotificationRetry,CustomerNotificationSettings,CustomerMail} from '@erpx/server-sales/domain/notifications';
+import type {CustomerNotification,CustomerNotificationRetry,CustomerNotificationSettings} from '@erpx/server-sales/domain/notifications';
 import {customerNotificationSchema,customerNotificationRetrySchema,customerNotificationSettingsSchema} from '@erpx/server-sales/domain/notifications';
 export {customerNotificationSchema,customerNotificationRetrySchema,customerNotificationSettingsSchema} from '@erpx/server-sales/domain/notifications';
 type Row=Record<string,string|number|null>;
+const exec=promisify(execFile);
 function scoped(actor:WorkContext){return {sql:"o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)",args:[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId]};}
 function notificationSourcePredicate(alias:string) {
   return `EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_fulfillments}) f
@@ -55,36 +55,20 @@ export function updateCustomerNotificationSettings(actor:WorkContext,raw:Custome
 export function queueDeliveryNotification(actor:WorkContext,id:string,raw:CustomerNotification,key:string){return translated(()=>{const input=customerNotificationSchema.parse(raw);return withSalesNotificationPurchase(actor,{kind:'queue',id,input,key},database=>application(actor,database).queue(id,input,key));});}
 export function retryCustomerNotification(actor:WorkContext,id:string,raw:CustomerNotificationRetry,key:string){return translated(()=>{const input=customerNotificationRetrySchema.parse(raw);return withSalesNotificationPurchase(actor,{kind:'retry',id,input,key},database=>application(actor,database).retry(id,input,key));});}
 
-function deliveryRepository(db:SqlDatabase):CustomerDeliveryRepository{return {
- lease:async(id,now,leaseUntil)=>await db.prepare(`UPDATE commerce_customer_notifications n SET status='sending',attempts=attempts+1,lease_until=?,updated_at=?
-    WHERE n.id=? AND n.attempts<8 AND ((n.status IN ('pending','failed') AND n.next_attempt_at<=?) OR (n.status='sending' AND n.lease_until<?))
-      AND ${scheduledFeaturePredicate('n.company_id','sales')}
-    RETURNING n.id,n.company_id,n.fulfillment_id,n.order_id,n.party_id,n.party_version,n.recipient_email,n.subject,n.body_text,n.adapter,n.attempts`)
-    .bind(leaseUntil,now,id,now,now).first<CustomerMail>(),
- async current(mail,leaseUntil){const leasePredicate=`n.id=? AND n.status='sending' AND n.attempts=? AND n.lease_until=? AND ${scheduledFeaturePredicate('n.company_id','sales')}`;const leaseArgs=[mail.id,mail.attempts,leaseUntil];return await db.prepare(`SELECT p.status,p.notification_email,p.notification_consent,ns.adapter
-    FROM commerce_customer_notifications n JOIN (${commerceProjectionSources.commerce_fulfillments}) f ON f.id=n.fulfillment_id
-    JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=f.order_id AND o.id=n.order_id AND o.company_id=n.company_id
-    JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.id=n.party_id AND p.company_id=o.company_id
-    LEFT JOIN commerce_customer_notification_settings ns ON ns.company_id=o.company_id
-    WHERE ${leasePredicate} AND o.kind='sales' AND o.state IN ('confirmed','partially_fulfilled','fulfilled')`)
-    .bind(...leaseArgs).first<Row>();},
- async cancel(mail,leaseUntil,invalid,now){const leasePredicate=`n.id=? AND n.status='sending' AND n.attempts=? AND n.lease_until=? AND ${scheduledFeaturePredicate('n.company_id','sales')}`;const leaseArgs=[mail.id,mail.attempts,leaseUntil];await db.prepare(`UPDATE commerce_customer_notifications n SET status='cancelled',version=version+1,lease_until=NULL,last_error=?,updated_at=? WHERE ${leasePredicate}`)
-    .bind(invalid,now,...leaseArgs).run();},
- async sent(mail,leaseUntil,providerId,now){const leasePredicate=`n.id=? AND n.status='sending' AND n.attempts=? AND n.lease_until=? AND ${scheduledFeaturePredicate('n.company_id','sales')}`;const leaseArgs=[mail.id,mail.attempts,leaseUntil];await db.prepare(`UPDATE commerce_customer_notifications n SET status='sent',version=version+1,provider_message_id=?,sent_at=?,lease_until=NULL,last_error=NULL,updated_at=?
-      WHERE ${leasePredicate} AND ${notificationSourcePredicate('n')}`)
-      .bind(providerId,now,now,...leaseArgs).run();},
- async failed(mail,leaseUntil,retryAt,code,now){const leasePredicate=`n.id=? AND n.status='sending' AND n.attempts=? AND n.lease_until=? AND ${scheduledFeaturePredicate('n.company_id','sales')}`;const leaseArgs=[mail.id,mail.attempts,leaseUntil];await db.prepare(`UPDATE commerce_customer_notifications n SET status='failed',version=version+1,next_attempt_at=?,lease_until=NULL,last_error=?,updated_at=? WHERE ${leasePredicate}`)
-    .bind(retryAt,code,now,...leaseArgs).run();},
- next:async now=>await db.prepare(`SELECT n.id FROM commerce_customer_notifications n WHERE n.attempts<8
-      AND ((n.status IN ('pending','failed') AND n.next_attempt_at<=?) OR (n.status='sending' AND n.lease_until<?))
-      AND ${scheduledFeaturePredicate('n.company_id','sales')} ORDER BY n.next_attempt_at,n.created_at,n.id FOR UPDATE SKIP LOCKED LIMIT 1`)
-      .bind(now,now).first<string>('id'),
-};}
-function deliveryApplication(db:SqlDatabase,env:Pick<JobEnv,'RESEND_API_KEY'|'RESEND_FROM'>,send:(input:RequestInfo | URL, init?:RequestInit)=>Promise<Response>){return createCustomerDeliveryApplication({repository:deliveryRepository(db),async send(mail){if(!env.RESEND_API_KEY||!env.RESEND_FROM)throw new Error('CUSTOMER_EMAIL_NOT_CONFIGURED');
-const response=await send('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${String(env.RESEND_API_KEY)}`,'Content-Type':'application/json','Idempotency-Key':mail.id},body:JSON.stringify({from:String(env.RESEND_FROM),to:[mail.recipient_email],subject:mail.subject,text:mail.body_text}),signal:AbortSignal.timeout(10000)});
-if(!response.ok)throw new Error('CUSTOMER_EMAIL_DELIVERY_FAILED');
-const data=await response.json().catch(()=>({})) as {id?:string};
-return data.id??`resend-${mail.id}`;}});}
-export async function deliverCustomerNotification(db:SqlDatabase,env:Pick<JobEnv,'RESEND_API_KEY'|'RESEND_FROM'>,id:string,send:(input:RequestInfo | URL, init?:RequestInit)=>Promise<Response>=fetch,now=Date.now()){return await commercePackageEnforcementMode()==='disabled'?deliveryApplication(db,env,send).deliver(id,now):deliverPurchasedCustomerNotification(db,env,id,send,now);}
-export async function drainCustomerNotifications(db:SqlDatabase,env:Pick<JobEnv,'RESEND_API_KEY'|'RESEND_FROM'>,now=Date.now()){return await commercePackageEnforcementMode()==='disabled'?deliveryApplication(db,env,fetch).drain(now):drainPurchasedCustomerNotifications(db,env,now);}
-
+/**
+ * Workflow bridge: one queued/retried notice event asks the exact native Sales
+ * worker to deliver this immutable notice. TypeScript performs no SQL write and
+ * no provider call; a missing native worker fails the job closed.
+ */
+export async function deliverCustomerNotification(_database:SqlDatabase,_env:Pick<JobEnv,'RESEND_API_KEY'|'RESEND_FROM'>,id:string):Promise<void>{
+ const binary=process.env.ERPX_NATIVE_SERVER_BIN,manifest=process.env.ERPX_DATABASE_MANIFEST;
+ if(!binary||!manifest)throw new ApiError(503,'NATIVE_SALES_NOTIFICATION_WORKER_REQUIRED','The native customer-notice worker is not configured.');
+ let stdout:string;
+ try{({stdout}=await exec(binary,['sales-notification-worker','--once','--notification',id,'--database-manifest',manifest],{timeout:120_000,maxBuffer:2*1024*1024,env:process.env,windowsHide:true}));}
+ catch{throw new ApiError(503,'NATIVE_SALES_NOTIFICATION_WORKER_FAILED','The native customer-notice worker did not complete.');}
+ let outcome:unknown;
+ try{outcome=JSON.parse(stdout);}
+ catch{throw new ApiError(503,'NATIVE_SALES_NOTIFICATION_WORKER_RESPONSE_INVALID','The native customer-notice worker response is invalid.');}
+ const holdings=outcome&&typeof outcome==='object'&&!Array.isArray(outcome)?(outcome as {holdings?:unknown}).holdings:undefined;
+ if(!Array.isArray(holdings))throw new ApiError(503,'NATIVE_SALES_NOTIFICATION_WORKER_RESPONSE_INVALID','The native customer-notice worker response is invalid.');
+}

@@ -95390,6 +95390,89 @@
         "@erpx/server-inventory",
         "@erpx/server-finance"
       ]
+    },
+    {
+      "id": "sales.rust-sales-notification-execution.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/rust-sales-notification-execution.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales customer-notice delivery retains source/consent re-checks, bounded attempts, lease takeover and at-most-once provider invocation."
+      },
+      "apps": [
+        "sales"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_notification_execution"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-notification-execution-postgres.integration",
+      "lane": "integration",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/integration/sales/rust-sales-notification-execution-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales customer-notice delivery retains source/consent re-checks, bounded attempts, lease takeover and at-most-once provider invocation."
+      },
+      "apps": [
+        "sales"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_notification_execution_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }
