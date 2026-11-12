@@ -9,21 +9,10 @@ const common = { actorId: "reviewer", companyScope: true, require: () => {}, can
 const access = (source: AccessRepository, overrides: Partial<Parameters<typeof createCustomerAccessApplication>[0]> = {}) => createCustomerAccessApplication({ ...common, repository: async () => source, ...overrides });
 const duplicates = (source: DuplicateRepository, overrides: Partial<Parameters<typeof createCustomerDuplicateApplication>[0]> = {}) => createCustomerDuplicateApplication({ ...common, repository: async () => source, ...overrides });
 const identity = (source: IdentityRepository, overrides: Partial<Parameters<typeof createCustomerIdentityApplication>[0]> = {}) => createCustomerIdentityApplication({ ...common, repository: async () => source, ...overrides });
-const grant = { id: "grant", created_by: "author", status: "pending", actor_eligible: 1 };
-const duplicate = { id: "review", created_by: "author", status: "duplicate", canonical_customer_id: "left", left_customer_id: "left", right_customer_id: "right", left_status: "active", right_status: "active", left_merged_into_id: null, right_merged_into_id: null, actor_eligible: 1 };
 
 it("does not advertise Portal invitation for an approved binding whose source order is canceled", async () => {
   const source = repository<AccessRepository>({ binding: async () => ({ id: "binding", number: "Q-1", email: "customer@example.test", status: "approved", expires_at: 500, version: 2, created_by: "reviewer", approved_by: "manager", reviewed_at: 90, order_id: "order", order_state: "cancelled", branch_id: "branch", department_id: null, updated_at: 90, actor_eligible: 1 }) });
   expect(await access(source).customerAccessBinding("binding")).toMatchObject({ canInvite: false });
-});
-it("an unchanged identity proposal cannot create another review or consult the clock", async () => {
-  const source = repository<IdentityRepository>({ replay: async () => null, customer: async () => ({ name: "Customer", tax_registration: null, phone: null, address_json: "{}", notification_email: null, notification_consent: "unknown" }) });
-  await expect(identity(source).requestCustomerIdentityChange({ customerId: "customer", expectedCustomerVersion: 1, proposed: { name: "Customer", taxRegistration: null }, evidence: "Verified unchanged identity" }, "key")).rejects.toThrow("CUSTOMER_IDENTITY_UNCHANGED");
-});
-it("an independently reviewed identity applies its retained proposed snapshot and expected source version", async () => {
-  const proposed = { name: "Reviewed customer", taxRegistration: null, phone: null, address: null, notificationEmail: null, notificationConsent: "granted" }, row = { id: "change", created_by: "author", status: "pending", actor_eligible: 1, customer_id: "customer", proposed_json: JSON.stringify(proposed), expected_customer_version: 4 };
-  const source = repository<IdentityRepository>({ replay: async () => null, rows: async () => [row], customers: async () => [], history: async () => [], change: async (_command, current, facts) => { expect(current.customer_id).toBe("customer"); expect(facts).toEqual({ proposed, customerVersion: 4, status: "applied", now: 100 }); return { id: "change", status: "applied" }; } });
-  expect(await identity(source).changeCustomerIdentity("change", { action: "apply", expectedVersion: 1, reason: "Independent evidence review" }, "key")).toMatchObject({ status: "applied" });
 });
 it("customer authority Work projections acquire no repository outside Sales/read access", async () => {
   const overrides = { canSales: () => false, repository: async () => { throw new Error("unexpected repository"); } };

@@ -1,5 +1,4 @@
 import {describe,expect,test} from "vitest";
-import {createDuplicateRequestApplication,type DuplicateRequestPorts} from "@erpx/server-customer_authority/application/duplicate-request";
 import {createQueuePolicyApplication,type QueuePolicyPorts} from "@erpx/server-operations/application/queue-policy";
 import {createAssetApplication,type AssetPorts} from "@erpx/server-marketing/application/asset";
 import {formRequiresConsent} from "@erpx/server-marketing/domain/asset";
@@ -8,20 +7,16 @@ import {createMarketingApplication,type MarketingRepository,type MarketingMutati
 import {createMarketingCampaignApplication} from "@erpx/server-marketing/application/campaigns";
 import {createMarketingPresentationApplication,type MarketingPresentationPorts} from "@erpx/server-marketing/application/public-form";
 
-type Command=Parameters<DuplicateRequestPorts["persist"]>[0]|Parameters<QueuePolicyPorts["persist"]>[0]|Parameters<AssetPorts["persist"]>[0];
+type Command=Parameters<QueuePolicyPorts["persist"]>[0]|Parameters<AssetPorts["persist"]>[0];
 function fixture(){const commands:Command[]=[],calls:string[]=[];const ports={clock:{now:()=>42},branchId:"actor-branch" as string|null,departmentId:"actor-department" as string|null,companyScope:true,async authorize(){calls.push("authorize");},validatePresentation(){calls.push("presentation");},async replay():Promise<{id:string;version:number;status:string}|null>{calls.push("replay");return null;},async persist(command:Command):Promise<{id:string;version:number;status:string}>{commands.push(command);return {id:command.id,version:1,status:"draft"};}};return {ports,calls,commands};}
 
 describe("remaining business owners use semantic ports",()=>{
  // Field agreement scope/input-normalization/receipt-identity and date-range
  // validation now execute through native agreement create/activate/review
  // commands (service-only, no-charge and startup native cases); the TS
- // agreement application is retired with its producer.
- test("Customer Authority rejects non-Company scope and identical source records before receipt lookup",async()=>{
-  const f=fixture(),input={leftCustomerId:"z",rightCustomerId:"a",evidence:"Matching customer evidence"};f.ports.companyScope=false;
-  await expect(createDuplicateRequestApplication(f.ports)(input,"key")).rejects.toMatchObject({code:"CUSTOMER_COMPANY_REVIEW_REQUIRED"});expect(f.calls).toEqual(["authorize"]);
-  f.ports.companyScope=true;await expect(createDuplicateRequestApplication(f.ports)({...input,rightCustomerId:"z"},"key")).rejects.toThrow("Compare two different customer records.");
-  await createDuplicateRequestApplication(f.ports)(input,"key");expect(f.commands[0]).toMatchObject({id:"customer-duplicate-key",operation:"customer.duplicate.request",pair:["a","z"],input,now:42});
- });
+ // agreement application is retired with its producer. Customer Authority
+ // duplicate requests now run through the native owner (`customer_duplicate`
+ // request cases), so only the retained semantic ports below remain.
  test("Operations normalizes only the persisted catalogue, retaining command fingerprint input",async()=>{
   const f=fixture(),input={area:"safety",name:"Safety response",sourceKinds:["asset","staff_task","asset"],targetMinutes:60};
   await createQueuePolicyApplication(f.ports)(input,"key");expect(f.commands[0]).toMatchObject({id:"queue-policy-key",operation:"operations.policy.draft",sourceKinds:["asset","staff_task"],input,now:42});
@@ -36,8 +31,8 @@ describe("remaining business owners use semantic ports",()=>{
  test("revoked authority and lost-response replay cannot persist another owner command",async()=>{
   const f=fixture();f.ports.authorize=async()=>{throw new Error("revoked");};
   await expect(createQueuePolicyApplication(f.ports)({area:"safety",name:"Safety response",sourceKinds:["asset"],targetMinutes:60},"key")).rejects.toThrow("revoked");expect(f.commands).toEqual([]);
-  f.ports.authorize=async()=>{};f.ports.replay=async()=>({id:"original-duplicate",status:"pending",version:1});
-  expect(await createDuplicateRequestApplication(f.ports)({leftCustomerId:"a",rightCustomerId:"b",evidence:"Compare active sources"},"key")).toMatchObject({id:"original-duplicate"});expect(f.commands).toEqual([]);
+  f.ports.authorize=async()=>{};f.ports.replay=async()=>({id:"original-policy",status:"draft",version:1});
+  expect(await createQueuePolicyApplication(f.ports)({area:"safety",name:"Safety response",sourceKinds:["asset"],targetMinutes:60},"key")).toMatchObject({id:"original-policy"});expect(f.commands).toEqual([]);
  });
 });
 

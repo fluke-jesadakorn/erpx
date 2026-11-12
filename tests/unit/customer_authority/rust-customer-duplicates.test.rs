@@ -15,7 +15,7 @@ use erpx_server_customer_authority::public::duplicates::{
     request_duplicate_review,
 };
 use erpx_server_shared::public::{
-    BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, UserId,
+    BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use serde_json::Value;
 use std::sync::Mutex;
@@ -87,6 +87,7 @@ struct Fake {
     customers_active: i64,
     customer_active: i64,
     commits: Mutex<Vec<String>>,
+    request_pairs: Mutex<Vec<(String, String)>>,
     changes: Mutex<Vec<String>>,
     merges: Mutex<Vec<String>>,
     workspace: Vec<DuplicateReviewRow>,
@@ -174,6 +175,10 @@ impl DuplicateReviewCommandRepository for Fake {
     }
     fn commit_request<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a RequestPlan, _hash: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Value, Self::Error> {
         self.commits.lock().unwrap().push(key.to_owned());
+        self.request_pairs
+            .lock()
+            .unwrap()
+            .push((plan.left_customer_id.clone(), plan.right_customer_id.clone()));
         let result = serde_json::json!({"id": plan.id, "status": "pending", "version": 1});
         Box::pin(async move { Ok(result) })
     }
@@ -230,14 +235,37 @@ async fn request_duplicate_review_success() {
     let actor = actor(&["commerce.read", "commerce.sales"]);
     let key = CommandKey::new(KEY).unwrap();
     let input = DuplicateReviewRequest {
-        left_customer_id: "customer-a".into(),
-        right_customer_id: "customer-b".into(),
+        left_customer_id: "customer-b".into(),
+        right_customer_id: "customer-a".into(),
         evidence: "  Matching records  ".into(),
     };
     let result = request_duplicate_review(&mut repo, &actor, &key, &input, NOW).await.unwrap();
     assert_eq!(result["status"], "pending");
     assert_eq!(result["version"], 1);
     assert_eq!(repo.commits.lock().unwrap().len(), 1);
+    assert_eq!(
+        repo.request_pairs.lock().unwrap().as_slice(),
+        [("customer-a".into(), "customer-b".into())]
+    );
+}
+
+#[tokio::test]
+async fn request_duplicate_review_requires_company_scope_before_receipt_lookup() {
+    let mut repo = Fake::ready();
+    let mut scoped = actor(&["commerce.read", "commerce.sales"]);
+    scoped.branch_id = Some(RecordId::new("branch").unwrap());
+    let key = CommandKey::new(KEY).unwrap();
+    let input = DuplicateReviewRequest {
+        left_customer_id: "customer-a".into(),
+        right_customer_id: "customer-b".into(),
+        evidence: "Branch-scoped duplicate proposal".into(),
+    };
+    let err = request_duplicate_review(&mut repo, &scoped, &key, &input, NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind, FailureKind::Forbidden);
+    assert_eq!(err.code, "CUSTOMER_COMPANY_REVIEW_REQUIRED");
+    assert!(repo.commits.lock().unwrap().is_empty());
 }
 
 #[tokio::test]

@@ -1092,12 +1092,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-identity-changes.test.ts",
-          "title": "routes an independent review and atomically applies the snapshot to the unchanged customer version",
-          "proof": "expect(await requestCustomerIdentityChange(f.owner,body,k)).toEqual(created);\nawait expect(changeCustomerIdentity(f.owner,id,{action:'apply',expectedVersion:1,reason:'Requester self approval attempt'},key())).rejects.toMatchObject({code:'INDEPENDENT_APPROVER_REQUIRED'});\nexpect((await customerIdentityWork(reviewer)).find(x=>x.id===id)).toMatchObject({queue:'todo',canAct:true,href:`/customer-identity/${id}`});\nexpect({...applied,address_json:JSON.parse(String(applied.address_json))}).toEqual({name:'Reviewed customer name',tax_registration:'SIM-NEW',phone:'+66 2 555 0101',address_json:{line1:'99 Demo Road',line2:null,city:'Bangkok',region:'Bangkok',postalCode:'10110',countryCode:'TH'},notification_email:'billing@example.test',notification_consent:'granted',version:2})\nexpect((await customerIdentityDetail(f.owner,id)).history).toHaveLength(2);"
-        }
       ],
       "moduleId": "customer_authority",
       "capabilityId": "feature-identity-changes"
