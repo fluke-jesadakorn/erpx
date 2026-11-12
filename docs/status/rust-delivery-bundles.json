@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 853,
+    "revision": 857,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -19991,18 +19991,11 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261112-q",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T11:54:58.453Z",
-          "heartbeatAt": "2026-11-12T11:54:58.453Z",
-          "expiresAt": "2026-11-12T12:24:58.453Z",
-          "generation": 42
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "55a0269395ab162ce6335264bec3546b2a2ddd8b",
+        "lastPushedSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b",
         "checks": [
           {
             "command": "retirement:ts-writes packages/server-operations routine template/schedule writers",
@@ -20091,11 +20084,108 @@
             "sourceSha": "ac75df627a43fc43c030e16f5ae95e4ab9ffce5e",
             "sourceKind": "committed",
             "note": "Corrected owner count after the committed capture-removal: operations KPI 26->16. Residual 16: manual runTemplate 3, work-routine purchase helper 4, work-task purchase helper 2, task-attachment purchase helper 2, saveTask 2, workflow approval effects 1, task-alert helpers 2."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b",
+            "before": 26,
+            "after": 16,
+            "residual": [
+              {
+                "path": "packages/server-operations/src/adapters/routines.ts",
+                "writes": 3,
+                "removalTaskId": "migrate.operations.routines-handover",
+                "removalCondition": "Native run/generate occurrence handover replaces stageOccurrenceStatements, the generate cursor and error updates."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/work-routine-purchases.ts",
+                "writes": 4,
+                "removalTaskId": "migrate.operations.routines-handover",
+                "removalCondition": "Removed with the run/generate command fence and execution-step lineage."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/work-task-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Native beta social task create then remove the fenced task commands."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/task-attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the TS attachment purchase fences."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/staff-tasks.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Native beta social task create replaces saveTask."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/workflow-approval-effects.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Native approval reroute owns the task revision bump."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/work-task-alert-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the fenced task alert command."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/task-attachment-read.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.operations.staff-work",
+                "removalCondition": "Removed with the TS task file read path."
+              }
+            ]
+          },
+          {
+            "command": "cargo test -p erpx-server-operations --test routine_commands",
+            "result": "passed",
+            "sourceSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b"
+          },
+          {
+            "command": "bun run test:unit -- --suite=operations.services.unit --suite=operations.native-routines-route.unit",
+            "result": "passed",
+            "sourceSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b"
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.staff-work.integration",
+            "result": "passed",
+            "sourceSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b"
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.work-projections.integration",
+            "result": "passed",
+            "sourceSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b"
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.work-task-files.integration",
+            "result": "passed",
+            "sourceSha": "55a0269395ab162ce6335264bec3546b2a2ddd8b"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Routine template create/update/clone and schedule create/update/pause/resume/end are native and mounted with a fail-closed route switch; TS routine writers and command-only repository code deleted (operations KPI 26->16, ac75df627). Residual 16 is the live manual runTemplate/saveTask/project-work purchase/approval helper set; bind a dedicated retire task before claiming migrated.",
+        "nextAction": "Native routine template/schedule commands mounted and routes fail closed; TS writers/ports/fences deleted; KPI 26->16 with run/generate + staff-work residuals; pushed 55a026939.",
         "handoff": {
           "runId": "run-20261112-p",
           "agentId": "lead",
@@ -20114,7 +20204,8 @@
           "clientParity": true,
           "routeAuthority": true,
           "presenterParity": true
-        }
+        },
+        "retireTaskId": "retire.operations"
       },
       {
         "id": "retire.agent.agent-governance",
@@ -20360,15 +20451,22 @@
         "resources": [
           "owner:files"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-q",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T12:16:20.938Z",
+          "heartbeatAt": "2026-11-12T12:16:20.938Z",
+          "expiresAt": "2026-11-12T12:46:20.938Z",
+          "generation": 42
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/attachments/service-repository.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "BLOCKED ON CAPACITY: worker-files-retire died on OpenCode Go usage limit before any edit. Resume this lane (Step-0 native counterpart table for packages/server-files/src/**/*.ts, then six-point retirement and KPI pair) when subagent/model quota is restored.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -21852,20 +21950,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 97,
-      "migratedPackets": 39,
+      "migratedPackets": 40,
       "statusCounts": {
-        "pending": 29,
-        "in_progress": 3,
-        "ready_for_integration": 11,
+        "pending": 28,
+        "in_progress": 4,
+        "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 39,
+        "migrated": 40,
         "blocked": 15,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 42,
-    "updatedAt": "2026-11-12T11:55:49.321Z",
+    "updatedAt": "2026-11-12T12:16:57.862Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
