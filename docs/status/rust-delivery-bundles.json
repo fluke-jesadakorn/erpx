@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1159,
+    "revision": 1169,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21039,22 +21039,40 @@
           "packages/server-commerce/Cargo.toml",
           "packages/server-commerce/package.json",
           "packages/feature-commerce/**",
-          "fixtures/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**",
+          "tests/support/helpers/**",
           "tests/unit/commerce/**",
-          "tests/integration/commerce/**"
+          "tests/integration/commerce/**",
+          "tests/integration/crm/**",
+          "tests/integration/ecommerce/**",
+          "tests/integration/finance/**",
+          "tests/integration/inventory/**",
+          "tests/integration/platform_administration/**",
+          "tests/integration/procurement/**",
+          "tests/integration/quality/**",
+          "tests/integration/sales/**",
+          "tests/integration/shared.work/**",
+          "tests/catalogue/engineering-scenarios.json"
         ],
         "resources": [
           "owner:commerce"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-b",
+          "agentId": "worker-commerce-retire",
+          "claimedAt": "2026-11-12T19:48:36.505Z",
+          "heartbeatAt": "2026-11-12T19:48:36.505Z",
+          "expiresAt": "2026-11-12T20:18:36.505Z",
+          "generation": 46
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/commerce.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Move the fulfillOrder oracle suites to a native-seeding helper, delete the TS fulfillOrder writer/fallback/exports, switch the service branch to the native completion, and record the owner KPI delta.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -27285,14 +27303,7 @@
           "owner:commerce"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261113-b",
-          "agentId": "worker-commerce-delivery",
-          "claimedAt": "2026-11-12T19:21:40.563Z",
-          "heartbeatAt": "2026-11-12T19:43:37.866Z",
-          "expiresAt": "2026-11-12T20:13:37.866Z",
-          "generation": 46
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "0ae4e2a88caf9a0397937fad90b283ccc1dd6f5b",
         "lastPushedSha": "0ae4e2a88caf9a0397937fad90b283ccc1dd6f5b",
@@ -27364,15 +27375,15 @@
             "removalCondition": "Export removed after the remaining test/fixture oracles move to native seeding."
           }
         ],
-        "blocker": null,
-        "nextAction": "Lead review: sales goods/mixed fulfillment is native-only from the workplace route (purchase receipts stay on their native backend); composition mounts the delivery router. Remaining to close: move the 21 fulfillOrder oracle suites to native seeding and delete the TS service-branch fallback plus fulfillOrder export under retire.commerce.commerce, then record the retirement delta.",
+        "blocker": "handoff",
+        "nextAction": "Lead review: native sales goods/mixed delivery is mounted and switched end to end; the service-branch fallback and fulfillOrder oracles move under retire.commerce.commerce.",
         "handoff": {
-          "runId": "run-20261113-a",
+          "runId": "run-20261113-b",
           "agentId": "worker-commerce-delivery",
-          "at": "2026-11-12T19:21:40.531Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 19:07Z after the commerce owner-side slice push; worker WIP preserved and claims re-established",
-          "nextAction": "Implement the native sales delivery use case in server-commerce over the Inventory stock_issue seam and Finance Delivery goods journal, mount it in order_http for goods/mixed fulfill, then (after the sales lane releases feature-sales/composition) switch the client and workplace route and delete the TS fulfillOrder goods branch."
+          "at": "2026-11-12T19:48:28.113Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead review: native sales goods/mixed delivery is mounted and switched end to end; the service-branch fallback and fulfillOrder oracles move under retire.commerce.commerce."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commerce",
@@ -27861,6 +27872,119 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "retire.learning.course-create",
+        "title": "Retire the TypeScript Learning course-create writer",
+        "scope": "The native Learning course create/publish command is mounted and the feature-learn route dispatches it. Delete the TS course-create adapter/application and exports, fail the course-create path closed without config, and seed courses directly in fixtures (fixture edits committed at 2b9f81c5b). Learning KPI 17 -> 15.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "packages/server-learning/package.json",
+          "packages/feature-learn/**",
+          "tests/integration/learning/**",
+          "tests/integration/people_payroll/people-evaluation.test.ts",
+          "tests/integration/shared.executive/executive-canvas.test.ts",
+          "tests/unit/shared.architecture/owner-command-applications.test.ts"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "5d7dde4f8733d70aa7e061698c912dd0dde38927",
+        "implementedCommit": "2b9f81c5b8911e93602f29a3fda8df8579187bed",
+        "lastPushedSha": "2b9f81c5b8911e93602f29a3fda8df8579187bed",
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "2b9f81c5b8911e93602f29a3fda8df8579187bed",
+            "note": "Root typecheck passes after deleting the TS course-create path."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "2b9f81c5b8911e93602f29a3fda8df8579187bed",
+            "note": "Test typecheck passes with the native course seeding helper."
+          },
+          {
+            "command": "bun run test:unit -- --suite=learning.rust-learning.unit",
+            "result": "passed",
+            "sourceSha": "2b9f81c5b8911e93602f29a3fda8df8579187bed",
+            "note": "25/25 native Learning owner cases pass, including course create/publish."
+          },
+          {
+            "command": "bun run test:unit -- --suite=learning.rust-learning-http.unit",
+            "result": "passed",
+            "sourceSha": "2b9f81c5b8911e93602f29a3fda8df8579187bed",
+            "note": "3/3 native HTTP cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=learning.rust-learning-postgres.integration",
+            "result": "passed",
+            "sourceSha": "2b9f81c5b8911e93602f29a3fda8df8579187bed",
+            "note": "14/14 native PostgreSQL cases pass."
+          },
+          {
+            "command": "retirement:ts-writes: learning",
+            "result": "passed",
+            "sourceSha": "2b9f81c5b8911e93602f29a3fda8df8579187bed",
+            "before": 17,
+            "after": 15,
+            "note": "git grep over packages/server-learning/src/**/*.ts: 17 before, 15 after. learning.learning.integration is 22/24 for the same pre-existing native work-role next/headers() environment failure in other lanes; all course/assignment seeding cases pass.",
+            "residual": [
+              {
+                "path": "packages/server-learning/src/adapters/learning.ts",
+                "writes": 8,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/learning-eligibility.ts",
+                "writes": 2,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Learning residuals: assignment/course-change/eligibility writers remain TS; completion attachment binding needs a native Files port before full retirement.",
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -27869,21 +27993,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 131,
-      "migratedPackets": 64,
+      "totalPackets": 132,
+      "migratedPackets": 65,
       "statusCounts": {
-        "pending": 29,
-        "in_progress": 6,
+        "pending": 28,
+        "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 64,
+        "migrated": 65,
         "blocked": 22,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T19:47:33.189Z",
+    "updatedAt": "2026-11-12T19:53:00.357Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
