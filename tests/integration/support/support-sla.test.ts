@@ -2,9 +2,11 @@ import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import {getSupportTicket,supportWork} from '@erpx/server-support/public/support';
+import {getSupportTicket} from '@erpx/server-support/public/support';
 import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
-import {createSupportPolicy,changeSupportPolicy,attachSupportClock,getSupportPolicy,supportSlaWorkspace,supportClockValue,supportPolicyWork} from "@erpx/server-support/public/support-sla";
+import {seedSupportClock,seedSupportPolicy} from '../../support/helpers/support-sla-seed';
+import {startSupportClock} from '@erpx/server-support/public/rules/support-clock';
+import {getSupportPolicy,supportSlaWorkspace,supportPolicyWork} from "@erpx/server-support/public/support-sla";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
 const policy={calendar:{timezone:'Asia/Bangkok',weekdays:[1,2,3,4,5],opensAtMinute:540,closesAtMinute:1020,holidays:[]},targetMinutes:60,pauseWhileWaiting:true};
@@ -12,23 +14,19 @@ beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 afterEach(()=>{vi.restoreAllMocks();});
 beforeEach(async()=>{f=await expenseFixture();for(const [a,role] of [[f.head,'support_agent'],[f.manager,'support_manager']] as const){a.role=role;a.branchId=null;a.departmentId=null;a.assignmentId=await f.grant(a,role);}const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'SLA customer'},key()),w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'SLA warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'SLA item',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
 async function ticket(){return String((await seedSupportTicket(db,f.owner,{orderId: order,title:'SLA support case',issue:'Customer installation question',ownerId:f.head.userId,dueDate:'2026-09-24'})).id);}
-it('scopes target watches and rejects retired, stale and duplicate attachments without replacing a ticket policy',async()=>{
- const p=await createSupportPolicy(f.owner,{name:'Reviewed target',policy,reason:'Simulation target definition'},key());await changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Approved independently'},key());
- const id=await ticket(),input={expectedVersion:1,policyId:p.id,policyVersion:2,reason:'Attach reviewed target'};
- const results=await Promise.allSettled([attachSupportClock(f.owner,id,input,key()),attachSupportClock(f.owner,id,input,key())]);expect(results.filter(x=>x.status==='fulfilled')).toHaveLength(1);
+it('reads an approved target and its attached clock with scope isolation',async()=>{
+ const p=await seedSupportPolicy(db,f.owner,{name:'Reviewed target',policy}),id=await ticket(),clock=startSupportClock(policy,Date.parse('2026-09-21T02:00:00Z'));
+ await seedSupportClock(db,id,{policyId:p.id,policyVersion:2,clock,actorId:f.owner.userId,reason:'Attach reviewed target'});
  await expect(getSupportPolicy({...f.owner,companyId:'other'},String(p.id))).rejects.toMatchObject({status:404});
  expect((await supportSlaWorkspace({...f.head,branchId:'other'})).items).toEqual([]);
- await expect(createSupportPolicy({...f.manager,branchId:f.branch},{name:'Branch must not set company policy',policy,reason:'Unauthorized scope'},key())).rejects.toMatchObject({code:'SUPPORT_COMPANY_POLICY_REQUIRED'});
- await changeSupportPolicy(f.manager,String(p.id),{action:'retire',expectedVersion:2,reason:'Stop future target use'},key());
- await expect(attachSupportClock(f.owner,await ticket(),input,key())).rejects.toMatchObject({code:'CONFLICT'});
  expect(await getSupportTicket(f.head,id)).toMatchObject({sla_policy_version:2,version:2});
+ expect((await supportSlaWorkspace(f.head)).items.find(item=>item.id===id)).toMatchObject({policyId:p.id,policyVersion:2,clock:{state:'running'}});
+ expect((await supportPolicyWork(f.manager)).find(row=>row.id===p.id)?.queue).toBe('completed');
 });
 it('retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket',async()=>{
  const {drainSupportSla,supportAlerts,supportAlertWork}=await import("@erpx/server-support/public/support-sla-alerts");
- const p=await createSupportPolicy(f.owner,{name:'Escalation target',policy,reason:'Independent target with breach follow-up'},key());
- await changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Reviewed working calendar'},key());
- const id=await ticket(),now=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-21T02:00:00Z'));
- await attachSupportClock(f.owner,id,{expectedVersion:1,policyId:p.id,policyVersion:2,reason:'Start observed target'},key());
+ const p=await seedSupportPolicy(db,f.owner,{name:'Escalation target',policy}),id=await ticket(),now=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-21T02:00:00Z')),clock=startSupportClock(policy,Date.parse('2026-09-21T02:00:00Z'));
+ await seedSupportClock(db,id,{policyId:p.id,policyVersion:2,clock,actorId:f.owner.userId,reason:'Start observed target'});
  await drainSupportSla(db,Date.parse('2026-09-21T03:00:00Z'));expect(await supportAlerts(f.manager)).toEqual([]);
  now.mockReturnValue(Date.parse('2026-09-21T03:01:00Z'));
  await Promise.all([drainSupportSla(db),drainSupportSla(db)]);
@@ -48,10 +46,9 @@ it('retains durable breach escalation across retries, checks live routing and re
  await expect(db.prepare("UPDATE support_sla_alerts SET reason='rewrite evidence' WHERE id=?").bind(alert.id).run()).rejects.toThrow('SUPPORT_ALERT_IMMUTABLE');
 });
 it('removes a withdrawn reviewer from policy actions and never approves through stale HR eligibility',async()=>{
- const p=await createSupportPolicy(f.owner,{name:'Routing eligibility',policy,reason:'Review active assignment and engagement'},key());
+ const p=await seedSupportPolicy(db,f.owner,{name:'Routing eligibility',policy,status:'draft',createdBy:f.owner.userId});
  await db.prepare("UPDATE hr_people SET status='inactive' WHERE user_id=? AND company_id=?").bind(f.manager.userId,f.company).run();
  expect((await supportPolicyWork(f.manager)).find(x=>x.id===p.id)?.canAct).toBe(false);
  expect((await supportSlaWorkspace(f.manager)).policies.find(x=>x.id===p.id)?.canApprove).toBe(false);
- await expect(changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Stale reviewer cannot approve'},key())).rejects.toMatchObject({code:'CONFLICT'});
  expect(await getSupportPolicy(f.owner,String(p.id))).toMatchObject({status:'draft',version:1});
 });

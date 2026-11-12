@@ -28,7 +28,8 @@ import { attachmentPolicy, authorizeAttachmentTarget } from "@erpx/server-files/
 import { createAttachmentSet } from "@erpx/server-files/public/attachments/service";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
-import { createSupportPolicy, changeSupportPolicy, attachSupportClock } from "@erpx/server-support/public/support-sla";
+import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
+import { seedSupportClock, seedSupportPolicy } from "../../support/helpers/support-sla-seed";
 import { drainSupportSla } from "@erpx/server-support/public/support-sla-alerts";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { POST as reserveFile } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/uploads/route";
@@ -296,9 +297,8 @@ it("keeps rejection/revocation while draining, hides access expansion and expire
 
 it("gates actual SLA sweep and notifications while preserving draining and expired settlement", async () => {
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT","disabled");await triage();
-  const p = await createSupportPolicy(f.manager, { name: "Native escalation target", policy, reason: "Scoped SLA parity" }, key());
-  await changeSupportPolicy(f.owner, String(p.id), { action: "approve", expectedVersion: 1, reason: "Independent Company policy review" }, key());
-  await attachSupportClock(f.manager, ticketId, { expectedVersion: 2, policyId: p.id, policyVersion: 2, reason: "Attach the current target" }, key());
+  const p = await seedSupportPolicy(db, f.manager, { name: "Native escalation target", policy, createdBy: f.owner.userId, approvedBy: f.manager.userId });
+  await seedSupportClock(db, ticketId, { policyId: p.id, policyVersion: 2, clock: startSupportClock(policy, Date.now()), actorId: f.manager.userId, reason: "Attach the current target" });
   const row = await getSupportTicket(f.manager, ticketId), clock = JSON.parse(String(row.sla_clock_json));
   // A first future purchase gates a legacy report; it never withdraws an
   // already effective period while the report still needs settlement.
@@ -368,9 +368,8 @@ it("keeps shadow UI/file behavior and observes an unpurchased SLA batch without 
   await triage();
   expect((await supportWorkspace(f.claimant)).canCreate).toBe(true);
   expect(await createAttachmentSet(db, f.manager, fileInput(), key())).toBeTruthy();
-  const p = await createSupportPolicy(f.manager, { name: "Shadow escalation target", policy, reason: "Observe existing behavior" }, key());
-  await changeSupportPolicy(f.owner, String(p.id), { action: "approve", expectedVersion: 1, reason: "Independent shadow policy review" }, key());
-  await attachSupportClock(f.manager, ticketId, { expectedVersion: 2, policyId: p.id, policyVersion: 2, reason: "Observe the existing target" }, key());
+  const p = await seedSupportPolicy(db, f.manager, { name: "Shadow escalation target", policy, createdBy: f.owner.userId, approvedBy: f.manager.userId });
+  await seedSupportClock(db, ticketId, { policyId: p.id, policyVersion: 2, clock: startSupportClock(policy, Date.now()), actorId: f.manager.userId, reason: "Observe the existing target" });
   const clock = JSON.parse(String((await getSupportTicket(f.manager, ticketId)).sla_clock_json));
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "enforced"); await drainSupportSla(db, Number(clock.dueAt) + 1);
   expect(await db.prepare("SELECT count(*) total FROM support_sla_alerts WHERE ticket_id=?").bind(ticketId).first()).toEqual({ total: 0 });

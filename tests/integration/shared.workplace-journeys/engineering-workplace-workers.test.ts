@@ -11,7 +11,8 @@ import {enrollEngineeringVerification} from "@erpx/server-platform_administratio
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import {getSupportTicket} from '@erpx/server-support/public/support';
 import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
-import {createSupportPolicy,changeSupportPolicy,attachSupportClock} from "@erpx/server-support/public/support-sla";
+import {startSupportClock} from "@erpx/server-support/public/rules/support-clock";
+import {seedSupportClock,seedSupportPolicy} from "../../support/helpers/support-sla-seed";
 import {drainSupportSla} from "@erpx/server-support/public/support-sla-alerts";
 import {savePostDraft,publishPost,postView} from '@erpx/server-collaboration/public/social-home';
 import {drainSocialAgent} from "@erpx/server-collaboration/public/social-agent";
@@ -42,8 +43,8 @@ async function supportTicket(company:typeof f){
  const {owner,head,manager}=company;for(const [actor,role] of [[head,'support_agent'],[manager,'support_manager']] as const){actor.role=role;actor.assignmentId=await company.grant(actor,role);actor.branchId=null;actor.departmentId=null;}
  const customer=await saveMaster(owner,'parties',null,{kind:'customer',code:key(),name:'Fictional SLA customer'},key()),warehouse=await saveMaster(owner,'warehouses',null,{branchId:company.branch,code:key(),name:'Fictional SLA warehouse'},key()),product=await saveMaster(owner,'products',null,{sku:key(),name:'Fictional SLA equipment',price:'10'},key());
  const order=await saveOrder(owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:warehouse.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:product.id,quantity:'1',price:'10',taxBps:0}]}),key());
- const ticket=await seedSupportTicket(db,owner,{orderId:String(order.id),title:'Fictional overdue support ticket',issue:'Retain the linked native customer request',ownerId:head.userId,dueDate:'2026-10-10'}),policy=await createSupportPolicy(owner,{name:'Fictional one-minute engineering SLA',policy:{calendar:{timezone:'Asia/Bangkok',weekdays:[0,1,2,3,4,5,6],opensAtMinute:0,closesAtMinute:1440,holidays:[]},targetMinutes:1,pauseWhileWaiting:true},reason:'Declared fixture calendar; no real SLA contract'},key());
- await changeSupportPolicy(manager,String(policy.id),{action:'approve',expectedVersion:1,reason:'Independent fixture calendar review'},key());const clock=vi.spyOn(Date,'now').mockReturnValue(Date.now()-3600000);try{await attachSupportClock(owner,String(ticket.id),{expectedVersion:1,policyId:policy.id,policyVersion:2,reason:'Declared historical fixture clock'},key());}finally{clock.mockRestore();}
+ const ticket=await seedSupportTicket(db,owner,{orderId:String(order.id),title:'Fictional overdue support ticket',issue:'Retain the linked native customer request',ownerId:head.userId,dueDate:'2026-10-10'}),policyDefinition={calendar:{timezone:'Asia/Bangkok',weekdays:[0,1,2,3,4,5,6],opensAtMinute:0,closesAtMinute:1440,holidays:[]},targetMinutes:1,pauseWhileWaiting:true},policy=await seedSupportPolicy(db,owner,{name:'Fictional one-minute engineering SLA',policy:policyDefinition});
+ const clock=vi.spyOn(Date,'now').mockReturnValue(Date.now()-3600000);try{await seedSupportClock(db,String(ticket.id),{policyId:policy.id,policyVersion:2,clock:startSupportClock(policyDefinition,Date.now()-3600000),actorId:owner.userId,reason:'Declared historical fixture clock'});}finally{clock.mockRestore();}
  return String(ticket.id);
 }
 async function social(company:typeof f){

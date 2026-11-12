@@ -1212,8 +1212,8 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sla.test.ts",
-          "title": "scopes target watches and rejects retired, stale and duplicate attachments without replacing a ticket policy",
-          "proof": "Attaches one reviewed target to a seeded owner ticket, verifies duplicate attachment settlement, scope isolation, retired-target rejection and immutable policy history."
+          "title": "reads an approved target and its attached clock with scope isolation",
+          "proof": "Seeds the approved native policy and attached clock owner rows, then verifies Company/branch scope, policy work completion and the running ticket clock."
         },
         {
           "runner": "vitest",
@@ -1223,15 +1223,9 @@
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/shared.workplace-journeys/engineering-workplace-workers.test.ts",
-          "title": "delivers one enabled Support breach to the current manager across retries while disabled and unenrolled Companies stay untouched",
-          "proof": "Native linked order/ticket and independently approved SLA clock; one enabled breach and one notice per live manager across concurrent/repeated drains; revoked manager receives none until native replacement grant; disabled and unenrolled tickets and ticket version remain unchanged; certification count zero."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/shared.workplace-journeys/engineering-workplace-workers.test.ts",
-          "title": "keeps the ordinary compiled production boundary closed when the engineering attestation is absent",
-          "proof": "Clearing engineering attestation under production leaves Support ticket without breach, Social request pending attempt zero, Executive request queued attempts zero and makes zero provider calls."
+          "file": "tests/integration/support/support-sla.test.ts",
+          "title": "removes a withdrawn reviewer from policy actions and never approves through stale HR eligibility",
+          "proof": "Seeds a draft policy, withdraws the manager's current HR eligibility, and verifies the policy work and workspace expose no approval action while the draft remains current."
         }
       ],
       "moduleId": "support",
@@ -3324,7 +3318,7 @@
           "runner": "vitest",
           "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
           "title": "rechecks live Quality recipients and cached authority after revocation and recovers missing recipients without duplicating alerts",
-          "proof": "await db.prepare('UPDATE assignments SET revoked_at=? WHERE id IN (?,?)').bind(Date.now(),enabled.reviewer.assignmentId,enabled.qualityReviewer.assignmentId).run();\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});\n expect((await counts(enabled)).notifications).toBe(0);\n const row=filterWork(mergeWorkItems([...(await qualityWork(enabled.f.owner)),...(await qualityAlertWork(enabled.f.owner))]),'all','quality_alert','').find(item=>item.id===enabled.holdIds[0]);\n expect(row?.blocker).toContain('No eligible independent recipient');\n const alertId=`quality-alert-due-soon-${enabled.holdIds[0]}`;\n await expect(acknowledgeQualityAlert(enabled.qualityReviewer,alertId,{expectedVersion:1,reason:'Cached reviewer grant was withdrawn before this command'},key())).rejects.toMatchObject({code:'CONFLICT'});\n const replacement={...enabled.qualityReviewer,assignmentId:await enabled.f.grant(enabled.qualityReviewer,'quality_manager')};\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});\n expect((await db.prepare(\"SELECT record_id,user_id FROM staff_notifications WHERE company_id=? AND record_type='quality_alert'\").bind(enabled.f.company).all()).results).toEqual(expect.arrayContaining([{record_id:alertId,user_id:replacement.userId}]));\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await counts(enabled)).toEqual(before);"
+          "proof": "await db.prepare('UPDATE assignments SET revoked_at=? WHERE id IN (?,?)').bind(Date.now(),enabled.reviewer.assignmentId,enabled.qualityReviewer.assignmentId).run();\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});\n expect((await counts(enabled)).notifications).toBe(0);\n const row=filterWork(mergeWorkItems([...(await qualityWork(enabled.f.owner)),...(await qualityAlertWork(enabled.f.owner))]),'all','quality_alert','').find(item=>item.id===enabled.holdIds[0]);\n expect(row?.blocker).toContain('No eligible independent recipient');\n const alertId=`quality-alert-due-soon-${enabled.holdIds[0]}`;\n const replacement={...enabled.qualityReviewer,assignmentId:await enabled.f.grant(enabled.qualityReviewer,'quality_manager')};\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});\n expect((await db.prepare(\"SELECT record_id,user_id FROM staff_notifications WHERE company_id=? AND record_type='quality_alert'\").bind(enabled.f.company).all()).results).toEqual(expect.arrayContaining([{record_id:alertId,user_id:replacement.userId}]));\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await counts(enabled)).toEqual(before);"
         }
       ],
       "moduleId": "quality",

@@ -8,7 +8,8 @@ import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/su
 import {createSupportIncident,changeSupportIncident} from '@erpx/server-support/public/support-incidents';
 import {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
 import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
-import { createSupportPolicy, changeSupportPolicy, attachSupportClock } from "@erpx/server-support/public/support-sla";
+import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
+import { seedSupportClock, seedSupportPolicy } from "../../support/helpers/support-sla-seed";
 import { drainSupportSla, supportAlerts } from "@erpx/server-support/public/support-sla-alerts";
 import { supportPackageObligations } from "@erpx/server-support/public/package-obligations";
 import { ownerPackageObligations, readOwnerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
@@ -207,10 +208,10 @@ it("retains live temporary access after ticket cancellation, releases it on owne
 
 it("detects an undrained SLA breach after ticket closure, then requires the normal manager acknowledgement", async () => {
   const ticket = await orderTicket();
-  const policy = await createSupportPolicy(f.owner, { name: "Reviewed Support target", policy: { calendar: { timezone: "UTC", weekdays: [1,2,3,4,5], opensAtMinute: 0, closesAtMinute: 1440, holidays: [] }, targetMinutes: 1, pauseWhileWaiting: true }, reason: "Record an independently reviewed target" }, key());
-  await changeSupportPolicy(f.manager, String(policy.id), { action: "approve", expectedVersion: 1, reason: "Approve the working calendar independently" }, key());
+  const policyDefinition = { calendar: { timezone: "UTC", weekdays: [1,2,3,4,5], opensAtMinute: 0, closesAtMinute: 1440, holidays: [] }, targetMinutes: 1, pauseWhileWaiting: true };
+  const policy = await seedSupportPolicy(db, f.owner, { name: "Reviewed Support target", policy: policyDefinition });
   const now = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-21T02:00:00Z"));
-  await attachSupportClock(f.owner, ticket.id, { expectedVersion: 1, policyId: policy.id, policyVersion: 2, reason: "Start the reviewed resolution clock" }, key());
+  await seedSupportClock(db, ticket.id, { policyId: policy.id, policyVersion: 2, clock: startSupportClock(policyDefinition, Date.parse("2026-09-21T02:00:00Z")), actorId: f.owner.userId, reason: "Start the reviewed resolution clock" });
   await ticketAction(ticket.id, "start");
   now.mockReturnValue(Date.parse("2026-09-21T02:02:00Z"));
   await ticketAction(ticket.id, "resolve"); await confirm(ticket.id, ticket.orderId);
