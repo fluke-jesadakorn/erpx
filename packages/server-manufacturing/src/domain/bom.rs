@@ -6,6 +6,7 @@
 //! Holding transaction and the selected Company scope are supplied by the
 //! composition; this module enforces the read policy and every source fact
 //! before presentation.
+use erpx_server_runtime::public::http_support::serde_json;
 use erpx_server_shared::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
@@ -66,6 +67,65 @@ impl BomActor {
             ));
         }
         Ok(())
+    }
+
+    fn require_command_module(&self, now: TimestampMillis) -> Result<(), BusinessError> {
+        if !self.has_module() {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "MANUFACTURING_MODULE_FORBIDDEN",
+                "Your current role cannot access Manufacturing.",
+            ));
+        }
+        if self.expires_at <= 0 || now.get() >= self.expires_at {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "WORK_CONTEXT_CHANGED",
+                "Your selected work context changed. Review the current workspace and role.",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Retained specification command policy: `records.write` and the
+    /// `manufacturing` module under a current (non-expired) work context.
+    pub fn require_write(&self, now: TimestampMillis) -> Result<(), BusinessError> {
+        if !self.has("records.write") {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "MANUFACTURING_PERMISSION_REQUIRED",
+                "Your selected role does not grant Manufacturing write access.",
+            ));
+        }
+        self.require_command_module(now)
+    }
+
+    /// Reviewing additionally requires `records.review`; the retained
+    /// create/review path checks write and review separately.
+    pub fn require_review(&self, now: TimestampMillis) -> Result<(), BusinessError> {
+        if !self.has("records.review") {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "MANUFACTURING_REVIEW_REQUIRED",
+                "Your selected role does not grant Manufacturing review access.",
+            ));
+        }
+        self.require_write(now)
+    }
+
+    /// Bounded actor/authority snapshot stored with each command receipt so a
+    /// replay cannot silently cross Company, branch or department scope.
+    pub fn authority_json(&self) -> String {
+        serde_json::json!({
+            "userId": self.user_id,
+            "companyId": self.company_id.as_str(),
+            "branchId": self.branch_id.as_ref().map(RecordId::as_str),
+            "departmentId": self.department_id.as_ref().map(RecordId::as_str),
+            "permissions": self.permissions,
+            "modules": self.modules,
+            "expiresAt": self.expires_at,
+        })
+        .to_string()
     }
 }
 
@@ -131,7 +191,7 @@ pub struct BomRegister {
     pub specifications: Vec<BomSpecification>,
 }
 
-fn identifier(value: &str) -> bool {
+pub(crate) fn identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
@@ -139,7 +199,7 @@ fn identifier(value: &str) -> bool {
 /// Line_Terminator, including U+FEFF. Rust `str::trim` additionally strips
 /// U+0085 (White_Space in Unicode but not trimmed by the TypeScript
 /// `text` validator) and keeps U+FEFF, so the exact set is spelled out.
-fn js_trim(value: &str) -> &str {
+pub(crate) fn js_trim(value: &str) -> &str {
     value.trim_matches(|character| {
         matches!(character,
             '\u{0009}'..='\u{000d}'
@@ -156,7 +216,7 @@ fn js_trim(value: &str) -> &str {
     })
 }
 
-fn text_trimmed(value: &str, minimum: usize, maximum: usize) -> bool {
+pub(crate) fn text_trimmed(value: &str, minimum: usize, maximum: usize) -> bool {
     // TS `trimmed(min, max)`: `[...value].length >= minimum` (code points)
     // and `TextEncoder` byte length `<= maximum`, plus trim edges.
     let chars = value.chars().count();
@@ -170,7 +230,7 @@ fn text_trimmed(value: &str, minimum: usize, maximum: usize) -> bool {
         && !value.chars().any(char::is_control)
 }
 
-fn text_bare(value: &str, minimum: usize, maximum: usize) -> bool {
+pub(crate) fn text_bare(value: &str, minimum: usize, maximum: usize) -> bool {
     // TS bare `text(max)`: `TextEncoder` byte length in `[minimum, maximum]`,
     // plus trim edges (no char-min).
     let bytes = value.len();
@@ -180,15 +240,15 @@ fn text_bare(value: &str, minimum: usize, maximum: usize) -> bool {
         && !value.chars().any(char::is_control)
 }
 
-fn nonnegative(value: i64) -> bool {
+pub(crate) fn nonnegative(value: i64) -> bool {
     (0..=MAX_SAFE_INTEGER).contains(&value)
 }
 
-fn positive(value: i64) -> bool {
+pub(crate) fn positive(value: i64) -> bool {
     (1..=MAX_SAFE_INTEGER).contains(&value)
 }
 
-fn valid_mode(value: &str) -> bool {
+pub(crate) fn valid_mode(value: &str) -> bool {
     matches!(value, "bom" | "formula")
 }
 
