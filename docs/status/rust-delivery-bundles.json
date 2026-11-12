@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 751,
+    "revision": 753,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -18647,6 +18647,69 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "retire.assets.change-writer",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "assets",
+        "workflowIds": [
+          "assets/asset-register",
+          "assets/condition",
+          "assets/feature-placement",
+          "assets/feature-maintenance-lifecycle",
+          "assets/feature-retirement"
+        ],
+        "workstream": "S06",
+        "kind": "migration",
+        "title": "Retire the Assets changeAsset TS writer and move test transitions to owner rows",
+        "scope": "The native Assets route is authoritative. createAsset remains temporarily for two fixtures (classified residual), but changeAsset is dead product code used only by tests. Delete changeAsset + its application/domain/exports, replace test transition calls with owner-row updates/events, and record KPI 12->8.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "finance",
+          "maintenance"
+        ],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "packages/server-assets/package.json",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**",
+          "tests/unit/shared.business-contracts/**",
+          "tests/integration/support/**",
+          "tests/integration/maintenance/**",
+          "tests/integration/shared.executive/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-k",
+          "agentId": "worker-assets",
+          "claimedAt": "2026-11-12T08:10:07.528Z",
+          "heartbeatAt": "2026-11-12T08:10:07.528Z",
+          "expiresAt": "2026-11-12T08:40:07.528Z",
+          "generation": 36
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete changeAsset writer/application/domain/exports; replace test changeAsset calls with owner-row updates+events; delete TS guard-oracle cases; prove KPI 12->8; typecheck/catalogue/affected suites; push.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-assets",
+        "plannedPackage": "erpx-server-assets",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "aggregate": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -18655,11 +18718,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 70,
+      "totalPackets": 71,
       "migratedPackets": 32,
       "statusCounts": {
         "pending": 12,
-        "in_progress": 3,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 32,
@@ -18669,7 +18732,7 @@
       }
     },
     "lastCoordinatorGeneration": 36,
-    "updatedAt": "2026-11-12T08:09:27.825Z",
+    "updatedAt": "2026-11-12T08:10:07.528Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
