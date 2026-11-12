@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1088,
+    "revision": 1095,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261112-s",
       "agentId": "lead",
       "startedAt": "2026-11-12T16:09:25.074Z",
-      "heartbeatAt": "2026-11-12T17:43:43.783Z",
-      "expiresAt": "2026-11-12T18:13:43.783Z",
+      "heartbeatAt": "2026-11-12T17:52:32.057Z",
+      "expiresAt": "2026-11-12T18:22:32.057Z",
       "generation": 44,
       "tokenHash": "0eabcfe48eaa2e019bd9ff44fd08efe3a2603848f1f8ad8c4b5c16915521bdc5"
     },
@@ -20882,8 +20882,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-billing-actions",
           "claimedAt": "2026-11-12T17:22:14.739Z",
-          "heartbeatAt": "2026-11-12T17:43:43.783Z",
-          "expiresAt": "2026-11-12T18:13:43.783Z",
+          "heartbeatAt": "2026-11-12T17:52:32.057Z",
+          "expiresAt": "2026-11-12T18:22:32.057Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21289,8 +21289,8 @@
           "runId": "run-20261112-s",
           "agentId": "lead",
           "claimedAt": "2026-11-12T16:31:39.034Z",
-          "heartbeatAt": "2026-11-12T17:43:43.783Z",
-          "expiresAt": "2026-11-12T18:13:43.783Z",
+          "heartbeatAt": "2026-11-12T17:52:32.057Z",
+          "expiresAt": "2026-11-12T18:22:32.057Z",
           "generation": 44
         },
         "baseSha": null,
@@ -21656,26 +21656,134 @@
         "resources": [
           "owner:runtime"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261112-s",
-          "agentId": "worker-runtime-connections",
-          "claimedAt": "2026-11-12T16:19:50.652Z",
-          "heartbeatAt": "2026-11-12T17:43:43.783Z",
-          "expiresAt": "2026-11-12T18:13:43.783Z",
-          "generation": 44
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "579ade0d06263b64fce2b4ef1d0c8212c8cb4d4f",
+        "lastPushedSha": "579ade0d06263b64fce2b4ef1d0c8212c8cb4d4f",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features private-development-api,existing-business",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "cargo test -p erpx-server-runtime --lib",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "cargo test -p erpx-server-runtime --test executive_connections",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "cargo test -p erpx-server-runtime --test executive_connections_postgres",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "cargo test -p erpx-server-runtime --test runtime_foundation (Node 26.11.1)",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "cargo test -p erpx-server-runtime --test rust_architecture",
+            "result": "failed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "npx tsc --noEmit && npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit tests/unit/shared.runtime/runtime-connection-services.test.ts",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration tests/integration/shared.executive/executive-mcp.test.ts",
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "retirement:ts-writes packages/server-runtime/src/**/*.ts",
+            "before": 36,
+            "after": 31,
+            "result": "passed",
+            "sourceSha": "f3a61fb77"
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-runtime/src/adapters/executive/connections.ts",
+            "result": "passed",
+            "sourceSha": "579ade0d06263b64fce2b4ef1d0c8212c8cb4d4f",
+            "before": 5,
+            "after": 0,
+            "note": "The TS executive connection writer/adapter/application and public exports are deleted; only the native runtime producer remains."
+          },
+          {
+            "command": "kpi:ts-writes -- ':(glob)packages/server-runtime/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "579ade0d06263b64fce2b4ef1d0c8212c8cb4d4f",
+            "before": 36,
+            "after": 31,
+            "note": "Owner KPI pair requested by the task scope; the remaining 31 are outside this connection capability."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "579ade0d06263b64fce2b4ef1d0c8212c8cb4d4f",
+            "note": "Native composition binds the connection producer, audit and shared MCP minute budget."
+          },
+          {
+            "command": "cargo test -p erpx-server-runtime --test executive_connections",
+            "result": "passed",
+            "sourceSha": "579ade0d06263b64fce2b4ef1d0c8212c8cb4d4f",
+            "note": "8/8 native secret/token/status/rate-budget cases."
+          },
+          {
+            "command": "cargo test -p erpx-server-runtime --test executive_connections_postgres",
+            "result": "passed",
+            "sourceSha": "579ade0d06263b64fce2b4ef1d0c8212c8cb4d4f",
+            "note": "2/2 on disposable PostgreSQL: create/list/revoke/capacity and Control audit atomicity with the shared minute budget."
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "579ade0d06263b64fce2b4ef1d0c8212c8cb4d4f",
+            "note": "TEST_CATALOGUE_VALID:33 modules, 1189 suites including the two runtime executive-connection suites, so the remote TEST_INVENTORY_MISMATCH is cleared once this commit is pushed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead: slice is verified green on the working tree — cargo check -p erpx-service --features private-development-api Finished; cargo test -p erpx-server-runtime --test executive_connections 8/8; --test executive_connections_postgres 2/2; bun scripts/testing/test.ts --check TEST_CATALOGUE_VALID 33/1189. Commit the native runtime modules, feature-apps executive/connections route, both rust-executive-connections test files and the two runtime.rust-executive-connections* catalogue entries, push, then record checks + the runtime KPI pair.",
-        "handoff": null,
+        "nextAction": "Integrated at 579ade0d0: native external connections own token create/list/revoke, final Control audit, connection cap and shared MCP minute budget; feature-apps route is native-only and fails closed. Runtime KPI 36->31, connections adapter 5->0. Next: classify/retire the remaining 31 runtime writes.",
+        "handoff": {
+          "runId": "run-20261112-s",
+          "agentId": "worker-runtime-connections",
+          "at": "2026-11-12T17:53:05.996Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead: runtime connections slice ready to integrate (uncommitted). Native Runtime producer for token create/list/revoke + Control audit + shared MCP minute budget; feature-apps route native-only (503 without ERPX_NATIVE_EXECUTIVE_CONNECTIONS_CONFIG). KPI runtime 36->31, adapters/executive/connections.ts 5->0. Evidence in .scratch/dev/runtime-connections-check.json. Out-of-path edits to review: fixtures/shared/builders/module-browser.ts SQL seed swap, tests/catalogue/suite-manifest.json two suites. HEAD ead3cb5a7 already swept in the private_development_api mount but lib.rs/new modules are uncommitted: commit all together. Residual 31 needs retire.runtime.residual-writers. BLOCKER: executive-work browser cohort has no native service/config so the required e2e drawer and every MCP call now 503 until the cohort sets the config and runs erpx-server; no browser verification here."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "retire.sales.notification-execution",
@@ -25554,8 +25662,8 @@
           "runId": "run-20261112-s",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-12T16:12:35.696Z",
-          "heartbeatAt": "2026-11-12T17:43:43.783Z",
-          "expiresAt": "2026-11-12T18:13:43.783Z",
+          "heartbeatAt": "2026-11-12T17:52:32.057Z",
+          "expiresAt": "2026-11-12T18:22:32.057Z",
           "generation": 44
         },
         "baseSha": null,
@@ -26271,20 +26379,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 123,
-      "migratedPackets": 58,
+      "migratedPackets": 59,
       "statusCounts": {
         "pending": 28,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 58,
+        "migrated": 59,
         "blocked": 21,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T17:49:23.537Z",
+    "updatedAt": "2026-11-12T17:57:49.282Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
