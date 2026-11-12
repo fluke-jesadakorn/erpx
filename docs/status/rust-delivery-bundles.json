@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1208,
+    "revision": 1213,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-b",
       "agentId": "lead",
       "startedAt": "2026-11-12T19:21:40.531Z",
-      "heartbeatAt": "2026-11-12T20:22:28.004Z",
-      "expiresAt": "2026-11-12T20:52:28.004Z",
+      "heartbeatAt": "2026-11-12T20:39:07.338Z",
+      "expiresAt": "2026-11-12T21:09:07.338Z",
       "generation": 46,
       "tokenHash": "da5d2711ad0b6538842db9c48a2aa2cc4a1b0ac7be2d601a7d5a055ba6421fed"
     },
@@ -21551,8 +21551,8 @@
           "runId": "run-20261113-b",
           "agentId": "worker-operations",
           "claimedAt": "2026-11-12T19:21:40.653Z",
-          "heartbeatAt": "2026-11-12T20:22:28.004Z",
-          "expiresAt": "2026-11-12T20:52:28.004Z",
+          "heartbeatAt": "2026-11-12T20:39:07.338Z",
+          "expiresAt": "2026-11-12T21:09:07.338Z",
           "generation": 46
         },
         "baseSha": null,
@@ -21876,8 +21876,8 @@
           "runId": "run-20261113-b",
           "agentId": "worker-pos-retire",
           "claimedAt": "2026-11-12T20:38:25.991Z",
-          "heartbeatAt": "2026-11-12T20:38:25.991Z",
-          "expiresAt": "2026-11-12T21:08:25.991Z",
+          "heartbeatAt": "2026-11-12T20:39:07.338Z",
+          "expiresAt": "2026-11-12T21:09:07.338Z",
           "generation": 46
         },
         "baseSha": null,
@@ -27294,8 +27294,8 @@
           "runId": "run-20261113-b",
           "agentId": "worker-billing-invoice",
           "claimedAt": "2026-11-12T19:21:40.623Z",
-          "heartbeatAt": "2026-11-12T20:22:28.004Z",
-          "expiresAt": "2026-11-12T20:52:28.004Z",
+          "heartbeatAt": "2026-11-12T20:39:07.338Z",
+          "expiresAt": "2026-11-12T21:09:07.338Z",
           "generation": 46
         },
         "baseSha": null,
@@ -28029,36 +28029,37 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire the residual Sales TypeScript writers",
-        "scope": "26 residual sales writes: pricing 7, notes 6, followups 4, notifications 3, pricing-purchases 2, notification-purchases 2, followup-purchases 2. Each needs a native owner command/read port and oracle move.",
+        "scope": "Start with the fully native-backed pricing capability (7 writes): adapters/pricing.ts price-list create/update/decision. Native price_lists.rs/http owns the commands and the workplace commerce route already prefers nativeSalesPricingCommand. Delete only the TS write commands (keep pricingWorkspace/resolveSalesPricing reads), fail the pricing POST paths closed without native, seed oracles directly, and record the owner KPI pair. Notes/followups have no Rust writer and are producer-first, not this batch.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
           "packages/server-sales/src/**",
           "packages/server-sales/Cargo.toml",
           "packages/server-sales/package.json",
-          "packages/feature-sales/**",
-          "src/composition/src/**",
-          "packages/server-runtime/src/adapters/runtime/jobs.ts",
-          "fixtures/**",
-          "scripts/local/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**",
           "tests/integration/sales/**",
-          "tests/integration/manufacturing/**",
-          "tests/support/helpers/**",
-          "tests/unit/sales/**",
-          "tests/catalogue/suite-manifest.json"
+          "tests/integration/ecommerce/**",
+          "tests/unit/sales/**"
         ],
         "resources": [
           "owner:sales"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-b",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T20:42:36.155Z",
+          "heartbeatAt": "2026-11-12T20:42:36.155Z",
+          "expiresAt": "2026-11-12T21:12:36.155Z",
+          "generation": 46
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 per-file native counterpart audit; start with notes/followups (smallest live capability) and record the owner KPI pair.",
+        "nextAction": "Pricing batch: delete the native-backed savePriceList/updatePriceList/decidePriceList TS writers, their public exports and the commerce route fallbacks; migrate the pricing oracles to direct native-shape seeding; record Sales KPI 29 -> 22.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -28432,23 +28433,134 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-b",
-          "agentId": "worker-ca-portal-commands",
-          "claimedAt": "2026-11-12T20:27:27.149Z",
-          "heartbeatAt": "2026-11-12T20:27:27.149Z",
-          "expiresAt": "2026-11-12T20:57:27.149Z",
-          "generation": 46
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-customer_authority/src",
+            "result": "passed",
+            "before": 39,
+            "after": 35,
+            "sourceSha": "00e7ae4c70b6f74cc961ad2d5feeb98f064227ce",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-enrollment.ts",
+                "writes": 6,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Batch 1b: native public portal enrollment endpoint + reserve/release/accept, then route switch."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-support.ts",
+                "writes": 6,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Native portal support command/read port."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/access.ts",
+                "writes": 6,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Native customer access command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/duplicates.ts",
+                "writes": 5,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Native duplicate review command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/identity.ts",
+                "writes": 4,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Native customer identity command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-access.ts",
+                "writes": 3,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Native portal access command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Native Files-backed attachment boundary."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/duplicate-request.ts",
+                "writes": 2,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Native duplicate request command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Native portal purchase guard."
+              }
+            ],
+            "note": "Portal invitation issue/resend/history moved native; TS writer/application/barrels deleted."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-authority",
+            "result": "passed",
+            "sourceSha": "00e7ae4c70b6f74cc961ad2d5feeb98f064227ce",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business",
+            "result": "passed",
+            "sourceSha": "00e7ae4c70b6f74cc961ad2d5feeb98f064227ce",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --test portal_invitations",
+            "result": "passed",
+            "sourceSha": "00e7ae4c70b6f74cc961ad2d5feeb98f064227ce",
+            "sourceKind": "committed",
+            "note": "6/6"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --test portal_invitations_postgres",
+            "result": "passed",
+            "sourceSha": "00e7ae4c70b6f74cc961ad2d5feeb98f064227ce",
+            "sourceKind": "committed",
+            "note": "7/7"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "00e7ae4c70b6f74cc961ad2d5feeb98f064227ce",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "00e7ae4c70b6f74cc961ad2d5feeb98f064227ce",
+            "sourceKind": "committed",
+            "note": "1202 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "00e7ae4c70b6f74cc961ad2d5feeb98f064227ce",
+            "sourceKind": "committed"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Batch 1 (10 writes): retire portal-enrollment.ts (6) and portal-invitations.ts (4) to native owner commands now that delivery is native. Include the feature-portal enroll route and the feature-sales customer-access route switch, delete the TS writers/barrels, move the enrollment/invitation oracles, and record the owner KPI pair. Keep access/duplicates/portal-support as classified residual.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Batch 1b per handoff; released for the next worker.",
+        "handoff": {
+          "runId": "run-20261113-b",
+          "agentId": "worker-ca-portal-commands",
+          "at": "2026-11-12T20:51:32.124Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Batch 1b per handoff; released for the next worker."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -28925,18 +29037,18 @@
       "totalPackets": 137,
       "migratedPackets": 70,
       "statusCounts": {
-        "pending": 27,
+        "pending": 26,
         "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 70,
-        "blocked": 23,
+        "blocked": 24,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T20:38:39.018Z",
+    "updatedAt": "2026-11-12T20:51:32.124Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
