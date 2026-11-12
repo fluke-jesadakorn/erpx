@@ -20,6 +20,7 @@ import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-st
 import {frontCompanyQuickAccessRequest,frontLegacyQuickAccessRequest} from '@erpx/server-work_projection/public/front-quick-access-request';
 import {boundedBody} from '@erpx/server-legal/public/legal/body';
 import { pmsHomeRead, pmsHomeWrite } from "@erpx/server-pms/public/pms/home-api";
+import {nativeCreateComment,nativePostAction,nativePublishDraft,nativeSaveDraft,nativeSocialAvailable} from '@erpx/server-collaboration/public/native-social-page';
 import { posCustomers } from "@erpx/server-pos/public/pos-daily";
 import { posProductImage } from "@erpx/server-pos/public/pos-images";
 import {frontTaxDocumentCommand,frontTaxDocumentView} from "@erpx/server-finance/public/hospitality-tax-documents";
@@ -180,6 +181,22 @@ export async function POST(request: Request, { params }: Context) {
     if(app==='pms'&&frontPmsAttachmentPaths.has(path[0]))return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,app),path);
     if (app === "pms" && path[0] === "home") {
       const actor = await frontActor(request, holdingSlug, companySlug, app);
+      if (nativeSocialAvailable()) {
+        const social = path.slice(1), key = commandKey(request);
+        if (social.length === 1 && social[0] === "publish") {
+          const input = await request.json();
+          const saved = await nativeSaveDraft(request, holdingSlug, input, key) as { id: string; version: number };
+          const data = await nativePublishDraft(request, holdingSlug, saved.id, saved.version, `${key}-publish`);
+          return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
+        }
+        if (social.length === 2 && social[0] === "posts") {
+          const input = await request.json();
+          const data = input.action === "comment"
+            ? await nativeCreateComment(request, holdingSlug, social[1]!, { body: input.body, parentCommentId: input.parentCommentId, mentions: input.mentions }, key)
+            : await nativePostAction(request, holdingSlug, social[1]!, input, key);
+          return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
+        }
+      }
       const version=path.length===4&&path[1]==='handover'&&path[3]==='acknowledgement'?request.headers.get('x-erpx-handover-version'):null;
       if(version!==null&&(!/^[1-9][0-9]{0,15}$/.test(version)||!Number.isSafeInteger(Number(version))))throw new ApiError(422,'HANDOVER_VERSION_INVALID','Provide the handover version shown on this page.');
       return Response.json(canonicalDestinationLinks({data:await pmsHomeWrite(actor,path.slice(1),await request.json(),commandKey(request),version===null?undefined:Number(version))}), {headers:{"Cache-Control":"private, no-store"}});

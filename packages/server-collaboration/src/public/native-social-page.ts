@@ -117,3 +117,129 @@ export function nativeCreatePost(
 ) {
   return call(request, holdingSlug, '/feed', { body, key });
 }
+
+export function nativeSaveDraft(
+  request: Request,
+  holdingSlug: string,
+  body: unknown,
+  key: string,
+) {
+  return call(request, holdingSlug, '/feed/drafts', { body, key });
+}
+
+export function nativePublishDraft(
+  request: Request,
+  holdingSlug: string,
+  id: string,
+  version: number,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/drafts/${encodeURIComponent(id)}/publish`,
+    { body: { version }, key },
+  );
+}
+
+export function nativePostAction(
+  request: Request,
+  holdingSlug: string,
+  id: string,
+  body: unknown,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/${encodeURIComponent(id)}/actions`,
+    { body, key },
+  );
+}
+
+export function nativeReportPost(
+  request: Request,
+  holdingSlug: string,
+  id: string,
+  reason: string,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/${encodeURIComponent(id)}/reports`,
+    { body: { reason }, key },
+  );
+}
+
+export function nativeCommentUploadCreate(
+  request: Request,
+  holdingSlug: string,
+  postId: string,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/${encodeURIComponent(postId)}/comment-uploads`,
+    { body: {}, key },
+  );
+}
+
+export function nativeCommentUploadCancel(
+  request: Request,
+  holdingSlug: string,
+  id: string,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/comment-uploads/${encodeURIComponent(id)}/cancel`,
+    { body: {}, key },
+  );
+}
+
+export function nativeEditUploadCreate(
+  request: Request,
+  holdingSlug: string,
+  postId: string,
+  expectedVersion: number,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/${encodeURIComponent(postId)}/edit-uploads`,
+    { body: { expectedVersion }, key },
+  );
+}
+
+export function nativeEditUploadCancel(
+  request: Request,
+  holdingSlug: string,
+  id: string,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/edit-uploads/${encodeURIComponent(id)}/cancel`,
+    { body: {}, key },
+  );
+}
+
+export function nativeCreateComment(
+  request: Request,
+  holdingSlug: string,
+  postId: string,
+  body: unknown,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/${encodeURIComponent(postId)}/comments`,
+    { body, key },
+  );
+}
