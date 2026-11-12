@@ -42,7 +42,7 @@ impl Audience {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MentionKind {
     Person,
@@ -136,12 +136,18 @@ pub struct MentionInput {
     pub target_id: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Mention {
     pub kind: MentionKind,
     pub target_id: String,
     pub label: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
+pub struct PostSource {
+    pub kind: String,
+    pub id: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -233,6 +239,10 @@ pub enum Change {
         post_id: String,
         reason: String,
     },
+    PublishDraft {
+        id: String,
+        version: i64,
+    },
     SavePostDraft {
         id: Option<String>,
         body: String,
@@ -302,6 +312,25 @@ pub enum OwnerPlan {
         reporter_id: String,
         reason: String,
     },
+    PublishDraftPost {
+        draft_id: String,
+        draft_version: i64,
+        post_id: String,
+        author_id: String,
+        author_name: String,
+        company_id: String,
+        branch_id: Option<String>,
+        department_id: Option<String>,
+        body: String,
+        audience_kind: String,
+        audience_id: Option<String>,
+        participants: Vec<String>,
+        sources: Vec<PostSource>,
+        mentions: Vec<Mention>,
+        content_json: Option<String>,
+        rich_content_json: Option<String>,
+        purpose: String,
+    },
     SaveDraft {
         id: String,
         author_id: String,
@@ -328,6 +357,17 @@ pub struct DraftSnapshot {
     pub company_id: String,
     pub version: i64,
     pub published_post_id: Option<String>,
+    pub body: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+    pub audience_kind: Option<String>,
+    pub audience_id: Option<String>,
+    pub participants_json: String,
+    pub sources_json: String,
+    pub purpose: String,
+    pub mentions_json: String,
+    pub content_json: Option<String>,
+    pub rich_content_json: Option<String>,
 }
 
 fn invalid() -> BusinessError {
@@ -621,6 +661,11 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             id: id.clone(),
             version: *version,
             status: "draft",
+        },
+        OwnerPlan::PublishDraftPost { post_id, .. } => Receipt {
+            id: post_id.clone(),
+            version: 1,
+            status: "published",
         },
     })
 }

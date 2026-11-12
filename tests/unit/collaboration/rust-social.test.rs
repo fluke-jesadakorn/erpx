@@ -141,6 +141,27 @@ fn key() -> CommandKey {
     CommandKey::new("social-command-0001").unwrap()
 }
 
+fn draft_snapshot(id: &str) -> DraftSnapshot {
+    DraftSnapshot {
+        id: id.into(),
+        author_id: "user".into(),
+        company_id: "company".into(),
+        version: 1,
+        published_post_id: None,
+        body: "Draft body".into(),
+        branch_id: Some("branch".into()),
+        department_id: None,
+        audience_kind: Some("branch".into()),
+        audience_id: Some("branch".into()),
+        participants_json: "[]".into(),
+        sources_json: "[]".into(),
+        purpose: "update".into(),
+        mentions_json: "[]".into(),
+        content_json: None,
+        rich_content_json: None,
+    }
+}
+
 #[test]
 fn public_port_exposes_bounded_topic_and_audience_values() {
     assert_eq!(
@@ -437,16 +458,8 @@ async fn saves_and_updates_a_draft_with_version_replay_and_author_scope() {
         }
         other => panic!("unexpected plan {other:?}"),
     }
-    unit.drafts.insert(
-        created.id.clone(),
-        DraftSnapshot {
-            id: created.id.clone(),
-            author_id: "user".into(),
-            company_id: "company".into(),
-            version: 1,
-            published_post_id: None,
-        },
-    );
+    unit.drafts
+        .insert(created.id.clone(), draft_snapshot(&created.id));
     let updated = execute(
         &mut unit,
         &CommandKey::new("social-command-0002").unwrap(),
@@ -504,6 +517,69 @@ async fn saves_and_updates_a_draft_with_version_replay_and_author_scope() {
             content_json: None,
             rich_content_json: None,
             expected_version: 2,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(gone.code, "DRAFT_NOT_FOUND");
+}
+
+#[tokio::test]
+async fn publishes_a_draft_by_binding_the_retained_author_version() {
+    let mut unit = Unit::new();
+    let id = "post-draft-social-command-0001";
+    unit.drafts.insert(id.into(), draft_snapshot(id));
+    let receipt = execute(
+        &mut unit,
+        &key(),
+        Change::PublishDraft {
+            id: id.into(),
+            version: 1,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        (receipt.id.as_str(), receipt.version, receipt.status),
+        ("post-post-draft-social-command-0001", 1, "published")
+    );
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::PublishDraftPost {
+            draft_id,
+            draft_version,
+            post_id,
+            body,
+            audience_kind,
+            purpose,
+            ..
+        } => {
+            assert_eq!(draft_id, id);
+            assert_eq!(*draft_version, 1);
+            assert_eq!(post_id, "post-post-draft-social-command-0001");
+            assert_eq!(body, "Draft body");
+            assert_eq!(audience_kind, "branch");
+            assert_eq!(purpose, "update");
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let stale = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0002").unwrap(),
+        Change::PublishDraft {
+            id: id.into(),
+            version: 2,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(stale.code, "VERSION_CONFLICT");
+    unit.drafts.get_mut(id).unwrap().published_post_id = Some("post-existing".into());
+    let gone = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0003").unwrap(),
+        Change::PublishDraft {
+            id: id.into(),
+            version: 1,
         },
     )
     .await

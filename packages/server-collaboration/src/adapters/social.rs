@@ -2,7 +2,7 @@
 //! composition supplies the current authority result and readable mention labels.
 use crate::domain::social::{
     Audience, CommentSnapshot, CommentState, FeedCursor, Mention, MentionKind, OwnerPlan,
-    PostSnapshot, PostState, Receipt, SocialActor, plan_receipt,
+    PostSnapshot, PostState, Receipt, SocialActor, hashtags, normalize_tags, plan_receipt,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, FailureKind};
@@ -728,6 +728,96 @@ pub async fn apply_plan(
             }
             Ok(expected.clone())
         }
+        OwnerPlan::PublishDraftPost {
+            draft_id,
+            draft_version,
+            post_id,
+            author_id,
+            author_name,
+            company_id,
+            branch_id,
+            department_id,
+            body,
+            audience_kind,
+            audience_id,
+            participants,
+            sources,
+            mentions: mention_rows,
+            content_json,
+            rich_content_json,
+            purpose,
+        } => {
+            sqlx::query(
+                "INSERT INTO social_posts(id,kind,author_id,author_name,company_id,branch_id,department_id,body,state,version,last_command_id,created_at,updated_at,audience_kind,audience_id,purpose,mentions_json,content_json,rich_content_json) VALUES($1,'team',$2,$3,$4,$5,$6,$7,'published',1,$8,$9,$9,$10,$11,$12,$13,$14,$15)",
+            )
+            .bind(post_id)
+            .bind(author_id)
+            .bind(author_name)
+            .bind(company_id)
+            .bind(branch_id)
+            .bind(department_id)
+            .bind(body)
+            .bind(key.as_str())
+            .bind(now)
+            .bind(audience_kind)
+            .bind(audience_id)
+            .bind(purpose)
+            .bind(serde_json::to_string(mention_rows).map_err(|_| changed())?)
+            .bind(content_json)
+            .bind(rich_content_json)
+            .execute(&mut *c)
+            .await?;
+            let tags = normalize_tags(&hashtags(body))?;
+            post_topics(c, post_id, &tags, author_id, now).await?;
+            mentions(c, "post", post_id, mention_rows, author_id, company_id, now).await?;
+            if audience_kind == "participants" {
+                let mut members = participants.clone();
+                members.push(author_id.clone());
+                members.sort();
+                members.dedup();
+                for user_id in members {
+                    sqlx::query(
+                        "INSERT INTO social_post_participants(post_id,user_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
+                    )
+                    .bind(post_id)
+                    .bind(user_id)
+                    .execute(&mut *c)
+                    .await?;
+                }
+            }
+            for (ordinal, source) in sources.iter().enumerate() {
+                sqlx::query(
+                    "INSERT INTO social_post_sources(post_id,ordinal,source_kind,source_id) VALUES($1,$2,$3,$4)",
+                )
+                .bind(post_id)
+                .bind(ordinal as i64)
+                .bind(&source.kind)
+                .bind(&source.id)
+                .execute(&mut *c)
+                .await?;
+            }
+            sqlx::query(
+                "INSERT INTO social_follows(principal_id,target_type,target_id,created_at) VALUES($1,'post',$2,$3) ON CONFLICT DO NOTHING",
+            )
+            .bind(author_id)
+            .bind(post_id)
+            .bind(now)
+            .execute(&mut *c)
+            .await?;
+            let bound = sqlx::query(
+                "UPDATE social_post_drafts SET published_post_id=$1,version=version+1,updated_at=$2 WHERE id=$3 AND version=$4 AND published_post_id IS NULL",
+            )
+            .bind(post_id)
+            .bind(now)
+            .bind(draft_id)
+            .bind(draft_version)
+            .execute(&mut *c)
+            .await?;
+            if bound.rows_affected() != 1 {
+                return Err(changed());
+            }
+            Ok(expected.clone())
+        }
     };
     let receipt = result?;
     if receipt != expected {
@@ -873,6 +963,29 @@ pub async fn retain_effects(
                 return Err(changed());
             }
             capture(c, &mut images, format!("draft:{id}")).await?;
+        }
+        OwnerPlan::PublishDraftPost {
+            post_id,
+            draft_id,
+            mentions,
+            ..
+        } => {
+            if receipt.id != *post_id {
+                return Err(changed());
+            }
+            capture(c, &mut images, format!("post:{post_id}")).await?;
+            capture(c, &mut images, format!("draft:{draft_id}")).await?;
+            for mention in mentions
+                .iter()
+                .filter(|mention| mention.kind == MentionKind::Person)
+            {
+                capture(
+                    c,
+                    &mut images,
+                    format!("notice:mention-post-{post_id}-{}", mention.target_id),
+                )
+                .await?;
+            }
         }
     }
     Ok(CurrentSocialEffects {

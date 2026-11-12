@@ -6,7 +6,7 @@
 use crate::domain::social::{
     Change, CommentSnapshot, CommentState, DraftSnapshot, FollowTarget, MAX_COMMENT_BODY,
     MAX_DRAFT_BODY, MAX_DRAFT_PARTICIPANTS, MAX_POST_BODY,
-    MAX_REPORT_REASON, Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot, Receipt, SocialActor, comment_not_found,
+    MAX_REPORT_REASON, Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot, PostSource, Receipt, SocialActor, comment_not_found,
     draft_not_found, normalize_tags, plan_receipt, post_not_found, post_tags, require_audience, require_comment_edit,
     require_comment_removal, require_published_post, text, validate_expected_version,
     validate_mentions,
@@ -295,6 +295,61 @@ pub async fn execute<P: SocialUnit>(
                     post_id,
                     reporter_id: actor.user_id.clone(),
                     reason,
+                });
+            }
+            Change::PublishDraft { id, version } => {
+                validate_expected_version(version)?;
+                let draft = p.draft(&id).await?.ok_or_else(draft_not_found)?;
+                if draft.author_id != actor.user_id
+                    || draft.company_id != actor.company_id
+                    || draft.published_post_id.is_some()
+                {
+                    return Err(draft_not_found().into());
+                }
+                if draft.version != version {
+                    return Err(conflict().into());
+                }
+                let audience_kind = draft.audience_kind.clone().ok_or_else(invalid)?;
+                if !matches!(
+                    audience_kind.as_str(),
+                    "company" | "branch" | "department" | "participants" | "team" | "project"
+                ) {
+                    return Err(invalid().into());
+                }
+                let participants: Vec<String> =
+                    serde_json::from_str(&draft.participants_json).map_err(|_| invalid())?;
+                if participants.len() > MAX_DRAFT_PARTICIPANTS {
+                    return Err(invalid().into());
+                }
+                let sources: Vec<PostSource> =
+                    serde_json::from_str(&draft.sources_json).map_err(|_| invalid())?;
+                if sources.len() > 5 {
+                    return Err(invalid().into());
+                }
+                let resolved: Vec<Mention> =
+                    serde_json::from_str(&draft.mentions_json).map_err(|_| invalid())?;
+                let body = text(&draft.body, 0, MAX_DRAFT_BODY)?;
+                if body.trim().is_empty() && draft.content_json.is_none() {
+                    return Err(invalid().into());
+                }
+                plan = Some(OwnerPlan::PublishDraftPost {
+                    draft_id: id.clone(),
+                    draft_version: version,
+                    post_id: format!("post-{id}"),
+                    author_id: actor.user_id.clone(),
+                    author_name: actor.display_name.clone(),
+                    company_id: actor.company_id.clone(),
+                    branch_id: draft.branch_id.clone(),
+                    department_id: draft.department_id.clone(),
+                    body,
+                    audience_kind,
+                    audience_id: draft.audience_id.clone(),
+                    participants,
+                    sources,
+                    mentions: resolved,
+                    content_json: draft.content_json.clone(),
+                    rich_content_json: draft.rich_content_json.clone(),
+                    purpose: draft.purpose.clone(),
                 });
             }
             Change::SavePostDraft {

@@ -143,8 +143,11 @@ pub fn decode_social_command(
             post_id: post(post_id)?,
             reason: text(raw, "reason")?.to_owned(),
         },
-        "social.draft.save" => {
-            let mut audience_kind = None;
+        "social.draft.publish" => Change::PublishDraft {
+            id: post(post_id)?,
+            version: positive(raw, "version")?,
+        },
+        "social.draft.save" => {            let mut audience_kind = None;
             let mut audience_id = None;
             let mut participants = Vec::new();
             match raw.get("audience") {

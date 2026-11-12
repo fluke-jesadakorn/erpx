@@ -32,6 +32,7 @@ fn operation(change: &Change) -> &'static str {
         } => "social.topic.follow",
         Change::ReportPost { .. } => "social.post.report",
         Change::SavePostDraft { .. } => "social.draft.save",
+        Change::PublishDraft { .. } => "social.draft.publish",
     }
 }
 
@@ -44,6 +45,7 @@ fn record_id(key: &str, change: &Change) -> String {
         Change::SetFollow { target_id, .. } => target_id.clone(),
         Change::ReportPost { post_id, .. } => post_id.clone(),
         Change::SavePostDraft { id, .. } => id.clone().unwrap_or_else(|| format!("post-draft-{key}")),
+        Change::PublishDraft { id, .. } => format!("post-{id}"),
     }
 }
 
@@ -203,7 +205,7 @@ impl SocialUnit for Harness<'_> {
     }
     async fn draft(&mut self, id: &str) -> Result<Option<DraftSnapshot>, Error> {
         let row = sqlx::query(
-            "SELECT id,author_id,company_id,version,published_post_id FROM social_post_drafts WHERE id=$1",
+            "SELECT id,author_id,company_id,version,published_post_id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,mentions_json,content_json,rich_content_json FROM social_post_drafts WHERE id=$1",
         )
         .bind(id)
         .fetch_optional(&mut *self.c)
@@ -215,6 +217,17 @@ impl SocialUnit for Harness<'_> {
                 company_id: row.try_get(2)?,
                 version: row.try_get(3)?,
                 published_post_id: row.try_get(4)?,
+                body: row.try_get(5)?,
+                branch_id: row.try_get(6)?,
+                department_id: row.try_get(7)?,
+                audience_kind: row.try_get(8)?,
+                audience_id: row.try_get(9)?,
+                participants_json: row.try_get(10)?,
+                sources_json: row.try_get(11)?,
+                purpose: row.try_get(12)?,
+                mentions_json: row.try_get(13)?,
+                content_json: row.try_get(14)?,
+                rich_content_json: row.try_get(15)?,
             })
         })
         .transpose()
@@ -952,6 +965,114 @@ async fn drafts_save_update_replay_and_company_scope() {
         .await
         .unwrap_err();
         assert!(matches!(foreign, PgTransactionError::Business(e) if e.code == "DRAFT_NOT_FOUND"));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn publish_draft_creates_the_social_post_participants_sources_and_binding() {
+    fixture::with_database(6, |pool| async move {
+        setup(&pool).await;
+        let created = run(
+            &pool,
+            "author",
+            "company",
+            "social-draft-0501",
+            Change::SavePostDraft {
+                id: None,
+                body: "Published from draft".into(),
+                audience_kind: Some("participants".into()),
+                audience_id: None,
+                participants: vec!["person-1".into()],
+                sources_json: r#"[{"kind":"staff_task","id":"task-1"}]"#.into(),
+                purpose: "plan".into(),
+                mentions: vec![MentionInput {
+                    kind: MentionKind::Person,
+                    target_id: "person-1".into(),
+                }],
+                content_json: None,
+                rich_content_json: None,
+                expected_version: 1,
+            },
+        )
+        .await
+        .unwrap();
+        let published = run(
+            &pool,
+            "author",
+            "company",
+            "social-draft-0502",
+            Change::PublishDraft {
+                id: created.id.clone(),
+                version: 1,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            (published.id.clone(), published.status),
+            (format!("post-{}", created.id), "published")
+        );
+        let post: (String, String, String, i64) = sqlx::query_as(
+            "SELECT body,audience_kind,purpose,version FROM social_posts WHERE id=$1",
+        )
+        .bind(&published.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            post,
+            ("Published from draft".into(), "participants".into(), "plan".into(), 1)
+        );
+        let participants: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM social_post_participants WHERE post_id=$1")
+                .bind(&published.id)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(participants, 2);
+        let sources: (String, String) = sqlx::query_as(
+            "SELECT source_kind,source_id FROM social_post_sources WHERE post_id=$1 ORDER BY ordinal",
+        )
+        .bind(&published.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(sources, ("staff_task".into(), "task-1".into()));
+        let bound: (Option<String>, i64) = sqlx::query_as(
+            "SELECT published_post_id,version FROM social_post_drafts WHERE id=$1",
+        )
+        .bind(&created.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(bound, (Some(published.id.clone()), 2));
+        let replay = run(
+            &pool,
+            "author",
+            "company",
+            "social-draft-0502",
+            Change::PublishDraft {
+                id: created.id.clone(),
+                version: 1,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, published);
+        let again = run(
+            &pool,
+            "author",
+            "company",
+            "social-draft-0503",
+            Change::PublishDraft {
+                id: created.id.clone(),
+                version: 2,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(again, PgTransactionError::Business(e) if e.code == "DRAFT_NOT_FOUND"));
     })
     .await;
 }

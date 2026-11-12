@@ -261,6 +261,7 @@ impl<'c> PgSocialUnit<'c> {
             } => "social.topic.follow",
             Change::ReportPost { .. } => "social.post.report",
             Change::SavePostDraft { .. } => "social.draft.save",
+            Change::PublishDraft { .. } => "social.draft.publish",
         }
     }
 
@@ -284,6 +285,7 @@ impl<'c> PgSocialUnit<'c> {
             Change::SavePostDraft { id, .. } => id
                 .clone()
                 .unwrap_or_else(|| format!("post-draft-{}", key.as_str())),
+            Change::PublishDraft { id, .. } => format!("post-{id}"),
         })
     }
 
@@ -421,7 +423,7 @@ impl SocialUnit for PgSocialUnit<'_> {
 
     async fn draft(&mut self, id: &str) -> Result<Option<DraftSnapshot>, Error> {
         let row = sqlx::query(
-            "SELECT id,author_id,company_id,version,published_post_id FROM social_post_drafts WHERE id=$1",
+            "SELECT id,author_id,company_id,version,published_post_id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,mentions_json,content_json,rich_content_json FROM social_post_drafts WHERE id=$1",
         )
         .bind(id)
         .fetch_optional(&mut *self.connection)
@@ -433,6 +435,17 @@ impl SocialUnit for PgSocialUnit<'_> {
                 company_id: row.try_get(2)?,
                 version: row.try_get(3)?,
                 published_post_id: row.try_get(4)?,
+                body: row.try_get(5)?,
+                branch_id: row.try_get(6)?,
+                department_id: row.try_get(7)?,
+                audience_kind: row.try_get(8)?,
+                audience_id: row.try_get(9)?,
+                participants_json: row.try_get(10)?,
+                sources_json: row.try_get(11)?,
+                purpose: row.try_get(12)?,
+                mentions_json: row.try_get(13)?,
+                content_json: row.try_get(14)?,
+                rich_content_json: row.try_get(15)?,
             })
         })
         .transpose()
@@ -556,6 +569,11 @@ impl SocialUnit for PgSocialUnit<'_> {
                 "social_post",
                 "Save workplace draft",
                 "social.draft.saved",
+            ),
+            OwnerPlan::PublishDraftPost { .. } => (
+                "social_post",
+                "Publish workplace update",
+                "social.post.published",
             ),
         };
         let value = serde_json::to_value(&receipt).map_err(|_| {

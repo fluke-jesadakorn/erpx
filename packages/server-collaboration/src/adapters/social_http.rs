@@ -206,6 +206,10 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
             "/api/v1/holdings/{holding_slug}/feed/drafts",
             post(save_draft),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/drafts/{draft_id}/publish",
+            post(publish_draft),
+        )
         .with_state(Arc::new(state)))
 }
 
@@ -515,6 +519,24 @@ pub async fn save_draft(
 ) -> Response {
     let headers = request.headers().clone();
     let prepared = prepare_command(state, slug, request, "social.draft.save", None, None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn publish_draft(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, draft_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.draft.publish",
+        Some(draft_id),
+        None,
+    )
+    .await;
     command_response(prepared, headers).await
 }
 
