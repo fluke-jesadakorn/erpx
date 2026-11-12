@@ -609,6 +609,7 @@ function transportCall(
   holdings: Map<string, { holdingId: string; holdingSlug: string }>,
   incoming: Pick<Headers, 'get'>,
   input: NativeCommerceOrdersReadInput,
+  section: 'orders' | 'purchase-orders',
   path: string,
   method: 'GET' | 'POST',
   body: string | undefined,
@@ -661,7 +662,7 @@ function transportCall(
     headers.set('idempotency-key', key);
   }
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/commerce/orders${path ? `/${path}` : ''}`,
+    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/commerce/${section}${path ? `/${path}` : ''}`,
     base,
   );
   const controller = new AbortController();
@@ -830,6 +831,7 @@ export function createNativeCommerceOrdersClient(
     incoming: Pick<Headers, 'get'>,
     actor: NativeCommerceOrdersPageContext,
     input: NativeCommerceOrdersReadInput,
+    section: 'orders' | 'purchase-orders',
     path: string,
     method: 'GET' | 'POST',
     body: string | undefined,
@@ -844,6 +846,7 @@ export function createNativeCommerceOrdersClient(
       config.holdings,
       incoming,
       input,
+      section,
       path,
       method,
       body,
@@ -869,6 +872,7 @@ export function createNativeCommerceOrdersClient(
         incoming,
         actor,
         input,
+        'orders',
         encodeURIComponent(orderId),
         'GET',
         undefined,
@@ -900,6 +904,7 @@ export function createNativeCommerceOrdersClient(
         incoming,
         actor,
         input,
+        'orders',
         `${encodeURIComponent(orderId)}/transition`,
         'POST',
         JSON.stringify({
@@ -930,6 +935,7 @@ export function createNativeCommerceOrdersClient(
         incoming,
         actor,
         input,
+        'orders',
         orderId === null ? '' : encodeURIComponent(orderId),
         'POST',
         saveInput(command),
@@ -955,6 +961,7 @@ export function createNativeCommerceOrdersClient(
         incoming,
         actor,
         input,
+        'orders',
         `${encodeURIComponent(orderId)}/fulfill`,
         'POST',
         serviceCompletionInput(command),
@@ -980,6 +987,7 @@ export function createNativeCommerceOrdersClient(
         incoming,
         actor,
         input,
+        'purchase-orders',
         `${encodeURIComponent(orderId)}/goods-receipts`,
         'POST',
         goodsReceiptInput(command),

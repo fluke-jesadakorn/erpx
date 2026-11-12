@@ -11,10 +11,10 @@ use crate::adapters::receipt_use_cases::CommerceReceiptRepository;
 use crate::application::order::{AuditEntry, OutboxEntry, ReceiptEntry};
 use crate::domain::order::{CommerceOrderActor, OrderCommandReceipt};
 use crate::domain::receipt::{
-    ReceiptFulfillmentLineReadback, ReceiptFulfillmentPlan, ReceiptFulfillmentReadback,
-    ReceiptLineValue, ReceiptOrder, ReceiptOrderAdvance, ReceiptOrderLine, ReceiptReadback,
-    ReceiptReadbackLine, ReceiptStockMoveReadback, ReceiptStockReadback, setup_required,
-    source_invalid,
+    GoodsEffectReadback, GoodsPostingSettings, GoodsValuationPlan, ReceiptFulfillmentLineReadback,
+    ReceiptFulfillmentPlan, ReceiptFulfillmentReadback, ReceiptLineValue, ReceiptOrder,
+    ReceiptOrderAdvance, ReceiptOrderLine, ReceiptReadback, ReceiptReadbackLine,
+    ReceiptStockMoveReadback, ReceiptStockReadback, setup_required, source_invalid,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, TimestampMillis};
@@ -253,6 +253,143 @@ impl CommerceReceiptRepository for PgCommerceReceipt {
                 order_date,
                 lines,
             }))
+        })
+    }
+
+    fn goods_settings<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        company: &'a str,
+    ) -> PgWorkFuture<'a, Option<GoodsPostingSettings>, BusinessError> {
+        Box::pin(async move {
+            Self::ready(c).await?;
+            let row: Option<(String, String, String)> = sqlx::query_as(
+                "SELECT s.chart_id,s.inventory_account_id,s.clearing_account_id \
+                 FROM commerce_settings s JOIN finance_charts c \
+                   ON c.id=s.chart_id AND c.company_id=s.company_id AND c.status='active' \
+                 WHERE s.company_id=$1",
+            )
+            .bind(company)
+            .fetch_optional(&mut *c)
+            .await?;
+            Ok(
+                row.map(|(chart_id, inventory_account_id, clearing_account_id)| {
+                    GoodsPostingSettings {
+                        chart_id,
+                        inventory_account_id,
+                        clearing_account_id,
+                    }
+                }),
+            )
+        })
+    }
+
+    fn attach_journal<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        fulfillment_id: &'a str,
+        order_id: &'a str,
+        journal_id: &'a str,
+    ) -> PgWorkFuture<'a, bool, BusinessError> {
+        Box::pin(async move {
+            Self::ready(c).await?;
+            let changed = sqlx::query(
+                "UPDATE commerce_fulfillments f SET journal_id=$3 \
+                 FROM commerce_orders o \
+                 WHERE f.id=$1 AND f.order_id=$2 AND o.id=f.order_id \
+                 AND o.kind='purchase' AND f.journal_id IS NULL",
+            )
+            .bind(fulfillment_id)
+            .bind(order_id)
+            .bind(journal_id)
+            .execute(&mut *c)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+
+    fn insert_goods_valuation<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        plan: &'a GoodsValuationPlan,
+    ) -> PgWorkFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            Self::ready(c).await?;
+            sqlx::query(
+                "INSERT INTO commerce_goods_valuations\
+                 (fulfillment_id,company_id,chart_id,journal_id,document_currency,journal_currency,\
+                 stock_currency,valuation_date,fx_rate_micros,source_rate_id,target_rate_id,\
+                 used_latest_fallback,document_subtotal_minor,stock_value_minor,captured_by,\
+                 captured_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)",
+            )
+            .bind(&plan.fulfillment_id)
+            .bind(&plan.company_id)
+            .bind(&plan.chart_id)
+            .bind(&plan.journal_id)
+            .bind(&plan.document_currency)
+            .bind(&plan.journal_currency)
+            .bind(&plan.stock_currency)
+            .bind(&plan.valuation_date)
+            .bind(plan.valuation.fx_rate_micros)
+            .bind(&plan.valuation.source_rate_id)
+            .bind(&plan.valuation.target_rate_id)
+            .bind(plan.valuation.used_latest_fallback)
+            .bind(plan.document_subtotal_minor)
+            .bind(plan.stock_value_minor)
+            .bind(&plan.captured_by)
+            .bind(plan.captured_at)
+            .execute(&mut *c)
+            .await?;
+            Ok(())
+        })
+    }
+
+    fn goods_readback<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        company: &'a str,
+        fulfillment_id: &'a str,
+    ) -> PgWorkFuture<'a, Option<GoodsEffectReadback>, BusinessError> {
+        Box::pin(async move {
+            Self::ready(c).await?;
+            let row: Option<(String, String, String, String, String, String, i64, i64, i64)> =
+                sqlx::query_as(
+                    "SELECT v.journal_id,v.chart_id,v.document_currency,v.journal_currency,\
+                     v.stock_currency,v.valuation_date,v.fx_rate_micros,\
+                     v.document_subtotal_minor,v.stock_value_minor \
+                     FROM commerce_goods_valuations v \
+                     JOIN commerce_fulfillments f ON f.id=v.fulfillment_id AND f.journal_id=v.journal_id \
+                     JOIN commerce_orders o ON o.id=f.order_id \
+                     WHERE v.fulfillment_id=$1 AND v.company_id=$2 AND o.company_id=$2",
+                )
+                .bind(fulfillment_id)
+                .bind(company)
+                .fetch_optional(&mut *c)
+                .await?;
+            Ok(row.map(
+                |(
+                    journal_id,
+                    chart_id,
+                    document_currency,
+                    journal_currency,
+                    stock_currency,
+                    valuation_date,
+                    fx_rate_micros,
+                    document_subtotal_minor,
+                    stock_value_minor,
+                )| GoodsEffectReadback {
+                    journal_id,
+                    chart_id,
+                    document_currency,
+                    journal_currency,
+                    stock_currency,
+                    valuation_date,
+                    fx_rate_micros,
+                    document_subtotal_minor,
+                    stock_value_minor,
+                },
+            ))
         })
     }
 

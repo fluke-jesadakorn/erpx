@@ -2,27 +2,33 @@
 //!
 //! Composition mounts [`PgCommerceReceipt`] with the Inventory
 //! `InventoryStockReceipt<Q>` implementation from
-//! `erpx-server-inventory::public::commerce_receipt`. `Q` is the Quality-owned
-//! `StockReceiptQualityPort`; no production Rust implementation exists yet, so
-//! the composition root must supply one. The command writes fulfillment,
-//! stock/lot evidence, the order version and receipt/audit/outbox in one
-//! caller-owned serializable transaction. Finance goods-journal posting and
-//! attachment binding remain composition steps for full
-//! `commerce.order.fulfill` parity.
+//! `erpx-server-inventory::public::commerce_receipt` and the Quality-owned
+//! `StockReceiptQualityPort`, then supplies the Finance goods-valuation port
+//! from `erpx-server-finance::public::commerce_goods_journal`. The command
+//! writes fulfillment, functional valuation, stock/lot/hold evidence, the
+//! goods journal, the order version, `commerce_goods_valuations` and
+//! receipt/audit/outbox in one caller-owned serializable transaction in the
+//! frozen order Inventory stock/lot/hold -> Finance journal. Attachment binding
+//! and sales delivery remain composition/consumer steps.
+pub use crate::adapters::legacy_fulfillment::{
+    legacy_fulfillment_workflow_input, normalize_legacy_fulfillment_input,
+};
 pub use crate::adapters::receipt::PgCommerceReceipt;
 pub use crate::adapters::receipt_use_cases::{
-    CommerceReceiptRepository, CommerceReceiptStock, receive_purchase_order,
+    CommerceReceiptGoodsValuation, CommerceReceiptRepository, CommerceReceiptStock,
+    receive_purchase_order, receive_purchase_order_with_goods_valuation,
 };
-pub use crate::adapters::legacy_fulfillment::{normalize_legacy_fulfillment_input,legacy_fulfillment_workflow_input};
 pub use crate::domain::receipt::{
-    CommerceReceipt, CommerceReceiptLine, MAX_ALLOCATIONS, MAX_LINES, MAX_LOT_CODE, MAX_REASON,
-    MAX_SAFE, MAX_SERIAL, PreparedStockReceipt, RECEIPT_OPERATION, ReceiptAllocationCommand,
-    ReceiptCommand, ReceiptDisposition, ReceiptFulfillmentLinePlan, ReceiptFulfillmentPlan,
-    ReceiptLineCommand, ReceiptLineValue, ReceiptOrder, ReceiptOrderAdvance, ReceiptOrderLine,
-    ReceiptPlanLine, ReceiptReadback, ReceiptStockAllocation, ReceiptStockApplied,
-    ReceiptStockAppliedAllocation, ReceiptStockAppliedLine, ReceiptStockLine, ReceiptStockRequest,
-    ReceiptStockScope, expected_fulfilled_lines, expected_order_state, fx_guard_required,
-    line_value, not_found, prior_receipt, request_invalid, source_changed, source_invalid,
-    validate_readback, legacy_goods_receipt_number, legacy_goods_receipt_result,
-    LegacyReceiptCalculation, calculate_legacy_goods_receipt,
+    CommerceReceipt, CommerceReceiptLine, GoodsEffectReadback, GoodsJournalRequest,
+    GoodsPostingSettings, GoodsValuation, GoodsValuationPlan, GoodsValuationRequest,
+    LegacyReceiptCalculation, MAX_ALLOCATIONS, MAX_LINES, MAX_LOT_CODE, MAX_REASON, MAX_SAFE,
+    MAX_SERIAL, PreparedStockReceipt, RECEIPT_OPERATION, ReceiptAllocationCommand, ReceiptCommand,
+    ReceiptDisposition, ReceiptFulfillmentLinePlan, ReceiptFulfillmentPlan, ReceiptLineCommand,
+    ReceiptLineValue, ReceiptOrder, ReceiptOrderAdvance, ReceiptOrderLine, ReceiptPlanLine,
+    ReceiptReadback, ReceiptStockAllocation, ReceiptStockApplied, ReceiptStockAppliedAllocation,
+    ReceiptStockAppliedLine, ReceiptStockLine, ReceiptStockRequest, ReceiptStockScope,
+    calculate_legacy_goods_receipt, cumulative_stock_values, expected_fulfilled_lines,
+    expected_order_state, fx_guard_required, goods_journal_id, legacy_goods_receipt_number,
+    legacy_goods_receipt_result, line_document_value, line_value, not_found, prior_receipt,
+    request_invalid, source_changed, source_invalid, validate_goods_readback, validate_readback,
 };

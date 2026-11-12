@@ -1711,10 +1711,11 @@ mod purchase_receipt {
     //! validation, idempotency replay and persisted receipt shape.
     use erpx_server_commerce::public::order::{CommerceOrderActor, OrderCommandReceipt};
     use erpx_server_commerce::public::receipt::{
-        CommerceReceipt, CommerceReceiptLine, ReceiptAllocationCommand, ReceiptCommand,
-        ReceiptDisposition, ReceiptFulfillmentLinePlan, ReceiptLineCommand, ReceiptOrder,
-        ReceiptOrderLine, calculate_legacy_goods_receipt, expected_fulfilled_lines,
-        expected_order_state, line_value, prior_receipt,
+        CommerceReceipt, CommerceReceiptLine, GoodsEffectReadback, GoodsValuation,
+        GoodsValuationPlan, MAX_SAFE, ReceiptAllocationCommand, ReceiptCommand, ReceiptDisposition,
+        ReceiptFulfillmentLinePlan, ReceiptLineCommand, ReceiptOrder, ReceiptOrderLine,
+        calculate_legacy_goods_receipt, cumulative_stock_values, expected_fulfilled_lines,
+        expected_order_state, goods_journal_id, line_value, prior_receipt, validate_goods_readback,
     };
     use erpx_server_shared::public::{
         AssignmentId, CommandKey, CompanyId, HoldingId, RecordId, UserId,
@@ -1972,6 +1973,101 @@ mod purchase_receipt {
             (final_part.subtotal_minor, final_part.tax_minor),
             (3_333, 233)
         );
+    }
+
+    #[test]
+    fn cumulative_functional_valuation_distributes_rounding_without_drift() {
+        // 1.5x half-up: per-line conversion would give 500+500+501 = 1501,
+        // while the exact functional total is 1500.
+        let convert = |document_minor: i64| {
+            Ok(((i128::from(document_minor) * 1_500_000 + 500_000) / 1_000_000) as i64)
+        };
+        let values = cumulative_stock_values(&[333, 333, 334], convert).unwrap();
+        assert_eq!(values, vec![500, 499, 501]);
+        assert_eq!(values.iter().sum::<i64>(), 1_500);
+        assert_eq!(convert(1_000).unwrap(), 1_500);
+        let zero = cumulative_stock_values(&[0, 0], convert).unwrap();
+        assert_eq!(zero, vec![0, 0]);
+    }
+
+    #[test]
+    fn cumulative_functional_valuation_rejects_regression_and_overflow() {
+        assert_eq!(
+            cumulative_stock_values(&[100, 100], |document| Ok(if document > 100 {
+                100
+            } else {
+                200
+            }))
+            .unwrap_err()
+            .code,
+            "MONEY_OVERFLOW"
+        );
+        assert_eq!(
+            cumulative_stock_values(&[MAX_SAFE, 1], Ok)
+                .unwrap_err()
+                .code,
+            "MONEY_OVERFLOW"
+        );
+        assert_eq!(
+            cumulative_stock_values(&[-1], Ok).unwrap_err().code,
+            "MONEY_OVERFLOW"
+        );
+    }
+
+    #[test]
+    fn goods_journal_identity_and_readback_are_exact() {
+        let key = CommandKey::new("receipt-one").unwrap();
+        assert_eq!(goods_journal_id(&key), "journal-receipt-one");
+        let valuation = GoodsValuation {
+            stock_currency: "THB".into(),
+            fx_rate_micros: 1_000_000,
+            source_rate_id: None,
+            target_rate_id: None,
+            used_latest_fallback: false,
+        };
+        valuation.validate().unwrap();
+        let plan = GoodsValuationPlan {
+            fulfillment_id: "delivery-receipt-one".into(),
+            company_id: "company".into(),
+            chart_id: "chart".into(),
+            journal_id: goods_journal_id(&key),
+            document_currency: "THB".into(),
+            journal_currency: "THB".into(),
+            stock_currency: "THB".into(),
+            valuation_date: "2026-11-04".into(),
+            valuation: valuation.clone(),
+            document_subtotal_minor: 10_000,
+            stock_value_minor: 10_000,
+            captured_by: "receiver".into(),
+            captured_at: 7,
+        };
+        let readback = GoodsEffectReadback {
+            journal_id: plan.journal_id.clone(),
+            chart_id: plan.chart_id.clone(),
+            document_currency: plan.document_currency.clone(),
+            journal_currency: plan.journal_currency.clone(),
+            stock_currency: plan.stock_currency.clone(),
+            valuation_date: plan.valuation_date.clone(),
+            fx_rate_micros: valuation.fx_rate_micros,
+            document_subtotal_minor: plan.document_subtotal_minor,
+            stock_value_minor: plan.stock_value_minor,
+        };
+        validate_goods_readback(&plan, &readback).unwrap();
+        let mut changed = readback.clone();
+        changed.stock_value_minor += 1;
+        assert_eq!(
+            validate_goods_readback(&plan, &changed).unwrap_err().code,
+            "COMMERCE_GOODS_READBACK_INVALID"
+        );
+        let mut bad = valuation.clone();
+        bad.fx_rate_micros = 0;
+        assert_eq!(
+            bad.validate().unwrap_err().code,
+            "GOODS_FINANCE_VALUATION_INVALID"
+        );
+        bad.fx_rate_micros = 1_000_000;
+        bad.stock_currency = "thb".into();
+        assert!(bad.validate().is_err());
     }
 
     #[test]

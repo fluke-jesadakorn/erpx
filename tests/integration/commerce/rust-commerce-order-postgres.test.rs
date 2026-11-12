@@ -2206,3 +2206,657 @@ async fn conversion_preflight_preserves_actor_replay_and_quote_precedence() {
         let count:i64=sqlx::query_scalar("SELECT count(*) FROM commerce_orders WHERE source_id='quote-confirmed'").fetch_one(pool.raw()).await.unwrap();assert_eq!(count,1);
     }).await;
 }
+
+mod composed_goods_receipt {
+    //! Composed purchase goods receipt: Commerce fulfillment + functional
+    //! valuation + `commerce_goods_valuations`, Inventory stock/lot/Quality hold
+    //! and the Finance goods journal on one caller-owned serializable unit.
+    use super::*;
+    use erpx_server_commerce::public::receipt::{
+        CommerceReceipt, CommerceReceiptGoodsValuation, CommerceReceiptRepository,
+        GoodsJournalRequest, GoodsValuation, GoodsValuationRequest, PgCommerceReceipt,
+        ReceiptAllocationCommand, ReceiptCommand, ReceiptDisposition, ReceiptLineCommand,
+        receive_purchase_order_with_goods_valuation,
+    };
+    use erpx_server_finance::public::FinanceActor;
+    use erpx_server_finance::public::commerce_goods_journal::{
+        CommerceGoodsJournalPosting, CommerceGoodsKind, CommerceGoodsValuation,
+        CommerceGoodsValuationRequest, post_commerce_goods_journal,
+        resolve_commerce_goods_valuation,
+    };
+    use erpx_server_inventory::public::commerce_receipt::InventoryStockReceipt;
+    use erpx_server_runtime::public::postgres::{PgWorkFuture, TransactionOptions};
+    use erpx_server_shared::public::{Clock, FailureKind};
+    use sqlx::PgConnection;
+    use std::sync::Arc;
+
+    const RECEIPT_NOW: i64 = 1_800_000_000_000;
+
+    #[derive(Clone, Copy)]
+    struct FixedClock;
+
+    impl Clock for FixedClock {
+        fn now(&self) -> TimestampMillis {
+            TimestampMillis::new(RECEIPT_NOW)
+        }
+    }
+
+    /// Same binding the composition root mounts: resolve through the Finance
+    /// public seam, then post the draft goods journal on the caller's unit.
+    #[derive(Default)]
+    struct TestGoodsValuation {
+        clock: Option<Arc<FixedClock>>,
+        resolved: Option<CommerceGoodsValuation>,
+    }
+
+    impl TestGoodsValuation {
+        fn new() -> Self {
+            Self {
+                clock: Some(Arc::new(FixedClock)),
+                resolved: None,
+            }
+        }
+    }
+
+    fn finance_actor(request: &GoodsValuationRequest) -> FinanceActor {
+        FinanceActor {
+            user_id: UserId::new(&request.user_id).unwrap(),
+            holding_id: HoldingId::new(&request.holding_id).unwrap(),
+            company_id: CompanyId::new(&request.company_id).unwrap(),
+            assignment_id: AssignmentId::new(&request.assignment_id).unwrap(),
+        }
+    }
+
+    fn unavailable() -> BusinessError {
+        BusinessError::new(
+            FailureKind::Unavailable,
+            "GOODS_FINANCE_VALUATION_REQUIRED",
+            "The Finance goods valuation is unavailable.",
+        )
+    }
+
+    impl CommerceReceiptGoodsValuation for TestGoodsValuation {
+        fn lock<'a>(&'a mut self, _c: &'a mut PgConnection) -> PgWorkFuture<'a, (), BusinessError> {
+            Box::pin(async move { Ok(()) })
+        }
+
+        fn resolve<'a>(
+            &'a mut self,
+            c: &'a mut PgConnection,
+            request: &'a GoodsValuationRequest,
+        ) -> PgWorkFuture<'a, GoodsValuation, BusinessError> {
+            Box::pin(async move {
+                let resolved = resolve_commerce_goods_valuation(
+                    c,
+                    &CommerceGoodsValuationRequest {
+                        actor: finance_actor(request),
+                        chart_id: request.chart_id.clone(),
+                        business_date: request.business_date.clone(),
+                        document_currency: request.document_currency.clone(),
+                    },
+                )
+                .await?;
+                let valuation = GoodsValuation {
+                    stock_currency: resolved.stock_currency().to_owned(),
+                    fx_rate_micros: resolved.fx_rate_micros(),
+                    source_rate_id: resolved.fx().source_rate_id.clone(),
+                    target_rate_id: resolved.fx().target_rate_id.clone(),
+                    used_latest_fallback: resolved.fx().used_latest_fallback,
+                };
+                self.resolved = Some(resolved);
+                Ok(valuation)
+            })
+        }
+
+        fn stock_value(
+            &self,
+            valuation: &GoodsValuation,
+            document_minor: i64,
+        ) -> Result<i64, BusinessError> {
+            self.resolved
+                .as_ref()
+                .filter(|resolved| {
+                    resolved.stock_currency() == valuation.stock_currency
+                        && resolved.fx_rate_micros() == valuation.fx_rate_micros
+                })
+                .ok_or_else(unavailable)?
+                .stock_value_minor(document_minor)
+                .map_err(|error| match error {
+                    PgTransactionError::Business(error) => error,
+                    PgTransactionError::Persistence(_) => unavailable(),
+                })
+        }
+
+        fn post<'a>(
+            &'a mut self,
+            c: &'a mut PgConnection,
+            request: &'a GoodsJournalRequest,
+            valuation: &'a GoodsValuation,
+        ) -> PgWorkFuture<'a, String, BusinessError> {
+            Box::pin(async move {
+                if self.resolved.as_ref().is_none_or(|resolved| {
+                    resolved.stock_currency() != valuation.stock_currency
+                        || resolved.fx_rate_micros() != valuation.fx_rate_micros
+                }) {
+                    return Err(unavailable().into());
+                }
+                let clock = self.clock.clone().unwrap();
+                Ok(post_commerce_goods_journal(
+                    c,
+                    clock.as_ref(),
+                    &CommerceGoodsJournalPosting {
+                        journal_id: request.journal_id.clone(),
+                        actor: finance_actor(&GoodsValuationRequest {
+                            company_id: request.company_id.clone(),
+                            user_id: request.user_id.clone(),
+                            holding_id: request.holding_id.clone(),
+                            assignment_id: request.assignment_id.clone(),
+                            chart_id: request.chart_id.clone(),
+                            business_date: request.business_date.clone(),
+                            document_currency: request.document_currency.clone(),
+                        }),
+                        chart_id: request.chart_id.clone(),
+                        business_date: request.business_date.clone(),
+                        fulfillment_id: request.fulfillment_id.clone(),
+                        memo: request.memo.clone(),
+                        inventory_account_id: request.inventory_account_id.clone(),
+                        kind: CommerceGoodsKind::Receipt {
+                            clearing_account_id: request.clearing_account_id.clone(),
+                        },
+                        document_currency: request.document_currency.clone(),
+                        document_subtotal_minor: request.document_subtotal_minor,
+                        stock_value_minor: request.stock_value_minor,
+                        fx_rate_micros: Some(request.fx_rate_micros),
+                    },
+                )
+                .await?)
+            })
+        }
+    }
+
+    fn receipt_actor() -> CommerceOrderActor {
+        CommerceOrderActor {
+            user_id: UserId::new("receiver").unwrap(),
+            person_user_ids: vec![],
+            holding_id: HoldingId::new("holding").unwrap(),
+            company_id: CompanyId::new("company").unwrap(),
+            branch_id: Some(RecordId::new("branch").unwrap()),
+            department_id: None,
+            assignment_id: AssignmentId::new("assignment-receiver").unwrap(),
+            role: Some("warehouse_manager".into()),
+            authority_revision: Some(1),
+            assignment_version: Some(1),
+            permissions: vec!["commerce.read".into(), "inventory.prepare".into()],
+            modules: vec!["inventory".into()],
+            expires_at: 2_000_000_000_000,
+        }
+    }
+
+    fn receipt_command(key: &str, order: &str, version: i64, date: &str) -> ReceiptCommand {
+        ReceiptCommand {
+            key: CommandKey::new(key).unwrap(),
+            order_id: RecordId::new(order).unwrap(),
+            expected_version: version,
+            date: date.into(),
+            lines: vec![
+                ReceiptLineCommand {
+                    line_id: "line-plain".into(),
+                    quantity_milli: 1_000,
+                    allocations: vec![],
+                },
+                ReceiptLineCommand {
+                    line_id: "line-lot".into(),
+                    quantity_milli: 1_000,
+                    allocations: vec![ReceiptAllocationCommand {
+                        lot_code: Some("L-A".into()),
+                        serial_number: None,
+                        quantity_milli: 1_000,
+                        disposition: ReceiptDisposition::Quarantine,
+                        quarantine_reason: Some("Damaged carton".into()),
+                        quarantine_due_date: Some("2026-11-20".into()),
+                        manufactured_date: None,
+                        expiry_date: None,
+                    }],
+                },
+            ],
+        }
+    }
+
+    fn receipt_run(
+        pool: &DatabasePool,
+        actor: CommerceOrderActor,
+        command: ReceiptCommand,
+    ) -> impl std::future::Future<Output = Result<CommerceReceipt, PgTransactionError<BusinessError>>>
+    {
+        let pool = pool.clone();
+        async move {
+            PgUnitOfWork::new(pool)
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let actor = actor.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        let mut repository = PgCommerceReceipt;
+                        let mut stock = InventoryStockReceipt::production();
+                        let mut finance = TestGoodsValuation::new();
+                        receive_purchase_order_with_goods_valuation(
+                            &actor,
+                            &command,
+                            &mut repository,
+                            &mut stock,
+                            &mut finance,
+                            connection,
+                            TimestampMillis::new(RECEIPT_NOW),
+                        )
+                        .await
+                    })
+                })
+                .await
+        }
+    }
+
+    fn receipt_code(error: PgTransactionError<BusinessError>) -> String {
+        match error {
+            PgTransactionError::Business(error) => error.code.to_owned(),
+            PgTransactionError::Persistence(error) => error.to_string(),
+        }
+    }
+
+    /// Adds the receipt-specific Finance period, warehouse-manager authority and
+    /// purchase orders to the shared Commerce fixture.
+    async fn receipt_seed(pool: &DatabasePool) {
+        sqlx::raw_sql(
+            "INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy,version) VALUES \
+             ('company','receiver','local:receiver','active','local',1);\
+             INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,revoked_at,scope_kind,scope_node_id,source) VALUES \
+             ('assignment-receiver','receiver','warehouse_manager','[]','company','branch',0,9000000000000,NULL,'branch','branch','manual');\
+             INSERT INTO finance_periods(id,company_id,name,start_date,end_date,state,close_version,created_at) VALUES \
+             ('period-2026-11','company','November 2026','2026-11-01','2026-11-30','open',0,0);\
+             INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode,item_type,status,version) VALUES \
+             ('product-lot','company','STK-L','Lot product',1000,'lot','stock','active',1);\
+             INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at) VALUES \
+             ('po-receipt','company','branch','purchase','PO-R','supplier-1','warehouse-1','THB','2026-11-01','2026-11-10',4500,0,'confirmed',3,'creator',0,0),\
+             ('po-receipt-usd','company','branch','purchase','PO-RU','supplier-1','warehouse-1','USD','2026-11-01','2026-11-10',9999,0,'confirmed',1,'creator',0,0),\
+             ('po-receipt-foreign','foreign','foreign-branch','purchase','PO-RF','party-f',NULL,'THB','2026-11-01','2026-11-10',1000,0,'confirmed',1,'foreign-user',0,0);\
+             INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type) VALUES \
+             ('line-plain','po-receipt','product-stock','Plain product',1000,0,2500,0,2500,0,0,'stock'),\
+             ('line-lot','po-receipt','product-lot','Lot product',2000,0,1000,0,2000,0,1,'stock'),\
+             ('line-usd','po-receipt-usd','product-stock','USD product',3000,0,3333,0,9999,0,0,'stock'),\
+             ('line-foreign','po-receipt-foreign','product-stock','Foreign product',1000,0,1000,0,1000,0,0,'stock');",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn native_receipt_posts_valuation_journal_stock_and_quality_hold() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            receipt_seed(&pool).await;
+            let receipt = receipt_run(
+                &pool,
+                receipt_actor(),
+                receipt_command("receipt-goods-one", "po-receipt", 3, "2026-11-05"),
+            )
+            .await
+            .unwrap();
+            assert_eq!(receipt.fulfillment_id, "delivery-receipt-goods-one");
+            assert_eq!(receipt.state, "partially_fulfilled");
+            assert_eq!(receipt.version, 4);
+            assert_eq!(receipt.total_value_minor, 3_500);
+            assert_eq!(
+                receipt
+                    .lines
+                    .iter()
+                    .map(|line| (line.line_id.as_str(), line.value_minor))
+                    .collect::<Vec<_>>(),
+                vec![("line-plain", 2_500), ("line-lot", 1_000)]
+            );
+
+            let journal: (String, Option<i64>, String, String, String) = sqlx::query_as(
+                "SELECT currency,fx_rate_micros,status,source_type,source_id \
+                 FROM finance_journals WHERE id='journal-receipt-goods-one' AND company_id='company'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                journal,
+                (
+                    "THB".into(),
+                    Some(1_000_000),
+                    "draft".into(),
+                    "goods_receipt".into(),
+                    "delivery-receipt-goods-one".into()
+                )
+            );
+            let lines: Vec<(String, i64, i64, i64, i64)> = sqlx::query_as(
+                "SELECT account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor \
+                 FROM finance_journal_lines WHERE journal_id='journal-receipt-goods-one' ORDER BY ordinal",
+            )
+            .fetch_all(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                lines,
+                vec![
+                    ("coa-4".into(), 3_500, 0, 3_500, 0),
+                    ("coa-5".into(), 0, 3_500, 0, 3_500),
+                ]
+            );
+
+            let link: String = sqlx::query_scalar(
+                "SELECT journal_id FROM commerce_fulfillments WHERE id='delivery-receipt-goods-one'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(link, "journal-receipt-goods-one");
+            let valuation: (String, String, String, String, i64, i64, i64, Option<String>, bool) =
+                sqlx::query_as(
+                    "SELECT chart_id,document_currency,journal_currency,stock_currency,\
+                     fx_rate_micros,document_subtotal_minor,stock_value_minor,source_rate_id,\
+                     used_latest_fallback FROM commerce_goods_valuations \
+                     WHERE fulfillment_id='delivery-receipt-goods-one' AND company_id='company'",
+                )
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+            assert_eq!(
+                valuation,
+                (
+                    "chart-1".into(),
+                    "THB".into(),
+                    "THB".into(),
+                    "THB".into(),
+                    1_000_000,
+                    3_500,
+                    3_500,
+                    None,
+                    false
+                )
+            );
+            let line_currencies: Vec<(String, String, i64, i64)> = sqlx::query_as(
+                "SELECT order_line_id,stock_currency,value_minor,subtotal_minor \
+                 FROM commerce_fulfillment_lines WHERE fulfillment_id='delivery-receipt-goods-one' \
+                 ORDER BY id",
+            )
+            .fetch_all(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                line_currencies,
+                vec![
+                    ("line-plain".into(), "THB".into(), 2_500, 2_500),
+                    ("line-lot".into(), "THB".into(), 1_000, 1_000),
+                ]
+            );
+
+            let stock: Vec<(String, i64, i64)> = sqlx::query_as(
+                "SELECT product_id,quantity_milli,value_minor FROM commerce_stock \
+                 WHERE warehouse_id='warehouse-1' ORDER BY product_id",
+            )
+            .fetch_all(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                stock,
+                vec![
+                    ("product-lot".into(), 1_000, 1_000),
+                    ("product-stock".into(), 1_000, 2_500),
+                ]
+            );
+            let holds: Vec<(i64, String, String)> = sqlx::query_as(
+                "SELECT held_quantity_milli,reason,status FROM inventory_quality_holds \
+                 WHERE source_type='goods_receipt' AND company_id='company'",
+            )
+            .fetch_all(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(holds, vec![(1_000, "Damaged carton".into(), "held".into())]);
+            let order: (String, i64) =
+                sqlx::query_as("SELECT state,version FROM commerce_orders WHERE id='po-receipt'")
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap();
+            assert_eq!(order, ("partially_fulfilled".into(), 4));
+            let effects: (i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM command_receipts WHERE command_id='receipt-goods-one'),\
+                 (SELECT count(*) FROM audit_events WHERE command_id='receipt-goods-one'),\
+                 (SELECT count(*) FROM outbox_events WHERE command_id='receipt-goods-one')",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(effects, (1, 1, 1));
+            let result_json: String = sqlx::query_scalar(
+                "SELECT result_json FROM command_receipts WHERE command_id='receipt-goods-one'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&result_json).unwrap(),
+                json!({
+                    "orderId": "po-receipt",
+                    "fulfillmentId": "delivery-receipt-goods-one",
+                    "state": "partially_fulfilled",
+                    "version": 4,
+                    "totalValueMinor": 3500,
+                    "lines": [
+                        {"lineId": "line-plain", "quantityMilli": 1000, "valueMinor": 2500},
+                        {"lineId": "line-lot", "quantityMilli": 1000, "valueMinor": 1000},
+                    ],
+                })
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn native_receipt_replays_without_duplicate_stock_journal_or_hold() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            receipt_seed(&pool).await;
+            let input = receipt_command("receipt-goods-replay", "po-receipt", 3, "2026-11-05");
+            let first = receipt_run(&pool, receipt_actor(), input.clone())
+                .await
+                .unwrap();
+            let second = receipt_run(&pool, receipt_actor(), input.clone())
+                .await
+                .unwrap();
+            assert_eq!(first, second);
+            let counts: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM commerce_fulfillments WHERE order_id='po-receipt'),\
+                 (SELECT count(*) FROM finance_journals WHERE source_type='goods_receipt'),\
+                 (SELECT count(*) FROM commerce_goods_valuations),\
+                 (SELECT count(*) FROM inventory_quality_holds WHERE source_type='goods_receipt'),\
+                 (SELECT count(*) FROM command_receipts WHERE command_id='receipt-goods-replay'),\
+                 (SELECT quantity_milli FROM commerce_stock WHERE product_id='product-stock' AND warehouse_id='warehouse-1')",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(counts, (1, 1, 1, 1, 1, 1_000));
+
+            let mut changed = input.clone();
+            changed.lines[0].quantity_milli = 500;
+            let error = receipt_run(&pool, receipt_actor(), changed)
+                .await
+                .unwrap_err();
+            assert_eq!(receipt_code(error), "IDEMPOTENCY_CONFLICT");
+            let quantity: i64 = sqlx::query_scalar(
+                "SELECT quantity_milli FROM commerce_stock WHERE product_id='product-stock' AND warehouse_id='warehouse-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(quantity, 1_000);
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn foreign_currency_receipt_freezes_functional_value_and_journal() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            receipt_seed(&pool).await;
+            let input = ReceiptCommand {
+                key: CommandKey::new("receipt-goods-fx").unwrap(),
+                order_id: RecordId::new("po-receipt-usd").unwrap(),
+                expected_version: 1,
+                date: "2026-11-06".into(),
+                lines: vec![ReceiptLineCommand {
+                    line_id: "line-usd".into(),
+                    quantity_milli: 3_000,
+                    allocations: vec![],
+                }],
+            };
+            let receipt = receipt_run(&pool, receipt_actor(), input).await.unwrap();
+            // The fixture Company quote is 35 THB per USD: 9,999 document minor.
+            assert_eq!(receipt.total_value_minor, 349_965);
+            let journal: (String, Option<i64>, String, i64, i64) = sqlx::query_as(
+                "SELECT currency,fx_rate_micros,status,\
+                 (SELECT debit_minor FROM finance_journal_lines l WHERE l.journal_id=j.id ORDER BY ordinal LIMIT 1),\
+                 (SELECT base_debit_minor FROM finance_journal_lines l WHERE l.journal_id=j.id ORDER BY ordinal LIMIT 1) \
+                 FROM finance_journals j WHERE id='journal-receipt-goods-fx'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                journal,
+                ("USD".into(), Some(35_000_000), "draft".into(), 9_999, 349_965)
+            );
+            let valuation: (String, String, String, i64, i64, i64, Option<String>, Option<String>) =
+                sqlx::query_as(
+                    "SELECT document_currency,journal_currency,stock_currency,fx_rate_micros,\
+                     document_subtotal_minor,stock_value_minor,source_rate_id,target_rate_id \
+                     FROM commerce_goods_valuations WHERE fulfillment_id='delivery-receipt-goods-fx'",
+                )
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+            assert_eq!(
+                valuation,
+                (
+                    "USD".into(),
+                    "USD".into(),
+                    "THB".into(),
+                    35_000_000,
+                    9_999,
+                    349_965,
+                    None,
+                    Some("rate-thb".into())
+                )
+            );
+            let line: (i64, i64, String) = sqlx::query_as(
+                "SELECT value_minor,subtotal_minor,stock_currency FROM commerce_fulfillment_lines \
+                 WHERE fulfillment_id='delivery-receipt-goods-fx'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(line, (349_965, 9_999, "THB".into()));
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn foreign_and_missing_source_receipts_fail_closed_without_effects() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            receipt_seed(&pool).await;
+            let mut foreign = receipt_actor();
+            foreign.company_id = CompanyId::new("foreign").unwrap();
+            foreign.branch_id = Some(RecordId::new("foreign-branch").unwrap());
+            foreign.assignment_id = AssignmentId::new("assignment-foreign").unwrap();
+            let error = receipt_run(
+                &pool,
+                foreign,
+                receipt_command("receipt-goods-foreign", "po-receipt-foreign", 1, "2026-11-05"),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(receipt_code(error), "COMMERCE_PERMISSION_REQUIRED");
+            // Company isolation is owner-side: the receipt source read never
+            // returns another Company's purchase order, whatever the label.
+            let mut isolated = pool.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                .execute(&mut *isolated)
+                .await
+                .unwrap();
+            let mut repository = PgCommerceReceipt;
+            assert!(repository
+                .order_source(&mut isolated, &receipt_actor(), "po-receipt-foreign")
+                .await
+                .unwrap()
+                .is_none());
+            isolated.rollback().await.unwrap();
+
+            let mut stale = receipt_command("receipt-goods-stale", "po-receipt", 99, "2026-11-05");
+            stale.lines.truncate(1);
+            let error = receipt_run(&pool, receipt_actor(), stale).await.unwrap_err();
+            assert_eq!(receipt_code(error), "COMMERCE_ORDER_CHANGED");
+
+            sqlx::query("DELETE FROM commerce_settings WHERE company_id='company'")
+                .execute(pool.raw())
+                .await
+                .unwrap();
+            let mut unconfigured =
+                receipt_command("receipt-goods-unconfigured", "po-receipt", 3, "2026-11-05");
+            unconfigured.lines.truncate(1);
+            let error = receipt_run(&pool, receipt_actor(), unconfigured)
+                .await
+                .unwrap_err();
+            assert_eq!(receipt_code(error), "COMMERCE_SETUP_REQUIRED");
+
+            let effects: (i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM commerce_fulfillments WHERE order_id='po-receipt'),\
+                 (SELECT count(*) FROM commerce_fulfillment_lines WHERE fulfillment_id LIKE 'delivery-receipt-goods-%'),\
+                 (SELECT count(*) FROM commerce_stock_moves WHERE fulfillment_id LIKE 'delivery-receipt-goods-%'),\
+                 (SELECT count(*) FROM finance_journals),\
+                 (SELECT count(*) FROM commerce_goods_valuations),\
+                 (SELECT count(*) FROM command_receipts),\
+                 (SELECT count(*) FROM outbox_events)",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(effects, (0, 0, 0, 0, 0, 0, 0));
+            let order: (String, i64) =
+                sqlx::query_as("SELECT state,version FROM commerce_orders WHERE id='po-receipt'")
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap();
+            assert_eq!(order, ("confirmed".into(), 3));
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn closed_period_rejects_the_receipt_without_stock_or_receipt_rows() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            receipt_seed(&pool).await;
+            let mut input = receipt_command("receipt-goods-closed", "po-receipt", 3, "2026-12-15");
+            input.lines.truncate(1);
+            let error = receipt_run(&pool, receipt_actor(), input)
+                .await
+                .unwrap_err();
+            assert_eq!(receipt_code(error), "GOODS_FINANCE_PERIOD_CLOSED");
+            let effects: (i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM commerce_fulfillments WHERE order_id='po-receipt'),\
+                 (SELECT count(*) FROM commerce_stock WHERE warehouse_id='warehouse-1' AND product_id='product-stock'),\
+                 (SELECT count(*) FROM finance_journals),\
+                 (SELECT count(*) FROM commerce_goods_valuations),\
+                 (SELECT count(*) FROM command_receipts)",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(effects, (0, 0, 0, 0, 0));
+        })
+        .await;
+    }
+}

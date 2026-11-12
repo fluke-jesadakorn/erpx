@@ -810,6 +810,7 @@ name = "erpx-server-commerce"
 version = "0.1.0"
 dependencies = [
  "erpx-server-finance",
+ "erpx-server-inventory",
  "erpx-server-runtime",
  "erpx-server-shared",
  "erpx-server-workflow",

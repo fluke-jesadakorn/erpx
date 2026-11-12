@@ -232,6 +232,40 @@ describe('native Commerce order transport',()=>{
       .rejects.toMatchObject({code:'NATIVE_COMMERCE_ORDER_RESPONSE_INVALID'});
   });
 
+  it('forwards one exact purchase goods-receipt body and the native purchase-orders path',async()=>{
+    const seen:unknown[]=[];
+    const transport=transportFor((_method,url,headers,body)=>{
+      seen.push({path:url.pathname,body,key:headers.get('idempotency-key'),content:headers.get('content-type')});
+      return response(envelope({id:'order-1',fulfillmentId:'delivery-1',version:4,state:'partially_fulfilled'}));
+    });
+    const client=createNativeCommerceOrdersClient(
+      nativeCommerceOrdersConfiguration(config()),transport);
+    const command={
+      expectedVersion:3,date:'2026-11-12',
+      lines:[
+        {lineId:'line-1',quantity:'1'},
+        {lineId:'line-2',quantity:'1.5',allocations:[
+          {lotCode:'L-A',quantity:'1.5',manufacturedDate:'2026-10-01',expiryDate:'2027-10-01'},
+          {serialNumber:'SN-1',quantity:'1',disposition:'quarantine' as const,
+            quarantineReason:'Damaged carton',quarantineDueDate:'2026-11-20'},
+        ]},
+      ],
+    };
+    expect(await client.goodsReceipt(incoming(),actor,'order-1',command,'commerce-goods-0001',input))
+      .toEqual({id:'order-1',fulfillmentId:'delivery-1',version:4,state:'partially_fulfilled'});
+    const body='{"completionMode":"goods","expectedVersion":3,"date":"2026-11-12","lines":[{"lineId":"line-1","quantity":"1"},{"lineId":"line-2","quantity":"1.5","allocations":[{"lotCode":"L-A","quantity":"1.5","manufacturedDate":"2026-10-01","expiryDate":"2027-10-01"},{"serialNumber":"SN-1","quantity":"1","disposition":"quarantine","quarantineReason":"Damaged carton","quarantineDueDate":"2026-11-20"}]}]}';
+    expect(seen).toEqual([{
+      path:'/api/v1/holdings/acme/commerce/purchase-orders/order-1/goods-receipts',
+      body,key:'commerce-goods-0001',content:'application/json',
+    }]);
+    await expect(client.goodsReceipt(incoming(),actor,'order-1',
+      {...command,lines:[]},'commerce-goods-0002',input))
+      .rejects.toMatchObject({code:'NATIVE_COMMERCE_ORDER_REQUEST_INVALID'});
+    await expect(client.goodsReceipt(incoming(),actor,'order-1',
+      {...command,lines:[{lineId:'line-1',quantity:'1.0000'}]},'commerce-goods-0003',input))
+      .rejects.toMatchObject({code:'NATIVE_COMMERCE_ORDER_REQUEST_INVALID'});
+  });
+
   it('maps changed context and request failures to the retained page policy',()=>{
     expect(nativeCommerceOrdersFailure(
       new NativeCommerceOrdersError('NATIVE_COMMERCE_ORDER_CONTEXT_CHANGED'),

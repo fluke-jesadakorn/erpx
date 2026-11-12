@@ -13,7 +13,7 @@ use erpx_server_commerce::public::order::{
 };
 use erpx_server_commerce::public::order_http::ServiceCompletionInput;
 use erpx_server_commerce::public::receipt::{
-    CommerceReceipt, PgCommerceReceipt, ReceiptCommand, receive_purchase_order,
+    PgCommerceReceipt, ReceiptCommand, receive_purchase_order_with_goods_valuation,
 };
 use erpx_server_commerce::public::receipt_http::{
     CommerceReceiptHttpBackend, CommerceReceiptHttpFuture, CommerceReceiptHttpRequest,
@@ -991,16 +991,17 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                         let now = clock.now();
                         let mut repository = PgCommerceReceipt;
                         let mut stock = erpx_server_inventory::public::commerce_receipt::InventoryStockReceipt::production();
-                        let receipt = receive_purchase_order(
+                        let mut goods = ComposedGoodsValuation::new(clock.clone());
+                        let receipt = receive_purchase_order_with_goods_valuation(
                             &actor,
                             &command,
                             &mut repository,
                             &mut stock,
+                            &mut goods,
                             connection,
                             now,
                         )
                         .await?;
-                        post_receipt_journal(connection, clock.as_ref(), current, &actor, &receipt, &command.date).await?;
                         let data = receipt
                             .to_result_json()
                             .map_err(PgTransactionError::Business)
@@ -1090,54 +1091,153 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
     }
 }
 
+/// Finance goods-valuation port for the native purchase receipt. The
+/// implementation resolves the Company chart/quote, values document amounts and
+/// posts the draft goods journal on the caller's serializable unit. It never
+/// commits, retries or writes Commerce/Inventory rows.
+struct ComposedGoodsValuation<C> {
+    clock: Arc<C>,
+    resolved: Option<erpx_server_finance::public::commerce_goods_journal::CommerceGoodsValuation>,
+}
 
-/// Post the Finance goods journal for a native purchase receipt on the same
-/// serializable unit. The journal identity is the deterministic fulfillment.
-async fn post_receipt_journal<C: Clock + Sync>(
-    connection: &mut PgConnection,
-    clock: &C,
-    current: &AuthorizedWorkContext,
-    actor: &CommerceOrderActor,
-    receipt: &CommerceReceipt,
-    date: &str,
-) -> Result<(), Error> {
-    let settings: Option<(String, String, String, String)> = sqlx::query_as(
-        "SELECT s.chart_id,s.inventory_account_id,s.clearing_account_id,c.base_currency \
-         FROM commerce_settings s JOIN finance_charts c ON c.id=s.chart_id \
-         AND c.company_id=s.company_id AND c.status='active' WHERE s.company_id=$1",
+impl<C> ComposedGoodsValuation<C> {
+    fn new(clock: Arc<C>) -> Self {
+        Self {
+            clock,
+            resolved: None,
+        }
+    }
+}
+
+fn finance_actor_from(
+    user_id: &str,
+    holding_id: &str,
+    company_id: &str,
+    assignment_id: &str,
+) -> Result<erpx_server_finance::public::FinanceActor, BusinessError> {
+    Ok(erpx_server_finance::public::FinanceActor {
+        user_id: erpx_server_shared::public::UserId::new(user_id)
+            .map_err(|_| goods_finance_unavailable())?,
+        holding_id: HoldingId::new(holding_id).map_err(|_| goods_finance_unavailable())?,
+        company_id: CompanyId::new(company_id).map_err(|_| goods_finance_unavailable())?,
+        assignment_id: erpx_server_shared::public::AssignmentId::new(assignment_id)
+            .map_err(|_| goods_finance_unavailable())?,
+    })
+}
+
+fn goods_finance_unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "GOODS_FINANCE_VALUATION_REQUIRED",
+        "The Finance goods valuation is unavailable.",
     )
-    .bind(actor.company_id.as_str())
-    .fetch_optional(&mut *connection)
-    .await?;
-    let (chart_id, inventory_account_id, clearing_account_id, base_currency) =
-        settings.ok_or_else(|| PgTransactionError::Business(not_found()))?;
-    let assignment = current.selection().assignment();
-    let posting = erpx_server_finance::public::commerce_goods_journal::CommerceGoodsJournalPosting {
-        journal_id: format!("goods-receipt-{}", receipt.fulfillment_id),
-        actor: erpx_server_finance::public::FinanceActor {
-            user_id: current.user_id().clone(),
-            holding_id: current.holding_id().clone(),
-            company_id: actor.company_id.clone(),
-            assignment_id: assignment.id.clone(),
-        },
-        chart_id,
-        business_date: date.to_owned(),
-        fulfillment_id: receipt.fulfillment_id.clone(),
-        memo: "Purchase goods receipt".to_owned(),
-        inventory_account_id,
-        kind: erpx_server_finance::public::commerce_goods_journal::CommerceGoodsKind::Receipt {
-            clearing_account_id,
-        },
-        document_currency: base_currency.clone(),
-        document_subtotal_minor: receipt.total_value_minor,
-        stock_value_minor: receipt.total_value_minor,
-        fx_rate_micros: None,
-    };
-    erpx_server_finance::public::commerce_goods_journal::post_commerce_goods_journal(
-        connection, clock, &posting,
-    )
-    .await?;
-    Ok(())
+}
+
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_commerce::public::receipt::CommerceReceiptGoodsValuation
+    for ComposedGoodsValuation<C>
+{
+    fn lock<'a>(&'a mut self, _c: &'a mut PgConnection) -> PgWorkFuture<'a, (), BusinessError> {
+        Box::pin(async move { Ok(()) })
+    }
+
+    fn resolve<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        request: &'a erpx_server_commerce::public::receipt::GoodsValuationRequest,
+    ) -> PgWorkFuture<'a, erpx_server_commerce::public::receipt::GoodsValuation, BusinessError>
+    {
+        Box::pin(async move {
+            let actor = finance_actor_from(
+                &request.user_id,
+                &request.holding_id,
+                &request.company_id,
+                &request.assignment_id,
+            )
+            .map_err(PgTransactionError::Business)?;
+            let resolved = erpx_server_finance::public::commerce_goods_journal::resolve_commerce_goods_valuation(
+                connection,
+                &erpx_server_finance::public::commerce_goods_journal::CommerceGoodsValuationRequest {
+                    actor,
+                    chart_id: request.chart_id.clone(),
+                    business_date: request.business_date.clone(),
+                    document_currency: request.document_currency.clone(),
+                },
+            )
+            .await?;
+            let valuation = erpx_server_commerce::public::receipt::GoodsValuation {
+                stock_currency: resolved.stock_currency().to_owned(),
+                fx_rate_micros: resolved.fx_rate_micros(),
+                source_rate_id: resolved.fx().source_rate_id.clone(),
+                target_rate_id: resolved.fx().target_rate_id.clone(),
+                used_latest_fallback: resolved.fx().used_latest_fallback,
+            };
+            self.resolved = Some(resolved);
+            Ok(valuation)
+        })
+    }
+
+    fn stock_value(
+        &self,
+        valuation: &erpx_server_commerce::public::receipt::GoodsValuation,
+        document_minor: i64,
+    ) -> Result<i64, BusinessError> {
+        let resolved = self
+            .resolved
+            .as_ref()
+            .filter(|resolved| {
+                resolved.stock_currency() == valuation.stock_currency
+                    && resolved.fx_rate_micros() == valuation.fx_rate_micros
+            })
+            .ok_or_else(goods_finance_unavailable)?;
+        resolved.stock_value_minor(document_minor).map_err(business)
+    }
+
+    fn post<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        request: &'a erpx_server_commerce::public::receipt::GoodsJournalRequest,
+        valuation: &'a erpx_server_commerce::public::receipt::GoodsValuation,
+    ) -> PgWorkFuture<'a, String, BusinessError> {
+        Box::pin(async move {
+            if self.resolved.as_ref().is_none_or(|resolved| {
+                resolved.stock_currency() != valuation.stock_currency
+                    || resolved.fx_rate_micros() != valuation.fx_rate_micros
+            }) {
+                return Err(PgTransactionError::Business(goods_finance_unavailable()));
+            }
+            let posting = erpx_server_finance::public::commerce_goods_journal::CommerceGoodsJournalPosting {
+                journal_id: request.journal_id.clone(),
+                actor: finance_actor_from(
+                    &request.user_id,
+                    &request.holding_id,
+                    &request.company_id,
+                    &request.assignment_id,
+                )
+                .map_err(PgTransactionError::Business)?,
+                chart_id: request.chart_id.clone(),
+                business_date: request.business_date.clone(),
+                fulfillment_id: request.fulfillment_id.clone(),
+                memo: request.memo.clone(),
+                inventory_account_id: request.inventory_account_id.clone(),
+                kind: erpx_server_finance::public::commerce_goods_journal::CommerceGoodsKind::Receipt {
+                    clearing_account_id: request.clearing_account_id.clone(),
+                },
+                document_currency: request.document_currency.clone(),
+                document_subtotal_minor: request.document_subtotal_minor,
+                stock_value_minor: request.stock_value_minor,
+                fx_rate_micros: Some(request.fx_rate_micros),
+            };
+            let journal_id =
+                erpx_server_finance::public::commerce_goods_journal::post_commerce_goods_journal(
+                    connection,
+                    self.clock.as_ref(),
+                    &posting,
+                )
+                .await?;
+            Ok(journal_id)
+        })
+    }
 }
 
 pub struct CommerceBackend<C> {

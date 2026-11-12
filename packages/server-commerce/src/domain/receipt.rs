@@ -222,6 +222,10 @@ fn valid_currency(value: &str) -> bool {
     value.len() == 3 && value.bytes().all(|byte| byte.is_ascii_uppercase())
 }
 
+fn valid_identity(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 200
+}
+
 /// Current Commerce purchase order source. The repository reads only the
 /// scoped order, its lines and the Company chart base currency. `base_currency`
 /// is a Finance-owned read fact; it grants no posting authority.
@@ -319,18 +323,16 @@ pub struct ReceiptLineValue {
     pub expected_fulfilled_milli: i64,
 }
 
-/// Build the exact Commerce valuation for one receipt line. The retained
-/// writer uses the order-line subtotal for a full remaining receipt and a
-/// half-up scaled amount for a partial receipt; both avoid cumulative rounding
-/// drift.
-pub fn line_value(
-    order: &ReceiptOrder,
+/// Build the exact document-currency valuation for one receipt line. The
+/// retained writer uses the order-line subtotal for a full remaining receipt
+/// and a half-up scaled amount for a partial receipt; both avoid cumulative
+/// rounding drift. `stock_value_minor` repeats the document subtotal until the
+/// Finance functional valuation distributes it across the document total.
+pub fn line_document_value(
+    order_id: &str,
     line: &ReceiptOrderLine,
     quantity_milli: i64,
 ) -> Result<ReceiptLineValue, BusinessError> {
-    if order.currency != order.base_currency {
-        return Err(fx_guard_required());
-    }
     if !(1..=MAX_SAFE).contains(&quantity_milli)
         || quantity_milli > line.quantity_milli.saturating_sub(line.fulfilled_milli)
     {
@@ -354,7 +356,7 @@ pub fn line_value(
         return Err(money_overflow());
     }
     Ok(ReceiptLineValue {
-        order_id: order.id.clone(),
+        order_id: order_id.to_owned(),
         line_id: line.id.clone(),
         product_id: line.product_id.clone(),
         quantity_milli,
@@ -363,6 +365,52 @@ pub fn line_value(
         tax_minor: tax,
         expected_fulfilled_milli: line.fulfilled_milli,
     })
+}
+
+/// Same-currency legacy valuation. Native receipts route document amounts
+/// through [`line_document_value`] and the Finance functional valuation.
+pub fn line_value(
+    order: &ReceiptOrder,
+    line: &ReceiptOrderLine,
+    quantity_milli: i64,
+) -> Result<ReceiptLineValue, BusinessError> {
+    if order.currency != order.base_currency {
+        return Err(fx_guard_required());
+    }
+    line_document_value(order.id.as_str(), line, quantity_milli)
+}
+
+/// Distribute one cumulative functional conversion across ordered document
+/// amounts. Converting the running document subtotal and taking the difference
+/// keeps the sum exactly equal to the conversion of the document total, so a
+/// multi-line receipt cannot drift by a rounding unit; the Finance goods
+/// journal and the Inventory stock value reconcile by construction.
+pub fn cumulative_stock_values<F>(
+    document_subtotals: &[i64],
+    mut convert: F,
+) -> Result<Vec<i64>, BusinessError>
+where
+    F: FnMut(i64) -> Result<i64, BusinessError>,
+{
+    let mut document_total = 0_i64;
+    let mut converted_total = 0_i64;
+    let mut values = Vec::with_capacity(document_subtotals.len());
+    for amount in document_subtotals {
+        if !(0..=MAX_SAFE).contains(amount) {
+            return Err(money_overflow());
+        }
+        document_total = document_total
+            .checked_add(*amount)
+            .filter(|value| *value <= MAX_SAFE)
+            .ok_or_else(money_overflow)?;
+        let converted = convert(document_total)?;
+        if !(converted_total..=MAX_SAFE).contains(&converted) {
+            return Err(money_overflow());
+        }
+        values.push(converted - converted_total);
+        converted_total = converted;
+    }
+    Ok(values)
 }
 
 fn scaled_minor(amount: i64, numerator: i64, denominator: i64) -> Result<i64, BusinessError> {
@@ -880,6 +928,159 @@ pub fn expected_order_state(order: &ReceiptOrder, receipt: &CommerceReceipt) -> 
     } else {
         "fulfilled".into()
     }
+}
+
+/// Company goods posting settings. `chart_id` selects the Finance chart whose
+/// active base currency is the shared stock currency; the accounts are posting
+/// targets, not authorization.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GoodsPostingSettings {
+    pub chart_id: String,
+    pub inventory_account_id: String,
+    pub clearing_account_id: String,
+}
+
+/// Finance-owned functional quote for one goods movement. Construct only on the
+/// caller's serializable transaction through the composition goods-valuation
+/// port. It is evidence, not a caller label or authorization.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GoodsValuation {
+    pub stock_currency: String,
+    pub fx_rate_micros: i64,
+    pub source_rate_id: Option<String>,
+    pub target_rate_id: Option<String>,
+    pub used_latest_fallback: bool,
+}
+
+impl GoodsValuation {
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        if !valid_currency(&self.stock_currency)
+            || !(1..=1_000_000_000_000).contains(&self.fx_rate_micros)
+            || self
+                .source_rate_id
+                .as_deref()
+                .is_some_and(|value| !valid_identity(value))
+            || self
+                .target_rate_id
+                .as_deref()
+                .is_some_and(|value| !valid_identity(value))
+        {
+            return Err(goods_valuation_invalid());
+        }
+        Ok(())
+    }
+}
+
+/// Port-neutral Finance valuation request. The composition implementation
+/// supplies the Finance actor from the current authorized work context.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GoodsValuationRequest {
+    pub company_id: String,
+    pub user_id: String,
+    pub holding_id: String,
+    pub assignment_id: String,
+    pub chart_id: String,
+    pub business_date: String,
+    pub document_currency: String,
+}
+
+/// Port-neutral Finance goods-journal request. Commerce froze the document and
+/// functional totals; Finance re-resolves the quote and reconciles them.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GoodsJournalRequest {
+    pub company_id: String,
+    pub user_id: String,
+    pub holding_id: String,
+    pub assignment_id: String,
+    pub chart_id: String,
+    pub business_date: String,
+    pub journal_id: String,
+    pub fulfillment_id: String,
+    pub memo: String,
+    pub inventory_account_id: String,
+    pub clearing_account_id: String,
+    pub document_currency: String,
+    pub document_subtotal_minor: i64,
+    pub stock_value_minor: i64,
+    pub fx_rate_micros: i64,
+}
+
+/// Exact `commerce_goods_valuations` row retained with the receipt. Every field
+/// is derived from the current order, fulfillment and Finance quote.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GoodsValuationPlan {
+    pub fulfillment_id: String,
+    pub company_id: String,
+    pub chart_id: String,
+    pub journal_id: String,
+    pub document_currency: String,
+    pub journal_currency: String,
+    pub stock_currency: String,
+    pub valuation_date: String,
+    pub valuation: GoodsValuation,
+    pub document_subtotal_minor: i64,
+    pub stock_value_minor: i64,
+    pub captured_by: String,
+    pub captured_at: i64,
+}
+
+/// Persisted goods evidence read back inside the same unit.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GoodsEffectReadback {
+    pub journal_id: String,
+    pub chart_id: String,
+    pub document_currency: String,
+    pub journal_currency: String,
+    pub stock_currency: String,
+    pub valuation_date: String,
+    pub fx_rate_micros: i64,
+    pub document_subtotal_minor: i64,
+    pub stock_value_minor: i64,
+}
+
+/// Deterministic goods journal identity for one receipt command key. The
+/// Finance public writer requires a `journal-<source>` identity.
+pub fn goods_journal_id(key: &CommandKey) -> String {
+    format!("journal-{}", key.as_str())
+}
+
+pub fn validate_goods_readback(
+    plan: &GoodsValuationPlan,
+    readback: &GoodsEffectReadback,
+) -> Result<(), BusinessError> {
+    if readback.journal_id != plan.journal_id
+        || readback.chart_id != plan.chart_id
+        || readback.document_currency != plan.document_currency
+        || readback.journal_currency != plan.journal_currency
+        || readback.stock_currency != plan.stock_currency
+        || readback.valuation_date != plan.valuation_date
+        || readback.fx_rate_micros != plan.valuation.fx_rate_micros
+        || readback.document_subtotal_minor != plan.document_subtotal_minor
+        || readback.stock_value_minor != plan.stock_value_minor
+        || plan.document_subtotal_minor < 0
+        || plan.stock_value_minor < 0
+        || plan.document_subtotal_minor > MAX_SAFE
+        || plan.stock_value_minor > MAX_SAFE
+    {
+        return Err(goods_readback_invalid());
+    }
+    Ok(())
+}
+
+pub fn goods_valuation_invalid() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "GOODS_FINANCE_VALUATION_INVALID",
+        "The Company functional-currency quote is unavailable.",
+    )
+}
+
+pub fn goods_readback_invalid() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "COMMERCE_GOODS_READBACK_INVALID",
+        "The recorded goods journal or functional valuation could not be read back.",
+    )
 }
 
 pub fn request_invalid() -> BusinessError {

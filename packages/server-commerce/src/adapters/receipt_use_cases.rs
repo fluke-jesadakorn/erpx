@@ -11,11 +11,14 @@ use crate::domain::order::{
     CommerceOrderActor, idempotency_conflict, permission_required, validate_hash,
 };
 use crate::domain::receipt::{
-    CommerceReceipt, CommerceReceiptLine, PreparedStockReceipt, RECEIPT_OPERATION, ReceiptCommand,
-    ReceiptFulfillmentLinePlan, ReceiptFulfillmentPlan, ReceiptLineValue, ReceiptOrder,
-    ReceiptOrderAdvance, ReceiptReadback, ReceiptStockApplied, ReceiptStockRequest,
-    expected_order_state, fx_guard_required, line_value, not_found, prior_receipt,
-    readback_invalid, replay_incomplete, request_invalid, service_line_forbidden, source_changed,
+    CommerceReceipt, CommerceReceiptLine, GoodsEffectReadback, GoodsJournalRequest,
+    GoodsPostingSettings, GoodsValuation, GoodsValuationPlan, GoodsValuationRequest,
+    PreparedStockReceipt, RECEIPT_OPERATION, ReceiptCommand, ReceiptFulfillmentLinePlan,
+    ReceiptFulfillmentPlan, ReceiptLineValue, ReceiptOrder, ReceiptOrderAdvance, ReceiptReadback,
+    ReceiptStockApplied, ReceiptStockRequest, cumulative_stock_values, expected_order_state,
+    fx_guard_required, goods_journal_id, goods_readback_invalid, goods_valuation_invalid,
+    line_document_value, line_value, not_found, prior_receipt, readback_invalid, replay_incomplete,
+    request_invalid, service_line_forbidden, source_changed, validate_goods_readback,
     validate_readback,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -57,11 +60,42 @@ pub trait CommerceReceiptRepository {
         order_id: &'a str,
     ) -> PgWorkFuture<'a, Option<ReceiptOrder>, BusinessError>;
 
+    /// Company goods posting settings. A missing or inactive chart/account set
+    /// fails the receipt closed before any stock or journal write.
+    fn goods_settings<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        company: &'a str,
+    ) -> PgWorkFuture<'a, Option<GoodsPostingSettings>, BusinessError>;
+
     fn insert_fulfillment<'a>(
         &'a mut self,
         c: &'a mut PgConnection,
         plan: &'a ReceiptFulfillmentPlan,
     ) -> PgWorkFuture<'a, (), BusinessError>;
+
+    /// Attach the goods journal to the exact new fulfillment. Returns false when
+    /// the row is missing, already attached or outside the Company.
+    fn attach_journal<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        fulfillment_id: &'a str,
+        order_id: &'a str,
+        journal_id: &'a str,
+    ) -> PgWorkFuture<'a, bool, BusinessError>;
+
+    fn insert_goods_valuation<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        plan: &'a GoodsValuationPlan,
+    ) -> PgWorkFuture<'a, (), BusinessError>;
+
+    fn goods_readback<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        company: &'a str,
+        fulfillment_id: &'a str,
+    ) -> PgWorkFuture<'a, Option<GoodsEffectReadback>, BusinessError>;
 
     fn increment_fulfilled<'a>(
         &'a mut self,
@@ -140,14 +174,80 @@ pub trait CommerceReceiptStock {
     ) -> PgWorkFuture<'a, (), BusinessError>;
 }
 
+/// Finance-owned functional valuation and goods-journal seam. The
+/// implementation borrows the caller's transaction, re-resolves the Company
+/// chart and quote, and never commits or retries. Commerce supplies the frozen
+/// document and functional totals; Finance reconciles them.
+pub trait CommerceReceiptGoodsValuation: Send {
+    fn lock<'a>(&'a mut self, c: &'a mut PgConnection) -> PgWorkFuture<'a, (), BusinessError>;
+
+    fn resolve<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        request: &'a GoodsValuationRequest,
+    ) -> PgWorkFuture<'a, GoodsValuation, BusinessError>;
+
+    /// Convert a document-currency amount with the resolved quote. The
+    /// implementation must use the exact quote it returned from `resolve`.
+    fn stock_value(
+        &self,
+        valuation: &GoodsValuation,
+        document_minor: i64,
+    ) -> Result<i64, BusinessError>;
+
+    fn post<'a>(
+        &'a mut self,
+        c: &'a mut PgConnection,
+        request: &'a GoodsJournalRequest,
+        valuation: &'a GoodsValuation,
+    ) -> PgWorkFuture<'a, String, BusinessError>;
+}
+
 /// Apply one purchase goods receipt. `stock` must be the Inventory public seam
 /// backed by the same `c`; composition wires that implementation and the
-/// Quality hold port.
+/// Quality hold port. This legacy entry point retains the same-currency
+/// Commerce/Inventory unit only.
 pub async fn receive_purchase_order<R, S>(
     actor: &CommerceOrderActor,
     command: &ReceiptCommand,
     repository: &mut R,
     stock: &mut S,
+    c: &mut PgConnection,
+    now: TimestampMillis,
+) -> Result<CommerceReceipt, PgTransactionError<BusinessError>>
+where
+    R: CommerceReceiptRepository + ?Sized,
+    S: CommerceReceiptStock + ?Sized,
+{
+    receive_purchase_order_unit(actor, command, repository, stock, None, c, now).await
+}
+
+/// Apply one purchase goods receipt with the Finance functional valuation,
+/// goods journal and `commerce_goods_valuations` evidence on the same
+/// serializable unit. Required order: Inventory stock/lot/hold effects first,
+/// then the Finance goods journal, then Commerce readback.
+pub async fn receive_purchase_order_with_goods_valuation<R, S>(
+    actor: &CommerceOrderActor,
+    command: &ReceiptCommand,
+    repository: &mut R,
+    stock: &mut S,
+    finance: &mut dyn CommerceReceiptGoodsValuation,
+    c: &mut PgConnection,
+    now: TimestampMillis,
+) -> Result<CommerceReceipt, PgTransactionError<BusinessError>>
+where
+    R: CommerceReceiptRepository + ?Sized,
+    S: CommerceReceiptStock + ?Sized,
+{
+    receive_purchase_order_unit(actor, command, repository, stock, Some(finance), c, now).await
+}
+
+async fn receive_purchase_order_unit<R, S>(
+    actor: &CommerceOrderActor,
+    command: &ReceiptCommand,
+    repository: &mut R,
+    stock: &mut S,
+    mut finance: Option<&mut dyn CommerceReceiptGoodsValuation>,
     c: &mut PgConnection,
     now: TimestampMillis,
 ) -> Result<CommerceReceipt, PgTransactionError<BusinessError>>
@@ -167,6 +267,16 @@ where
         &request_hash,
         command.order_id.as_str(),
     )? {
+        // A replayed native receipt must still carry its goods valuation and
+        // journal link; a partial earlier receipt is never silently accepted.
+        if finance.is_some()
+            && repository
+                .goods_readback(c, actor.company_id.as_str(), &prior.fulfillment_id)
+                .await?
+                .is_none()
+        {
+            return Err(goods_readback_invalid().into());
+        }
         return Ok(prior);
     }
     if !repository.current_authority(c, actor, now).await? {
@@ -181,20 +291,81 @@ where
     if order.version != command.expected_version {
         return Err(source_changed().into());
     }
-    if order.currency != order.base_currency {
-        return Err(fx_guard_required().into());
-    }
     let mut values = Vec::with_capacity(command.lines.len());
-    for line in &command.lines {
-        let source = order
-            .lines
-            .iter()
-            .find(|value| value.id == line.line_id)
-            .ok_or_else(source_changed)?;
-        if source.item_type != "stock" {
-            return Err(service_line_forbidden().into());
+    let mut goods: Option<GoodsReceiptFinance> = None;
+    if let Some(finance) = finance.as_mut() {
+        finance.lock(c).await?;
+        let settings = repository
+            .goods_settings(c, actor.company_id.as_str())
+            .await?
+            .ok_or_else(goods_setup_required)?;
+        let valuation = finance
+            .resolve(
+                c,
+                &GoodsValuationRequest {
+                    company_id: actor.company_id.as_str().to_owned(),
+                    user_id: actor.user_id.as_str().to_owned(),
+                    holding_id: actor.holding_id.as_str().to_owned(),
+                    assignment_id: actor.assignment_id.as_str().to_owned(),
+                    chart_id: settings.chart_id.clone(),
+                    business_date: command.date.clone(),
+                    document_currency: order.currency.clone(),
+                },
+            )
+            .await?;
+        valuation.validate()?;
+        if valuation.fx_rate_micros != 1_000_000 && order.currency == order.base_currency {
+            return Err(goods_valuation_invalid().into());
         }
-        values.push(line_value(&order, source, line.quantity_milli)?);
+        for line in &command.lines {
+            let source = order
+                .lines
+                .iter()
+                .find(|value| value.id == line.line_id)
+                .ok_or_else(source_changed)?;
+            if source.item_type != "stock" {
+                return Err(service_line_forbidden().into());
+            }
+            values.push(line_document_value(&order.id, source, line.quantity_milli)?);
+        }
+        let document: Vec<i64> = values.iter().map(|value| value.subtotal_minor).collect();
+        let stock = cumulative_stock_values(&document, |cumulative| {
+            finance.stock_value(&valuation, cumulative)
+        })?;
+        for (value, stock_value) in values.iter_mut().zip(stock) {
+            value.stock_value_minor = stock_value;
+        }
+        goods = Some(GoodsReceiptFinance {
+            settings,
+            valuation,
+            document_subtotal_minor: document
+                .iter()
+                .try_fold(0_i64, |total, amount| total.checked_add(*amount))
+                .filter(|total| *total <= crate::domain::receipt::MAX_SAFE)
+                .ok_or_else(crate::domain::receipt::money_overflow)?,
+            stock_value_minor: values
+                .iter()
+                .try_fold(0_i64, |total, value| {
+                    total.checked_add(value.stock_value_minor)
+                })
+                .filter(|total| *total <= crate::domain::receipt::MAX_SAFE)
+                .ok_or_else(crate::domain::receipt::money_overflow)?,
+        });
+    } else {
+        if order.currency != order.base_currency {
+            return Err(fx_guard_required().into());
+        }
+        for line in &command.lines {
+            let source = order
+                .lines
+                .iter()
+                .find(|value| value.id == line.line_id)
+                .ok_or_else(source_changed)?;
+            if source.item_type != "stock" {
+                return Err(service_line_forbidden().into());
+            }
+            values.push(line_value(&order, source, line.quantity_milli)?);
+        }
     }
     let request = ReceiptStockRequest {
         scope: crate::domain::receipt::ReceiptStockScope {
@@ -270,7 +441,10 @@ where
                 value_minor: value.stock_value_minor,
                 subtotal_minor: value.subtotal_minor,
                 tax_minor: value.tax_minor,
-                stock_currency: order.base_currency.clone(),
+                stock_currency: goods
+                    .as_ref()
+                    .map(|goods| goods.valuation.stock_currency.clone())
+                    .unwrap_or_else(|| order.base_currency.clone()),
             })
             .collect(),
     };
@@ -294,6 +468,65 @@ where
     }
     if applied_facts.lines.len() != values.len() {
         return Err(source_changed().into());
+    }
+    if let (Some(goods), Some(finance)) = (goods.as_ref(), finance.as_mut()) {
+        let journal_id = goods_journal_id(&command.key);
+        let posted = finance
+            .post(
+                c,
+                &GoodsJournalRequest {
+                    company_id: actor.company_id.as_str().to_owned(),
+                    user_id: actor.user_id.as_str().to_owned(),
+                    holding_id: actor.holding_id.as_str().to_owned(),
+                    assignment_id: actor.assignment_id.as_str().to_owned(),
+                    chart_id: goods.settings.chart_id.clone(),
+                    business_date: command.date.clone(),
+                    journal_id: journal_id.clone(),
+                    fulfillment_id: fulfillment.id.clone(),
+                    memo: format!("Goods receipt {}", fulfillment.id),
+                    inventory_account_id: goods.settings.inventory_account_id.clone(),
+                    clearing_account_id: goods.settings.clearing_account_id.clone(),
+                    document_currency: order.currency.clone(),
+                    document_subtotal_minor: goods.document_subtotal_minor,
+                    stock_value_minor: goods.stock_value_minor,
+                    fx_rate_micros: goods.valuation.fx_rate_micros,
+                },
+                &goods.valuation,
+            )
+            .await?;
+        if posted != journal_id
+            || !repository
+                .attach_journal(
+                    c,
+                    &fulfillment.id,
+                    command.order_id.as_str(),
+                    journal_id.as_str(),
+                )
+                .await?
+        {
+            return Err(source_changed().into());
+        }
+        let plan = GoodsValuationPlan {
+            fulfillment_id: fulfillment.id.clone(),
+            company_id: actor.company_id.as_str().to_owned(),
+            chart_id: goods.settings.chart_id.clone(),
+            journal_id: journal_id.clone(),
+            document_currency: order.currency.clone(),
+            journal_currency: order.currency.clone(),
+            stock_currency: goods.valuation.stock_currency.clone(),
+            valuation_date: command.date.clone(),
+            valuation: goods.valuation.clone(),
+            document_subtotal_minor: goods.document_subtotal_minor,
+            stock_value_minor: goods.stock_value_minor,
+            captured_by: actor.user_id.as_str().to_owned(),
+            captured_at: now.get(),
+        };
+        repository.insert_goods_valuation(c, &plan).await?;
+        let readback = repository
+            .goods_readback(c, actor.company_id.as_str(), &fulfillment.id)
+            .await?
+            .ok_or_else(goods_readback_invalid)?;
+        validate_goods_readback(&plan, &readback)?;
     }
     for value in &values {
         if !repository.increment_fulfilled(c, value).await? {
@@ -401,4 +634,19 @@ where
     // Inventory evidence until all of them have completed in this unit.
     stock.require_applied(c, &prepared.plan, &applied).await?;
     Ok(receipt)
+}
+
+struct GoodsReceiptFinance {
+    settings: GoodsPostingSettings,
+    valuation: GoodsValuation,
+    document_subtotal_minor: i64,
+    stock_value_minor: i64,
+}
+
+fn goods_setup_required() -> BusinessError {
+    BusinessError::new(
+        erpx_server_shared::public::FailureKind::Conflict,
+        "INVENTORY_POSTING_SETUP_REQUIRED",
+        "Ask Finance to configure inventory, cost of sales and clearing accounts before delivering goods.",
+    )
 }
