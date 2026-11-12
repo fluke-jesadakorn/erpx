@@ -11,7 +11,8 @@ import {migrateDatabase} from '@erpx/server-runtime/public/runtime/migrations';
 import {packageGrantStore} from '@erpx/server-commercial/public/package-grants';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {postInvoice,postJournal} from '@erpx/server-finance/public/finance';
+import {postInvoice} from '@erpx/server-finance/public/finance';
+import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
 import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 
@@ -159,7 +160,7 @@ async function companyServiceCashFixture(twoBanks=false){
   }
   const detail=await getOrder(s.z.owner,s.orderId),returned=await requestCommerceReturn(s.z.owner,s.fulfillmentId,returnRequestSchema.parse({expectedVersion:2,date:'2026-09-06',reason:'Actual Company service customer independently accepts the whole credit',lines:[{lineId:String(detail.fulfillmentLines[0].id),quantity:'1'}]}),key());
   const reviewed=await decideCommerceReturn(s.z.salesManager,String(returned.id),'approve',{expectedVersion:1,reason:'Different actual Sales manager reviews the original completed service'},key());
-  expect(reviewed.stockJournalId).toBeUndefined();await assignZeroSales(s.z,'journal',String(reviewed.creditJournalId),'draft',s.z.manager);await postJournal(s.z.manager,String(reviewed.creditJournalId),key(),{expectedVersion:1});
+  expect(reviewed.stockJournalId).toBeUndefined();await assignZeroSales(s.z,'journal',String(reviewed.creditJournalId),'draft',s.z.manager);await markFinanceJournalPosted(db,String(reviewed.creditJournalId),s.z.manager.userId);
   const completed=await completeCommerceReturn(s.z.manager,String(returned.id),{expectedVersion:2},key()),refundId=String(completed.refundId),refunds=await import('@erpx/server-finance/public/refunds');
   expect(completed.refundMinor).toBe(twoBanks?7500:5000);
   const reviewer=await s.z.actor('independent-cash-source-reviewer','finance_approver');

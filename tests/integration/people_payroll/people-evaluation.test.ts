@@ -5,7 +5,7 @@ import {addEvaluationEvidence,approveEvaluationCompensation,cancelEvaluationComp
 import { parseEvaluationMarketCsv } from "@erpx/feature-shared/lib/evaluation-market-import";
 import { queueEvaluationAi, runEvaluationAi, evaluationAiStatus } from "@erpx/server-people_payroll/public/people-evaluation-ai";
 import { transitionCompensation } from "@erpx/server-people_payroll/public/people-payroll";
-import { activateAiConnection, aiConnectionSchema, aiSelectionSchema, saveAiConnection, selectAiProviders, testAiConnection } from "@erpx/server-agent/public/ai-providers";
+import { seedAiProvider } from "../agent/ai-provider-seed";
 import { authorizeAttachmentTarget, attachmentPolicy } from "@erpx/server-files/public/attachments/policy";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {seedProjectFor} from '../projects/project-actual-fixtures';
@@ -216,9 +216,7 @@ it("preserves issued payroll and refuses a pending draft after its proposed peri
   expect(await db.prepare("SELECT effective_to FROM hr_compensation_revisions WHERE id=?").bind(p.wage).first("effective_to")).toBeNull();
 });
 async function aiProvider(s: Awaited<ReturnType<typeof setup>>) {
-  const c = await saveAiConnection(db, s.f.owner, aiEnv, null, aiConnectionSchema.parse({ name: "Evaluation AI", baseUrl: "https://opencode.ai/zen/v1", apiKey: "synthetic-private-key", textModel: "gpt-5.6-luna" }), key());
-  await testAiConnection(db, s.f.owner, aiEnv, c.id, 1, key(), async () => ({ result: { ok: true }, inputTokens: 1, outputTokens: 1 })); await activateAiConnection(db, s.f.owner, c.id, 2, key());
-  await selectAiProviders(db, s.f.owner, aiSelectionSchema.parse({ expectedVersion: 0, mode: "custom", textConnectionId: c.id }), key());
+  await seedAiProvider(db, aiEnv, s.f.owner, { name: "Evaluation AI", baseUrl: "https://opencode.ai/zen/v1", apiKey: "synthetic-private-key", textModel: "gpt-5.6-luna" });
 }
 it("returns cited advisory AI proposals and discards results when human evidence changes during generation", async () => {
   const s = await setup(true), { evidence } = await rated(s); await aiProvider(s);

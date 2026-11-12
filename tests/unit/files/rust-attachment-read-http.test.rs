@@ -6,8 +6,7 @@ use erpx_server_files::public::attachment_http::{
 };
 use erpx_server_files::public::portal_attachment_http::{
     PortalAttachmentHttpBackend, PortalAttachmentHttpFuture, PortalAttachmentHttpReply,
-    PortalAttachmentHttpTarget, PortalAttachmentHttpWithdrawRequest,
-    portal_attachment_http_router,
+    PortalAttachmentHttpTarget, PortalAttachmentHttpWithdrawRequest, portal_attachment_http_router,
 };
 use erpx_server_runtime::public::http_support::{serde_json, serve};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -666,25 +665,54 @@ async fn portal_router_forwards_only_the_exact_origin_key_and_bounded_reason() {
             Some("withdraw-001"),
             "application/json",
         ),
-        (Some("https://acme.example.test"), Some("short"), "application/json"),
+        (
+            Some("https://acme.example.test"),
+            Some("short"),
+            "application/json",
+        ),
         (
             Some("https://acme.example.test"),
             Some("withdraw-001"),
             "text/plain",
         ),
     ] {
-        let (status, _, _) = http(addr, post(path, "acme.example.test", origin, key, content_type, body)).await;
-        assert_eq!(status, if origin.is_none() || origin == Some("https://foreign.example.test") { 403 } else { 422 });
+        let (status, _, _) = http(
+            addr,
+            post(path, "acme.example.test", origin, key, content_type, body),
+        )
+        .await;
+        assert_eq!(
+            status,
+            if origin.is_none() || origin == Some("https://foreign.example.test") {
+                403
+            } else {
+                422
+            }
+        );
     }
     let (status, _, _) = http(
         addr,
-        post(path, "other.example.test", Some("https://other.example.test"), Some("withdraw-001"), "application/json", body),
+        post(
+            path,
+            "other.example.test",
+            Some("https://other.example.test"),
+            Some("withdraw-001"),
+            "application/json",
+            body,
+        ),
     )
     .await;
     assert_eq!(status, 404);
     let (status, _, _) = http(
         addr,
-        post(path, "acme.example.test", Some("https://acme.example.test"), Some("withdraw-001"), "application/json", "{}"),
+        post(
+            path,
+            "acme.example.test",
+            Some("https://acme.example.test"),
+            Some("withdraw-001"),
+            "application/json",
+            "{}",
+        ),
     )
     .await;
     assert_eq!(status, 422);

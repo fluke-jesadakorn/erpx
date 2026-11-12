@@ -3,6 +3,7 @@ vi.mock('server-only', () => ({}));
 
 import {
   createNativeAttachmentCommandClient,
+  createNativePortalAttachmentCommandClient,
   createNativeAttachmentReadClient,
   nativeAttachmentCommandAvailable,
   nativeAttachmentCommandConfiguration,
@@ -439,5 +440,76 @@ describe('native Files attachment command transport', () => {
       code: 'NATIVE_ATTACHMENT_WRITER_UNAVAILABLE',
       message: 'The native file writer is unavailable.',
     });
+  });
+});
+
+
+describe('native Customer portal Files command transport', () => {
+  const withdrawnRow = {
+    ...statusRow,
+    linkState: 'withdrawn',
+    bindable: false,
+    withdrawnAt: 5_000,
+  };
+  const portalIncoming = () =>
+    new Headers({
+      host: 'acme.example.com',
+      origin: 'https://acme.example.com',
+      cookie: '__Host-erpx-product=portal-session',
+    });
+
+  it('forwards only the portal cookie, origin, key and bounded reason', async () => {
+    const transport = vi.fn().mockResolvedValue(ok({ data: withdrawnRow }));
+    const client = createNativePortalAttachmentCommandClient(parsed(), transport);
+    const row = await client.withdraw(portalIncoming(), 'acme', 'link-1', {
+      reason: '  duplicate upload  ',
+      key: 'withdraw-key-1',
+    });
+    expect(row).toEqual(withdrawnRow);
+    const [url, headers, body] = transport.mock.calls[0]!;
+    expect(url.toString()).toBe(
+      'http://127.0.0.1:44993/api/customer-portal/acme/attachments/attachment-links/link-1/withdraw',
+    );
+    expect(headers.get('host')).toBe('acme.example.com');
+    expect(headers.get('origin')).toBe('https://acme.example.com');
+    expect(headers.get('idempotency-key')).toBe('withdraw-key-1');
+    expect(headers.get('cookie')).toBe('__Host-erpx-product=portal-session');
+    expect(headers.get('x-erpx-context-company')).toBeNull();
+    expect(JSON.parse(body)).toEqual({ reason: 'duplicate upload' });
+  });
+
+  it('fails closed on an unknown target, missing origin, invalid receipt and transport loss', async () => {
+    const client = (transport: (url: URL, headers: Headers, body: string, signal: AbortSignal) => Promise<Response>) =>
+      createNativePortalAttachmentCommandClient(parsed(), transport);
+    await expect(
+      client(vi.fn()).withdraw(portalIncoming(), 'other', 'link-1', {
+        reason: 'duplicate upload',
+        key: 'withdraw-key-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_ATTACHMENT_COMMAND_AUTHORITY_INVALID', status: 403 });
+    const noOrigin = portalIncoming();
+    noOrigin.delete('origin');
+    await expect(
+      client(vi.fn()).withdraw(noOrigin, 'acme', 'link-1', {
+        reason: 'duplicate upload',
+        key: 'withdraw-key-1',
+      }),
+    ).rejects.toMatchObject({ code: 'ORIGIN_FORBIDDEN', status: 403 });
+    await expect(
+      client(vi.fn().mockResolvedValue(ok({ data: statusRow }))).withdraw(
+        portalIncoming(),
+        'acme',
+        'link-1',
+        { reason: 'duplicate upload', key: 'withdraw-key-1' },
+      ),
+    ).rejects.toMatchObject({ code: 'NATIVE_ATTACHMENT_COMMAND_RESPONSE_INVALID' });
+    await expect(
+      client(vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED'))).withdraw(
+        portalIncoming(),
+        'acme',
+        'link-1',
+        { reason: 'duplicate upload', key: 'withdraw-key-1' },
+      ),
+    ).rejects.toMatchObject({ code: 'NATIVE_ATTACHMENT_COMMAND_UNAVAILABLE', status: 503 });
   });
 });

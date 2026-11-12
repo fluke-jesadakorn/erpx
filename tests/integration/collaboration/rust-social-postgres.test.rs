@@ -43,11 +43,7 @@ fn record_id(key: &str, change: &Change) -> String {
     }
 }
 
-async fn authority(
-    c: &mut PgConnection,
-    user: &str,
-    company: &str,
-) -> Result<SocialActor, Error> {
+async fn authority(c: &mut PgConnection, user: &str, company: &str) -> Result<SocialActor, Error> {
     let row = sqlx::query(
         "SELECT display_name,branch_id,department_id,share_company,moderate FROM social_test_authority WHERE company_id=$1 AND user_id=$2 AND member=1",
     )
@@ -202,16 +198,14 @@ impl SocialUnit for Harness<'_> {
             .ok_or_else(|| post_not_found().into())
     }
     async fn comment(&mut self, id: &str, post_id: &str) -> Result<CommentSnapshot, Error> {
-        read_comment(self.c, id, post_id)
-            .await?
-            .ok_or_else(|| {
-                BusinessError::new(
-                    FailureKind::NotFound,
-                    "COMMENT_NOT_FOUND",
-                    "The comment is unavailable in this work scope.",
-                )
-                .into()
-            })
+        read_comment(self.c, id, post_id).await?.ok_or_else(|| {
+            BusinessError::new(
+                FailureKind::NotFound,
+                "COMMENT_NOT_FOUND",
+                "The comment is unavailable in this work scope.",
+            )
+            .into()
+        })
     }
     async fn resolve_person(&mut self, id: &str) -> Result<Option<String>, Error> {
         Ok(sqlx::query_scalar(
@@ -222,11 +216,7 @@ impl SocialUnit for Harness<'_> {
         .fetch_optional(&mut *self.c)
         .await?)
     }
-    async fn resolve_record(
-        &mut self,
-        module: &str,
-        id: &str,
-    ) -> Result<Option<String>, Error> {
+    async fn resolve_record(&mut self, module: &str, id: &str) -> Result<Option<String>, Error> {
         Ok(sqlx::query_scalar(
             "SELECT label FROM social_test_records WHERE company_id=$1 AND module=$2 AND id=$3",
         )
@@ -573,7 +563,9 @@ async fn comments_edit_tombstone_moderation_cas_and_readback() {
         )
         .await
         .unwrap_err();
-        assert!(matches!(denied, PgTransactionError::Business(e) if e.code == "COMMENT_AUTHOR_REQUIRED"));
+        assert!(
+            matches!(denied, PgTransactionError::Business(e) if e.code == "COMMENT_AUTHOR_REQUIRED")
+        );
         let removed = run(
             &pool,
             "moderator",
@@ -615,7 +607,9 @@ async fn comments_edit_tombstone_moderation_cas_and_readback() {
         )
         .await
         .unwrap_err();
-        assert!(matches!(stale_remove, PgTransactionError::Business(e) if e.code == "COMMENT_NOT_FOUND"));
+        assert!(
+            matches!(stale_remove, PgTransactionError::Business(e) if e.code == "COMMENT_NOT_FOUND")
+        );
         let receipts: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM command_receipts WHERE command_id LIKE 'social-comment-01%'",
         )

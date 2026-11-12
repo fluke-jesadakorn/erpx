@@ -6,6 +6,11 @@ use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::messaging_native::{
     MessagingActor, read_room, require_member,
 };
+#[cfg(feature = "existing-business")]
+use erpx_server_customer_authority::public::portal_session::{
+    PgPortalEnrollment, PortalCustomerRequest, PortalSessionEvidence, PortalSessionFuture,
+    PortalSessionVerifier, resolve_portal_customer,
+};
 use erpx_server_files::public::attachment_command::{
     AttachmentWithdrawAuthority, WithdrawAttachmentRequest, WithdrawOwnerAccess, WithdrawTarget,
     normalize_withdrawal, withdraw_attachment, withdraw_owner_access,
@@ -18,13 +23,10 @@ use erpx_server_files::public::attachment_read::{
     AttachmentListFilter, AttachmentReader, AttachmentTarget, AttachmentTargetAuthority,
     AttachmentTargetScope, PostgresAttachmentRead, attachment_link_status, list_attachment_sets,
 };
+#[cfg(feature = "existing-business")]
 use erpx_server_files::public::portal_attachment_http::{
     PortalAttachmentHttpBackend, PortalAttachmentHttpFuture, PortalAttachmentHttpReply,
     PortalAttachmentHttpWithdrawRequest,
-};
-use erpx_server_customer_authority::public::portal_session::{
-    PgPortalEnrollment, PortalCustomerRequest, PortalSessionEvidence, PortalSessionFuture,
-    PortalSessionVerifier, resolve_portal_customer,
 };
 use erpx_server_identity_access::public::portal_session::{
     PortalSessionReadRequest, verify_portal_session,
@@ -40,9 +42,9 @@ use erpx_server_identity_access::public::{
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{
-    DatabasePool, PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
-};
+#[cfg(feature = "existing-business")]
+use erpx_server_runtime::public::postgres::{DatabasePool, PgUnitOfWork, TransactionOptions};
+use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId,
 };
@@ -120,6 +122,7 @@ impl FilesConfiguration {
 /// Private Customer portal transport facts for the native Files withdraw. The
 /// Control pool verifies the opaque product session; the Holding pool owns the
 /// customer binding, the Files rows and their one Serializable transaction.
+#[cfg(feature = "existing-business")]
 #[derive(Clone)]
 pub struct PortalFilesRuntime {
     control: DatabasePool,
@@ -362,6 +365,7 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
     /// Attach the exact Control/Holding pools used by the external Customer
     /// portal. The portal session is verified here; no staff header or account
     /// cookie can reach this path.
+    #[cfg(feature = "existing-business")]
     pub fn with_portal(
         mut self,
         control: DatabasePool,
@@ -735,6 +739,7 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
     /// product session. The session, the exact customer binding and the Files
     /// link commit in one serializable Holding transaction; a missing native
     /// portal runtime or a changed binding fails closed.
+    #[cfg(feature = "existing-business")]
     pub async fn portal_withdraw(
         &self,
         host: &str,
@@ -797,77 +802,63 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
         let normalized_reason = normalized.reason;
         let normalized_key = normalized.command_key;
         PgUnitOfWork::new(portal.holding.clone())
-            .run(
-                TransactionOptions::default(),
-                move |connection| {
-                    let company = company.clone();
-                    let user_id = user_id.clone();
-                    let email = email.clone();
-                    let link_id = link_id.clone();
-                    let normalized_reason = normalized_reason.clone();
-                    let normalized_key = normalized_key.clone();
-                    Box::pin(async move {
-                        let binding: Option<String> = sqlx::query_scalar(
-                            "SELECT s.target_id FROM attachment_links l \
+            .run(TransactionOptions::default(), move |connection| {
+                let company = company.clone();
+                let user_id = user_id.clone();
+                let email = email.clone();
+                let link_id = link_id.clone();
+                let normalized_reason = normalized_reason.clone();
+                let normalized_key = normalized_key.clone();
+                Box::pin(async move {
+                    let binding: Option<String> = sqlx::query_scalar(
+                        "SELECT s.target_id FROM attachment_links l \
                              JOIN attachment_sets s ON s.id=l.set_id \
                              WHERE l.id=$1 AND s.company_id=$2 \
                              AND s.target_type='customer_access_binding'",
-                        )
-                        .bind(&link_id)
-                        .bind(company.as_str())
-                        .fetch_optional(&mut *connection)
-                        .await?;
-                        let binding =
-                            binding.ok_or_else(|| PgTransactionError::Business(portal_missing()))?;
-                        let authority = PortalWithdrawAuthority {
+                    )
+                    .bind(&link_id)
+                    .bind(company.as_str())
+                    .fetch_optional(&mut *connection)
+                    .await?;
+                    let binding =
+                        binding.ok_or_else(|| PgTransactionError::Business(portal_missing()))?;
+                    let authority = PortalWithdrawAuthority {
+                        company_id: company.as_str(),
+                        user_id: &user_id,
+                        email: &email,
+                        now,
+                    };
+                    withdraw_attachment(
+                        connection,
+                        &authority,
+                        WithdrawAttachmentRequest {
+                            actor_id: &user_id,
                             company_id: company.as_str(),
-                            user_id: &user_id,
-                            email: &email,
+                            link_id: &link_id,
+                            reason: &normalized_reason,
+                            command_key: &normalized_key,
                             now,
-                        };
-                        withdraw_attachment(
-                            connection,
-                            &authority,
-                            WithdrawAttachmentRequest {
-                                actor_id: &user_id,
-                                company_id: company.as_str(),
-                                link_id: &link_id,
-                                reason: &normalized_reason,
-                                command_key: &normalized_key,
-                                now,
-                            },
-                        )
-                        .await?;
-                        let reader = AttachmentReader::new(
-                            user_id,
-                            company.clone(),
-                            None,
-                            None,
-                            expires_at,
-                        )
-                        .map_err(PgTransactionError::Business)?;
-                        let mut ports = PostgresAttachmentRead::new(PortalAttachmentReadAuthority {
-                            company_id: company,
-                            binding_id: binding,
-                        });
-                        let view = attachment_link_status(
-                            connection,
-                            &ports,
-                            &reader,
-                            &link_id,
-                            false,
-                            now,
-                        )
-                        .await?;
-                        let data = serde_json::to_value(view)
-                            .map_err(|_| PgTransactionError::Business(portal_unavailable()))?;
-                        Ok(AttachmentReadHttpReply {
-                            data,
-                            context: Value::Object(Default::default()),
-                        })
+                        },
+                    )
+                    .await?;
+                    let reader =
+                        AttachmentReader::new(user_id, company.clone(), None, None, expires_at)
+                            .map_err(PgTransactionError::Business)?;
+                    let mut ports = PostgresAttachmentRead::new(PortalAttachmentReadAuthority {
+                        company_id: company,
+                        binding_id: binding,
+                    });
+                    let view =
+                        attachment_link_status(connection, &ports, &reader, &link_id, false, now)
+                            .await?;
+                    let data = serde_json::to_value(view)
+                        .map_err(|_| PgTransactionError::Business(portal_unavailable()))?;
+                    Ok(AttachmentReadHttpReply {
+                        data,
+                        context: Value::Object(Default::default()),
                     })
-                },
-            )
+                })
+            })
             .await
             .map_err(|error| match error {
                 PgTransactionError::Business(error) => PgTransactionError::Business(error),
@@ -878,6 +869,7 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
     }
 }
 
+#[cfg(feature = "existing-business")]
 fn portal_session_required() -> BusinessError {
     BusinessError::new(
         FailureKind::Unauthenticated,
@@ -886,6 +878,7 @@ fn portal_session_required() -> BusinessError {
     )
 }
 
+#[cfg(feature = "existing-business")]
 fn portal_unavailable() -> BusinessError {
     BusinessError::new(
         FailureKind::Unavailable,
@@ -894,6 +887,7 @@ fn portal_unavailable() -> BusinessError {
     )
 }
 
+#[cfg(feature = "existing-business")]
 fn portal_missing() -> BusinessError {
     BusinessError::new(
         FailureKind::NotFound,
@@ -902,6 +896,7 @@ fn portal_missing() -> BusinessError {
     )
 }
 
+#[cfg(feature = "existing-business")]
 fn portal_forbidden() -> BusinessError {
     BusinessError::new(
         FailureKind::Forbidden,
@@ -910,6 +905,7 @@ fn portal_forbidden() -> BusinessError {
     )
 }
 
+#[cfg(feature = "existing-business")]
 fn portal_changed() -> BusinessError {
     BusinessError::new(
         FailureKind::Conflict,
@@ -920,11 +916,13 @@ fn portal_changed() -> BusinessError {
 
 /// The session verifier proves the opaque product session with the Control
 /// Authority and retains its exact expiry for the Holding reader.
+#[cfg(feature = "existing-business")]
 struct PortalSessionVerifierImpl<'c> {
     connection: &'c mut PgConnection,
     expires_at: i64,
 }
 
+#[cfg(feature = "existing-business")]
 impl PortalSessionVerifier for PortalSessionVerifierImpl<'_> {
     type Error = PgTransactionError<BusinessError>;
 
@@ -958,6 +956,7 @@ impl PortalSessionVerifier for PortalSessionVerifierImpl<'_> {
 /// External-customer authority for one Files draft. The Customer Authority
 /// binding must still be approved, unexpired and owned by the verified session
 /// identity, and the link must still belong to that exact binding.
+#[cfg(feature = "existing-business")]
 struct PortalWithdrawAuthority<'a> {
     company_id: &'a str,
     user_id: &'a str,
@@ -965,6 +964,7 @@ struct PortalWithdrawAuthority<'a> {
     now: i64,
 }
 
+#[cfg(feature = "existing-business")]
 impl PortalWithdrawAuthority<'_> {
     fn current<'b>(
         &'b self,
@@ -1002,6 +1002,7 @@ impl PortalWithdrawAuthority<'_> {
     }
 }
 
+#[cfg(feature = "existing-business")]
 impl AttachmentWithdrawAuthority for PortalWithdrawAuthority<'_> {
     fn authorize_withdraw<'c>(
         &'c self,
@@ -1022,11 +1023,13 @@ impl AttachmentWithdrawAuthority for PortalWithdrawAuthority<'_> {
 
 /// The portal status read is confined to the exact customer binding that owned
 /// the withdrawn link. Staff branch/department scope never applies.
+#[cfg(feature = "existing-business")]
 struct PortalAttachmentReadAuthority {
     company_id: CompanyId,
     binding_id: String,
 }
 
+#[cfg(feature = "existing-business")]
 impl AttachmentTargetAuthority for PortalAttachmentReadAuthority {
     fn authorize_read<'a>(
         &'a self,
@@ -1041,8 +1044,7 @@ impl AttachmentTargetAuthority for PortalAttachmentReadAuthority {
             {
                 return Err(portal_missing().into());
             }
-            AttachmentTargetScope::new(self.company_id.clone(), None, None, 1)
-                .map_err(Into::into)
+            AttachmentTargetScope::new(self.company_id.clone(), None, None, 1).map_err(Into::into)
         })
     }
 }
@@ -1193,6 +1195,7 @@ impl<C: Clock + Send + Sync + 'static> AttachmentReadHttpBackend for FilesBacken
     }
 }
 
+#[cfg(feature = "existing-business")]
 impl<C: Clock + Send + Sync + 'static> PortalAttachmentHttpBackend for FilesBackend<C> {
     fn withdraw<'a>(
         &'a self,

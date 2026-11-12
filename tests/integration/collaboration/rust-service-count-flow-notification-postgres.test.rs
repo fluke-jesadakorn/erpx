@@ -4,6 +4,7 @@ mod fixture;
 #[path = "../../support/quality/quality-facts.rs"]
 #[allow(dead_code)]
 mod quality_facts;
+use erpx_server_collaboration::public::crm_activity_notification::*;
 use erpx_server_collaboration::public::service_count_flow_notification::*;
 use erpx_server_runtime::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
@@ -11,23 +12,26 @@ use erpx_server_runtime::public::postgres::{
 };
 use erpx_server_shared::public::BusinessError;
 use sqlx::PgConnection;
-use erpx_server_collaboration::public::crm_activity_notification::*;
 type Error = PgTransactionError<BusinessError>;
 use erpx_server_collaboration::public::quality_notification::*;
 struct QualitySource(QualityNotificationFacts);
 
 struct JoinedQualitySource {
-    facts:QualityNotificationFacts,
-    hold:erpx_server_quality::public::quality_http::CurrentQualityDetail,
-    effect:erpx_server_quality::public::quality_http::RetainedQualityCancellation,
-    recipients:erpx_server_identity_access::public::quality_recipients::CurrentQualityRecipients,
+    facts: QualityNotificationFacts,
+    hold: erpx_server_quality::public::quality_http::CurrentQualityDetail,
+    effect: erpx_server_quality::public::quality_http::RetainedQualityCancellation,
+    recipients: erpx_server_identity_access::public::quality_recipients::CurrentQualityRecipients,
 }
 
 #[tokio::test]
 async fn quality_cancellation_writer_intent_serializes_competing_commands() {
-    use erpx_server_quality::public::quality_http::{lock_quality_cancellation_writes,lock_quality_read_sources,prepare_quality_cancellation};
-    use erpx_server_quality::public::quality_read::{CancellationAction,QualityCancellationCommand};
-    use erpx_server_shared::public::{CommandKey,CompanyId,RecordId,UserId};
+    use erpx_server_quality::public::quality_http::{
+        lock_quality_cancellation_writes, lock_quality_read_sources, prepare_quality_cancellation,
+    };
+    use erpx_server_quality::public::quality_read::{
+        CancellationAction, QualityCancellationCommand,
+    };
+    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
     use sqlx::Connection;
     fixture::with_database(3,|pool|async move {
         quality_facts::setup(&pool).await;quality_facts::hold(&pool,"race-hold").await;
@@ -54,12 +58,26 @@ async fn quality_cancellation_writer_intent_serializes_competing_commands() {
     }).await;
 }
 impl PgQualityNotificationSource for JoinedQualitySource {
-    fn facts(&self)->&QualityNotificationFacts { &self.facts }
-    async fn require_current(&self,c:&mut PgConnection)->Result<(),Error> {
-        self.effect.require_current(c).await?;self.hold.require_current(c).await?;self.recipients.require_current(c).await?;
-        let h=&self.hold.data().hold;
-        if h.status!=erpx_server_quality::public::quality_read::HoldStatus::CancelPending || h.id!=self.facts.hold_id || h.company_id!=self.facts.company_id || h.version!=self.facts.version || h.updated_at!=self.facts.updated_at || self.recipients.recipients()!=self.facts.recipients {
-            return Err(BusinessError::invalid("TEST_SOURCE_CHANGED","The joined owner sources changed.").into());
+    fn facts(&self) -> &QualityNotificationFacts {
+        &self.facts
+    }
+    async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.effect.require_current(c).await?;
+        self.hold.require_current(c).await?;
+        self.recipients.require_current(c).await?;
+        let h = &self.hold.data().hold;
+        if h.status != erpx_server_quality::public::quality_read::HoldStatus::CancelPending
+            || h.id != self.facts.hold_id
+            || h.company_id != self.facts.company_id
+            || h.version != self.facts.version
+            || h.updated_at != self.facts.updated_at
+            || self.recipients.recipients() != self.facts.recipients
+        {
+            return Err(BusinessError::invalid(
+                "TEST_SOURCE_CHANGED",
+                "The joined owner sources changed.",
+            )
+            .into());
         }
         Ok(())
     }
@@ -68,9 +86,14 @@ impl PgQualityNotificationSource for JoinedQualitySource {
 #[tokio::test]
 async fn quality_notice_joins_actual_quality_and_identity_witnesses_atomically() {
     use erpx_server_identity_access::public::quality_recipients::*;
-    use erpx_server_quality::public::quality_http::{lock_quality_cancellation_writes,lock_quality_read_sources,prepare_quality_cancellation,read_quality_detail};
-    use erpx_server_quality::public::quality_read::{CancellationAction,QualityCancellationCommand};
-    use erpx_server_shared::public::{CommandKey,CompanyId,RecordId,UserId};
+    use erpx_server_quality::public::quality_http::{
+        lock_quality_cancellation_writes, lock_quality_read_sources, prepare_quality_cancellation,
+        read_quality_detail,
+    };
+    use erpx_server_quality::public::quality_read::{
+        CancellationAction, QualityCancellationCommand,
+    };
+    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
     fixture::with_database(3,|pool|async move {
         quality_facts::setup(&pool).await;quality_facts::hold(&pool,"joined-hold").await;
         sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','quality_notice_test','Quality test',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','quality_notice_test',1,'[\"quality.read\",\"quality.release\"]','[]','[\"holding\",\"branch\"]','fixture',0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES('company','manager','local:manager','manager','active','local'); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind,scope_node_id) VALUES('quality-notice-manager','manager','quality_notice_test','[]','company',0,9007199254740991,1,'branch','branch')").execute(pool.raw()).await.unwrap();
@@ -103,12 +126,19 @@ async fn quality_notice_joins_actual_quality_and_identity_witnesses_atomically()
     }).await;
 }
 impl PgQualityNotificationSource for QualitySource {
-    fn facts(&self)->&QualityNotificationFacts { &self.0 }
-    async fn require_current(&self,c:&mut PgConnection)->Result<(),Error> {
-        let f=&self.0;
+    fn facts(&self) -> &QualityNotificationFacts {
+        &self.0
+    }
+    async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        let f = &self.0;
         let valid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM quality_notification_test_source WHERE company_id=$1 AND hold_id=$2 AND version=$3 AND updated_at=$4 AND recipients=$5)")
             .bind(&f.company_id).bind(&f.hold_id).bind(f.version).bind(f.updated_at).bind(&f.recipients).fetch_one(c).await?;
-        if !valid { return Err(BusinessError::invalid("TEST_SOURCE_CHANGED","Test source changed.").into()); } Ok(())
+        if !valid {
+            return Err(
+                BusinessError::invalid("TEST_SOURCE_CHANGED", "Test source changed.").into(),
+            );
+        }
+        Ok(())
     }
 }
 #[tokio::test]
@@ -150,16 +180,24 @@ struct SyntheticSource(CountFlowNotificationFacts);
 
 struct ActualCrmSource(CrmActivityNotificationFacts);
 struct SwitchingCrmActivitySource {
-    sources:[ActualCrmSource;2],
-    selected:std::sync::atomic::AtomicUsize,
-    switch_after:bool,
+    sources: [ActualCrmSource; 2],
+    selected: std::sync::atomic::AtomicUsize,
+    switch_after: bool,
 }
 impl PgCrmActivityNotificationSource for SwitchingCrmActivitySource {
-    fn facts(&self)->&CrmActivityNotificationFacts {self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].facts()}
-    async fn require_before(&self,c:&mut PgConnection)->Result<(),Error> {self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].require_before(c).await}
-    async fn require_after(&self,c:&mut PgConnection)->Result<(),Error> {
+    fn facts(&self) -> &CrmActivityNotificationFacts {
+        self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].facts()
+    }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)]
+            .require_before(c)
+            .await
+    }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
         self.require_before(c).await?;
-        if self.switch_after {self.selected.store(1,std::sync::atomic::Ordering::SeqCst);}
+        if self.switch_after {
+            self.selected.store(1, std::sync::atomic::Ordering::SeqCst);
+        }
         Ok(())
     }
 }
@@ -169,21 +207,40 @@ struct JoinedCrmQualificationSource<'a> {
     qualification: &'a erpx_server_crm::public::leads_native::RetainedCrmQualification<'a>,
 }
 impl PgCrmLeadNotificationSource for JoinedCrmQualificationSource<'_> {
-    fn facts(&self) -> &CrmLeadNotificationFacts { &self.facts }
+    fn facts(&self) -> &CrmLeadNotificationFacts {
+        &self.facts
+    }
     async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
-        let actual=self.qualification.facts();
-        if self.facts.command_key!=actual.command_key || self.facts.company_id!=actual.company_id || self.facts.recipient!=actual.owner_id || self.facts.lead_id!=actual.lead_id || self.facts.version!=actual.version || self.facts.updated_at!=actual.updated_at {
-            return Err(BusinessError::invalid("CRM_SOURCE_CHANGED","CRM qualification source changed.").into());
+        let actual = self.qualification.facts();
+        if self.facts.command_key != actual.command_key
+            || self.facts.company_id != actual.company_id
+            || self.facts.recipient != actual.owner_id
+            || self.facts.lead_id != actual.lead_id
+            || self.facts.version != actual.version
+            || self.facts.updated_at != actual.updated_at
+        {
+            return Err(BusinessError::invalid(
+                "CRM_SOURCE_CHANGED",
+                "CRM qualification source changed.",
+            )
+            .into());
         }
         self.qualification.require_current(c).await
     }
-    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> { self.require_before(c).await }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.require_before(c).await
+    }
 }
 
 #[tokio::test]
 async fn qualified_crm_owner_effect_supplies_actual_lead_notification_source() {
-    use erpx_server_crm::public::activity_source::{CrmReviewedAccountLinkRequest,inspect_crm_reviewed_account_link,lock_crm_reviewed_account_link_sources};
-    use erpx_server_crm::public::leads_native::{LeadActor,LeadChangeInput,apply_crm_qualification_retained};
+    use erpx_server_crm::public::activity_source::{
+        CrmReviewedAccountLinkRequest, inspect_crm_reviewed_account_link,
+        lock_crm_reviewed_account_link_sources,
+    };
+    use erpx_server_crm::public::leads_native::{
+        LeadActor, LeadChangeInput, apply_crm_qualification_retained,
+    };
     use erpx_server_shared::public::CompanyId;
     fixture::with_database(2, |pool| async move {
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
@@ -219,19 +276,45 @@ struct SwitchingCrmLeadSource {
     selected: std::sync::atomic::AtomicUsize,
 }
 impl PgCrmLeadNotificationSource for SwitchingCrmLeadSource {
-    fn facts(&self) -> &CrmLeadNotificationFacts { self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].facts() }
-    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> { self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].require_before(c).await }
-    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> { self.require_before(c).await }
+    fn facts(&self) -> &CrmLeadNotificationFacts {
+        self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].facts()
+    }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)]
+            .require_before(c)
+            .await
+    }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.require_before(c).await
+    }
 }
 impl PgCrmLeadNotificationSource for ActualCrmLeadSource {
-    fn facts(&self) -> &CrmLeadNotificationFacts { &self.0 }
+    fn facts(&self) -> &CrmLeadNotificationFacts {
+        &self.0
+    }
     async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
         let f = &self.0;
-        let actual: Option<(String,String,i64,i64)> = sqlx::query_as("SELECT company_id,owner_id,version,updated_at FROM crm_leads WHERE id=$1").bind(&f.lead_id).fetch_optional(c).await?;
-        if actual != Some((f.company_id.clone(),f.recipient.clone(),f.version,f.updated_at)) { return Err(BusinessError::invalid("CRM_SOURCE_CHANGED", "CRM source changed.").into()); }
+        let actual: Option<(String, String, i64, i64)> = sqlx::query_as(
+            "SELECT company_id,owner_id,version,updated_at FROM crm_leads WHERE id=$1",
+        )
+        .bind(&f.lead_id)
+        .fetch_optional(c)
+        .await?;
+        if actual
+            != Some((
+                f.company_id.clone(),
+                f.recipient.clone(),
+                f.version,
+                f.updated_at,
+            ))
+        {
+            return Err(BusinessError::invalid("CRM_SOURCE_CHANGED", "CRM source changed.").into());
+        }
         Ok(())
     }
-    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> { self.require_before(c).await }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.require_before(c).await
+    }
 }
 
 #[tokio::test]
@@ -301,17 +384,29 @@ async fn crm_lead_notice_preserves_original_conflicts_and_inbox_effects() {
     }).await;
 }
 impl PgCrmActivityNotificationSource for ActualCrmSource {
-    fn facts(&self) -> &CrmActivityNotificationFacts { &self.0 }
+    fn facts(&self) -> &CrmActivityNotificationFacts {
+        &self.0
+    }
     async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
         let f = &self.0;
         let actual: Option<(String,String,i64,String,i64)> = sqlx::query_as("SELECT company_id,owner_id,version,status,updated_at FROM crm_lead_activities WHERE id=$1")
             .bind(&f.activity_id).fetch_optional(c).await?;
-        if actual != Some((f.company_id.clone(),f.recipient.clone(),f.version,f.status.clone(),f.updated_at)) {
+        if actual
+            != Some((
+                f.company_id.clone(),
+                f.recipient.clone(),
+                f.version,
+                f.status.clone(),
+                f.updated_at,
+            ))
+        {
             return Err(BusinessError::invalid("CRM_SOURCE_CHANGED", "CRM source changed.").into());
         }
         Ok(())
     }
-    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> { self.require_before(c).await }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.require_before(c).await
+    }
 }
 
 #[tokio::test]

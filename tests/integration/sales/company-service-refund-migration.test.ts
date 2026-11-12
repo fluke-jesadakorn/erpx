@@ -14,7 +14,8 @@ import {mapSpendingOrganization} from '../../support/helpers/spending-organizati
 import {migrateDatabase} from '@erpx/server-runtime/public/runtime/migrations';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {withFinanceFlowAssignment} from '@erpx/server-finance/public/document-purchases';
-import {postInvoice,postJournal} from '@erpx/server-finance/public/finance';
+import {postInvoice} from '@erpx/server-finance/public/finance';
+import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
 import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -57,7 +58,7 @@ it('upgrades populated1055 without rewriting old rows and admits only original w
   await assign('order',orderId,'invoicing',f.owner.userId);const invoice=await invoiceFulfillment(f.owner,String(fulfilled.fulfillmentId),{expectedVersion:1,date:'2026-09-02',dueDate:'2026-09-03'},key()),invoiceId=String(invoice.invoiceId);
   await assign('invoice',invoiceId,'draft',f.manager.userId);await postInvoice(f.manager,invoiceId,{expectedVersion:1,periodId:f.period,entryDate:'2026-09-02'},key());await assign('invoice',invoiceId,'posted',f.payer.userId);await settleInvoice(f.payer,invoiceId,{expectedVersion:2,date:'2026-09-03',amount:'50',reference:'Fictional original partial service receipt',attachmentSetIds:[]},key());
   const invoiced=await getOrder(f.owner,orderId),requested=await requestCommerceReturn(f.owner,String(fulfilled.fulfillmentId),returnRequestSchema.parse({expectedVersion:2,date:'2026-09-04',reason:'Customer independently accepted return of completed service',lines:[{lineId:String(invoiced.fulfillmentLines[0].id),quantity:'1'}]}),key()),returnId=String(requested.id),approved=await decideCommerceReturn(f.head,returnId,'approve',{expectedVersion:1,reason:'Different Sales manager reviewed original service source'},key());
-  expect(approved.stockJournalId).toBeUndefined();await assign('journal',String(approved.creditJournalId),'draft',f.manager.userId);await postJournal(f.manager,String(approved.creditJournalId),key(),{expectedVersion:1});
+  expect(approved.stockJournalId).toBeUndefined();await assign('journal',String(approved.creditJournalId),'draft',f.manager.userId);await markFinanceJournalPosted(db,String(approved.creditJournalId),f.manager.userId);
   const command=key(),input={expectedVersion:2};let oldFailure:unknown;try{await completeCommerceReturn(f.manager,returnId,input,command);}catch(error){oldFailure=error;}expect(native(oldFailure)).toMatchObject({code:'23514',constraint:'finance_refund_source_shape'});
   expect(await db.prepare('SELECT command_id FROM command_receipts WHERE command_id=?').bind(command).first()).toBeNull();expect(await db.prepare('SELECT branch_id,warehouse_id,department_id FROM commerce_orders WHERE id=?').bind(orderId).first()).toEqual({branch_id:null,warehouse_id:null,department_id:null});
   const retained=await snapshot(db),receipts=(await db.prepare('SELECT name,checksum,applied_at::text applied_at FROM erpx_migrations ORDER BY name').all()).results,archive=join(directory,'populated-pre1056.dump'),cliEnv={...process.env,PGHOST:adminUrl.hostname,PGPORT:adminUrl.port,PGUSER:adminUrl.username,PGPASSWORD:decodeURIComponent(adminUrl.password),PGDATABASE:beforeName};

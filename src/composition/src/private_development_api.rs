@@ -2711,6 +2711,74 @@ async fn assemble_checked(
             );
         }
     }
+    // Executive external connections: Account session, selected Work authority
+    // and the exact registered Holding are resolved by the composition; token,
+    // audit and shared MCP request budget stay on the Control unit.
+    let mut executive_connection_targets = Vec::new();
+    let executive_mcp_rate_limit = crate::executive_connections::executive_mcp_rate_limit_router(
+        pools[0].clone(),
+        Arc::new(SharedClock(clock.clone())),
+    );
+    for (i, holding) in config.holdings.iter().enumerate() {
+        let holding_id = holding.registration.holding_id.clone();
+        let authorizer = Arc::new(
+            HoldingWorkAuthorizer::new(
+                pools[0].clone(),
+                pools[i + 1].clone(),
+                holding_id.clone(),
+                (*config.policy).clone(),
+                clock.clone(),
+                config.holdings_registry.clone(),
+            )
+            .map_err(|_| "PRIVATE_API_EXECUTIVE_CONNECTIONS_CONFIGURATION_INVALID")?,
+        );
+        let inspector = Arc::new(
+            erpx_server_identity_access::public::work_context::HoldingWorkContextInspector::new(
+                pools[0].clone(),
+                pools[i + 1].clone(),
+                holding_id.clone(),
+                (*config.policy).clone(),
+                clock.clone(),
+                config.holdings_registry.clone(),
+            )
+            .map_err(|_| "PRIVATE_API_EXECUTIVE_CONNECTIONS_CONFIGURATION_INVALID")?,
+        );
+        let store = Arc::new(
+            erpx_server_runtime::public::executive_connections::PgExecutiveConnections::new(
+                pools[0].clone(),
+                pools[i + 1].clone(),
+            ),
+        );
+        let service = Arc::new(
+            crate::executive_connections::ExecutiveConnectionsService::new(
+                authorizer,
+                inspector,
+                store,
+                holding_id,
+                Arc::new(SharedClock(clock.clone())),
+            ),
+        );
+        let backend = Arc::new(crate::executive_connections::ExecutiveConnectionsBackend::new(
+            config.policy.clone(),
+            Arc::new(FinanceJournalReadScopeHeaders),
+            service,
+        ));
+        executive_connection_targets.push(
+            crate::executive_connections::executive_connections_target(
+                holding.host.clone(),
+                holding.registration.slug.clone(),
+                backend,
+            ),
+        );
+    }
+    router = router
+        .merge(
+            erpx_server_runtime::public::executive_connections::executive_connections_router(
+                executive_connection_targets,
+            )
+            .map_err(|_| "PRIVATE_API_EXECUTIVE_CONNECTIONS_CONFIGURATION_INVALID")?,
+        )
+        .merge(executive_mcp_rate_limit);
     if !platform_administration_targets.is_empty() {
         router = router.merge(
             erpx_server_platform_administration::public::platform_operations::platform_router(
@@ -2915,6 +2983,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut sales_price_lists_targets = Vec::new();
         let mut files_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut portal_attachment_targets = Vec::new();
         let mut procurement_targets = Vec::new();
         let mut procurement_command_targets = Vec::new();
@@ -4587,25 +4656,25 @@ async fn assemble_checked(
                         backend: records_backend.clone(),
                     },
                 );
+                let files_service = crate::files::FilesService::new(
+                    authorizer.clone(),
+                    crate::files::FilesConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        holding.registration.slug.clone(),
+                        company.clone(),
+                    ),
+                    Arc::new(SharedClock(clock.clone())),
+                );
+                #[cfg(feature = "existing-business")]
+                let files_service = files_service.with_portal(
+                    pools[0].clone(),
+                    pools[i + 1].clone(),
+                    config.policy.environment.clone(),
+                );
                 let files_backend = Arc::new(crate::files::FilesBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
-                    Arc::new(
-                        crate::files::FilesService::new(
-                            authorizer.clone(),
-                            crate::files::FilesConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                holding.registration.slug.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )
-                        .with_portal(
-                            pools[0].clone(),
-                            pools[i + 1].clone(),
-                            config.environment.clone(),
-                        ),
-                    ),
+                    Arc::new(files_service),
                 ));
                 files_targets.push(
                     erpx_server_files::public::attachment_http::AttachmentReadHttpTarget {
@@ -4615,6 +4684,7 @@ async fn assemble_checked(
                         backend: files_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 portal_attachment_targets.push(
                     erpx_server_files::public::portal_attachment_http::PortalAttachmentHttpTarget {
                         host: holding.host.clone(),
@@ -5734,6 +5804,7 @@ async fn assemble_checked(
                     .map_err(|_| "PRIVATE_API_FILES_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !portal_attachment_targets.is_empty() {
             router = router.merge(
                 erpx_server_files::public::portal_attachment_http::portal_attachment_http_router(
