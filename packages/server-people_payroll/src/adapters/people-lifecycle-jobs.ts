@@ -4,8 +4,6 @@ import "server-only";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import type { LifecycleCase } from "@erpx/feature-people_payroll/lib/people-lifecycle";
-import { drainPositionMoves } from "@erpx/server-organization/public/position-moves";
-import { lifecyclePositionMoveDrain } from "./organization-lifecycle-drain";
 import type { PoolClient } from 'pg';
 import { type LifecycleEngagementFacts } from '@erpx/server-people_payroll/domain/people-lifecycle-jobs';
 import { createPeopleLifecycleWorker, type PeopleLifecycleWorkerRepository } from '@erpx/server-people_payroll/application/people-lifecycle-jobs';
@@ -94,4 +92,4 @@ export async function drainPeopleLifecycle(raw: PostgresDatabase, now = Date.now
     }
     finally {
         client.release();
-    } }, drainPositionMoves: lifecyclePositionMoveDrain(raw, drainPositionMoves), drainOrganizationDrafts: time => drainOrganizationDrafts(raw, time) }).drainPeopleLifecycle(now); }
+    } }, drainOrganizationDrafts: time => drainOrganizationDrafts(raw, time) }).drainPeopleLifecycle(now); }

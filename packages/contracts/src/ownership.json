@@ -840,14 +840,12 @@
         {
           "id": "position-moves",
           "migration": "clean",
-          "source": [
-            "packages/server-organization/src/domain/position-moves.ts",
-            "packages/server-organization/src/application/position-moves.ts",
-            "packages/server-organization/src/adapters/position-moves.ts"
-          ],
+          "source": [],
           "regression": [
             "tests/integration/organization/position-moves.test.ts",
-            "tests/unit/organization/organization-services.test.ts"
+            "tests/unit/organization/organization-services.test.ts",
+            "packages/server-organization/src/application/position-moves.ts",
+            "packages/server-organization/src/domain/position-moves.ts"
           ]
         },
         {
@@ -3015,7 +3013,9 @@
             "packages/server-people_payroll/src/adapters/people-app-entrypoint-facts.ts",
             "packages/server-people_payroll/src/public/people-app-entrypoint-facts.ts",
             "packages/server-people_payroll/src/adapters/organization-graph-snapshot-sources.ts",
-            "packages/server-people_payroll/src/public/organization-graph-snapshot-sources.ts"
+            "packages/server-people_payroll/src/public/organization-graph-snapshot-sources.ts",
+            "packages/server-organization/src/application/position-moves.ts",
+            "packages/server-organization/src/domain/position-moves.ts"
           ],
           "regression": [
             "tests/unit/people_payroll/people-services.test.ts",

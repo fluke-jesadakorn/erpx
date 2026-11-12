@@ -7,7 +7,6 @@ import {
   organizationAccessNativeFirst,
   type PeopleOrganizationAccessDependencies,
 } from '../../../packages/server-people_payroll/src/adapters/native-organization-access';
-import { lifecyclePositionMoveDrain } from '../../../packages/server-people_payroll/src/adapters/organization-lifecycle-drain';
 
 const headerState = vi.hoisted(() => {
   const holder = { current: new Headers() };
@@ -146,53 +145,3 @@ describe('People Payroll native Organization access consumer', () => {
   });
 });
 
-describe('People Payroll lifecycle position-move drain selector', () => {
-  const database = {};
-  const retainedDrain = () => vi.fn(async (_database: unknown, now: number) => now + 1);
-
-  it('keeps the retained position-move drain when the native Organization is unconfigured', async () => {
-    const retained = retainedDrain();
-
-    await expect(lifecyclePositionMoveDrain(database, retained, {})(1_000)).resolves.toBe(1_001);
-
-    expect(retained).toHaveBeenCalledWith(database, 1_000);
-  });
-
-  it('skips the retained drain without invoking it when the native Organization is configured', async () => {
-    const retained = retainedDrain();
-
-    await expect(
-      lifecyclePositionMoveDrain(database, retained, { ERPX_NATIVE_ORGANIZATION_CONFIG: configured })(2_000),
-    ).resolves.toBe(0);
-
-    expect(retained).not.toHaveBeenCalled();
-  });
-
-  it('treats a present but empty configuration as configured and skips the retained drain', async () => {
-    const retained = retainedDrain();
-
-    await expect(
-      lifecyclePositionMoveDrain(database, retained, { ERPX_NATIVE_ORGANIZATION_CONFIG: '' })(3_000),
-    ).resolves.toBe(0);
-
-    expect(retained).not.toHaveBeenCalled();
-  });
-
-  it('uses the process environment when no explicit environment is supplied', async () => {
-    const retained = retainedDrain();
-    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = configured;
-
-    await expect(lifecyclePositionMoveDrain(database, retained)(4_000)).resolves.toBe(0);
-
-    expect(retained).not.toHaveBeenCalled();
-  });
-
-  it('drains through the retained port when the process environment is unset', async () => {
-    delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
-    const retained = retainedDrain();
-
-    await expect(lifecyclePositionMoveDrain(database, retained)(5_000)).resolves.toBe(5_001);
-
-    expect(retained).toHaveBeenCalledWith(database, 5_000);
-  });
-});

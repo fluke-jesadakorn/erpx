@@ -168,7 +168,6 @@ export interface PeopleLifecycleWorkerSession {
 }
 export interface PeopleLifecycleWorkerPorts {
     withSession<Result>(run: (session: PeopleLifecycleWorkerSession) => Promise<Result>): Promise<Result>;
-    drainPositionMoves(now: number): Promise<number>;
     drainOrganizationDrafts(now: number): Promise<number>;
 }
 export function createPeopleLifecycleWorker(ports: PeopleLifecycleWorkerPorts) {
@@ -321,7 +320,7 @@ export function createPeopleLifecycleWorker(ports: PeopleLifecycleWorkerPorts) {
             }
             return processed;
         });
-        return processed + await ports.drainPositionMoves(now) + await ports.drainOrganizationDrafts(now);
+        return processed + await ports.drainOrganizationDrafts(now);
     }
     return { drainPeopleLifecycle };
 }

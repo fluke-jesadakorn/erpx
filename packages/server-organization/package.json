@@ -105,7 +105,6 @@
     "./adapters/identity-access-verified-context-projections": "./src/adapters/identity-access-verified-context-projections.ts",
     "./adapters/attachments-finance-facts": "./src/adapters/attachments-finance-facts.ts",
     "./adapters/spending-position": "./src/adapters/spending-position.ts",
-    "./adapters/position-moves": "./src/adapters/position-moves.ts",
     "./adapters/organization-roster-read": "./src/adapters/organization-roster-read.ts",
     "./adapters/front-company-facts": "./src/adapters/front-company-facts.ts",
     "./adapters/department-decisions": "./src/adapters/department-decisions.ts",
@@ -223,7 +222,6 @@
     "./public/identity-access-verified-context-projections": "./src/public/identity-access-verified-context-projections.ts",
     "./public/attachments-finance-facts": "./src/public/attachments-finance-facts.ts",
     "./public/spending-position": "./src/public/spending-position.ts",
-    "./public/position-moves": "./src/public/position-moves.ts",
     "./public/organization-roster-read": "./src/public/organization-roster-read.ts",
     "./public/front-company-facts": "./src/public/front-company-facts.ts",
     "./public/department-decisions": "./src/public/department-decisions.ts",
@@ -252,7 +250,6 @@
     "./application/member-profile-view": "./src/application/member-profile-view.ts",
     "./application/organization": "./src/application/organization.ts",
     "./application/organization-channels": "./src/application/organization-channels.ts",
-    "./application/position-moves": "./src/application/position-moves.ts",
     "./application/department-decisions": "./src/application/department-decisions.ts",
     "./application/organization-work": "./src/application/organization-work.ts",
     "./domain/workspace-choices": "./src/domain/workspace-choices.ts",
@@ -267,10 +264,11 @@
     "./domain/company-business-acceptance": "./src/domain/company-business-acceptance.ts",
     "./domain/member-profile-view": "./src/domain/member-profile-view.ts",
     "./domain/organization": "./src/domain/organization.ts",
-    "./domain/position-moves": "./src/domain/position-moves.ts",
     "./domain/department-decisions": "./src/domain/department-decisions.ts",
     "./domain/organization-work": "./src/domain/organization-work.ts",
-    "./public/workspace-route-company": "./src/public/workspace-route-company.ts"
+    "./public/workspace-route-company": "./src/public/workspace-route-company.ts",
+    "./application/position-moves": "./src/application/position-moves.ts",
+    "./domain/position-moves": "./src/domain/position-moves.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
