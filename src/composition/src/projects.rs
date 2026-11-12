@@ -11,6 +11,13 @@ use erpx_server_files::public::project_attachment::{
     project_attachment_link_status, project_attachment_links, project_attachment_set_facts,
     project_attachment_sets,
 };
+use erpx_server_files::public::project_attachment_intake::{
+    ProjectAttachmentFileRequest, ProjectAttachmentIntakeAvailability,
+    ProjectAttachmentSetRequest, complete_project_attachment_upload,
+    create_project_attachment_set, project_attachment_upload_status,
+    reserve_project_attachment_file,
+};
+use erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter;
 use erpx_server_files::public::canonical_original::LocalOriginalStore;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -63,6 +70,13 @@ use erpx_server_projects::public::project_attachment::{
     attachment_set_not_found, project_attachment_authority_json,
     project_attachment_command_receipt, project_attachment_fingerprint,
     replay_project_attachment_binding,
+};
+use erpx_server_projects::public::project_attachment_intake_http::{
+    ProjectAttachmentCompleteHttpRequest, ProjectAttachmentFileBody,
+    ProjectAttachmentIntakeHttpBackend, ProjectAttachmentIntakeHttpFuture,
+    ProjectAttachmentIntakeHttpResponse, ProjectAttachmentReserveHttpRequest,
+    ProjectAttachmentSetBody, ProjectAttachmentSetCreateHttpRequest,
+    ProjectAttachmentUploadStatusHttpRequest,
 };
 use erpx_server_projects::public::project_attachment_read_http::{
     ProjectAttachmentContentHttpResponse, ProjectAttachmentReadContentHttpRequest,
@@ -916,6 +930,345 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
             )
             .await
     }
+
+    async fn attachment_actor_at(
+        connection: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        holding: &HoldingId,
+        company: &CompanyId,
+        catalogue: &CommercialCatalogue,
+        now: erpx_server_shared::public::TimestampMillis,
+    ) -> Result<ProjectAttachmentActor, BusinessError> {
+        let active_staff = people_staff_facts::active_staff(
+            connection,
+            company.as_str(),
+            current.user_id().as_str(),
+        )
+        .await?
+        .is_some();
+        let wbs_purchased = purchase_allowed(
+            connection,
+            holding,
+            company,
+            catalogue,
+            "projects.wbs",
+            CapabilityPurpose::NewWork,
+            now,
+        )
+        .await;
+        Ok(ProjectAttachmentActor {
+            user_id: current.user_id().as_str().to_owned(),
+            company_id: company.clone(),
+            branch_id: current.selection().workspace().branch_id.clone(),
+            department_id: current.selection().workspace().department_id.clone(),
+            permissions: current.command_iam_metadata().permissions.clone(),
+            modules: current.modules().to_vec(),
+            expires_at: current.expires_at(),
+            active_staff,
+            wbs_purchased,
+        })
+    }
+
+    pub async fn create_project_attachment_set<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        body: ProjectAttachmentSetBody,
+        key: String,
+        availability: ProjectAttachmentIntakeAvailability,
+    ) -> Result<ProjectAttachmentIntakeHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.command_input(input),
+                Self::command_access(),
+                ProjectsIntakeSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    let body = body.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let now = clock.now();
+                        let actor = Self::attachment_actor_at(
+                            connection, current, &holding, &company, &catalogue, now,
+                        )
+                        .await?;
+                        let request = ProjectAttachmentSetRequest {
+                            target_type: body.target_type,
+                            target_id: body.target_id,
+                            component_kind: body.component_kind,
+                            component_ref: body.component_ref,
+                            purpose_key: body.purpose_key,
+                            expected_target_version: body.expected_target_version,
+                        };
+                        let set = create_project_attachment_set(
+                            connection,
+                            &actor,
+                            &request,
+                            &key,
+                            availability,
+                            now.get(),
+                        )
+                        .await
+                        .map_err(business)?;
+                        Ok(ProjectAttachmentIntakeHttpResponse {
+                            data: serde_json::to_value(set).map_err(|_| attachment_invalid())?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn reserve_project_attachment_file<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        set_id: String,
+        body: ProjectAttachmentFileBody,
+        key: String,
+        holding_slug: String,
+        availability: ProjectAttachmentIntakeAvailability,
+    ) -> Result<ProjectAttachmentIntakeHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.command_input(input),
+                Self::command_access(),
+                ProjectsIntakeSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    let body = body.clone();
+                    let key = key.clone();
+                    let set_id = set_id.clone();
+                    let holding_slug = holding_slug.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let now = clock.now();
+                        let actor = Self::attachment_actor_at(
+                            connection, current, &holding, &company, &catalogue, now,
+                        )
+                        .await?;
+                        let storage_limit =
+                            erpx_server_manage_erpx::public::company_storage_limit(
+                                connection, &company,
+                            )
+                            .await?;
+                        let request = ProjectAttachmentFileRequest {
+                            filename: body.filename,
+                            media_type: body.media_type,
+                            bytes: body.bytes,
+                            caption: body.caption,
+                            supersedes_link_id: body.supersedes_link_id,
+                        };
+                        let reservation = reserve_project_attachment_file(
+                            connection,
+                            &actor,
+                            holding.as_str(),
+                            &set_id,
+                            &request,
+                            &key,
+                            availability,
+                            storage_limit,
+                            now.get(),
+                        )
+                        .await
+                        .map_err(business)?;
+                        let upload_url = format!(
+                            "/api/v1/holdings/{holding_slug}/project-attachments/uploads/{}/content",
+                            reservation.upload_intent_id
+                        );
+                        Ok(ProjectAttachmentIntakeHttpResponse {
+                            data: serde_json::json!({
+                                "uploadIntentId": reservation.upload_intent_id,
+                                "attachmentLinkId": reservation.attachment_link_id,
+                                "uploadUrl": upload_url,
+                                "expiresAt": reservation.expires_at,
+                            }),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn complete_project_attachment_upload<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        upload_id: String,
+        content_type: String,
+        bytes: Vec<u8>,
+        writer: Arc<LocalFieldQuarantineWriter>,
+        availability: ProjectAttachmentIntakeAvailability,
+    ) -> Result<ProjectAttachmentIntakeHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.command_input(input),
+                Self::command_access(),
+                ProjectsIntakeSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    let upload_id = upload_id.clone();
+                    let content_type = content_type.clone();
+                    let bytes = bytes.clone();
+                    let writer = writer.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let now = clock.now();
+                        let actor = Self::attachment_actor_at(
+                            connection, current, &holding, &company, &catalogue, now,
+                        )
+                        .await?;
+                        let completion = complete_project_attachment_upload(
+                            connection,
+                            writer.as_ref(),
+                            &actor,
+                            &upload_id,
+                            &content_type,
+                            bytes,
+                            availability,
+                            now.get(),
+                        )
+                        .await
+                        .map_err(business)?;
+                        Ok(ProjectAttachmentIntakeHttpResponse {
+                            data: serde_json::to_value(completion)
+                                .map_err(|_| attachment_invalid())?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn project_attachment_upload_status<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        upload_id: String,
+    ) -> Result<ProjectAttachmentIntakeHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                ProjectsIntakeSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    let upload_id = upload_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now();
+                        let actor = Self::attachment_actor_at(
+                            connection, current, &holding, &company, &catalogue, now,
+                        )
+                        .await?;
+                        let status = project_attachment_upload_status(
+                            connection,
+                            &actor,
+                            &upload_id,
+                            now.get(),
+                        )
+                        .await
+                        .map_err(business)?;
+                        Ok(ProjectAttachmentIntakeHttpResponse {
+                            data: serde_json::to_value(status)
+                                .map_err(|_| attachment_invalid())?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ProjectsIntakeSources;
+
+impl HoldingWorkSourcePreparation for ProjectsIntakeSources {
+    fn prepare<'c>(&'c self, connection: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            // Files intake serializes on its own advisory/row locks; only the
+            // Company storage policy is a shared owner source read here.
+            erpx_server_manage_erpx::public::lock_beta_policy_sources(connection).await?;
+            Ok(())
+        })
+    }
 }
 
 
@@ -1538,6 +1891,146 @@ impl<C: Clock + Send + Sync + 'static> ProjectAttachmentReadHttpBackend
                 ProjectAttachmentReadOutcome::Content(response) => Ok(response),
                 ProjectAttachmentReadOutcome::Data(_) => Err(attachment_invalid()),
             }
+        })
+    }
+}
+
+pub struct ProjectAttachmentIntakeBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<ProjectsService<C>>,
+    writer: Option<Arc<LocalFieldQuarantineWriter>>,
+    availability: ProjectAttachmentIntakeAvailability,
+}
+
+impl<C: Clock + Send + Sync + 'static> ProjectAttachmentIntakeBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<ProjectsService<C>>,
+        writer: Option<Arc<LocalFieldQuarantineWriter>>,
+        availability: ProjectAttachmentIntakeAvailability,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+            writer,
+            availability,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> ProjectAttachmentIntakeHttpBackend
+    for ProjectAttachmentIntakeBackend<C>
+{
+    fn create<'a>(
+        &'a self,
+        request: ProjectAttachmentSetCreateHttpRequest<'a>,
+    ) -> ProjectAttachmentIntakeHttpFuture<'a, ProjectAttachmentIntakeHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .create_project_attachment_set(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.input.clone(),
+                    request.key.to_owned(),
+                    self.availability,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn reserve<'a>(
+        &'a self,
+        request: ProjectAttachmentReserveHttpRequest<'a>,
+    ) -> ProjectAttachmentIntakeHttpFuture<'a, ProjectAttachmentIntakeHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .reserve_project_attachment_file(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.set_id.to_owned(),
+                    request.input.clone(),
+                    request.key.to_owned(),
+                    request.holding_slug.to_owned(),
+                    self.availability,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn complete<'a>(
+        &'a self,
+        request: ProjectAttachmentCompleteHttpRequest<'a>,
+    ) -> ProjectAttachmentIntakeHttpFuture<'a, ProjectAttachmentIntakeHttpResponse> {
+        Box::pin(async move {
+            let writer = self.writer.clone().ok_or_else(|| {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "FILES_PROJECT_ATTACHMENT_UNAVAILABLE",
+                    "The Project file source is temporarily unavailable.",
+                )
+            })?;
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .complete_project_attachment_upload(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.upload_id.to_owned(),
+                    request.content_type.to_owned(),
+                    request.bytes.to_vec(),
+                    writer,
+                    self.availability,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn status<'a>(
+        &'a self,
+        request: ProjectAttachmentUploadStatusHttpRequest<'a>,
+    ) -> ProjectAttachmentIntakeHttpFuture<'a, ProjectAttachmentIntakeHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .project_attachment_upload_status(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.upload_id.to_owned(),
+                )
+                .await
+                .map_err(business)
         })
     }
 }

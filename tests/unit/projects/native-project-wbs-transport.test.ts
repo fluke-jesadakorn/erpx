@@ -218,3 +218,97 @@ describe('native Projects attachment bind transport',()=>{
    .rejects.toMatchObject({code:'NATIVE_PROJECTS_AUTHORITY_INVALID'});
  });
 });
+
+describe('native Projects attachment intake transport',()=>{
+ const headers=()=>new Headers({
+  host:'acme.example.com',
+  origin:'https://acme.example.com',
+  cookie:'__Host-erpx-product=session',
+  'x-erpx-context-company':'company',
+  'x-erpx-context-assignment':'assignment',
+  'x-erpx-context-revision':'7',
+  'x-erpx-context-assignment-version':'3',
+ });
+ const client=(transport:Parameters<typeof createNativeProjectAttachmentClient>[1])=>createNativeProjectAttachmentClient(nativeProjectsConfiguration(config()),transport);
+ const set={id:'set-1',targetType:'project',targetId:'project',componentKind:'record',componentRef:null,purposeKey:'project_document',expectedTargetVersion:4,policyVersion:1,classification:'internal',requiredCount:0,maxFiles:50,state:'draft',createdAt:10,updatedAt:10,links:[]};
+ const scan={attempts:1,lastResult:'pending',lastError:null,signature:null,definitionUpdatedAt:null,scannedAt:null};
+ const completion={uploadIntentId:'upload-1',attachmentLinkId:'link-1',attachmentSetId:'set-1',sourceId:'attachment-upload-1',state:'quarantined',status:'scan_pending',scan,replay:false};
+ const uploadStatus={uploadIntentId:'upload-1',attachmentLinkId:'link-1',attachmentSetId:'set-1',sourceId:null,sourceState:null,linkState:'draft',status:'reserved',scan:{...scan,attempts:0,lastResult:null},bindable:false,scannedAt:null,expiresAt:9_000_000_000_000};
+
+ it('forwards create, reserve, upload and status with exact paths and bounds',async()=>{
+  const transport=vi.fn()
+   .mockResolvedValueOnce(new Response(JSON.stringify({data:set,context}),{status:201,headers:{'content-type':'application/json'}}))
+   .mockResolvedValueOnce(new Response(JSON.stringify({data:{uploadIntentId:'upload-1',attachmentLinkId:'link-1',uploadUrl:'/api/v1/holdings/acme/project-attachments/uploads/upload-1/content',expiresAt:9_000_000_000_000},context}),{status:201,headers:{'content-type':'application/json'}}))
+   .mockResolvedValueOnce(new Response(JSON.stringify({data:completion,context}),{status:202,headers:{'content-type':'application/json'}}))
+   .mockResolvedValueOnce(new Response(JSON.stringify({data:uploadStatus,context}),{status:200,headers:{'content-type':'application/json'}}));
+  const native=client(transport);
+  await expect(native.createSet(headers(),actor,{key:'create-key-0001',targetId:'project',purposeKey:'project_document',expectedTargetVersion:4}))
+   .resolves.toMatchObject({id:'set-1',state:'draft'});
+  const [createMethod,createUrl,createHeaders,createBody]=transport.mock.calls[0];
+  expect(createMethod).toBe('POST');
+  expect(createUrl.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/project-attachments/attachment-sets');
+  expect(createHeaders.get('idempotency-key')).toBe('create-key-0001');
+  expect(createHeaders.get('origin')).toBe('https://acme.example.com');
+  expect(createHeaders.get('content-type')).toBe('application/json');
+  expect(createHeaders.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(JSON.parse(new TextDecoder().decode(createBody))).toEqual({targetType:'project',targetId:'project',componentKind:'record',purposeKey:'project_document',expectedTargetVersion:4});
+
+  await expect(native.reserveFile(headers(),actor,'set-1',{key:'reserve-key-0001',filename:'plan.pdf',mediaType:'application/pdf',bytes:5}))
+   .resolves.toMatchObject({uploadIntentId:'upload-1',uploadUrl:'/api/v1/holdings/acme/attachment-sets/set-1/uploads/upload-1/content'});
+  const [reserveMethod,reserveUrl,reserveHeaders,reserveBody]=transport.mock.calls[1];
+  expect(reserveMethod).toBe('POST');
+  expect(reserveUrl.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/project-attachments/attachment-sets/set-1/files');
+  expect(reserveHeaders.get('idempotency-key')).toBe('reserve-key-0001');
+  expect(JSON.parse(new TextDecoder().decode(reserveBody))).toEqual({filename:'plan.pdf',mediaType:'application/pdf',bytes:5});
+
+  const bytes=new TextEncoder().encode('%PDF-');
+  await expect(native.completeUpload(headers(),actor,'set-1','upload-1','application/pdf',bytes))
+   .resolves.toMatchObject({status:'scan_pending',attachmentSetId:'set-1'});
+  const [uploadMethod,uploadUrl,uploadHeaders,uploadBody]=transport.mock.calls[2];
+  expect(uploadMethod).toBe('PUT');
+  expect(uploadUrl.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/project-attachments/uploads/upload-1/content');
+  expect(uploadHeaders.get('content-type')).toBe('application/pdf');
+  expect(uploadHeaders.get('idempotency-key')).toBeNull();
+  expect(new TextDecoder().decode(uploadBody)).toBe('%PDF-');
+
+  await expect(native.uploadStatus(headers(),actor,'upload-1')).resolves.toMatchObject({status:'reserved',bindable:false});
+  const [statusMethod,statusUrl,,statusBody]=transport.mock.calls[3];
+  expect(statusMethod).toBe('GET');
+  expect(statusUrl.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/project-attachments/uploads/upload-1/status');
+  expect(statusBody.byteLength).toBe(0);
+ });
+
+ it('surfaces owner errors and rejects a mismatched receipt without fallback',async()=>{
+  const conflict=vi.fn().mockResolvedValue(new Response(
+   JSON.stringify({error:{code:'ATTACHMENT_TARGET_CHANGED',message:'The record changed. Refresh before adding files.'}}),
+   {status:409,headers:{'content-type':'application/json'}},
+  ));
+  await expect(client(conflict).createSet(headers(),actor,{key:'create-key-0001',targetId:'project',purposeKey:'project_document',expectedTargetVersion:4}))
+   .rejects.toMatchObject({status:409,code:'ATTACHMENT_TARGET_CHANGED'});
+
+  const wrongSet=vi.fn().mockResolvedValue(new Response(
+   JSON.stringify({data:{...completion,attachmentSetId:'set-2'},context}),
+   {status:202,headers:{'content-type':'application/json'}},
+  ));
+  await expect(client(wrongSet).completeUpload(headers(),actor,'set-1','upload-1','application/pdf',new TextEncoder().encode('%PDF-')))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_RESPONSE_INVALID'});
+
+  const wrongStatus=vi.fn().mockResolvedValue(new Response(
+   JSON.stringify({data:{...uploadStatus,uploadIntentId:'upload-2'},context}),
+   {status:200,headers:{'content-type':'application/json'}},
+  ));
+  await expect(client(wrongStatus).uploadStatus(headers(),actor,'upload-1'))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_RESPONSE_INVALID'});
+
+  const changed=vi.fn().mockResolvedValue(new Response(
+   JSON.stringify({data:set,context:{...context,revision:8}}),
+   {status:201,headers:{'content-type':'application/json'}},
+  ));
+  await expect(client(changed).createSet(headers(),actor,{key:'create-key-0001',targetId:'project',purposeKey:'project_document',expectedTargetVersion:4}))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_CONTEXT_CHANGED'});
+
+  const missing=headers();missing.delete('x-erpx-context-company');
+  await expect(client(vi.fn()).createSet(missing,actor,{key:'create-key-0001',targetId:'project',purposeKey:'project_document',expectedTargetVersion:4}))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_CONTEXT_CHANGED'});
+ });
+});

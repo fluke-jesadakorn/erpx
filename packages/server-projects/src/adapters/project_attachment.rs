@@ -7,8 +7,8 @@ use crate::application::project_attachment::{
     ProjectAttachmentReceiptPlan, StoredProjectAttachmentReceipt,
 };
 use crate::domain::project_attachment::{
-    ProjectAttachmentActor, ProjectAttachmentTargetFacts, attachment_not_found, authorize_read,
-    idempotency_conflict,
+    ProjectAttachmentActor, ProjectAttachmentTargetFacts, attachment_not_found,
+    authorize_read, authorize_staging, idempotency_conflict,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{
@@ -99,6 +99,60 @@ pub async fn authorize_project_attachment_read_with_connection(
         )
         .ok_or_else(attachment_not_found)?;
     authorize_read(actor, &facts, now)?;
+    Ok(ProjectAttachmentReadAuthority {
+        target_id: facts.target_id,
+        version: facts.version,
+    })
+}
+
+/// Authorize one Project attachment intake step on the caller's retained
+/// connection. The Project row is locked so a concurrent bind or version step
+/// cannot pass the exact expected-version check unseen. This reads the
+/// Projects-owned row only; Files still owns the set/link/source ledger.
+pub async fn authorize_project_attachment_stage_with_connection(
+    connection: &mut PgConnection,
+    actor: &ProjectAttachmentActor,
+    target_id: &str,
+    expected_version: i64,
+    now: TimestampMillis,
+) -> Result<ProjectAttachmentReadAuthority, BusinessError> {
+    if !connection.is_in_transaction() {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "PROJECT_ATTACHMENT_TRANSACTION_REQUIRED",
+            "A retained transaction is required to stage Project files.",
+        ));
+    }
+    actor.require_write(now)?;
+    let target_id = RecordId::new(target_id).map_err(|_| attachment_not_found())?;
+    let row: Option<(String, String, String, String, i64, bool)> = sqlx::query_as(
+        "SELECT p.company_id,p.id,p.owner_user_id,p.lifecycle_status,p.version,\
+         iam_same_person(p.owner_user_id,$3,p.company_id) AS is_owner \
+         FROM staff_projects p WHERE p.id=$1 AND p.company_id=$2 \
+         FOR UPDATE OF p",
+    )
+    .bind(target_id.as_str())
+    .bind(actor.company_id.as_str())
+    .bind(actor.user_id.as_str())
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|_| read_unavailable())?;
+    let facts = row
+        .map(
+            |(company_id, target_id, owner_user_id, lifecycle_status, version, is_owner)| {
+                ProjectAttachmentTargetFacts {
+                    company_id,
+                    target_id,
+                    owner_user_id,
+                    lifecycle_status,
+                    version,
+                    is_owner,
+                    is_member: is_owner,
+                }
+            },
+        )
+        .ok_or_else(attachment_not_found)?;
+    authorize_staging(actor, &facts, expected_version, now)?;
     Ok(ProjectAttachmentReadAuthority {
         target_id: facts.target_id,
         version: facts.version,

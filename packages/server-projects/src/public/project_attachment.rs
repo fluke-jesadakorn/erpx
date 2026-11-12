@@ -2,6 +2,7 @@
 pub use crate::adapters::project_attachment::{
     PgProjectAttachmentCommandReceipts, PgProjectAttachmentFacts, ProjectAttachmentReadAuthority,
     authorize_project_attachment_read_with_connection,
+    authorize_project_attachment_stage_with_connection,
 };
 pub use crate::application::project_attachment::{
     PROJECT_ATTACHMENT_BIND_OPERATION, ProjectAttachmentCommandReceipt,

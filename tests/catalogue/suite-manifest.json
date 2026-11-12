@@ -59476,7 +59476,7 @@
         "migratedSlots": []
       }
     },
-{
+    {
       "lane": "unit",
       "owner": "people_payroll",
       "modules": [
@@ -59517,7 +59517,7 @@
         "rust-toolchain.toml"
       ]
     },
-{
+    {
       "lane": "integration",
       "owner": "people_payroll",
       "modules": [
@@ -62600,7 +62600,7 @@
         "migratedSlots": []
       }
     },
-{
+    {
       "lane": "unit",
       "owner": "pms",
       "modules": [
@@ -62697,7 +62697,7 @@
         "packages/server-pms/src/application/room_board.rs"
       ]
     },
-{
+    {
       "lane": "integration",
       "owner": "pms",
       "modules": [
@@ -62794,7 +62794,7 @@
         "packages/server-pms/src/application/room_board.rs"
       ]
     },
-{
+    {
       "lane": "unit",
       "owner": "people_payroll",
       "modules": [
@@ -62835,7 +62835,7 @@
         "rust-toolchain.toml"
       ]
     },
-{
+    {
       "lane": "integration",
       "owner": "people_payroll",
       "modules": [
@@ -88976,6 +88976,42 @@
       ]
     },
     {
+      "id": "projects.rust-project-attachment-intake-http.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/rust-project-attachment-intake-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Projects attachment intake HTTP ingress retains exact targets, origin, key, media and body bounds plus private headers."
+      },
+      "apps": [
+        "projects"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_attachment_intake_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-projects/Cargo.toml"
+      ]
+    },
+    {
       "id": "projects.rust-project-attachment-postgres.integration",
       "lane": "integration",
       "owner": "projects",
@@ -92879,6 +92915,56 @@
       }
     },
     {
+      "id": "files.rust-project-attachment-intake-postgres.integration",
+      "lane": "integration",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/files/rust-project-attachment-intake-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files-owned Project intake stages draft sets, reservations and quarantine bytes while the clean scan receipt gates availability."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "project_attachment_intake_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "files.rust-messaging-files-postgres.integration",
       "lane": "integration",
       "owner": "files",
@@ -94114,6 +94200,231 @@
       "packages": [
         "@erpx/server-pms"
       ]
+    },
+    {
+      "id": "pms.rust-pms-report-projection.unit",
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS report projections must preserve retained formulas, JS rounding, scope and range bounds."
+      },
+      "files": [
+        "tests/unit/pms/rust-pms-report-projection.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_report_projection"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-pms/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/src/domain/report_projection.rs",
+        "packages/server-pms/src/application/report_projection.rs"
+      ],
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ]
+    },
+    {
+      "id": "pms.rust-pms-report-projection-postgres.integration",
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS report reads over migrated PostgreSQL must preserve property scope, date/timezone boundaries, formulas and bounded pagination."
+      },
+      "files": [
+        "tests/integration/pms/rust-pms-report-projection-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_report_projection_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-pms/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/src/domain/report_projection.rs",
+        "packages/server-pms/src/application/report_projection.rs",
+        "packages/server-pms/src/adapters/report_http.rs",
+        "packages/server-pms/src/public/report.rs",
+        "tests/support/rust-postgres.rs",
+        "migrations/postgres/holding-write/0031_pms.sql"
+      ],
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ]
+    },
+    {
+      "id": "pos.rust-pos-workspace.unit",
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/unit/pos/rust-pos-workspace.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS workspace read retains pos.read/department policy, package denial, Company/branch isolation, retained tab gates, bounded pages and exact wire fields."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "pos_workspace"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ],
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "pos.rust-pos-workspace-http.unit",
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/unit/pos/rust-pos-workspace-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS workspace HTTP ingress retains exact targets, origin, bounded query parameters, private headers and bounded error mapping."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "pos_workspace_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ],
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "pos.rust-pos-workspace-postgres.integration",
+      "lane": "integration",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/integration/pos/rust-pos-workspace-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS workspace read retains Company/branch isolation, retained tab gates, bounded pages, serializable transaction guards and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "pos_workspace_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ],
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     }
   ]
 }

@@ -296,6 +296,30 @@ pub fn attachment_owner_required() -> BusinessError {
     )
 }
 
+pub fn attachment_project_owner_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "ATTACHMENT_PROJECT_OWNER_REQUIRED",
+        "Only the current project owner can manage project documents.",
+    )
+}
+
+pub fn attachment_project_frozen() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "PROJECT_STRUCTURE_FROZEN",
+        "Reopen the project before changing its documents.",
+    )
+}
+
+pub fn attachment_target_changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "ATTACHMENT_TARGET_CHANGED",
+        "The record changed. Refresh before adding files.",
+    )
+}
+
 pub fn attachment_package_required() -> BusinessError {
     BusinessError::new(
         FailureKind::Forbidden,
@@ -348,6 +372,36 @@ pub fn authorize_binding(
         purpose: ProjectAttachmentPurpose::parse(&command.purpose)?,
         witness,
     })
+}
+
+/// Owner-side intake authorization for a new draft set or reservation. The
+/// retained Projects policy requires the current project owner, an active
+/// lifecycle, the exact current version and the purchased WBS capability.
+/// Files still owns the set/link ledger and applies this check in its own unit.
+pub fn authorize_staging(
+    actor: &ProjectAttachmentActor,
+    facts: &ProjectAttachmentTargetFacts,
+    expected_version: i64,
+    now: TimestampMillis,
+) -> Result<(), BusinessError> {
+    actor.require_write(now)?;
+    if !actor.wbs_purchased {
+        return Err(attachment_package_required());
+    }
+    if facts.company_id != actor.company_id.as_str()
+        || facts.target_id.is_empty()
+        || !facts.is_owner
+        || facts.owner_user_id != actor.user_id
+    {
+        return Err(attachment_project_owner_required());
+    }
+    if facts.lifecycle_status != "active" {
+        return Err(attachment_project_frozen());
+    }
+    if expected_version < 1 || facts.version != expected_version {
+        return Err(attachment_target_changed());
+    }
+    Ok(())
 }
 
 /// Owner-side read authorization used by the Files read path. Outsiders and

@@ -69,5 +69,9 @@ name = "project_attachment_read_http"
 path = "../../tests/unit/projects/rust-project-attachment-read-http.test.rs"
 
 [[test]]
+name = "project_attachment_intake_http"
+path = "../../tests/unit/projects/rust-project-attachment-intake-http.test.rs"
+
+[[test]]
 name = "staff_facts_postgres"
 path = "../../tests/integration/projects/rust-staff-facts-postgres.test.rs"

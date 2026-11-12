@@ -40,6 +40,7 @@ pub mod learning_evidence;
 pub mod benefit_evidence;
 
 pub mod project_attachment;
+pub mod project_attachment_intake;
 
 pub mod messaging_files;
 pub mod staff_task_attachments;

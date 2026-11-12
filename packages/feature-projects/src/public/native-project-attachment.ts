@@ -29,12 +29,103 @@ export type NativeProjectAttachmentBindInput = Readonly<{
 }>;
 
 export type NativeProjectAttachmentTransport = (
-  method: 'POST',
+  method: 'POST' | 'PUT' | 'GET',
   url: URL,
   headers: Headers,
   body: Uint8Array,
   signal: AbortSignal,
 ) => Promise<Response>;
+
+export type NativeProjectAttachmentLink = Readonly<{
+  id: string;
+  sourceId: string | null;
+  filename: string;
+  mediaType: string;
+  bytes: number | null;
+  sourceState: string | null;
+  linkState: string;
+  caption: string | null;
+  previewAvailable: boolean;
+  createdAt: number;
+  expiresAt: number;
+  boundAt: number | null;
+}>;
+
+export type NativeProjectAttachmentSet = Readonly<{
+  id: string;
+  targetType: string;
+  targetId: string;
+  componentKind: string;
+  componentRef: string | null;
+  purposeKey: string;
+  expectedTargetVersion: number;
+  policyVersion: number;
+  classification: string;
+  requiredCount: number;
+  maxFiles: number;
+  state: string;
+  createdAt: number;
+  updatedAt: number;
+  links: NativeProjectAttachmentLink[];
+}>;
+
+export type NativeProjectAttachmentReservation = Readonly<{
+  uploadIntentId: string;
+  attachmentLinkId: string;
+  uploadUrl: string;
+  expiresAt: number;
+}>;
+
+export type NativeProjectAttachmentScan = Readonly<{
+  attempts: number;
+  lastResult: string | null;
+  lastError: string | null;
+  signature: string | null;
+  definitionUpdatedAt: number | null;
+  scannedAt: number | null;
+}>;
+
+export type NativeProjectAttachmentCompletion = Readonly<{
+  uploadIntentId: string;
+  attachmentLinkId: string;
+  attachmentSetId: string;
+  sourceId: string;
+  state: string;
+  status: string;
+  scan: NativeProjectAttachmentScan;
+  replay: boolean;
+}>;
+
+export type NativeProjectAttachmentUploadStatus = Readonly<{
+  uploadIntentId: string;
+  attachmentLinkId: string;
+  attachmentSetId: string;
+  sourceId: string | null;
+  sourceState: string | null;
+  linkState: string;
+  status: string;
+  scan: NativeProjectAttachmentScan;
+  bindable: boolean;
+  scannedAt: number | null;
+  expiresAt: number;
+}>;
+
+export type NativeProjectAttachmentSetInput = Readonly<{
+  key: string;
+  targetId: string;
+  purposeKey: string;
+  componentRef?: string;
+  expectedTargetVersion: number;
+}>;
+
+export type NativeProjectAttachmentReserveInput = Readonly<{
+  key: string;
+  filename: string;
+  mediaType: string;
+  bytes: number;
+  caption?: string;
+  supersedesLinkId?: string;
+}>;
 
 type Row = Record<string, unknown>;
 type Context = Row & { modules: string[]; permissions: string[] };
@@ -227,13 +318,13 @@ async function boundedBytes(response: Response, limit: number): Promise<Uint8Arr
   return data;
 }
 
-async function boundedReply(response: Response): Promise<unknown> {
+async function boundedReply(response: Response, expected = 200): Promise<unknown> {
   if (response.redirected) {
     void response.body?.cancel().catch(() => undefined);
     return failure('NATIVE_PROJECTS_UNAVAILABLE', response.status);
   }
   const contentType = response.headers.get('content-type')?.split(';')[0]?.trim();
-  if (response.status !== 200) {
+  if (response.status !== expected) {
     const body = await boundedBytes(response, 64 * 1024);
     let code: string | undefined;
     let message: string | undefined;
@@ -262,6 +353,205 @@ async function boundedReply(response: Response): Promise<unknown> {
   }
 }
 
+function scanData(value: unknown): NativeProjectAttachmentScan {
+  if (
+    !exact(value, [
+      'attempts', 'lastResult', 'lastError', 'signature', 'definitionUpdatedAt', 'scannedAt',
+    ]) ||
+    !integer(value.attempts) ||
+    (value.lastResult !== null && !text(value.lastResult)) ||
+    (value.lastError !== null && !text(value.lastError)) ||
+    (value.signature !== null && !text(value.signature)) ||
+    (value.definitionUpdatedAt !== null && !integer(value.definitionUpdatedAt, 1)) ||
+    (value.scannedAt !== null && !integer(value.scannedAt, 1))
+  )
+    return failure('NATIVE_PROJECTS_RESPONSE_INVALID');
+  return value as NativeProjectAttachmentScan;
+}
+
+function setData(value: unknown): NativeProjectAttachmentSet {
+  if (
+    !exact(value, [
+      'id', 'targetType', 'targetId', 'componentKind', 'componentRef', 'purposeKey',
+      'expectedTargetVersion', 'policyVersion', 'classification', 'requiredCount',
+      'maxFiles', 'state', 'createdAt', 'updatedAt', 'links',
+    ]) ||
+    !identifier(value.id) ||
+    value.targetType !== 'project' ||
+    !identifier(value.targetId) ||
+    value.componentKind !== 'record' ||
+    (value.componentRef !== null && !text(value.componentRef)) ||
+    !text(value.purposeKey) ||
+    !integer(value.expectedTargetVersion, 1) ||
+    !integer(value.policyVersion, 1) ||
+    !text(value.classification) ||
+    !integer(value.requiredCount) ||
+    !integer(value.maxFiles, 1) ||
+    !text(value.state) ||
+    !integer(value.createdAt) ||
+    !integer(value.updatedAt) ||
+    !Array.isArray(value.links) ||
+    value.links.length > 100
+  )
+    return failure('NATIVE_PROJECTS_RESPONSE_INVALID');
+  const seen = new Set<string>();
+  for (const link of value.links) {
+    if (
+      !exact(link, [
+        'id', 'sourceId', 'filename', 'mediaType', 'bytes', 'sourceState', 'linkState',
+        'caption', 'previewAvailable', 'createdAt', 'expiresAt', 'boundAt',
+      ]) ||
+      !identifier(link.id) ||
+      (link.sourceId !== null && !identifier(link.sourceId)) ||
+      !text(link.filename) ||
+      !text(link.mediaType) ||
+      (link.bytes !== null && !integer(link.bytes, 1)) ||
+      (link.sourceState !== null && !text(link.sourceState)) ||
+      !text(link.linkState) ||
+      (link.caption !== null && !text(link.caption)) ||
+      typeof link.previewAvailable !== 'boolean' ||
+      !integer(link.createdAt) ||
+      !integer(link.expiresAt) ||
+      (link.boundAt !== null && !integer(link.boundAt)) ||
+      seen.has(link.id)
+    )
+      return failure('NATIVE_PROJECTS_RESPONSE_INVALID');
+    seen.add(link.id);
+  }
+  return value as NativeProjectAttachmentSet;
+}
+
+function reservationData(
+  value: unknown,
+  holdingSlug: string,
+): NativeProjectAttachmentReservation {
+  if (
+    !exact(value, ['uploadIntentId', 'attachmentLinkId', 'uploadUrl', 'expiresAt']) ||
+    !identifier(value.uploadIntentId) ||
+    !identifier(value.attachmentLinkId) ||
+    !text(value.uploadUrl, 2048) ||
+    value.uploadUrl !==
+      `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/project-attachments/uploads/${encodeURIComponent(value.uploadIntentId)}/content` ||
+    !integer(value.expiresAt, 1)
+  )
+    return failure('NATIVE_PROJECTS_RESPONSE_INVALID');
+  return value as NativeProjectAttachmentReservation;
+}
+
+function completionData(
+  value: unknown,
+  uploadId: string,
+  setId: string,
+): NativeProjectAttachmentCompletion {
+  if (
+    !exact(value, [
+      'uploadIntentId', 'attachmentLinkId', 'attachmentSetId', 'sourceId', 'state',
+      'status', 'scan', 'replay',
+    ]) ||
+    value.uploadIntentId !== uploadId ||
+    value.attachmentSetId !== setId ||
+    !identifier(value.attachmentLinkId) ||
+    !identifier(value.sourceId) ||
+    !text(value.state) ||
+    !text(value.status) ||
+    typeof value.replay !== 'boolean'
+  )
+    return failure('NATIVE_PROJECTS_RESPONSE_INVALID');
+  scanData(value.scan);
+  return value as NativeProjectAttachmentCompletion;
+}
+
+function uploadStatusData(
+  value: unknown,
+  uploadId: string,
+): NativeProjectAttachmentUploadStatus {
+  if (
+    !exact(value, [
+      'uploadIntentId', 'attachmentLinkId', 'attachmentSetId', 'sourceId', 'sourceState',
+      'linkState', 'status', 'scan', 'bindable', 'scannedAt', 'expiresAt',
+    ]) ||
+    value.uploadIntentId !== uploadId ||
+    !identifier(value.attachmentLinkId) ||
+    !identifier(value.attachmentSetId) ||
+    (value.sourceId !== null && !identifier(value.sourceId)) ||
+    (value.sourceState !== null && !text(value.sourceState)) ||
+    !text(value.linkState) ||
+    !text(value.status) ||
+    typeof value.bindable !== 'boolean' ||
+    (value.scannedAt !== null && !integer(value.scannedAt, 1)) ||
+    !integer(value.expiresAt, 1)
+  )
+    return failure('NATIVE_PROJECTS_RESPONSE_INVALID');
+  scanData(value.scan);
+  return value as NativeProjectAttachmentUploadStatus;
+}
+
+function intakeCall(
+  transport: NativeProjectAttachmentTransport,
+  base: URL,
+  holdings: Map<string, { holdingId: string; holdingSlug: string; origin: string }>,
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  method: 'POST' | 'PUT' | 'GET',
+  path: string,
+  body: Uint8Array,
+  timeout: number,
+  key?: string,
+  contentType?: string,
+): Promise<Response> {
+  if (!actor.authority || !actor.iam)
+    return Promise.reject(new NativeProjectsError('NATIVE_PROJECTS_CONTEXT_CHANGED'));
+  const host = incoming.get('host');
+  const holding = host ? holdings.get(host) : undefined;
+  if (!holding || holding.holdingSlug !== actor.holdingSlug || holding.holdingId !== actor.holdingId)
+    return Promise.reject(new NativeProjectsError('NATIVE_PROJECTS_AUTHORITY_INVALID'));
+  const captured = {
+    'x-erpx-context-company': actor.companyId,
+    'x-erpx-context-assignment': actor.assignmentId,
+    'x-erpx-context-revision': String(actor.authority.revision),
+    'x-erpx-context-assignment-version': String(actor.authority.assignmentVersion),
+  } as const;
+  if (Object.entries(captured).some(([name, value]) => incoming.get(name) !== value))
+    return Promise.reject(new NativeProjectsError('NATIVE_PROJECTS_CONTEXT_CHANGED'));
+  const headers = new Headers({
+    host: host!,
+    accept: 'application/json',
+    'cache-control': 'no-cache',
+    ...captured,
+  });
+  if (key !== undefined) {
+    if (key.length < 8 || key.length > 180 || !/^[a-zA-Z0-9:_.-]+$/.test(key))
+      return Promise.reject(new NativeProjectsError('NATIVE_PROJECTS_REQUEST_INVALID'));
+    headers.set('idempotency-key', key);
+    const origin = incoming.get('origin');
+    if (origin !== holding.origin)
+      return Promise.reject(new NativeProjectsError('NATIVE_PROJECTS_AUTHORITY_INVALID'));
+    headers.set('origin', origin);
+  }
+  if (contentType !== undefined) headers.set('content-type', contentType);
+  const cookie = incoming.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192)
+      return Promise.reject(new NativeProjectsError('NATIVE_PROJECTS_COOKIE_LIMIT'));
+    headers.set('cookie', cookie);
+  }
+  if (actor.scope.kind !== 'holding' && actor.scope.branchSlug)
+    headers.set('x-erpx-workspace-branch', actor.scope.branchSlug);
+  if (actor.scope.kind === 'department')
+    headers.set('x-erpx-workspace-department', actor.scope.departmentSlug);
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}${path}`,
+    base,
+  );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  return transport(method, url, headers, body, controller.signal)
+    .finally(() => clearTimeout(timer))
+    .catch((error: unknown) => {
+      if (error instanceof NativeProjectsError) throw error;
+      return failure('NATIVE_PROJECTS_UNAVAILABLE');
+    });
+}
 function requestCall(
   transport: NativeProjectAttachmentTransport,
   base: URL,
@@ -346,6 +636,42 @@ export function createNativeProjectAttachmentClient(
   transport: NativeProjectAttachmentTransport = directHttpPost,
 ) {
   const config = settings(JSON.stringify(raw));
+  const readData = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeProjectsPageContext,
+    method: 'POST' | 'PUT' | 'GET',
+    path: string,
+    body: Uint8Array,
+    expected: number,
+    options: { key?: string; contentType?: string } = {},
+  ): Promise<unknown> => {
+    const response = await intakeCall(
+      transport,
+      config.base,
+      config.holdings,
+      incoming,
+      actor,
+      method,
+      path,
+      body,
+      config.timeout,
+      options.key,
+      options.contentType,
+    );
+    const value = await boundedReply(response, expected);
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_PROJECTS_RESPONSE_INVALID');
+    verifyContext(value.context, actor);
+    return value.data;
+  };
+  const jsonBody = (value: unknown): Uint8Array =>
+    new TextEncoder().encode(JSON.stringify(value));
+  const reservationPath = (
+    actor: NativeProjectsPageContext,
+    setId: string,
+    uploadId: string,
+  ) =>
+    `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/attachment-sets/${encodeURIComponent(setId)}/uploads/${encodeURIComponent(uploadId)}/content`;
   return {
     async bind(
       incoming: Pick<Headers, 'get'>,
@@ -368,6 +694,117 @@ export function createNativeProjectAttachmentClient(
         return failure('NATIVE_PROJECTS_RESPONSE_INVALID');
       verifyContext(value.context, actor);
       return bindingData(value.data, setId, input.expectedVersion);
+    },
+    async createSet(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeProjectsPageContext,
+      input: NativeProjectAttachmentSetInput,
+    ): Promise<NativeProjectAttachmentSet> {
+      if (!identifier(input.targetId) || !text(input.purposeKey))
+        return failure('NATIVE_PROJECTS_REQUEST_INVALID');
+      const body = jsonBody({
+        targetType: 'project',
+        targetId: input.targetId,
+        componentKind: 'record',
+        ...(input.componentRef ? { componentRef: input.componentRef } : {}),
+        purposeKey: input.purposeKey,
+        expectedTargetVersion: input.expectedTargetVersion,
+      });
+      if (body.byteLength > 8 * 1024)
+        return failure('NATIVE_PROJECTS_REQUEST_INVALID');
+      return setData(
+        await readData(
+          incoming,
+          actor,
+          'POST',
+          '/project-attachments/attachment-sets',
+          body,
+          201,
+          { key: input.key, contentType: 'application/json' },
+        ),
+      );
+    },
+    async reserveFile(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeProjectsPageContext,
+      setId: string,
+      input: NativeProjectAttachmentReserveInput,
+    ): Promise<NativeProjectAttachmentReservation> {
+      if (!identifier(setId) || setId.includes('/') || setId.includes('\\'))
+        return failure('NATIVE_PROJECTS_REQUEST_INVALID');
+      const body = jsonBody({
+        filename: input.filename,
+        mediaType: input.mediaType,
+        bytes: input.bytes,
+        ...(input.caption ? { caption: input.caption } : {}),
+        ...(input.supersedesLinkId ? { supersedesLinkId: input.supersedesLinkId } : {}),
+      });
+      if (body.byteLength > 64 * 1024)
+        return failure('NATIVE_PROJECTS_REQUEST_INVALID');
+      const data = reservationData(
+        await readData(
+          incoming,
+          actor,
+          'POST',
+          `/project-attachments/attachment-sets/${encodeURIComponent(setId)}/files`,
+          body,
+          201,
+          { key: input.key, contentType: 'application/json' },
+        ),
+        actor.holdingSlug,
+      );
+      return { ...data, uploadUrl: reservationPath(actor, setId, data.uploadIntentId) };
+    },
+    async completeUpload(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeProjectsPageContext,
+      setId: string,
+      uploadId: string,
+      contentType: string,
+      bytes: Uint8Array,
+    ): Promise<NativeProjectAttachmentCompletion> {
+      if (
+        !identifier(setId) ||
+        !identifier(uploadId) ||
+        !text(contentType) ||
+        contentType.length === 0 ||
+        contentType.length > 100 ||
+        bytes.byteLength < 1 ||
+        bytes.byteLength > 10 * 1024 * 1024
+      )
+        return failure('NATIVE_PROJECTS_REQUEST_INVALID');
+      return completionData(
+        await readData(
+          incoming,
+          actor,
+          'PUT',
+          `/project-attachments/uploads/${encodeURIComponent(uploadId)}/content`,
+          bytes,
+          202,
+          { contentType },
+        ),
+        uploadId,
+        setId,
+      );
+    },
+    async uploadStatus(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeProjectsPageContext,
+      uploadId: string,
+    ): Promise<NativeProjectAttachmentUploadStatus> {
+      if (!identifier(uploadId))
+        return failure('NATIVE_PROJECTS_REQUEST_INVALID');
+      return uploadStatusData(
+        await readData(
+          incoming,
+          actor,
+          'GET',
+          `/project-attachments/uploads/${encodeURIComponent(uploadId)}/status`,
+          new Uint8Array(),
+          200,
+        ),
+        uploadId,
+      );
     },
   };
 }
@@ -392,9 +829,78 @@ export async function nativeProjectAttachmentBind(
   return createNativeProjectAttachmentClient(parsed).bind(incoming, actor, setId, input);
 }
 
+/** Bounded configuration entry for a selected project intake operation. */
+function configuredClient(raw: string | undefined) {
+  if (raw === undefined)
+    return failure('NATIVE_PROJECTS_CONFIGURATION_INVALID', 503);
+  let parsed: NativeProjectsConfiguration;
+  try {
+    parsed = nativeProjectsConfiguration(raw);
+  } catch {
+    return failure('NATIVE_PROJECTS_CONFIGURATION_INVALID', 503);
+  }
+  return createNativeProjectAttachmentClient(parsed);
+}
+
+export async function nativeProjectAttachmentCreateSet(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  input: NativeProjectAttachmentSetInput,
+): Promise<NativeProjectAttachmentSet> {
+  return configuredClient(process.env.ERPX_NATIVE_PROJECTS_CONFIG).createSet(
+    incoming,
+    actor,
+    input,
+  );
+}
+
+export async function nativeProjectAttachmentReserveFile(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  setId: string,
+  input: NativeProjectAttachmentReserveInput,
+): Promise<NativeProjectAttachmentReservation> {
+  return configuredClient(process.env.ERPX_NATIVE_PROJECTS_CONFIG).reserveFile(
+    incoming,
+    actor,
+    setId,
+    input,
+  );
+}
+
+export async function nativeProjectAttachmentCompleteUpload(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  setId: string,
+  uploadId: string,
+  contentType: string,
+  bytes: Uint8Array,
+): Promise<NativeProjectAttachmentCompletion> {
+  return configuredClient(process.env.ERPX_NATIVE_PROJECTS_CONFIG).completeUpload(
+    incoming,
+    actor,
+    setId,
+    uploadId,
+    contentType,
+    bytes,
+  );
+}
+
+export async function nativeProjectAttachmentUploadStatus(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeProjectsPageContext,
+  uploadId: string,
+): Promise<NativeProjectAttachmentUploadStatus> {
+  return configuredClient(process.env.ERPX_NATIVE_PROJECTS_CONFIG).uploadStatus(
+    incoming,
+    actor,
+    uploadId,
+  );
+}
+
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */
 export function directHttpPost(
-  method: 'POST',
+  method: 'POST' | 'PUT' | 'GET',
   url: URL,
   headers: Headers,
   body: Uint8Array,
