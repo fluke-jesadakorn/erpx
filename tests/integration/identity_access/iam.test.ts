@@ -5,7 +5,7 @@ import { accessComparison, accessDetail, accessEntries, peopleAccessData } from 
 import { emptyDirectoryHierarchy, validateDirectoryHierarchy } from "@erpx/feature-organization/lib/hierarchy";
 import { loadIamAuthority, iamRole, iamRoles } from "@erpx/server-identity_access/public/iam-store";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
-import {saveIamRole,roleInput,decideIamReview,grantIamAccess,grantInput,revokeIamAssignment,startAccessReviewCampaign,decideAccessReviewItem,cancelAccessReviewCampaign} from "@erpx/server-identity_access/public/iam-service";
+import {saveIamRole,roleInput,decideIamReview,grantIamAccess,grantInput,revokeIamAssignment} from "@erpx/server-identity_access/public/iam-service";
 import {iamOverview,iamAuditHistory} from '@erpx/server-identity_access/public/iam-service-reads';
 import {connectionInput,saveConnection,proposeMapping,mappingInput,applyDirectoryReview} from "@erpx/server-identity_access/public/iam-directories";
 import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
@@ -1196,37 +1196,13 @@ it("keeps emergency recovery independent from delegated company ownership", asyn
       .first())!.ok,
   ).toBe(true);
 });
-it("completes an independent access review and revokes access immediately",async()=>{
-  const f=await fixture(),third=await f.user(),campaignKey=key();
-  const campaign=await startAccessReviewCampaign(db,f.owner,{name:"Quarterly access certification",dueAt:now()+7*86400000,reason:"Confirm every active company assignment"},campaignKey);
-  const items=(await db.prepare("SELECT * FROM iam_access_review_items WHERE campaign_id=? ORDER BY user_id").bind(campaign.id).all<{id:string;user_id:string;assignment_id:string;decision:string}>()).results;
-  expect(items).toHaveLength(4);
-  const employee=items.find(i=>i.user_id===f.employee.userId)!,owner=items.find(i=>i.user_id===f.owner.userId)!,reviewer=items.find(i=>i.user_id===f.reviewer.userId)!,thirdItem=items.find(i=>i.user_id===third.userId)!;
-  await expect(decideAccessReviewItem(db,f.owner,employee.id,{expectedCampaignVersion:1,decision:"keep",reason:"Self-created campaign"},key())).rejects.toMatchObject({code:"INDEPENDENT_REVIEW_REQUIRED"});
-  await expect(decideAccessReviewItem(db,f.reviewer,reviewer.id,{expectedCampaignVersion:1,decision:"keep",reason:"Own assignment"},key())).rejects.toMatchObject({code:"SELF_ACCESS_REVIEW"});
-  const revokeKey=key();
-  await decideAccessReviewItem(db,f.reviewer,employee.id,{expectedCampaignVersion:1,decision:"revoke",reason:"Employment access is no longer required"},revokeKey);
-  await decideAccessReviewItem(db,f.reviewer,employee.id,{expectedCampaignVersion:1,decision:"revoke",reason:"Employment access is no longer required"},revokeKey);
-  expect((await db.prepare("SELECT revoked_at FROM assignments WHERE id=?").bind(f.employee.assignmentId).first<{revoked_at:number|null}>())?.revoked_at).toBeTypeOf("number");
-  expect((await db.prepare("SELECT assignment_id FROM active_work_contexts WHERE session_id=?").bind(f.employee.sessionId).first<{assignment_id:string|null}>())?.assignment_id).toBeNull();
-  await decideAccessReviewItem(db,f.reviewer,owner.id,{expectedCampaignVersion:2,decision:"keep",reason:"Company ownership remains required"},key());
-  await decideAccessReviewItem(db,f.reviewer,thirdItem.id,{expectedCampaignVersion:3,decision:"keep",reason:"Independent access reviewer remains required"},key());
-  const finished=await decideAccessReviewItem(db,third,reviewer.id,{expectedCampaignVersion:4,decision:"keep",reason:"Reviewed administrator remains required"},key());
-  expect(finished.campaignStatus).toBe("completed");
-  expect(await db.prepare("SELECT status,version FROM iam_access_review_campaigns WHERE id=?").bind(campaign.id).first()).toEqual({status:"completed",version:5});
-  expect((await db.prepare("SELECT action FROM iam_access_review_events WHERE campaign_id=? ORDER BY created_at,id").bind(campaign.id).all<{action:string}>()).results.map(e=>e.action)).toEqual(expect.arrayContaining(["started","revoked","kept","completed"]));
-  await expect(db.prepare("UPDATE iam_access_review_events SET action='cancelled' WHERE campaign_id=?").bind(campaign.id).run()).rejects.toThrow("IMMUTABLE_IAM_ACCESS_REVIEW_EVENT");
-});
-it("rejects stale evidence and cancels only untouched access reviews",async()=>{
-  const f=await fixture(),campaign=await startAccessReviewCampaign(db,f.owner,{name:"Access evidence check",dueAt:now()+86400000,reason:"Check current assignment evidence"},key()),items=(await db.prepare("SELECT id,assignment_id,user_id FROM iam_access_review_items WHERE campaign_id=?").bind(campaign.id).all<{id:string;assignment_id:string;user_id:string}>()).results;
-  await db.prepare("UPDATE assignments SET version=version+1 WHERE id=?").bind(f.employee.assignmentId).run();
-  await expect(decideAccessReviewItem(db,f.reviewer,items.find(i=>i.user_id===f.employee.userId)!.id,{expectedCampaignVersion:1,decision:"keep",reason:"Evidence changed"},key())).rejects.toMatchObject({code:"REVIEW_SOURCE_CHANGED"});
-  await expect(cancelAccessReviewCampaign(db,f.reviewer,campaign.id,1,"Wrong owner",key())).rejects.toMatchObject({code:"CAMPAIGN_OWNER_REQUIRED"});
-  await cancelAccessReviewCampaign(db,f.owner,campaign.id,1,"Restart with current assignment evidence",key());
-  expect(await db.prepare("SELECT status,version FROM iam_access_review_campaigns WHERE id=?").bind(campaign.id).first()).toEqual({status:"cancelled",version:2});
-});
 it("reminds current access reviewers once before due and escalates once after overdue",async()=>{
-  const f=await fixture(),clock=now(),campaign=await startAccessReviewCampaign(db,f.owner,{name:"Access review reminder",dueAt:clock+6*86400000,reason:"Certify access before the quarterly deadline"},key());
+  const f=await fixture(),clock=now(),campaign={id:`access-review-seed-${key()}`};
+  await db.prepare(`INSERT INTO iam_access_review_campaigns(id,company_id,name,due_at,status,version,created_by,reason,created_at,updated_at)
+    VALUES(?,?,?,?,'open',1,?,?,?,?)`).bind(campaign.id,f.companyId,"Access review reminder",clock+6*86400000,f.owner.userId,"Certify access before the quarterly deadline",clock,clock).run();
+  await db.prepare(`INSERT INTO iam_access_review_items(id,campaign_id,company_id,assignment_id,assignment_version,user_id,role,scope_kind,scope_node_id,source,valid_until)
+    SELECT 'access-review-seed-item-'||id,?,company_id,id,version,user_id,role,scope_kind,scope_node_id,source,valid_until FROM assignments WHERE id=?`)
+    .bind(campaign.id,f.employee.assignmentId).run();
   expect(await escalateAccessReviews(db,clock)).toEqual({dueSoon:2,overdue:0});
   expect(await escalateAccessReviews(db,clock)).toEqual({dueSoon:0,overdue:0});
   const reviewerInbox=await listStaffNotifications(db,f.reviewer as unknown as WorkContext);

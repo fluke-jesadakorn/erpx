@@ -42,10 +42,21 @@ async function handle(
   { params }: { params: Promise<{ path?: string[] }> },
 ) {
   const path = (await params).path ?? [];
-  const command = nativePlatformIamAvailable()
-    ? commandFor(request, path)
-    : undefined;
+  const command = commandFor(request, path);
   if (!command) return iamApi(request, null, path);
+  if (!nativePlatformIamAvailable()) {
+    const retiredAccessReview =
+      command.kind === "access-review-start" ||
+      command.kind === "access-review-item-decide" ||
+      command.kind === "access-review-cancel";
+    if (retiredAccessReview)
+      throw new ApiError(
+        503,
+        "NATIVE_PLATFORM_IAM_REQUIRED",
+        "This Platform IAM command requires the native owner service.",
+      );
+    return iamApi(request, null, path);
+  }
   try {
     const origin = requestProductOrigin("admin", request.headers);
     if (!origin || productHostForHost(request.headers.get("host")) !== "admin")

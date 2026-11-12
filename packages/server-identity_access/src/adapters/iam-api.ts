@@ -22,7 +22,7 @@ import { z } from "zod";
 import { currentSession,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {bindIamReviewEvidence,bindIamMigrationEvidence} from "@erpx/server-platform_administration/public/system-evidence";
 import { iamContext } from "@erpx/server-identity_access/public/iam-context";
-import {saveIamRole,roleInput,grantIamAccess,grantInput,proposeIamReview,revokeIamAssignment,decideIamReview,reviewInput,accessReviewCampaignInput,accessReviewDecisionInput,startAccessReviewCampaign,decideAccessReviewItem,cancelAccessReviewCampaign} from "@erpx/server-identity_access/public/iam-service";
+import {saveIamRole,roleInput,grantIamAccess,grantInput,proposeIamReview,revokeIamAssignment,decideIamReview,reviewInput} from "@erpx/server-identity_access/public/iam-service";
 import {iamOverview,iamAuditHistory} from '@erpx/server-identity_access/public/iam-service-reads';
 import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 import {saveConnection,connectionInput,testConnection,proposeConnectionActivation,disableConnection,applyDirectoryReview,proposeMapping,mappingInput} from "@erpx/server-identity_access/public/iam-directories";
@@ -364,9 +364,6 @@ export async function iamApi(
       result = await saveIamRole(db, actor, roleInput.parse(input), key);
     else if (route === "assignments")
       result = await grantIamAccess(db, actor, grantInput.parse(input), key);
-    else if(route==="access-reviews")result=await startAccessReviewCampaign(db,actor,accessReviewCampaignInput.parse(input),key);
-    else if(path[0]==="access-review-items"&&path[2]==="decide")result=await decideAccessReviewItem(db,actor,path[1],accessReviewDecisionInput.parse(input),key);
-    else if(path[0]==="access-reviews"&&path[2]==="cancel"){const v=versionInput.parse(input);result=await cancelAccessReviewCampaign(db,actor,path[1],v.expectedVersion,v.reason,key);}
     else if (path[0] === "assignments" && path[2] === "revoke") {
       const v = versionInput.parse(input);
       result =

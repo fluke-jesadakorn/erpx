@@ -380,12 +380,6 @@
       "review": "reviewed",
       "cases": [
         {
-          "runner": "vitest",
-          "file": "tests/integration/identity_access/iam.test.ts",
-          "title": "completes an independent access review and revokes access immediately",
-          "proof": "Campaign maker and own assignment cannot be reviewed by the same person; independently revoked user has no active work context; completed campaign retains immutable decision history."
-        },
-        {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
           "title": "isolated Holding IAM records unavailable directory readiness and completes independent access certification with immediate revocation",

@@ -25,16 +25,6 @@ export const reviewInput = z.object({
     decision: z.enum(["approve", "reject"]),
     reason: z.string().trim().min(3).max(1000),
 });
-export const accessReviewCampaignInput = z.object({
-    name: z.string().trim().min(3).max(120),
-    dueAt: z.number().int().positive(),
-    reason: z.string().trim().min(3).max(1000),
-});
-export const accessReviewDecisionInput = z.object({
-    expectedCampaignVersion: z.number().int().positive(),
-    decision: z.enum(["keep", "revoke"]),
-    reason: z.string().trim().min(3).max(1000),
-});
 export type IamAssignmentFact = {
     id: string;
     user_id: string;
@@ -110,5 +100,4 @@ export type IamMemberFact = {
 export type RoleInput = z.infer<typeof roleInput>;
 export type GrantInput = z.infer<typeof grantInput>;
 export type ReviewInput = z.infer<typeof reviewInput>;
-export type CampaignInput = z.infer<typeof accessReviewCampaignInput>;
-export type CampaignDecisionInput = z.infer<typeof accessReviewDecisionInput>;
+

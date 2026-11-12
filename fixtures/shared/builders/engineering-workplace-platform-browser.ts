@@ -21,7 +21,6 @@ import {createAuth} from "@erpx/server-identity_access/public/auth";
 import {beginMfa,totp,verifyMfa} from "@erpx/server-identity_access/public/iam-mfa";
 import type {IamActor} from "@erpx/server-identity_access/public/iam-context";
 import {connectionInput,saveConnection} from "@erpx/server-identity_access/public/iam-directories";
-import {accessReviewCampaignInput,startAccessReviewCampaign} from "@erpx/server-identity_access/public/iam-service";
 import {selectWorkRole} from "@erpx/server-work_projection/public/work-role-store";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,createAttachmentPublication,approveAttachmentPublication} from "@erpx/server-files/public/attachments/service";
 import {savePostDraft,publishPost,postDraftSchema,postView} from '@erpx/server-collaboration/public/social-home';
@@ -149,7 +148,17 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
  for(const project of ['desktop','mobile'])await privateJson(join(input.directory,`workplace-platform-mfa-${project}.json`),{[author.userId]:{secret:enrollment.secret,counter}});
  const directoryInput=connectionInput.parse({expectedVersion:0,name:'Declared fictional directory · provider unavailable',provider:'active_directory',config:{mode:'ldaps',secretProfile:'engineering_no_provider_account',authority:'Declared engineering fixture; no live provider account',ldapUrl:'ldaps://directory.engineering.invalid:636',baseDn:'DC=engineering,DC=invalid'}});
  const directoryConnection=await saveConnection(input.h001,iamActor,directoryInput,key());
- const campaign=await startAccessReviewCampaign(input.h001,iamActor,accessReviewCampaignInput.parse({name:'Fictional Company access review',dueAt:now+7*86400000,reason:'Review the native frozen assignment source snapshots for this fictional Company'}),key());
+ // Native owner rows only: the access-review command itself is native and
+ // cannot be driven from this TypeScript fixture.
+ const campaign={id:`access-review-${key()}`,itemCount:0};
+ await input.h001.prepare("INSERT INTO iam_access_review_campaigns(id,company_id,name,due_at,status,version,created_by,reason,created_at,updated_at) VALUES(?,?,?,?,'open',1,?,?,?,?)")
+  .bind(campaign.id,workplace.company,'Fictional Company access review',now+7*86400000,author.userId,'Review the native frozen assignment source snapshots for this fictional Company',now,now).run();
+ const campaignItems=await input.h001.prepare("SELECT id,user_id,role,scope_kind,scope_node_id,source,valid_until,version FROM assignments WHERE company_id=? AND revoked_at IS NULL AND iam_assignment_active(id,?) AND iam_principal_active(user_id,?,?) ORDER BY user_id,role,id")
+  .bind(workplace.company,now,workplace.company,now).all<{id:string;user_id:string;role:string;scope_kind:string;scope_node_id:string|null;source:string;valid_until:number|null;version:number}>();
+ for(const [index,item] of campaignItems.results.entries())
+  await input.h001.prepare("INSERT INTO iam_access_review_items(id,campaign_id,company_id,assignment_id,assignment_version,user_id,role,scope_kind,scope_node_id,source,valid_until) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+   .bind(`access-review-item-${campaign.id}-${index}`,campaign.id,workplace.company,item.id,item.version,item.user_id,item.role,item.scope_kind,item.scope_node_id,item.source,item.valid_until).run();
+ campaign.itemCount=campaignItems.results.length;
  const deadLetterEventId=`engineering-dead-letter-${key()}`;
  await input.h001.prepare("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at,attempts,last_error,dead_letter_at) VALUES(?,?,'engineering.fixture.retry','engineering_fixture',?,1,'{}',?,5,'DECLARED_ENGINEERING_FAULT',?)").bind(deadLetterEventId,key(),workplace.company,now,now).run();
  const targetMonth=new Date(Date.now()+7*3600000).toISOString().slice(0,7);
