@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1075,
+    "revision": 1084,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -20868,22 +20868,31 @@
           "packages/server-billing/Cargo.toml",
           "packages/server-billing/package.json",
           "packages/feature-billing/**",
-          "fixtures/**",
+          "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/**",
+          "packages/feature-admin/src/routes/api/v1/platform/billing/**",
           "tests/unit/billing/**",
-          "tests/integration/billing/**"
+          "tests/integration/billing/**",
+          "tests/integration/commercial/**"
         ],
         "resources": [
           "owner:billing"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-s",
+          "agentId": "worker-billing-actions",
+          "claimedAt": "2026-11-12T17:22:14.739Z",
+          "heartbeatAt": "2026-11-12T17:22:14.739Z",
+          "expiresAt": "2026-11-12T17:52:14.739Z",
+          "generation": 44
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/billing.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Audit adapters/billing.ts + application/billing.ts against the mounted native billing cost/target/invoice/retry endpoints, then retire the native-covered action batch end-to-end: native client parity, route fail-closed authority (no TS fallback for those actions), delete the TS cases/repository writes, move/delete their oracles, remove barrels, and record the owner KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -21690,9 +21699,15 @@
           "packages/server-sales/Cargo.toml",
           "packages/server-sales/package.json",
           "packages/feature-sales/**",
+          "src/composition/src/**",
+          "packages/server-runtime/src/adapters/runtime/jobs.ts",
           "fixtures/**",
+          "scripts/local/**",
+          "tests/integration/sales/**",
+          "tests/integration/manufacturing/**",
           "tests/unit/sales/**",
-          "tests/integration/sales/**"
+          "tests/support/helpers/**",
+          "tests/catalogue/suite-manifest.json"
         ],
         "resources": [
           "owner:sales"
@@ -21705,7 +21720,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "STEP 0 AUDIT COMPLETE (2026-11-12, HEAD 09a40ba8a). Sales owner KPI 36; target file adapters/notification-execution.ts = 7 writes. Native pieces available: identity_access PostgresAccountMail/ResendAccountMail/AccountMailWorker pattern (do NOT reuse its tables or private AccountEmailMessage), Finance deferred-effect flush, durable lease/SKIP-LOCKED precedent. Missing for a native slice: (1) sales-owned Rust domain/application in packages/server-sales (claim/recover/current/terminal receipts over commerce_customer_notifications + sales_notification_execution_attempts, preserving attempt/lease/source_hash semantics); (2) a small public EmailDispatchPort (to/subject/text/idempotency key) implemented once in src/composition with Resend + fail-closed without credentials; (3) composition worker registration and drain selection by scheduled feature predicate; (4) switch src/workers jobs + server-runtime jobs.ts to the native worker (no TS fallback); (5) delete notification-execution.ts, its public/barrel export and package export key; (6) migrate tests/integration/sales/sales-customer-notifications.test.ts execution cases to native seeding, keep reconciliation (3 writes, separate live route) under its own removal task. Do not start until inventory. Choose sales notification only if the provider port is approved by the lead; otherwise take the billing native cost/target action batch (owner KPI 82).",
+        "nextAction": "BLOCKED BY ACTIVE CLAIMS (2026-11-12): retire.finance.journal-consumers holds tests/integration/sales/**, tests/support/helpers/**, fixtures/** and the catalogue; retire.runtime.connections holds src/composition/**. This native worker needs both the sales oracle paths and a composition mount, so it cannot be claimed without path overlap. Do not start until both claims are handed off. Audit remains in the previous nextAction; then implement the native repository + EmailDispatchPort + worker and retire the 7 writes (sales KPI 36->29, residual 3 reconciliation).",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -25945,6 +25960,308 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "retire.identity_access.role-save-command",
+        "title": "Retire the TypeScript role-save command after the native owner mount",
+        "scope": "Delete the superseded TS role-proposal writer, its transaction ports and public export; every Platform IAM command route fails closed without the native owner config; the retained integration oracle seeds the exact native role/revision/pending-review rows. identity_access KPI 231 -> 229.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/feature-admin/src/routes/api/v1/platform/iam/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "2c7d6e407dc4de4cdf1ffbcd77982654534306d2",
+        "implementedCommit": "74f28adfcc28824d29fdb5c237f9fb9d9c42200f",
+        "lastPushedSha": "74f28adfcc28824d29fdb5c237f9fb9d9c42200f",
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "74f28adfcc28824d29fdb5c237f9fb9d9c42200f",
+            "note": "Root TypeScript project typechecks with the retired role-save writer and ports removed."
+          },
+          {
+            "command": "cd packages/server-identity_access && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "74f28adfcc28824d29fdb5c237f9fb9d9c42200f",
+            "note": "Identity access package typecheck passes."
+          },
+          {
+            "command": "bun run test:unit -- --suite=identity_access.native-iam-assignments-transport.unit",
+            "result": "passed",
+            "sourceSha": "74f28adfcc28824d29fdb5c237f9fb9d9c42200f",
+            "note": "10/10 pass, including the new holding role-save fail-closed case."
+          },
+          {
+            "command": "bun run test:unit -- --suite=identity_access.native-platform-iam-transport.unit",
+            "result": "passed",
+            "sourceSha": "74f28adfcc28824d29fdb5c237f9fb9d9c42200f",
+            "note": "6/6 pass, including the new Platform role-save fail-closed case."
+          },
+          {
+            "command": "retirement:ts-writes: identity_access",
+            "result": "passed",
+            "sourceSha": "74f28adfcc28824d29fdb5c237f9fb9d9c42200f",
+            "before": 231,
+            "after": 229,
+            "note": "git grep over packages/server-identity_access/src/**/*.ts: 231 at 2bf57134f, 229 after this slice. Native role-save currently lacks the TS fresh-MFA guard in the composition backend; that gap is native-side work under migrate.identity_access, not a retained TS consumer.",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/position-gpo.ts",
+                "writes": 33,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-access.ts",
+                "writes": 18,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-transaction.ts",
+                "writes": 17,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-operations.ts",
+                "writes": 15,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-access.ts",
+                "writes": 13,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/user-management.ts",
+                "writes": 12,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-recovery.ts",
+                "writes": 11,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-migrations.ts",
+                "writes": 11,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/gpo-rules.ts",
+                "writes": 11,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-api.ts",
+                "writes": 10,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-sso-store.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-directories.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/invitation-delivery.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/technology.ts",
+                "writes": 6,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts",
+                "writes": 5,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-worker-effects.ts",
+                "writes": 5,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/provider-context-store.ts",
+                "writes": 5,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-recovery.ts",
+                "writes": 4,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-mfa.ts",
+                "writes": 3,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-preferences.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-onboarding-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-template-attributes.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-transactions.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/directory-synchronization.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-grant-transaction.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/throttle.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/payroll-owner-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-time-preference.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-management-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/organization-department-relocation.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-directory-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-invitation-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/auth.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-session-revocation.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-auth.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "bun run test:integration -- --suite=identity_access.iam-roles-reviews.integration",
+            "result": "passed",
+            "sourceSha": "74f28adfcc28824d29fdb5c237f9fb9d9c42200f",
+            "note": "Native owner oracle 4/4 passed at 9eff55d99 (role save, review publication, access-review CAS, transaction guards). The identity_access Rust source is unchanged between 9eff55d99 and 74f28adfc (empty git diff over packages/server-identity_access/**/*.rs); a rerun at 74f28adfc is queued behind the shared cargo build lock held by other lanes. Separately, identity_access.iam.integration is 32/36 at this SHA: the four failures are pre-existing environment failures outside this slice (native field-inbox next/headers() outside request scope and one account-grant read expectation); all seeded role/review/grant cases pass."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Next identity_access cluster: people-access invitations or the position-gpo native port; both need a new native owner port (no native writers for iam_access_previews/external teams or position_gpo_* yet).",
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -25953,21 +26270,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 122,
-      "migratedPackets": 57,
+      "totalPackets": 123,
+      "migratedPackets": 58,
       "statusCounts": {
-        "pending": 29,
-        "in_progress": 6,
+        "pending": 28,
+        "in_progress": 7,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 57,
+        "migrated": 58,
         "blocked": 21,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 44,
-    "updatedAt": "2026-11-12T17:16:58.203Z",
+    "updatedAt": "2026-11-12T17:41:06.235Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
