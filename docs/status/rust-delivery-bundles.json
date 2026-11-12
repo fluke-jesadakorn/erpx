@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1203,
+    "revision": 1208,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21863,22 +21863,30 @@
           "packages/server-pos/Cargo.toml",
           "packages/server-pos/package.json",
           "packages/feature-pos/**",
-          "fixtures/**",
           "tests/unit/pos/**",
-          "tests/integration/pos/**"
+          "tests/integration/pos/**",
+          "tests/provider/pos/**",
+          "tests/journeys/pos/**"
         ],
         "resources": [
           "owner:pos"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-b",
+          "agentId": "worker-pos-retire",
+          "claimedAt": "2026-11-12T20:38:25.991Z",
+          "heartbeatAt": "2026-11-12T20:38:25.991Z",
+          "expiresAt": "2026-11-12T21:08:25.991Z",
+          "generation": 46
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/pos-core.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Classify adapters/pos-core.ts writers against the native POS crate; delete only writers whose native command already owns the table and whose TS caller is native-only, move oracles, and record the owner KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -28471,23 +28479,381 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-b",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T20:31:00.608Z",
-          "heartbeatAt": "2026-11-12T20:31:00.608Z",
-          "expiresAt": "2026-11-12T21:01:00.608Z",
-          "generation": 46
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "6b81ebf2d50ed7982a8405e36b2fb10e808cda39",
+        "implementedCommit": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+        "lastPushedSha": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+            "note": "Root typecheck passes after deleting the TS handbook write commands."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+            "note": "Test typecheck passes with the direct handbook seeding edits."
+          },
+          {
+            "command": "bun run test:unit -- --suite=collaboration.handbook-services.unit",
+            "result": "passed",
+            "sourceSha": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+            "note": "16/16 read and transport cases pass; the deleted command-semantics cases are covered by the native Rust suite."
+          },
+          {
+            "command": "bun run test:unit -- --suite=collaboration.native-handbook-transport.unit",
+            "result": "passed",
+            "sourceSha": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+            "note": "20/20 native handbook transport cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=collaboration.rust-handbook.unit",
+            "result": "passed",
+            "sourceSha": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+            "note": "8/8 native Rust handbook command cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=collaboration.rust-handbook-postgres.integration",
+            "result": "passed",
+            "sourceSha": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+            "note": "4/4 native Rust handbook PostgreSQL cases pass including replay, concurrency and rollback."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.employee-services.integration",
+            "result": "passed",
+            "sourceSha": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+            "note": "18/18 cases pass after removing the handbook write-command oracles."
+          },
+          {
+            "command": "retirement:ts-writes: collaboration",
+            "result": "passed",
+            "sourceSha": "96c398dffd1c009b7b9b625eefe9304f06fba61b",
+            "before": 194,
+            "after": 185,
+            "note": "git grep over packages/server-collaboration/src/**/*.ts: 194 before, 185 after. operations.work-projections.integration could not be re-run because another active worker left tests/unit/customer_authority/rust-portal-invitations.test.rs discovered but unregistered (TEST_INVENTORY_MISMATCH); the edited test typechecks and its SQL seeding matches the retired command's committed state. Native handbook Rust unit and PG suites cover the deleted command semantics.",
+            "residual": [
+              {
+                "path": "packages/server-collaboration/src/adapters/attachment-migration-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/attachments-portal-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/beta-resource-cleanup.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/calendar-retirement-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/company-acceptance-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/crm-notifications.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/customer-authority-notifications.ts",
+                "writes": 7,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/customer-portal-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/finance-refund-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/handbook-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/identity-notification-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inbox.ts",
+                "writes": 9,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inventory-counts-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inventory-landed-costs-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inventory-reservation-notifications.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inventory-transit-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/learning-notification-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/legal-approval-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/legal-hold-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/legal-law-source-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/legal-reminder-notifications.ts",
+                "writes": 4,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging-attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging-files.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging.ts",
+                "writes": 12,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/operations-handover-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/operations-staff-policy-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/operations-staff-task-alerts-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/organization-change-notice.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/organization-channels.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/organization-node-channels.ts",
+                "writes": 3,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/overtime-notification.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/payroll-decision-notification-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/people-lifecycle-notification-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/people-roster-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/people-roster-position-notifications.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/quality-notifications.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/rfq-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/sales-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-agent.ts",
+                "writes": 11,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-ai.ts",
+                "writes": 8,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-home.ts",
+                "writes": 35,
+                "removalTaskId": "retire.collaboration.social-home",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-task.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-text.ts",
+                "writes": 5,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social.ts",
+                "writes": 11,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/supplier-batch-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/supplier-bill-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/supplier-promise-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/web-push.ts",
+                "writes": 20,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/work-social-draft-policy.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/work-social-purchases.ts",
+                "writes": 5,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/workflow-notification-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null,
-        "nextAction": "Delete the TS handbook write commands and SQL, migrate the write-semantics tests to native coverage, and record the KPI before/after.",
+        "nextAction": "Collaboration residual: social/messaging/web-push/inbox writers remain TS; handbook writes are native and the TS commands are gone.",
         "scopeRefinementRequired": false
       },
       {
@@ -28557,20 +28923,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 137,
-      "migratedPackets": 69,
+      "migratedPackets": 70,
       "statusCounts": {
-        "pending": 28,
+        "pending": 27,
         "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 69,
+        "migrated": 70,
         "blocked": 23,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 46,
-    "updatedAt": "2026-11-12T20:37:39.153Z",
+    "updatedAt": "2026-11-12T20:38:39.018Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
