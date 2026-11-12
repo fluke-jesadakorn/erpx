@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 632,
+    "revision": 633,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -13798,7 +13798,7 @@
           "expiresAt": "2026-11-12T04:13:49.528Z",
           "generation": 29
         },
-        "baseSha": "944884f5468d50813c63b81acb5cf65566a80ade",
+        "baseSha": "8ccd3eaa00cff4c1dd5115539b2f81d730a31aa2",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -13961,11 +13961,41 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "9f96ad7654c0b369172855f7ce98cc60e27cbbbe"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "0608a873372650ca15499a112f749dc116f7673e"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "0608a873372650ca15499a112f749dc116f7673e"
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.rust-night-audit.unit",
+            "result": "passed",
+            "sourceSha": "0608a873372650ca15499a112f749dc116f7673e"
+          },
+          {
+            "command": "bun run test:integration -- --suite=pms.rust-night-audit-postgres.integration",
+            "result": "passed",
+            "sourceSha": "0608a873372650ca15499a112f749dc116f7673e"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "0608a873372650ca15499a112f749dc116f7673e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "0608a873372650ca15499a112f749dc116f7673e"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Packet migrate.pms.stay_front_desk_commands COMPLETE and pushed 9f96ad765: stay assign/move, room save/dnd/observe, room_type.save, task create/assign/start/complete/inspect, maintenance open/close, block create/release with PG+HTTP+TS integration checks. Remaining pms packets: reservations/booking lifecycle, guest cashier/minibar-linen stock, night audit/reports/settings.",
+        "nextAction": "Night-audit state machine + worker turn pushed 0608a8733 (unit 16/16, PG 8/8); NOT mounted. Next: composition user route for night.start/resume + PmsNightAuditGuardPort (19 day-control counts + Finance setup facts) + ports.trade room-night posting consumer; night.step correctly fails closed PMS_NIGHT_POSTING_PORT_REQUIRED. Remaining pms packets: reservations/booking, guest cashier/stock, reports/settings.",
         "handoff": {
           "runId": "run-20261112-c",
           "agentId": "worker-pms",
@@ -16706,7 +16736,7 @@
       }
     },
     "lastCoordinatorGeneration": 29,
-    "updatedAt": "2026-11-12T03:49:30.456Z",
+    "updatedAt": "2026-11-12T03:51:20.282Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
