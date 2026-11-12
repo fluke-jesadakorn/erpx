@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 980,
+    "revision": 983,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -22275,7 +22275,7 @@
           "owner:finance"
         ],
         "status": "blocked",
-        "nextAction": "STEP 1 IN PROGRESS: 12 of 31 finance journal consumers fully migrated to tests/support/helpers/finance-journal-seed.ts (3 fixture builders, attachments owner helper, projects cost-source, executive Project-cost, record-details, operations-attachments, planning, group-editions, thai-accounting-foundation, bank-automation). Evidence: reporting 6/6, expansion-rehearsal 1/1, money-people attachments 46/46, project-cost 1/1, record-details 6/6, operations-attachments 8/8, planning 10/10, group-editions 14/14, thai-foundation 13/13, bank-automation 16/16. Remaining: opening-balances/manual-drafts/books/close-fixture oracles need native HTTP porting; pms opening; commerce/payroll forged-source cases; remaining assets/inventory/sales/shared setup; browser-simulation. Then route switch + delete createJournal/postJournal/reverseJournal (finance 381 -> 376).",
+        "nextAction": "STEP 1 IN PROGRESS: 13 of 31 finance journal consumers fully migrated to tests/support/helpers/finance-journal-seed.ts. Evidence: reporting 6/6, expansion-rehearsal 1/1, money-people attachments 46/46, project-cost 1/1, record-details 6/6, operations-attachments 8/8, planning 10/10, group-editions 14/14, thai-foundation 13/13, bank-automation 16/16, close-fixture 3/3. Remaining are the behavioural oracles needing native HTTP porting (opening-balances preview/import/replay/race/subledger/void; manual-drafts; books posting rules; pms opening; commerce/payroll forged sources) plus a few setup consumers and scripts/local/browser-simulation.ts. Then route switch + delete createJournal/postJournal/reverseJournal (finance 381 -> 376).",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
@@ -23908,6 +23908,52 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.support.ticket-portal",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/ticket-portal"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the staff Support ticket-portal TS writers",
+        "scope": "The native Support ticket-portal router is mounted and covers staff workspace/prepare/decide/respond. Add the feature-support native client, switch the staff GET/POST route to native-only, delete the TS prepareSupportTicketPortal/decideSupportTicketPortal/publishSupportTicketPortalResponse writers and barrel exports, and move the retained route tests to native client stubs. KPI ticket-portal.ts 5 -> 0 and support owner 12 -> 7.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "packages/feature-support/**",
+          "src/composition/src/**",
+          "fixtures/**",
+          "tests/support/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**",
+          "tests/integration/customer_authority/**",
+          "packages/contracts/src/ownership.json"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-r",
+          "agentId": "lead",
+          "claimedAt": "2026-11-12T14:32:49.327Z",
+          "heartbeatAt": "2026-11-12T14:32:49.327Z",
+          "expiresAt": "2026-11-12T15:02:49.327Z",
+          "generation": 43
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add the native staff ticket-portal client, switch the route, delete the TS prepare/decide/respond writers and barrels, then record KPI and route tests.",
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -23916,11 +23962,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 115,
+      "totalPackets": 116,
       "migratedPackets": 50,
       "statusCounts": {
         "pending": 34,
-        "in_progress": 4,
+        "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 50,
@@ -23930,7 +23976,7 @@
       }
     },
     "lastCoordinatorGeneration": 43,
-    "updatedAt": "2026-11-12T14:32:36.664Z",
+    "updatedAt": "2026-11-12T14:36:21.624Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
