@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 767,
+    "revision": 769,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -18436,21 +18436,27 @@
           "packages/server-identity_access/src/**",
           "packages/feature-identity_access/**",
           "packages/feature-account/**",
-          "fixtures/**",
           "tests/integration/identity_access/**"
         ],
         "resources": [
           "owner:identity_access"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261112-l",
+          "agentId": "worker-identity",
+          "claimedAt": "2026-11-12T08:43:51.095Z",
+          "heartbeatAt": "2026-11-12T08:43:51.095Z",
+          "expiresAt": "2026-11-12T09:13:51.095Z",
+          "generation": 37
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Execute the recorded removal condition, then run the owner KPI and affected suites before reporting.",
+        "nextAction": "Move SSO device adoption into native account_auth authorize, delete the TS transaction/barrel, seed tests inline, and measure the owner KPI.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -18904,8 +18910,8 @@
       "totalPackets": 72,
       "migratedPackets": 34,
       "statusCounts": {
-        "pending": 12,
-        "in_progress": 2,
+        "pending": 11,
+        "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 34,
@@ -18915,7 +18921,7 @@
       }
     },
     "lastCoordinatorGeneration": 37,
-    "updatedAt": "2026-11-12T08:43:20.953Z",
+    "updatedAt": "2026-11-12T08:43:51.095Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
