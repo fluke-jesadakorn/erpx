@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 580,
+    "revision": 585,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261110-g24",
+      "runId": "run-20261112-b",
       "agentId": "lead",
-      "startedAt": "2026-11-12T01:04:54.041Z",
-      "heartbeatAt": "2026-11-12T01:13:34.854Z",
-      "expiresAt": "2026-11-12T01:43:34.854Z",
-      "generation": 26,
-      "tokenHash": "83530d6d4d9a9787080b1c62f9cfeeb5b92ebc0f4b57ca88c7fa90d51920fab0"
+      "startedAt": "2026-11-12T01:52:42.182Z",
+      "heartbeatAt": "2026-11-12T01:52:42.182Z",
+      "expiresAt": "2026-11-12T02:22:42.184Z",
+      "generation": 27,
+      "tokenHash": "9f491d39a9b36ce8bd2e2507f2a042cf84dd1a6d8824db3c72895c82066396e3"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9748,15 +9748,8 @@
         "resources": [
           "owner:brand"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g24",
-          "agentId": "worker-brand",
-          "claimedAt": "2026-11-12T01:21:35.633Z",
-          "heartbeatAt": "2026-11-12T01:21:35.633Z",
-          "expiresAt": "2026-11-12T01:51:35.633Z",
-          "generation": 26
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
         "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
         "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
@@ -9796,15 +9789,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
         "nextAction": "Presentation reads pushed 19580e083 (workspace/document brand, storefront overlay, profiles, executive evidence). Mount request: composition BrandPresentationContext read service; switch work_projection/pms/operations presentation-queries, people_payroll explorer detail, runtime executive brand-evidence. Remaining brand slice: identity-read-port.",
         "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-brand",
-          "at": "2026-11-12T01:11:28.769Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Lead review: native brand presentation reads are mounted and evidence recorded; next brand slice is identity-read-port then storefront-front-projection."
+          "at": "2026-11-12T01:52:42.182Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
+          "nextAction": "Presentation reads pushed 19580e083 (workspace/document brand, storefront overlay, profiles, executive evidence). Mount request: composition BrandPresentationContext read service; switch work_projection/pms/operations presentation-queries, people_payroll explorer detail, runtime executive brand-evidence. Remaining brand slice: identity-read-port."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-brand",
@@ -10693,15 +10686,8 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g24",
-          "agentId": "worker-finance",
-          "claimedAt": "2026-11-12T01:27:05.605Z",
-          "heartbeatAt": "2026-11-12T01:27:05.605Z",
-          "expiresAt": "2026-11-12T01:57:05.605Z",
-          "generation": 26
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
         "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
@@ -10726,15 +10712,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
         "nextAction": "goods-journal-port pushed 19580e083 (receipt/delivery journal + Company functional-FX valuation on caller transaction). Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets.",
         "handoff": {
-          "runId": "run-20261112-a",
+          "runId": "run-20261110-g24",
           "agentId": "worker-finance",
-          "at": "2026-11-12T01:04:54.041Z",
+          "at": "2026-11-12T01:52:42.182Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
-          "nextAction": "Worker-finance ports commerce goods journal + FX valuation per migrate.finance.goods-journal-port; owner paths only"
+          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
+          "nextAction": "goods-journal-port pushed 19580e083 (receipt/delivery journal + Company functional-FX valuation on caller transaction). Remaining: composition mount into native Commerce fulfillment, then bank-automation and due-draft-jobs packets."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-finance",
@@ -12255,18 +12241,18 @@
         "resources": [
           "owner:marketing"
         ],
-        "status": "integrating",
+        "status": "in_progress",
         "claim": {
-          "runId": "run-20261110-g24",
+          "runId": "run-20261112-b",
           "agentId": "worker-marketing",
-          "claimedAt": "2026-11-12T01:25:43.160Z",
-          "heartbeatAt": "2026-11-12T01:25:43.160Z",
-          "expiresAt": "2026-11-12T01:55:43.160Z",
-          "generation": 26
+          "claimedAt": "2026-11-12T01:52:48.074Z",
+          "heartbeatAt": "2026-11-12T01:52:48.074Z",
+          "expiresAt": "2026-11-12T02:22:48.074Z",
+          "generation": 27
         },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+        "lastPushedSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
         "checks": [
           {
             "command": "cargo check -p erpx-server-marketing --locked",
@@ -12302,17 +12288,41 @@
             "sourceSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
             "sourceKind": "committed",
             "note": "4/4 composed Account/IAM/Commercial/native engagement command cases pass."
+          },
+          {
+            "command": "cargo check -p erpx-server-marketing",
+            "result": "passed",
+            "sourceSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+            "note": "Marketing owner crate compiles with the native campaign/candidate/asset command ingress."
+          },
+          {
+            "command": "cargo test -p erpx-server-marketing --test marketing_campaigns",
+            "result": "passed",
+            "sourceSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+            "note": "23/23 unit cases pass."
+          },
+          {
+            "command": "cargo test -p erpx-server-marketing --test marketing_campaign_http",
+            "result": "passed",
+            "sourceSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+            "note": "8/8 HTTP transport cases pass."
+          },
+          {
+            "command": "cargo test -p erpx-server-marketing --test marketing_campaign_postgres",
+            "result": "passed",
+            "sourceSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
+            "note": "18/18 Postgres command cases pass on a leased database."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead review: native marketing engagement command and lead reads are mounted and switched; next slice is campaign-asset-commands (campaign/asset/candidate create+review).",
+        "nextAction": "campaign-asset-commands pushed e75b1d34f (campaign/candidate/asset create + asset review ingress, fail-closed until mount). Remaining: composition MarketingService create_campaign/create_candidate/create_asset/review_asset + backend impl, then switch feature-sales marketing POST branches and add native-marketing-lead create/review helpers.",
         "handoff": {
           "runId": "run-20261110-g24",
           "agentId": "worker-marketing",
-          "at": "2026-11-12T01:11:28.795Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
+          "at": "2026-11-12T01:52:42.182Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
           "nextAction": "Lead review: native marketing engagement command and lead reads are mounted and switched; next slice is campaign-asset-commands (campaign/asset/candidate create+review)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -13672,21 +13682,59 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261110-g24",
+          "runId": "run-20261112-b",
           "agentId": "worker-pms",
-          "claimedAt": "2026-11-12T01:07:36.014Z",
-          "heartbeatAt": "2026-11-12T01:13:34.854Z",
-          "expiresAt": "2026-11-12T01:43:34.854Z",
-          "generation": 26
+          "claimedAt": "2026-11-12T01:53:46.584Z",
+          "heartbeatAt": "2026-11-12T01:53:46.584Z",
+          "expiresAt": "2026-11-12T02:23:46.584Z",
+          "generation": 27
         },
-        "baseSha": null,
+        "baseSha": "e75b1d34f31d948827b56a8f1dfb13c2a364c137",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.rust-pms-stay-room.unit",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "bun run test:integration -- --suite=pms.rust-stay-room-postgres.integration",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f53ab9d2d9f0549759a156d49c764619e66e9466"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "worker-pms implementing stay_room_postgres/stay_room_http/public against existing domain/application; lead then adds catalogue registration + composition PmsService command mount, runs cargo/unit/PG checks and commits only pms paths",
-        "handoff": null,
+        "nextAction": "stay.assign/stay.move packet 1 slice pushed f53ab9d2d (remote verified): PG repository + HTTP ingress + composition mount + 16 targeted checks green. Remaining in migrate.pms: room/housekeeping commands, reservations/booking lifecycle, guest cashier/stock, night-audit/report reads/settings; next slice should be room_command/task lifecycle against the same PMS unit.",
+        "handoff": {
+          "runId": "run-20261110-g24",
+          "agentId": "worker-pms",
+          "at": "2026-11-12T01:52:42.182Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
+          "nextAction": "worker-pms implementing stay_room_postgres/stay_room_http/public against existing domain/application; lead then adds catalogue registration + composition PmsService command mount, runs cargo/unit/PG checks and commits only pms paths"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pms",
         "plannedPackage": "erpx-server-pms",
@@ -14186,28 +14234,21 @@
           "owner:workflow"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g24",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T01:04:54.069Z",
-          "heartbeatAt": "2026-11-12T01:13:34.854Z",
-          "expiresAt": "2026-11-12T01:43:34.854Z",
-          "generation": 26
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
         "nextAction": "Native incremental projector (f205ed3aa) covers task/routine, leave, overtime, payroll with exact receipt/work_items/checkpoint; composition handler + CLI mounted (680895d2c); production supervision + restart added (bba6a3bd3). Crate checks: workflow/runtime all-targets pass. Remaining projector side-effects still TS (PMS social events, sales customer notifications, Legal/Executive/Social/Expense/Finance/Request AI) — each needs its owner port before the owned predicate can expand and the TS general supervisor retire. Verification note: erpx-service/catalogue are currently blocked by concurrent uncommitted finance WIP and an unregistered brand test in the shared worktree (not ours).",
         "handoff": {
-          "runId": "run-20261112-a",
+          "runId": "run-20261110-g24",
           "agentId": "lead",
-          "at": "2026-11-12T01:04:54.041Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease lost after workflow projector commit; WIP reviewed",
-          "nextAction": "Verify committed f205ed3aa native workflow projector: cargo check plus registered unit/PG suites, then record migrated with pushed SHA"
+          "at": "2026-11-12T01:52:42.182Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
+          "nextAction": "Native incremental projector (f205ed3aa) covers task/routine, leave, overtime, payroll with exact receipt/work_items/checkpoint; composition handler + CLI mounted (680895d2c); production supervision + restart added (bba6a3bd3). Crate checks: workflow/runtime all-targets pass. Remaining projector side-effects still TS (PMS social events, sales customer notifications, Legal/Executive/Social/Expense/Finance/Request AI) — each needs its owner port before the owned predicate can expand and the TS general supervisor retire. Verification note: erpx-service/catalogue are currently blocked by concurrent uncommitted finance WIP and an unregistered brand test in the shared worktree (not ours)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-workflow",
@@ -14441,28 +14482,21 @@
           "owner:runtime"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g24",
-          "agentId": "lead",
-          "claimedAt": "2026-11-12T01:04:54.096Z",
-          "heartbeatAt": "2026-11-12T01:13:34.854Z",
-          "expiresAt": "2026-11-12T01:43:34.854Z",
-          "generation": 26
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
         "nextAction": "OutboxSupervisor + family-scoped WorkflowProjectionHandler + CLI + production supervision are mounted (59ba285c7, 680895d2c, bba6a3bd3). Remaining: expand the projector to the remaining event families, then retire the TS general supervisor; Field/count workers unchanged.",
         "handoff": {
-          "runId": "run-20261110-g22",
+          "runId": "run-20261110-g24",
           "agentId": "lead",
-          "at": "2026-11-12T00:10:32.771Z",
+          "at": "2026-11-12T01:52:42.182Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired after platform IAM commit; WIP reviewed",
-          "nextAction": "Native OutboxSupervisor complete (59ba285c7): claim/renew/complete/fail, retry backoff min(60s,2^attempt), dead-letter at attempt 6, lease-lost handling, attestation rows, one heavy slot, per-Holding isolation, restart logs. Checks: supervisor unit 7/7 + PG 8/8, runtime TS 114/28, worker/outbox/workflow suites, erpx-service, catalogue 1132. Remaining to mount: composition needs a native general OutboxJobHandler (server-workflow job-projector is still TS) before the outbox-supervisor entrypoint can acknowledge generic events; then register the CLI/production supervisor."
+          "reason": "Recovery: run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
+          "nextAction": "OutboxSupervisor + family-scoped WorkflowProjectionHandler + CLI + production supervision are mounted (59ba285c7, 680895d2c, bba6a3bd3). Remaining: expand the projector to the remaining event families, then retire the TS general supervisor; Field/count workers unchanged."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-runtime",
@@ -16188,17 +16222,17 @@
       "migratedPackets": 20,
       "statusCounts": {
         "pending": 12,
-        "in_progress": 3,
+        "in_progress": 2,
         "ready_for_integration": 12,
-        "integrating": 1,
+        "integrating": 0,
         "migrated": 20,
-        "blocked": 5,
+        "blocked": 7,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 26,
-    "updatedAt": "2026-11-12T01:36:14.624Z",
+    "lastCoordinatorGeneration": 27,
+    "updatedAt": "2026-11-12T01:53:46.619Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -16241,10 +16275,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261112-a",
-      "runId": "run-20261110-g24",
-      "at": "2026-11-12T01:04:54.042Z",
-      "reason": "Coordinator lease lost after workflow projector commit; WIP reviewed",
+      "previousRunId": "run-20261110-g24",
+      "runId": "run-20261112-b",
+      "at": "2026-11-12T01:52:42.184Z",
+      "reason": "run-20261110-g24 generation 26 stopped heartbeating at 2026-11-12T01:13:34Z (39m stale) while no coordinator CLI call advanced the ledger; worker subagents remained active on owner paths only; WIP reviewed: pms/files/projects/commerce composition and test WIP left untouched",
       "wipReviewed": true,
       "previousRunStopped": true
     }
