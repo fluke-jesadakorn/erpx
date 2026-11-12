@@ -2276,8 +2276,6 @@
             "packages/server-inventory/src/adapters/manufacturing-lot-sources.ts",
             "packages/server-inventory/src/adapters/production-command-sources.ts",
             "packages/server-inventory/src/adapters/quality-lot.ts",
-            "packages/server-inventory/src/adapters/quality-scrap-lots.ts",
-            "packages/server-inventory/src/adapters/quality-scrap.ts",
             "packages/server-inventory/src/adapters/quality-workspace-lots.ts",
             "packages/server-inventory/src/application/consumption.ts",
             "packages/server-inventory/src/application/counts.ts",
