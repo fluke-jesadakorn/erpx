@@ -1,7 +1,7 @@
 import { afterEach,beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import {projectSchema,saveProject} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema} from '@erpx/server-operations/public/staff-tasks';
 import { listProjectMilestones } from "@erpx/server-projects/public/project-milestones";
 import {
   listProjectCostAllocations,
@@ -13,7 +13,7 @@ import { readExecutiveEvidence, searchExecutiveEvidence } from "@erpx/server-run
 import { createReport, saveReport, saveShare, saveSchema } from "@erpx/server-runtime/public/executive/reports";
 import { defaultFilters, definitionSchema, emptyDefinition, shareSchema } from "@erpx/feature-shared/lib/executive/canvas";
 import {enableAttachmentV2ForTest} from "../../support/helpers/attachment-v2";
-import {completeMilestone, seedCostAllocation, seedMilestone, seedWorkLog} from "./project-actual-fixtures";
+import {completeMilestone, seedCostAllocation, seedMilestone, seedProjectFor, seedWorkLog} from "./project-actual-fixtures";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
@@ -22,7 +22,7 @@ beforeAll(async () => { enableAttachmentV2ForTest();await applyMigrations(db, en
 beforeEach(async () => { f = await expenseFixture(); });
 afterEach(()=>vi.unstubAllEnvs());
 it("counts only independently approved project work logs and limits record evidence to the owner or contributor", async () => {
-  const project = await saveProject(db, f.owner, null, projectSchema.parse({ title: "Executive actual-hours fixture", memberUserIds: [f.claimant.userId] }), key());
+  const project = await seedProjectFor(db, f.owner, null, projectSchema.parse({ title: "Executive actual-hours fixture", memberUserIds: [f.claimant.userId] }), key());
   const submitted = await seedWorkLog(db, {
     id: `project-time-${key()}`, companyId: f.company, projectId: project.id, userId: f.claimant.userId,
     workDate: "2026-09-12", minutes: 125, state: "approved", version: 4, reviewerId: f.owner.userId,
@@ -59,7 +59,7 @@ it("counts only independently approved project work logs and limits record evide
 });
 
 it("orders project milestones by same-project prerequisites and exposes current blocker evidence", async () => {
-  const project = await saveProject(db, f.owner, null, projectSchema.parse({ title: "Dependency workflow fixture", memberUserIds: [f.claimant.userId] }), key());
+  const project = await seedProjectFor(db, f.owner, null, projectSchema.parse({ title: "Dependency workflow fixture", memberUserIds: [f.claimant.userId] }), key());
   const prerequisite = await seedMilestone(db, {
     id: `milestone-${key()}`, companyId: f.company, projectId: project.id, title: "Approve the engineering sample",
     dueAt: Date.parse("2026-09-15T12:00:00.000Z"), ownerUserId: f.owner.userId, createdBy: f.owner.userId,
@@ -104,7 +104,7 @@ it("orders project milestones by same-project prerequisites and exposes current 
 });
 
 it("allocates only posted expense debits, requires an independent Finance approver, and excludes reversed source journals", async () => {
-  const project = await saveProject(db, f.owner, null, projectSchema.parse({ title: "Executive actual-cost fixture", memberUserIds: [f.reviewer.userId, f.manager.userId] }), key());
+  const project = await seedProjectFor(db, f.owner, null, projectSchema.parse({ title: "Executive actual-cost fixture", memberUserIds: [f.reviewer.userId, f.manager.userId] }), key());
   const journalId = key(), expenseLineId = key(), payableLineId = key(), now = Date.now();
   await db.batch([
     db.prepare(`INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,status,version,created_by,posted_by,posted_at,created_at,updated_at)

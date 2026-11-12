@@ -9,6 +9,7 @@ import {
 } from '../../../packages/feature-projects/src/public/native-project-wbs';
 import { nativeProjectsFailure } from '../../../packages/feature-projects/src/public/native-project-wbs-page';
 import { createNativeProjectAttachmentClient } from '../../../packages/feature-projects/src/public/native-project-attachment';
+import { createNativeProjectStructureClient, nativeProjectStructureCommand } from '../../../packages/feature-projects/src/public/native-project-structure';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44992',
@@ -310,5 +311,74 @@ describe('native Projects attachment intake transport',()=>{
   const missing=headers();missing.delete('x-erpx-context-company');
   await expect(client(vi.fn()).createSet(missing,actor,{key:'create-key-0001',targetId:'project',purposeKey:'project_document',expectedTargetVersion:4}))
    .rejects.toMatchObject({code:'NATIVE_PROJECTS_CONTEXT_CHANGED'});
+ });
+});
+
+describe('native Projects structure command transport',()=>{
+ const headers=()=>new Headers({
+  host:'acme.example.com',
+  origin:'https://acme.example.com',
+  cookie:'__Host-erpx-product=session',
+  'idempotency-key':'command-key-0001',
+  'x-erpx-context-company':'company',
+  'x-erpx-context-assignment':'assignment',
+  'x-erpx-context-revision':'7',
+  'x-erpx-context-assignment-version':'3',
+ });
+ const client=(transport:Parameters<typeof createNativeProjectStructureClient>[1])=>createNativeProjectStructureClient(nativeProjectsConfiguration(config()),transport);
+ const input={projectId:'project',key:'command-key-0001',body:{action:'assign-task',expectedVersion:4,taskId:'task',taskVersion:2,milestoneId:'milestone',milestoneVersion:1,bindingVersion:1,reason:'Reviewed current task and package.'}};
+ const data={id:'project',version:5,status:'active',task_id:'task',binding_version:2};
+
+ it('forwards the exact loopback structure path, key, origin, context and camel-case body',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data,context}));
+  await expect(client(transport).command(headers(),actor,input)).resolves.toEqual({id:'project',version:5,status:'active',taskId:'task',bindingVersion:2});
+  const [method,url,outgoing,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/projects/project/structure');
+  expect(outgoing.get('idempotency-key')).toBe('command-key-0001');
+  expect(outgoing.get('origin')).toBe('https://acme.example.com');
+  expect(outgoing.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(outgoing.get('x-erpx-context-company')).toBe('company');
+  expect(outgoing.get('x-erpx-context-revision')).toBe('7');
+  expect(outgoing.get('content-type')).toBe('application/json');
+  expect(new TextDecoder().decode(body)).toBe(JSON.stringify(input.body));
+ });
+
+ it('surfaces a bounded owner denial and rejects receipts not bound to the command key',async()=>{
+  const conflict=vi.fn().mockResolvedValue(new Response(
+   JSON.stringify({error:{code:'PROJECT_HANDOFF_INCOMPLETE',message:'Close all work before handoff.'}}),
+   {status:409,headers:{'content-type':'application/json'}},
+  ));
+  await expect(client(conflict).command(headers(),actor,input))
+   .rejects.toMatchObject({code:'PROJECT_HANDOFF_INCOMPLETE',status:409});
+  const wrongKey=vi.fn().mockResolvedValue(ok({data:{...data,id:'other'},context}));
+  await expect(client(wrongKey).command(headers(),actor,input))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_RESPONSE_INVALID'});
+  const wrongBinding=vi.fn().mockResolvedValue(ok({data:{...data,binding_version:1},context}));
+  await expect(client(wrongBinding).command(headers(),actor,input))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_RESPONSE_INVALID'});
+ });
+
+ it('requires the captured context headers, exact origin and unchanged response context',async()=>{
+  const missing=headers();missing.delete('x-erpx-context-company');
+  await expect(client(vi.fn()).command(missing,actor,input))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_CONTEXT_CHANGED'});
+  const wrongOrigin=headers();wrongOrigin.set('origin','https://other.example.com');
+  await expect(client(vi.fn()).command(wrongOrigin,actor,input))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_AUTHORITY_INVALID'});
+  const changed=vi.fn().mockResolvedValue(ok({data,context:{...context,revision:8}}));
+  await expect(client(changed).command(headers(),actor,input))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_CONTEXT_CHANGED'});
+ });
+
+ it('fails closed when the native structure configuration is absent',async()=>{
+  const previous=process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+  delete process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+  try{
+   await expect(nativeProjectStructureCommand(new Request('https://acme.example.com/structure',{headers:headers()}),actor,'acme','project','command-key-0001',input.body))
+    .rejects.toMatchObject({code:'NATIVE_PROJECTS_UNAVAILABLE',status:503});
+  }finally{
+   if(previous!==undefined)process.env.ERPX_NATIVE_PROJECTS_CONFIG=previous;
+  }
  });
 });

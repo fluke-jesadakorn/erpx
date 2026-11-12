@@ -17,11 +17,13 @@ export type NativeProjectCommandOperation =
   | 'cost-allocation.create'
   | 'cost-allocation.review'
   | 'milestone.save'
-  | 'milestone.transition';
+  | 'milestone.transition'
+  | 'project.save';
 
 export type NativeProjectCommandInput = Readonly<{
   operation: NativeProjectCommandOperation;
-  projectId: string;
+  /** Existing project id; absent only for a `project.save` create. */
+  projectId?: string;
   /** Present for revisions, decisions and transitions; absent for creates. */
   recordId?: string;
   key: string;
@@ -150,7 +152,17 @@ function configuration(raw: string | undefined): Configuration {
   return { base, holdings, timeoutMs: value.timeoutMs };
 }
 
-function path(operation: NativeProjectCommandOperation, projectId: string, recordId?: string) {
+function path(
+  operation: NativeProjectCommandOperation,
+  projectId: string | undefined,
+  recordId?: string,
+) {
+  if (operation === 'project.save') {
+    return projectId === undefined
+      ? '/api/v1/holdings/{slug}/projects'
+      : `/api/v1/holdings/{slug}/projects/${encodeURIComponent(projectId)}`;
+  }
+  if (projectId === undefined) return undefined;
   const root = `/api/v1/holdings/{slug}/projects/${encodeURIComponent(projectId)}`;
   switch (operation) {
     case 'work-log.save':
@@ -174,9 +186,12 @@ function path(operation: NativeProjectCommandOperation, projectId: string, recor
 
 function expectedId(
   operation: NativeProjectCommandOperation,
+  projectId?: string,
   recordId?: string,
 ): { exact?: string; prefix?: string } {
   if (recordId) return { exact: recordId };
+  if (operation === 'project.save')
+    return projectId ? { exact: projectId } : { prefix: 'project-' };
   if (operation === 'work-log.save') return { prefix: 'project-time-' };
   if (operation === 'cost-allocation.create') return { prefix: 'project-cost-' };
   if (operation === 'milestone.save') return { prefix: 'milestone-' };
@@ -393,7 +408,15 @@ export async function nativeProjectCommand(
   const origin = request.headers.get('origin');
   if (origin !== holding.origin)
     throw new ApiError(403, 'ORIGIN_FORBIDDEN', 'Use the application origin.');
-  if (!identifier(input.projectId) || !/^[a-zA-Z0-9:_.-]{8,180}$/.test(input.key))
+  if (input.operation === 'project.save') {
+    if (input.recordId !== undefined)
+      throw new ApiError(422, 'PROJECTS_REQUEST_INVALID', 'Review the Projects request.');
+    if (input.projectId !== undefined && !identifier(input.projectId))
+      throw new ApiError(422, 'PROJECTS_REQUEST_INVALID', 'Review the Projects request.');
+  } else if (input.projectId === undefined || !identifier(input.projectId)) {
+    throw new ApiError(422, 'PROJECTS_REQUEST_INVALID', 'Review the Projects request.');
+  }
+  if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(input.key))
     throw new ApiError(422, 'PROJECTS_REQUEST_INVALID', 'Review the Projects request.');
   if (input.recordId !== undefined && !identifier(input.recordId))
     throw new ApiError(422, 'PROJECTS_REQUEST_INVALID', 'Review the Projects request.');
@@ -466,7 +489,11 @@ export async function nativeProjectCommand(
     const value = await reply(response);
     if (!exact(value, ['data', 'context'])) invalid();
     verifyContext(value.context, headers, input);
-    return receipt(value.data, input.operation, expectedId(input.operation, input.recordId));
+    return receipt(
+      value.data,
+      input.operation,
+      expectedId(input.operation, input.projectId, input.recordId),
+    );
   } finally {
     clearTimeout(timer);
     request.signal.removeEventListener('abort', cancel);

@@ -2921,6 +2921,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut project_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut project_save_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut project_attachment_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut project_attachment_intake_targets = Vec::new();
@@ -3736,6 +3738,15 @@ async fn assemble_checked(
                 #[cfg(feature = "existing-business")]
                 project_command_targets.push(
                     erpx_server_projects::public::project_commands_http::ProjectCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: projects_backend.clone(),
+                    },
+                );
+                #[cfg(feature = "existing-business")]
+                project_save_targets.push(
+                    erpx_server_projects::public::project_save_http::ProjectSaveHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -5679,6 +5690,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_projects::public::project_commands_http::project_milestone_commands_router(
                     project_command_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !project_save_targets.is_empty() {
+            router = router.merge(
+                erpx_server_projects::public::project_save_http::project_save_router(
+                    project_save_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
             );

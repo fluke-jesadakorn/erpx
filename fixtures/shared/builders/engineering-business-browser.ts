@@ -4,7 +4,8 @@ import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
 import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {moduleRegistry} from "@erpx/catalogue/module-registry";
 import type {seedExpenseCompany} from "../../expenses/company";
-import {saveProject,projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {seedProjectFor} from '../../../tests/integration/projects/project-actual-fixtures';
 import {createAccount,createAccountSchema,createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
 import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
@@ -70,7 +71,7 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
  const fixtures:Record<string,ViewportState>={};
  for(const viewport of ['desktop','mobile'] as const){
   const label=`${viewport} · Business engineering ${run}`;
-  const project=await saveProject(db,source,null,projectSchema.parse({title:`${label} customer delivery`,description:'Fictional normal-login engineering workflow only.',memberUserIds:[reviewer.userId,f.manager.userId]}),key());
+  const project=await seedProjectFor(db,source,null,projectSchema.parse({title:`${label} customer delivery`,description:'Fictional normal-login engineering workflow only.',memberUserIds:[reviewer.userId,f.manager.userId]}),key());
   const milestone=async(title:string,parent:string|null=null,depends:string[]=[],position=0)=>{
    const id=`milestone-${key()}`;
    await db.batch([

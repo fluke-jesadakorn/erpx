@@ -33,6 +33,13 @@ use erpx_server_projects::public::project_commands::{
     PgProjectMilestoneCommands, ProjectCommandActor, SaveMilestoneCommand,
     TransitionMilestoneCommand, save_milestone, transition_milestone,
 };
+use erpx_server_projects::public::project_save::{
+    PgProjectSaveCommands, ProjectSavePurchase, SaveProjectActor, SaveProjectCommand, save_project,
+};
+use erpx_server_projects::public::project_save_http::{
+    ProjectSaveHttpBackend, ProjectSaveHttpFuture, ProjectSaveHttpRequest,
+    ProjectSaveHttpResponse,
+};
 use erpx_server_projects::public::project_commands_http::{
     ProjectCommandHttpFuture, ProjectCommandHttpResponse, ProjectMilestoneCommandHttpBackend,
     ProjectMilestoneSaveHttpRequest, ProjectMilestoneTransitionHttpRequest,
@@ -101,7 +108,7 @@ use erpx_server_projects::public::project_wbs_http::{
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
 };
 use serde_json::Value;
 use sqlx::PgConnection;
@@ -606,6 +613,161 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
             .await
     }
 
+    /// Create (no `project_id`) or edit one project brief and its complete
+    /// membership. The retained purchase purpose is `new-work` for both
+    /// operations with an `existing` source read on edit; an exact replay is
+    /// admitted by retained history. Staff facts come from the People owner.
+    pub async fn save_project<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        project_id: Option<String>,
+        command: SaveProjectCommand,
+        key: String,
+    ) -> Result<ProjectSaveHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.command_input(input),
+                Self::command_access(),
+                ProjectsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let project_id = project_id.clone();
+                    let command = command.clone();
+                    let key = key.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let now = clock.now();
+                        let user_id = current.user_id().as_str().to_owned();
+                        let staff = people_staff_facts::active_staff(
+                            connection,
+                            company.as_str(),
+                            &user_id,
+                        )
+                        .await?;
+                        let actor_branch = staff.as_ref().and_then(|fact| fact.branch_id.clone());
+                        let actor_department =
+                            staff.as_ref().and_then(|fact| fact.department_id.clone());
+                        let mut active_staff_users = std::collections::BTreeSet::new();
+                        if staff.is_some() {
+                            active_staff_users.insert(user_id.clone());
+                        }
+                        for member in command.unique_member_user_ids() {
+                            // An unusable member identifier is simply not an
+                            // active staff link; the owner command rejects it.
+                            if RecordId::new(member.clone()).is_err() {
+                                continue;
+                            }
+                            if people_staff_facts::active_staff(
+                                connection,
+                                company.as_str(),
+                                &member,
+                            )
+                            .await?
+                            .is_some()
+                            {
+                                active_staff_users.insert(member);
+                            }
+                        }
+                        let new_work = purchase_allowed(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            "projects.wbs",
+                            CapabilityPurpose::NewWork,
+                            now,
+                        )
+                        .await;
+                        let settle_existing = purchase_allowed(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            "projects.wbs",
+                            CapabilityPurpose::SettleExisting,
+                            now,
+                        )
+                        .await;
+                        let history = purchase_allowed(
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            "projects.wbs",
+                            CapabilityPurpose::History,
+                            now,
+                        )
+                        .await;
+                        let actor = SaveProjectActor {
+                            command: ProjectCommandActor {
+                                user_id,
+                                company_id: company.clone(),
+                                branch_id: current.selection().workspace().branch_id.clone(),
+                                department_id: current
+                                    .selection()
+                                    .workspace()
+                                    .department_id
+                                    .clone(),
+                                assignment_id: current
+                                    .selection()
+                                    .assignment()
+                                    .id
+                                    .as_str()
+                                    .to_owned(),
+                                permissions: current.command_iam_metadata().permissions.clone(),
+                                modules: current.modules().to_vec(),
+                                expires_at: current.expires_at(),
+                                active_staff: staff.is_some(),
+                                wbs_new_work: new_work,
+                                wbs_settle_existing: settle_existing,
+                            },
+                            staff_branch_id: actor_branch,
+                            staff_department_id: actor_department,
+                            active_staff_users,
+                            purchase: ProjectSavePurchase {
+                                new_work,
+                                settle_existing,
+                                history,
+                            },
+                        };
+                        let mut repository = PgProjectSaveCommands::new(connection);
+                        let receipt = save_project(
+                            &actor,
+                            &mut repository,
+                            project_id.as_deref(),
+                            &command,
+                            &key,
+                            now,
+                        )
+                        .await?;
+                        Ok(ProjectSaveHttpResponse {
+                            data: serde_json::to_value(receipt).map_err(|_| unavailable())?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 
     pub async fn read_project_attachment<Input>(
         &self,
@@ -2354,6 +2516,28 @@ impl<C: Clock + Send + Sync + 'static> ProjectMilestoneCommandHttpBackend for Pr
                     move || Ok(selection),
                     request.project_id.to_owned(),
                     request.milestone_id.to_owned(),
+                    request.input.clone(),
+                    request.key.to_owned(),
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> ProjectSaveHttpBackend for ProjectsBackend<C> {
+    fn save<'a>(
+        &'a self,
+        request: ProjectSaveHttpRequest<'a>,
+    ) -> ProjectSaveHttpFuture<'a, ProjectSaveHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .save_project(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.project_id.map(str::to_owned),
                     request.input.clone(),
                     request.key.to_owned(),
                 )

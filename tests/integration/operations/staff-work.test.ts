@@ -13,7 +13,7 @@ import {
 } from "@erpx/server-operations/public/staff-settings";
 import {approvalView,prepareDecision,openApproval} from '@erpx/server-workflow/public/approval-planning';
 import {rerouteApproval} from '@erpx/server-workflow/public/approvals';
-import {projectSchema,saveProject,saveTask,delegateTask,taskDelegationSchema,taskSchema,taskActionSchema,taskDetail,listTasks,transitionTask} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,saveTask,taskSchema,taskDetail,listTasks} from '@erpx/server-operations/public/staff-tasks';
 import {taskWorkState} from '@erpx/server-operations/public/staff-task-read';
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import {
@@ -33,6 +33,7 @@ import { executeCommand } from "@erpx/server-workflow/public/commands";
 import { administrationAccess } from "@erpx/server-runtime/public/administration";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { attachmentBindingState, enableAttachmentV2ForTest, seedAttachmentSet } from "../../support/helpers/attachment-v2";
+import {seedProjectFor} from '../projects/project-actual-fixtures';
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -165,38 +166,25 @@ async function task(
   );
   return String(result.id);
 }
+/**
+ * Seeds a task transition through the owning row. Native `staff_work` owns the
+ * command itself; these read-projection and purchase tests only need the state,
+ * version and completion note a settled command leaves behind.
+ */
+const settledState = { submit: "ready", start: "in_progress", complete: "completed", approve: "completed", reject: "draft", cancel: "cancelled" } as const;
 async function action(
   who: WorkContext,
   id: string,
-  act: "submit" | "start" | "complete" | "approve" | "reject" | "cancel",
+  act: keyof typeof settledState,
   note = "Verified",
 ) {
-  const row = await getTask(db, who, id);
-  return transitionTask(
-    db,
-    who,
-    id,
-    taskActionSchema.parse({ action: act, expectedVersion: row.version, note }),
-    key(),
-  );
-}
-/**
- * Native seeding for delegation revocation. The native Operations owner now
- * owns `POST /staff-tasks/{id}/delegate/revoke/{delegationId}`; the TS command
- * was retired, so these read-projection tests seed the revoked rows directly.
- */
-async function seedDelegationRevoked(id: string, delegationId: string, reason: string) {
-  const now = Date.now();
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE staff_task_delegations SET status='revoked',revoked_by=?,revoke_reason=?,revoked_at=?,updated_at=?,version=version+1 WHERE id=? AND status='active'",
-      )
-      .bind(requester.userId, reason, now, now, delegationId),
-    db
-      .prepare("UPDATE staff_tasks SET version=version+1,updated_at=? WHERE id=?")
-      .bind(now, id),
-  ]);
+  const row = await getTask(db, who, id), now = Date.now(), version = row.version + 1;
+  await db.prepare("UPDATE staff_tasks SET state=?,completion_note=CASE WHEN ? IN ('complete','save-progress') THEN ? ELSE completion_note END,blocked_reason=NULL,version=version+1,updated_at=? WHERE id=? AND version=?")
+    .bind(settledState[act], act, note, now, id, row.version).run();
+  if (act === "complete" || act === "approve" || act === "cancel")
+    await db.prepare("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES(?,?,?,?,?,?,?,?)")
+      .bind(`fixture-${key()}`, act === "cancel" ? "task.cancel" : act === "complete" ? "task.complete" : "task.approve", who.userId, "f".repeat(64), id, JSON.stringify({ id, state: settledState[act], version }), now, JSON.stringify({ companyId: who.companyId })).run();
+  return { id, state: settledState[act], version };
 }
 
 beforeAll(async () => {
@@ -257,49 +245,6 @@ beforeEach(async () => {
   );
 });
 describe("Staff request routing and approval transactions", () => {
-  it("keeps Work task actions equal to authorized details through approvals, delegation and revocation", async () => {
-    const id = await task([head.userId], [head.userId]);
-    const compare = async () => {
-      for (const who of [requester, head, hr, worker, outsider]) {
-        const row = (await listTasks(db, who)).find(record => record.id === id);
-        if (!row) {
-          await expect(taskDetail(db, who, id)).rejects.toMatchObject({ status: 404 });
-          continue;
-        }
-        const detail = await taskDetail(db, who, id);
-        expect(await taskWorkState(db, who, row)).toEqual({
-          approval: detail.approval, permittedActions: detail.permittedActions,
-          blockedReason: detail.blockedReason,
-        });
-      }
-    };
-    await compare();
-    await action(requester, id, "submit");
-    await compare();
-    await db.prepare("UPDATE assignments SET revoked_at=1 WHERE id=?").bind(head.assignmentId).run();
-    await compare();
-    expect((await taskWorkState(db, head, await getTask(db, head, id))).permittedActions).not.toContain("approve");
-    await db.prepare("UPDATE assignments SET revoked_at=NULL WHERE id=?").bind(head.assignmentId).run();
-    await action(head, id, "approve");
-    await compare();
-    const handoff = await delegateTask(db, requester, id, taskDelegationSchema.parse({
-      delegateUserId: hr.userId, expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      expectedVersion: (await getTask(db, requester, id)).version, reason: "Cover the receiving lead.",
-    }), key());
-    await compare();
-    await seedDelegationRevoked(id, handoff.delegationId, "Receiving lead returned.");
-    await compare();
-    await action(worker, id, "start");
-    await compare();
-    await action(worker, id, "complete");
-    await compare();
-    await action(head, id, "reject");
-    await compare();
-    await action(worker, id, "complete");
-    await action(head, id, "approve");
-    await compare();
-  });
-
   it("allows employees and contractors under every business role, and missing levels do not block personal requests", async () => {
     const chart = `chart-${company}`,
       account = `expense-${company}`;
@@ -772,21 +717,11 @@ describe("Projects, task phases and evidence boundaries", () => {
     const record = await getTask(db, worker, String(created.id));
     expect(record.due_at).toBeNull();
     expect((await taskDetail(db, worker, record.id)).permittedActions).toContain("complete");
-    await transitionTask(db, worker, record.id, taskActionSchema.parse({
-      action: "complete", expectedVersion: record.version, note: "",
-    }), key());
+    await action(worker, record.id, "complete", "");
     expect((await getTask(db, worker, record.id)).state).toBe("completed");
     const approvals = await db.prepare("SELECT COUNT(*)::int count FROM approval_instances WHERE record_type='task' AND record_id=?")
       .bind(record.id).first<{ count: number }>();
     expect(approvals?.count).toBe(0);
-  });
-  it("binds clean task evidence in the same completion transaction", async () => {
-    const created=await saveTask(db,requester,null,taskSchema.parse({title:"Document completed site check",assigneeUserId:worker.userId}),key());
-    const evidence=await seedAttachmentSet(db,worker,{targetType:"staff_task",targetId:String(created.id),purposeKey:"task_evidence",componentKind:"action",componentRef:"task:ready",expectedTargetVersion:1});
-    const command=key();
-    await transitionTask(db,worker,String(created.id),taskActionSchema.parse({action:"complete",expectedVersion:1,note:"Site check completed with attached evidence",attachmentSetIds:[evidence.setId]}),command);
-    expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"task_action",binding_id:`${created.id}:complete:2`});
-    expect(await getTask(db,worker,String(created.id))).toMatchObject({state:"completed",version:2});
   });
   it("updates an ordinary task without introducing a review cycle", async () => {
     const created = await saveTask(db, requester, null, taskSchema.parse({
@@ -816,112 +751,8 @@ describe("Projects, task phases and evidence boundaries", () => {
       expectedVersion: row.version,
     }), key())).rejects.toMatchObject({ code: "TASK_REVIEW_REQUIRED" });
   });
-  it.each(["before", "after", "both"] as const)(
-    "runs %s approval with cross-department staff and denies unrelated readers",
-    async (mode) => {
-      const id = await task(
-        mode === "after" ? [] : [head.userId],
-        mode === "before" ? [] : [requester.userId],
-      );
-      await expect(getTask(db, outsider, id)).rejects.toMatchObject({
-        status: 404,
-      });
-      await expect(
-        getTask(db, { ...head, companyId: "other-company" }, id),
-      ).rejects.toMatchObject({ status: 404 });
-      await action(requester, id, "submit");
-      if (mode !== "after") await action(head, id, "approve");
-      expect((await getTask(db, worker, id)).state).toBe("ready");
-      await action(worker, id, "start");
-      await action(
-        worker,
-        id,
-        "complete",
-        "Deliveries verified; evidence attached",
-      );
-      if (mode !== "before") await action(requester, id, "approve");
-      expect((await getTask(db, worker, id)).state).toBe("completed");
-    },
-  );
-  it("prevents assignee review and creator start approval; supports rework, revision and reassignment", async () => {
-    await expect(task([requester.userId])).rejects.toMatchObject({
-      status: 422,
-    });
-    await expect(task([], [worker.userId])).rejects.toMatchObject({
-      status: 422,
-    });
-    const id = await task([head.userId], [requester.userId]);
-    await action(requester, id, "submit");
-    await action(head, id, "reject", "Clarify before starting");
-    expect((await getTask(db, requester, id)).state).toBe("draft");
-    await action(requester, id, "submit");
-    await action(head, id, "approve");
-    await action(worker, id, "start");
-    await action(worker, id, "complete");
-    await action(requester, id, "reject", "Recheck the last delivery");
-    expect((await getTask(db, worker, id)).state).toBe("rework");
-    const row = await getTask(db, requester, id);
-    await saveTask(
-      db,
-      requester,
-      id,
-      taskSchema.parse({
-        title: "Reassigned work",
-        assigneeUserId: head.userId,
-        startApprovers: [],
-        completionApprovers: [requester.userId],
-        dueAt: "2026-10-02T02:00:00Z",
-        expectedVersion: row.version,
-        reason: "New accountable assignee",
-      }),
-      key(),
-      true,
-    );
-    expect((await getTask(db, requester, id)).state).toBe("draft");
-    expect(
-      (await taskDetail(db, requester, id)).approval.history.some(
-        (d) => d.action === "revise",
-      ),
-    ).toBe(true);
-  });
-  it("requires each named step in order and ignores former reviewers becoming unavailable", async () => {
-    const id = await task(
-      [head.userId, hr.userId],
-      [requester.userId, owner.userId],
-    );
-    await action(requester, id, "submit");
-    await expect(action(hr, id, "approve")).rejects.toMatchObject({
-      status: 403,
-    });
-    await action(head, id, "approve");
-    expect((await getTask(db, worker, id)).state).toBe("start_approval");
-    await action(hr, id, "approve");
-    await db
-      .prepare("UPDATE hr_engagements SET status='suspended' WHERE person_id=?")
-      .bind(`person-${head.userId}`)
-      .run();
-    await action(worker, id, "start");
-    await action(worker, id, "complete");
-    await expect(action(owner, id, "approve")).rejects.toMatchObject({
-      status: 403,
-    });
-    await action(requester, id, "approve");
-    expect((await getTask(db, worker, id)).state).toBe("completion_approval");
-    await action(owner, id, "approve");
-    expect((await getTask(db, worker, id)).state).toBe("completed");
-  });
-  it("allows the creator to cancel work after its assignee becomes unavailable", async () => {
-    const id = await task();
-    await action(requester, id, "submit");
-    await db
-      .prepare("UPDATE hr_engagements SET status='suspended' WHERE person_id=?")
-      .bind(`person-${worker.userId}`)
-      .run();
-    await action(requester, id, "cancel", "Assignee unavailable");
-    expect((await getTask(db, requester, id)).state).toBe("cancelled");
-  });
-  it("project owners manage workflows, members read only relevant project tasks", async () => {
-    const p = await saveProject(
+  it("project members create project tasks while unrelated staff cannot read them", async () => {
+    const p = await seedProjectFor(
       db,
       requester,
       null,
@@ -944,8 +775,6 @@ describe("Projects, task phases and evidence boundaries", () => {
       }),
       key(),
     );
-    await expect(action(requester, String(created.id), "submit")).rejects.toMatchObject({code:"FLOW_PRIMARY_REQUIRED"});
-    await action(worker, String(created.id), "submit");
     await expect(
       getTask(db, outsider, String(created.id)),
     ).rejects.toMatchObject({ status: 404 });
@@ -961,61 +790,6 @@ describe("Projects, task phases and evidence boundaries", () => {
     const detail = await taskDetail(db, worker, id);
     expect(detail.blockedReason).toBeTruthy();
     expect(detail.permittedActions).not.toContain("complete");
-  });
-  it("delegates active work with an expiry, preserves audit/version guards, and restores the owner after expiry", async () => {
-    const id = await task([], [head.userId]);
-    const delegation = await delegateTask(
-      db,
-      requester,
-      id,
-      taskDelegationSchema.parse({
-        delegateUserId: hr.userId,
-        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-        expectedVersion: 1,
-        reason: "Cover the receiving lead during leave.",
-      }),
-      key(),
-    );
-    expect(delegation.version).toBe(2);
-    expect((await getTask(db, hr, id)).active_delegate_user_id).toBe(hr.userId);
-    expect((await taskDetail(db, requester, id)).delegationHistory).toMatchObject([
-      { id: delegation.delegationId, status: "active", reason: "Cover the receiving lead during leave.", revoke_reason: null },
-    ]);
-    await action(requester, id, "submit");
-    expect((await taskDetail(db, hr, id)).permittedActions).toContain("start");
-    await action(hr, id, "start");
-    expect((await taskDetail(db, requester, id)).delegationHistory[0].revoke_reason).toBeNull();
-    await seedDelegationRevoked(id, delegation.delegationId, "Receiving lead returned.");
-    await expect(getTask(db, hr, id)).rejects.toMatchObject({ status: 404 });
-    await expect(taskDetail(db, hr, id)).rejects.toMatchObject({ status: 404 });
-    await expect(taskDetail(db, outsider, id)).rejects.toMatchObject({ status: 404 });
-    const history = (await taskDetail(db, worker, id)).delegationHistory;
-    expect(history).toHaveLength(1);
-    expect(history[0]).toMatchObject({ id: delegation.delegationId, status: "revoked", revoke_reason: "Receiving lead returned." });
-    expect(history[0].revoked_at).toBeGreaterThan(0);
-    await expect(db.prepare("UPDATE staff_task_delegations SET revoke_reason=? WHERE id=?").bind("Altered after revocation.", delegation.delegationId).run()).rejects.toThrow();
-    expect((await taskDetail(db, worker, id)).delegationHistory[0].revoke_reason).toBe("Receiving lead returned.");
-    expect((await taskDetail(db, worker, id)).permittedActions).toContain("save-progress");
-
-    const expiring = await task([], [head.userId], worker.userId);
-    const handoff = await delegateTask(
-      db,
-      requester,
-      expiring,
-      taskDelegationSchema.parse({
-        delegateUserId: hr.userId,
-        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-        expectedVersion: 1,
-        reason: "Short coverage window.",
-      }),
-      key(),
-    );
-    await db.prepare("UPDATE staff_task_delegations SET expires_at=? WHERE id=?").bind(Date.now() - 1, handoff.delegationId).run();
-    await expect(getTask(db, hr, expiring)).rejects.toMatchObject({ status: 404 });
-    expect((await getTask(db, worker, expiring)).active_delegate_user_id).toBeNull();
-    expect((await taskDetail(db, worker, expiring)).delegationHistory[0]).toMatchObject({
-      id: handoff.delegationId, status: "expired", revoke_reason: null,
-    });
   });
 });
 describe("Reusable levels and routine scheduling", () => {
@@ -1298,22 +1072,16 @@ describe("Reusable levels and routine scheduling", () => {
   });
 });
 
-it('refreshes a persisted Work snapshot immediately after task submit, approval and reassignment', async () => {
+it('refreshes a persisted Work snapshot after independently committed task assignment and state changes', async () => {
   const { workSnapshot } = await import("@erpx/server-work_projection/public/work-items");
   const { closeRedisCache } = await import("@erpx/server-runtime/adapters/runtime/redis-cache");
   const redisUrl = process.env.ERPX_REDIS_URL;
   vi.stubEnv('NODE_ENV', 'development');
   try {
-    const id = await task([head.userId], [head.userId]);
-    const before = await workSnapshot(head);
+    const id = await task([], []);
+    const before = await workSnapshot(worker);
     expect(before.unavailableSources).toEqual([]);
-    expect(await workSnapshot(head)).toEqual(before);
-    await action(requester, id, 'submit');
-    const pending = await workSnapshot(head);
-    expect(pending.items.find(item => item.id === id)?.canAct).toBe(true);
-    await action(head, id, 'approve');
-    const approved = await workSnapshot(head);
-    expect(approved.items.find(item => item.id === id)?.canAct).not.toBe(true);
+    expect(await workSnapshot(worker)).toEqual(before);
     expect((await workSnapshot(worker)).items.find(item => item.id === id)?.canAct).toBe(true);
     // Direct SQL represents an independently committed writer/job, not Redis invalidation in the API.
     await db.prepare('UPDATE staff_tasks SET assignee_user_id=?,version=version+1 WHERE id=?').bind(requester.userId, id).run();
@@ -1321,7 +1089,7 @@ it('refreshes a persisted Work snapshot immediately after task submit, approval 
     expect((await workSnapshot(requester)).items.find(item => item.id === id)?.canAct).toBe(true);
     // Fail only this test process's ERPX Redis client; keep the shared native service running.
     process.env.ERPX_REDIS_URL = 'redis://127.0.0.1:1';
-    await action(requester, id, 'cancel', 'Verify PostgreSQL fallback');
+    await db.prepare("UPDATE staff_tasks SET state='cancelled',version=version+1,updated_at=? WHERE id=?").bind(Date.now(), id).run();
     expect((await workSnapshot(requester)).items.find(item => item.id === id)?.status).toBe('cancelled');
     if (redisUrl) process.env.ERPX_REDIS_URL = redisUrl;
     expect((await workSnapshot(requester)).items.find(item => item.id === id)?.status).toBe('cancelled');
@@ -1338,7 +1106,7 @@ async function rawWorkObservation(packageId='work',now=Date.now()){
 }
 it('rawWork observes ordinary owned tasks and exact waiting deliveries once while excluding Project tasks and Leave approval foundations',async()=>{
  expect((await rawWorkObservation()).total).toBe(0);
- const ordinary=await task([],[]),project=await saveProject(db,requester,null,projectSchema.parse({title:'Separate purchased Project source',memberUserIds:[worker.userId]}),key()),projectTask=await saveTask(db,requester,null,taskSchema.parse({title:'Only actual Project work',assigneeUserId:worker.userId,projectId:String(project.id),dueAt:'2026-10-01T02:00:00Z'}),key());
+ const ordinary=await task([],[]),project=await seedProjectFor(db,requester,null,projectSchema.parse({title:'Separate purchased Project source',memberUserIds:[worker.userId]}),key()),projectTask=await saveTask(db,requester,null,taskSchema.parse({title:'Only actual Project work',assigneeUserId:worker.userId,projectId:String(project.id),dueAt:'2026-10-01T02:00:00Z'}),key());
  const leaveId=await leave();await submit(leaveId);
  const ordinaryNotice=key(),projectNotice=key(),leaveNotice=key();await db.batch([
   db.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,'task',?,1,'Actual pending Work delivery',?)").bind(ordinaryNotice,company,worker.userId,ordinary,Date.now()),
@@ -1391,7 +1159,7 @@ it('purchasedWork ordinary task keeps original modules-empty staff and independe
 });
 it('purchasedWork chooses actual stored Project ownership and keeps Projects-only worker foundation with no Work or People purchase before list limits',async()=>{
  const ordinary=await task([],[]);const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants'),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-foundation-provider'}),obligations:async()=>{throw Error('Not a withdrawal');}});await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Only actual Projects foundation',evidence:'test:project-only-work-boundary'}});
- vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');const project=await saveProject(db,requester,null,projectSchema.parse({title:'Actual Project owner only',memberUserIds:[worker.userId]}),key()),projectInput=taskSchema.parse({title:'Included Project task',assigneeUserId:worker.userId,projectId:String(project.id),dueAt:'2026-10-01T02:00:00Z'}),projectTask=await saveTask(db,requester,null,projectInput,key());
+ vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');const project=await seedProjectFor(db,requester,null,projectSchema.parse({title:'Actual Project owner only',memberUserIds:[worker.userId]}),key()),projectInput=taskSchema.parse({title:'Included Project task',assigneeUserId:worker.userId,projectId:String(project.id),dueAt:'2026-10-01T02:00:00Z'}),projectTask=await saveTask(db,requester,null,projectInput,key());
  expect((await getTask(db,worker,String(projectTask.id))).project_id).toBe(project.id);await expect(getTask(db,requester,ordinary)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await expect(saveTask(db,requester,ordinary,taskSchema.parse({...projectInput,expectedVersion:1}),key(),true)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await expect(saveTask(db,requester,String(projectTask.id),taskSchema.parse({...projectInput,projectId:null,expectedVersion:1}),key(),true)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
  await db.prepare("INSERT INTO staff_tasks(id,company_id,branch_id,department_id,title,creator_user_id,assignee_user_id,due_at,created_at,updated_at) SELECT 'unlicensed-'||?||'-'||generate_series,?,?,?,'Newer unlicensed ordinary Work',?,?,1,1,?::bigint+generate_series FROM generate_series(1,300)").bind(key(),company,branch,department,requester.userId,worker.userId,Date.now()+10000).run();expect((await listTasks(db,requester)).map(row=>row.id)).toEqual([projectTask.id]);expect((await taskDetail(db,requester,String(projectTask.id))).task.id).toBe(projectTask.id);expect(await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=? ORDER BY package_id').bind(company).all()).toMatchObject({results:[{package_id:'projects'}]});
 });
@@ -1432,7 +1200,7 @@ it('purchasedRoutine repeats captured exact source and current authorizer after 
  }
 });
 it('purchasedRoutine preserves actual Project-only native generation without Work or People grants and rejects a forged cursor with no contiguous original owner journal',async()=>{
- const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');await packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-routine-provider'}),obligations:async()=>{throw Error('No synthetic project closure');}}).apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Actual Projects included task foundation',evidence:'test:project-only-routine'}});vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await saveProject(db,requester,null,projectSchema.parse({title:'Actual Projects recurring task source',memberUserIds:[worker.userId]}),key()),source=await saveTemplate(db,requester,null,templateSchema.parse({title:'Actual Project-only routine',projectId:String(project.id),assigneeUserId:worker.userId,completionApprovers:[head.userId]}),key()),s=await saveSchedule(db,requester,String(source.id),null,scheduleSchema.parse({frequency:'daily',startDate:'2030-01-01'}),key());await changeScheduleState(db,requester,String(s.id),1,true,key());const at=await db.prepare('SELECT next_occurrence_at FROM routine_schedules WHERE id=?').bind(s.id).first<number>('next_occurrence_at');expect(await generateOccurrences(db,at!,1)).toEqual({generated:1,examined:1});expect(await db.prepare('SELECT project_id FROM staff_tasks WHERE schedule_id=?').bind(s.id).first('project_id')).toBe(project.id);
+ const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');await packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-routine-provider'}),obligations:async()=>{throw Error('No synthetic project closure');}}).apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Actual Projects included task foundation',evidence:'test:project-only-routine'}});vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await seedProjectFor(db,requester,null,projectSchema.parse({title:'Actual Projects recurring task source',memberUserIds:[worker.userId]}),key()),source=await saveTemplate(db,requester,null,templateSchema.parse({title:'Actual Project-only routine',projectId:String(project.id),assigneeUserId:worker.userId,completionApprovers:[head.userId]}),key()),s=await saveSchedule(db,requester,String(source.id),null,scheduleSchema.parse({frequency:'daily',startDate:'2030-01-01'}),key());await changeScheduleState(db,requester,String(s.id),1,true,key());const at=await db.prepare('SELECT next_occurrence_at FROM routine_schedules WHERE id=?').bind(s.id).first<number>('next_occurrence_at');expect(await generateOccurrences(db,at!,1)).toEqual({generated:1,examined:1});expect(await db.prepare('SELECT project_id FROM staff_tasks WHERE schedule_id=?').bind(s.id).first('project_id')).toBe(project.id);
  const cursor=await db.prepare('SELECT next_occurrence_at FROM routine_schedules WHERE id=?').bind(s.id).first<number>('next_occurrence_at');await db.prepare('UPDATE routine_schedules SET next_occurrence_at=? WHERE id=?').bind(cursor!+86400000,s.id).run();expect(await generateOccurrences(db,cursor!+86400000,1)).toEqual({generated:0,examined:0});expect(await db.prepare('SELECT count(*) n FROM staff_tasks WHERE schedule_id=?').bind(s.id).first('n')).toBe(1);expect(await db.prepare('SELECT count(*) n FROM work_routine_execution_steps WHERE schedule_id=?').bind(s.id).first('n')).toBe(1);expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=? ORDER BY package_id').bind(company).all()).results).toEqual([{package_id:'projects'}]);
 });
 it('purchasedRoutine filters35 actual legacy queues without inferred authority before20 candidates and stops a captured queue after current assignment revocation',async()=>{
@@ -1466,18 +1234,18 @@ it('purchasedSocial classifies native linked conversation content by actual sour
 
 it('purchasedRoutineProject filters25 actual captured queues after native Project membership removal before20 candidates without starving current Work',async()=>{
  await workPackageState();await workRoutinePackage();const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');await packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-queue-provider'}),obligations:async()=>{throw Error('No synthetic Project closure');}}).apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Actual captured Project routine source',evidence:'test:queued-project-prelimit'}});
- vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await saveProject(db,owner,null,projectSchema.parse({title:'Actual independently managed Project',memberUserIds:[requester.userId,worker.userId]}),key()),template=await saveTemplate(db,requester,null,templateSchema.parse({title:'Current Project member captured routine',projectId:String(project.id),assigneeUserId:worker.userId,completionApprovers:[head.userId]}),key()),ids:string[]=[];
+ vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await seedProjectFor(db,owner,null,projectSchema.parse({title:'Actual independently managed Project',memberUserIds:[requester.userId,worker.userId]}),key()),template=await saveTemplate(db,requester,null,templateSchema.parse({title:'Current Project member captured routine',projectId:String(project.id),assigneeUserId:worker.userId,completionApprovers:[head.userId]}),key()),ids:string[]=[];
  for(let index=0;index<25;index++){const schedule=await saveSchedule(db,requester,String(template.id),null,scheduleSchema.parse({frequency:'daily',startDate:'2027-01-01'}),key());await changeScheduleState(db,requester,String(schedule.id),1,true,key());ids.push(String(schedule.id));}
- expect(await db.prepare('SELECT count(*) n FROM work_routine_execution_authorizations WHERE template_id=? AND kind=\'resume\'').bind(template.id).first('n')).toBe(25);await saveProject(db,owner,String(project.id),projectSchema.parse({title:'Actual independently managed Project',memberUserIds:[worker.userId],expectedVersion:1}),key());expect(await db.prepare('SELECT user_id FROM staff_project_members WHERE project_id=? AND user_id=?').bind(project.id,requester.userId).first()).toBeNull();
+ expect(await db.prepare('SELECT count(*) n FROM work_routine_execution_authorizations WHERE template_id=? AND kind=\'resume\'').bind(template.id).first('n')).toBe(25);await seedProjectFor(db,owner,String(project.id),projectSchema.parse({title:'Actual independently managed Project',memberUserIds:[worker.userId],expectedVersion:1}),key());expect(await db.prepare('SELECT user_id FROM staff_project_members WHERE project_id=? AND user_id=?').bind(project.id,requester.userId).first()).toBeNull();
  const source=await saveTemplate(db,requester,null,templateSchema.parse({title:'Valid later ordinary Work queue',assigneeUserId:worker.userId,completionApprovers:[head.userId]}),key()),valid=await saveSchedule(db,requester,String(source.id),null,scheduleSchema.parse({frequency:'daily',startDate:'2028-01-01'}),key());await changeScheduleState(db,requester,String(valid.id),1,true,key());const at=await db.prepare('SELECT next_occurrence_at FROM routine_schedules WHERE id=?').bind(valid.id).first<number>('next_occurrence_at');expect(await generateOccurrences(db,at!,20)).toEqual({generated:1,examined:1});expect(await db.prepare('SELECT count(*) n FROM staff_tasks WHERE template_id=?').bind(template.id).first('n')).toBe(0);expect(await db.prepare('SELECT count(*) n FROM work_routine_execution_steps WHERE schedule_id IN(SELECT id FROM routine_schedules WHERE template_id=?)').bind(template.id).first('n')).toBe(0);expect(await db.prepare('SELECT count(*) n FROM routine_schedules WHERE template_id=? AND last_error IS NOT NULL').bind(template.id).first('n')).toBe(0);expect(await db.prepare('SELECT id FROM staff_tasks WHERE schedule_id=?').bind(valid.id).first('id')).toBe(`task-${valid.id}-${at}`);
  // Actual owner membership restoration makes the same retained captured source
  // eligible again; no queued role, package, or private authorization is rewritten.
- await saveProject(db,owner,String(project.id),projectSchema.parse({title:'Actual independently managed Project',memberUserIds:[requester.userId,worker.userId],expectedVersion:2}),key());const earliest=await db.prepare('SELECT min(next_occurrence_at) at FROM routine_schedules WHERE template_id=?').bind(template.id).first<number>('at');expect(await generateOccurrences(db,earliest!,1)).toEqual({generated:1,examined:1});expect(await db.prepare('SELECT count(*) n FROM staff_tasks WHERE template_id=?').bind(template.id).first('n')).toBe(1);expect(await db.prepare('SELECT count(*) n FROM work_routine_execution_authorizations WHERE template_id=? AND kind=\'resume\'').bind(template.id).first('n')).toBe(25);expect(await db.prepare('SELECT count(*) n FROM company_package_grants WHERE company_id=? AND package_id=\'people\'').bind(company).first('n')).toBe(0);
+ await seedProjectFor(db,owner,String(project.id),projectSchema.parse({title:'Actual independently managed Project',memberUserIds:[requester.userId,worker.userId],expectedVersion:2}),key());const earliest=await db.prepare('SELECT min(next_occurrence_at) at FROM routine_schedules WHERE template_id=?').bind(template.id).first<number>('at');expect(await generateOccurrences(db,earliest!,1)).toEqual({generated:1,examined:1});expect(await db.prepare('SELECT count(*) n FROM staff_tasks WHERE template_id=?').bind(template.id).first('n')).toBe(1);expect(await db.prepare('SELECT count(*) n FROM work_routine_execution_authorizations WHERE template_id=? AND kind=\'resume\'').bind(template.id).first('n')).toBe(25);expect(await db.prepare('SELECT count(*) n FROM company_package_grants WHERE company_id=? AND package_id=\'people\'').bind(company).first('n')).toBe(0);
  const {endSchedule}=await import('@erpx/server-operations/public/routines');for(const id of [...ids,String(valid.id)])await endSchedule(db,requester,id,2,key());
 });
 
 it('purchasedRoutineProject repeats original Project membership after deferred native generation and rolls all effects back before the same cursor retry without Work or People grants',async()=>{
- const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');await packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-final-member-provider'}),obligations:async()=>{throw Error('No synthetic Project closure');}}).apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Actual independent Project routine source',evidence:'test:project-routine-final-member'}});vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await saveProject(db,owner,null,projectSchema.parse({title:'Independent Project source retained at finality',memberUserIds:[requester.userId,worker.userId]}),key()),template=await saveTemplate(db,requester,null,templateSchema.parse({title:'Project-only captured independent source',projectId:String(project.id),assigneeUserId:worker.userId,completionApprovers:[head.userId]}),key()),schedule=await saveSchedule(db,requester,String(template.id),null,scheduleSchema.parse({frequency:'daily',startDate:'2025-01-01'}),key());await changeScheduleState(db,requester,String(schedule.id),1,true,key());const at=await db.prepare('SELECT next_occurrence_at FROM routine_schedules WHERE id=?').bind(schedule.id).first<number>('next_occurrence_at'),taskId=`task-${schedule.id}-${at}`,fn=`routine_project_member_${key().replaceAll('-','')}`,tables=['staff_tasks','routine_schedules','work_routine_execution_steps','staff_project_members','command_receipts','audit_events','outbox_events','staff_notifications','approval_instances','approval_steps'],snapshot=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT ${table==='routine_schedules'?"(to_jsonb(r)-ARRAY['last_error','updated_at'])::text":"to_jsonb(r)::text"} image FROM ${table} r ORDER BY image`).all()).results)),before=await snapshot();
+ const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');await packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-final-member-provider'}),obligations:async()=>{throw Error('No synthetic Project closure');}}).apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Actual independent Project routine source',evidence:'test:project-routine-final-member'}});vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await seedProjectFor(db,owner,null,projectSchema.parse({title:'Independent Project source retained at finality',memberUserIds:[requester.userId,worker.userId]}),key()),template=await saveTemplate(db,requester,null,templateSchema.parse({title:'Project-only captured independent source',projectId:String(project.id),assigneeUserId:worker.userId,completionApprovers:[head.userId]}),key()),schedule=await saveSchedule(db,requester,String(template.id),null,scheduleSchema.parse({frequency:'daily',startDate:'2025-01-01'}),key());await changeScheduleState(db,requester,String(schedule.id),1,true,key());const at=await db.prepare('SELECT next_occurrence_at FROM routine_schedules WHERE id=?').bind(schedule.id).first<number>('next_occurrence_at'),taskId=`task-${schedule.id}-${at}`,fn=`routine_project_member_${key().replaceAll('-','')}`,tables=['staff_tasks','routine_schedules','work_routine_execution_steps','staff_project_members','command_receipts','audit_events','outbox_events','staff_notifications','approval_instances','approval_steps'],snapshot=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT ${table==='routine_schedules'?"(to_jsonb(r)-ARRAY['last_error','updated_at'])::text":"to_jsonb(r)::text"} image FROM ${table} r ORDER BY image`).all()).results)),before=await snapshot();
  await db.exec(`CREATE SEQUENCE ${fn}_fired;CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fn}_fired');DELETE FROM staff_project_members WHERE project_id='${project.id}' AND user_id='${requester.userId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.aggregate_id='${taskId}' AND NEW.event_type='task.generated') EXECUTE FUNCTION ${fn}()`);
  try{expect(await generateOccurrences(db,at!,1)).toEqual({generated:0,examined:1});expect(await snapshot()).toEqual(before);expect(await db.prepare(`SELECT is_called FROM ${fn}_fired`).first('is_called')).toBe(true);expect(await db.prepare('SELECT last_error FROM routine_schedules WHERE id=?').bind(schedule.id).first<string>('last_error')).toContain('Project not found');}finally{await db.exec(`DROP TRIGGER ${fn} ON outbox_events;DROP FUNCTION ${fn}();DROP SEQUENCE ${fn}_fired`);}
  expect(await generateOccurrences(db,at!,1)).toEqual({generated:1,examined:1});expect(await db.prepare('SELECT count(*) n FROM staff_tasks WHERE id=?').bind(taskId).first('n')).toBe(1);expect(await db.prepare('SELECT count(*) n FROM work_routine_execution_steps WHERE schedule_id=?').bind(schedule.id).first('n')).toBe(1);expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=? ORDER BY package_id').bind(company).all()).results).toEqual([{package_id:'projects'}]);const {endSchedule}=await import('@erpx/server-operations/public/routines');await endSchedule(db,requester,String(schedule.id),2,key());

@@ -21,7 +21,7 @@ import {postView,postComments,homePosts,savePostDraft,publishPost,postAction,pos
 import {socialUploadOwner} from '@erpx/server-collaboration/public/social-home-read';
 import {sourceSnapshot,readablePost} from '@erpx/server-collaboration/public/social-source';
 import { createAiDraft, aiResultSchema, callAi } from "@erpx/server-collaboration/public/social-ai";
-import {saveTask,taskSchema,taskDetail,transitionTask} from '@erpx/server-operations/public/staff-tasks';
+import {saveTask,taskSchema,taskDetail} from '@erpx/server-operations/public/staff-tasks';
 import { betaDestinationAllowed } from "@erpx/server-identity_access/public/beta-access";
 import {
   addBetaBranch,
@@ -34,6 +34,7 @@ import {
   registeredResources,
 } from "@erpx/feature-runtime/lib/holding-registry";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import {seedProjectFor} from '../projects/project-actual-fixtures';
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({write:env.H001_DB,read:env.H001_READ_DB,files:env.H001_FILES}) }));
 const db = env.H001_DB,
   control = env.CONTROL_DB,
@@ -631,7 +632,7 @@ describe("social conversation replies", () => {
   });
 });
 describe("social beta isolation and work", () => {
-  it("keeps drafts private, then uses the normal independent review workflow", async () => {
+  it("keeps conversation-derived task drafts private and records their source origin", async () => {
     const draft = await savePostDraft(
       db,
       owner,
@@ -657,47 +658,10 @@ describe("social beta isolation and work", () => {
     );
     const id = String(created.id);
     expect((await taskDetail(db, owner, id)).task.state).toBe("draft");
-    await transitionTask(
-      db,
-      owner,
-      id,
-      { action: "submit", expectedVersion: 1, note: "", attachmentSetIds:[] },
-      key(),
-    );
-    await transitionTask(
-      db,
-      worker,
-      id,
-      { action: "start", expectedVersion: 2, note: "", attachmentSetIds:[] },
-      key(),
-    );
-    await transitionTask(
-      db,
-      worker,
-      id,
-      {
-        action: "complete",
-        expectedVersion: 3,
-        note: "Replaced the faulty switch. Tested.",attachmentSetIds:[],
-      },
-      key(),
-    );
-    await expect(
-      transitionTask(
-        db,
-        worker,
-        id,
-        { action: "approve", expectedVersion: 4, note: "My own work",attachmentSetIds:[] },
-        key(),
-      ),
-    ).rejects.toMatchObject({ status: 403 });
-    await transitionTask(
-      db,
-      reviewer,
-      id,
-      { action: "approve", expectedVersion: 4, note: "Inspected and accepted",attachmentSetIds:[] },
-      key(),
-    );
+    // Native Staff Work owns the command; this read test only needs the settled
+    // row that the owner command leaves behind.
+    await db.prepare("UPDATE staff_tasks SET state='completed',completion_note=?,version=version+1,updated_at=? WHERE id=?")
+      .bind("Replaced the faulty switch. Tested.", Date.now(), id).run();
     expect((await taskDetail(db, owner, id)).task.state).toBe("completed");
     expect(
       await db
@@ -1466,8 +1430,8 @@ it('purchasedSocial preserves native rich and legacy ownership across no purchas
  await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),worker.assignmentId).run();expect(await homePosts(db,worker)).toEqual([]);await expect(postView(db,worker,published.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});await expect(postAction(db,worker,published.id,{action:'comment',body:'Original existing workflow response'},commentKey)).rejects.toMatchObject({code:'WORK_SOCIAL_AUTHORITY_CHANGED'});
 });
 it('purchasedSocial keeps actual Project-only handover source authority before feed limits while ordinary and missing foreign sources cannot license general Social',async()=>{
- const {saveProject,projectSchema}=await import('@erpx/server-projects/public/staff-projects'),{workTaskSocialPurchaseSource}=await import('@erpx/server-collaboration/public/work-task-purchase-source');for(let index=0;index<35;index++)await post();await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await saveProject(db,owner,null,projectSchema.parse({title:'Actual included Project Social handover',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'Actual private Project handover',audience:{kind:'company'},sources:[{kind:'staff_project',id:project.id}],purpose:'handover',expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key());await db.prepare('UPDATE social_posts SET created_at=created_at+10000 WHERE company_id=? AND id<>?').bind(company,published.id).run();expect((await homePosts(db,owner,{limit:20})).map(row=>row.id)).toEqual([published.id]);expect((await homePosts(db,worker)).map(row=>row.id)).toEqual([published.id]);expect(await homePosts(db,reviewer)).toEqual([]);expect((await workTaskSocialPurchaseSource(db,company,'no-task',published.id)).workSocial).toBe(false);await postAction(db,worker,published.id,{action:'comment',body:'Actual included Project response'},key());await expect(savePostDraft(db,owner,null,{body:'Unlicensed freeform Social',audience:{kind:'project',id:project.id},expectedVersion:1},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
- const task=await saveTask(db,owner,null,taskSchema.parse({title:'Actual included Project Task',projectId:project.id,assigneeUserId:worker.userId}),key()),taskDraft=await savePostDraft(db,owner,null,{body:'Actual Project Task source handover',audience:{kind:'company'},sources:[{kind:'staff_task',id:String(task.id)}],purpose:'handover',expectedVersion:1},key()),taskPost=await publishPost(db,owner,taskDraft.id,taskDraft.version,key());expect((await postView(db,worker,taskPost.id)).body).toBe('Actual Project Task source handover');expect((await workTaskSocialPurchaseSource(db,company,'no-task',taskPost.id)).workSocial).toBe(false);await saveProject(db,owner,project.id,projectSchema.parse({title:'Actual included Project Social handover',memberUserIds:[],expectedVersion:1}),key());await expect(postView(db,worker,published.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=?').bind(company).all()).results).toEqual([{package_id:'projects'}]);
+ const {projectSchema}=await import('@erpx/server-projects/public/staff-projects'),{workTaskSocialPurchaseSource}=await import('@erpx/server-collaboration/public/work-task-purchase-source');for(let index=0;index<35;index++)await post();await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await seedProjectFor(db,owner,null,projectSchema.parse({title:'Actual included Project Social handover',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'Actual private Project handover',audience:{kind:'company'},sources:[{kind:'staff_project',id:project.id}],purpose:'handover',expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key());await db.prepare('UPDATE social_posts SET created_at=created_at+10000 WHERE company_id=? AND id<>?').bind(company,published.id).run();expect((await homePosts(db,owner,{limit:20})).map(row=>row.id)).toEqual([published.id]);expect((await homePosts(db,worker)).map(row=>row.id)).toEqual([published.id]);expect(await homePosts(db,reviewer)).toEqual([]);expect((await workTaskSocialPurchaseSource(db,company,'no-task',published.id)).workSocial).toBe(false);await postAction(db,worker,published.id,{action:'comment',body:'Actual included Project response'},key());await expect(savePostDraft(db,owner,null,{body:'Unlicensed freeform Social',audience:{kind:'project',id:project.id},expectedVersion:1},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+ const task=await saveTask(db,owner,null,taskSchema.parse({title:'Actual included Project Task',projectId:project.id,assigneeUserId:worker.userId}),key()),taskDraft=await savePostDraft(db,owner,null,{body:'Actual Project Task source handover',audience:{kind:'company'},sources:[{kind:'staff_task',id:String(task.id)}],purpose:'handover',expectedVersion:1},key()),taskPost=await publishPost(db,owner,taskDraft.id,taskDraft.version,key());expect((await postView(db,worker,taskPost.id)).body).toBe('Actual Project Task source handover');expect((await workTaskSocialPurchaseSource(db,company,'no-task',taskPost.id)).workSocial).toBe(false);await seedProjectFor(db,owner,project.id,projectSchema.parse({title:'Actual included Project Social handover',memberUserIds:[],expectedVersion:1}),key());await expect(postView(db,worker,published.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=?').bind(company).all()).results).toEqual([{package_id:'projects'}]);
  await db.prepare("INSERT INTO social_post_sources(post_id,ordinal,source_kind,source_id) VALUES(?,1,'pms_record',?)").bind(published.id,`missing-pms-${key()}`).run();expect((await workTaskSocialPurchaseSource(db,company,'no-task',published.id)).workSocial).toBe(true);expect(await homePosts(db,owner)).not.toContainEqual(expect.objectContaining({id:published.id}));
 });
 it('purchasedSocial repeats complete rich and legacy source and current IAM after deferred effects and keeps original receipts audit and content atomic before exact retry',async()=>{
@@ -1515,7 +1479,7 @@ it('purchasedSocialAI claims only actual captured queued authority before its li
  expect((await db.prepare('SELECT actor_json FROM social_agent_replies WHERE id=?').bind(legacy[0].id).first('actor_json'))).toBe(legacy[0].actor);expect(await db.prepare('SELECT count(*) n FROM social_ai_usage WHERE company_id=?').bind(company).first('n')).toBe(1);await retryAgentReply(db,owner,legacy[0].id,key());expect(await drainSocialAgent(db,replyEnv,p.id,provider)).toBe(true);expect(provider).toHaveBeenCalledTimes(2);expect(await db.prepare('SELECT state,attempt FROM social_agent_replies WHERE id=?').bind(legacy[0].id).first()).toEqual({state:'completed',attempt:1});expect(await db.prepare('SELECT count(*) n FROM social_ai_usage WHERE company_id=?').bind(company).first('n')).toBe(2);
 });
 it('purchasedSocialAI preserves actual Projects-only foundation without Work or People grants and repeats queued native source after deferred claim effects',async()=>{
- const {saveProject,projectSchema}=await import('@erpx/server-projects/public/staff-projects');await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await saveProject(db,owner,null,projectSchema.parse({title:'Actual Project AI source',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'@ERPX assistant Help #ทีมงาน',mentions:[assistantMention],audience:{kind:'company'},sources:[{kind:'staff_project',id:project.id}],purpose:'handover',expectedVersion:1},key()),p=await publishPost(db,owner,draft.id,draft.version,key());
+ const {projectSchema}=await import('@erpx/server-projects/public/staff-projects');await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await seedProjectFor(db,owner,null,projectSchema.parse({title:'Actual Project AI source',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'@ERPX assistant Help #ทีมงาน',mentions:[assistantMention],audience:{kind:'company'},sources:[{kind:'staff_project',id:project.id}],purpose:'handover',expectedVersion:1},key()),p=await publishPost(db,owner,draft.id,draft.version,key());
  const direct=await createAiDraft(db,worker,p.id,{kind:'summary',commentIds:[]},{},async()=>purchasedAiOutput(p.id),key());expect(direct.result.summary).toBe('Actual current source summary');const original=(await db.prepare('SELECT id FROM social_agent_replies WHERE post_id=?').bind(p.id).first<{id:string}>())!,fn=`social_ai_claim_${key().replaceAll('-','')}`,provider=vi.fn(async()=>({result:{body:'Only original current Project source'},inputTokens:1,outputTokens:1}));
  await db.exec(`CREATE SEQUENCE ${fn}_fired;CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fn}_fired');UPDATE staff_projects SET title='Unreviewed deferred Project source' WHERE id='${project.id}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER UPDATE ON social_agent_replies DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.id='${original.id}' AND NEW.state='running' AND OLD.state='pending') EXECUTE FUNCTION ${fn}()`);
  try{await expect(drainSocialAgent(db,replyEnv,p.id,provider)).rejects.toMatchObject({code:'WORK_SOCIAL_SOURCE_CHANGED'});expect(provider).not.toHaveBeenCalled();expect(await db.prepare('SELECT state,attempt FROM social_agent_replies WHERE id=?').bind(original.id).first()).toEqual({state:'pending',attempt:0});expect(await db.prepare('SELECT title FROM staff_projects WHERE id=?').bind(project.id).first('title')).toBe('Actual Project AI source');expect(await db.prepare(`SELECT is_called FROM ${fn}_fired`).first('is_called')).toBe(true);}
@@ -1591,7 +1555,7 @@ it('purchasedSocialPresentation emits minimal current active draining and retain
  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(worker.assignmentId).run();await expect(postView(db,worker,p.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect((await socialPresentation(db,worker)).purchase).toMatchObject({newWork:false,settleExisting:false,history:false});
 });
 it('purchasedSocialPresentation preserves current Projects-only included post controls without granting ordinary Work task creation or full People',async()=>{
- const {saveProject,projectSchema}=await import('@erpx/server-projects/public/staff-projects');await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await saveProject(db,owner,null,projectSchema.parse({title:'Actual included presentation source',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'Actual included Project update',audience:{kind:'company'},sources:[{kind:'staff_project',id:project.id}],purpose:'handover',expectedVersion:1},key()),p=await publishPost(db,owner,draft.id,draft.version,key()),view=await postView(db,worker,p.id);
+ const {projectSchema}=await import('@erpx/server-projects/public/staff-projects');await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await seedProjectFor(db,owner,null,projectSchema.parse({title:'Actual included presentation source',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'Actual included Project update',audience:{kind:'company'},sources:[{kind:'staff_project',id:project.id}],purpose:'handover',expectedVersion:1},key()),p=await publishPost(db,owner,draft.id,draft.version,key()),view=await postView(db,worker,p.id);
  expect(view.purchase).toMatchObject({newWork:true,settleExisting:true,history:true,createTask:false});expect(view.body).toBe('Actual included Project update');expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=?').bind(company).all()).results).toEqual([{package_id:'projects'}]);await socialPackage('projects','draining');expect((await postView(db,worker,p.id)).purchase).toMatchObject({newWork:false,settleExisting:true,history:true,createTask:false});
 });
 it('purchasedSocialPresentation keeps disabled compatibility and source-only no-purchase discovery closed without leaking private authority',async()=>{
@@ -1632,7 +1596,7 @@ it('purchasedSocialBytes buffers lazily and rolls back allowed audits with actua
  expect(await (await attachmentContent(db,env.H001_FILES,worker,document.linkId,'original')).object.text()).toBe('DOCUMENT');
 });
 it('purchasedSocialBytes preserves Projects-only real source authority and refuses both late source membership changes and arbitrary supplied snapshots',async()=>{
- const {attachmentContent}=await import('@erpx/server-files/public/attachments/service'),{saveProject,projectSchema}=await import('@erpx/server-projects/public/staff-projects');await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await saveProject(db,owner,null,projectSchema.parse({title:'Original private included Project',memberUserIds:[worker.userId]}),key()),f=await privateSocialFile(owner,true,[{kind:'staff_project',id:project.id}]),document=f.document!,fn=`social_byte_project_${key().replaceAll('-','')}`;
+ const {attachmentContent}=await import('@erpx/server-files/public/attachments/service'),{projectSchema}=await import('@erpx/server-projects/public/staff-projects');await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const project=await seedProjectFor(db,owner,null,projectSchema.parse({title:'Original private included Project',memberUserIds:[worker.userId]}),key()),f=await privateSocialFile(owner,true,[{kind:'staff_project',id:project.id}]),document=f.document!,fn=`social_byte_project_${key().replaceAll('-','')}`;
  expect(await (await attachmentContent(db,env.H001_FILES,worker,document.linkId,'original')).object.text()).toBe('DOCUMENT');await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return attachmentContent(tx,env.H001_FILES,worker,document.linkId,'original');})).rejects.toMatchObject({code:'SOCIAL_FILE_READ_TRANSACTION_REQUIRED'});
  await db.exec(`CREATE SEQUENCE ${fn}_fired;CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fn}_fired');DELETE FROM staff_project_members WHERE project_id='${project.id}' AND user_id='${worker.userId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${document.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${fn}()`);
  try{await expect(attachmentContent(db,env.H001_FILES,worker,document.linkId,'original')).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect(await db.prepare(`SELECT is_called FROM ${fn}_fired`).first('is_called')).toBe(true);}finally{await db.exec(`DROP TRIGGER ${fn} ON attachment_access_events;DROP FUNCTION ${fn}();DROP SEQUENCE ${fn}_fired`);}
@@ -1644,16 +1608,6 @@ it('purchasedSocialBytes finishes two Companies original source-writing access a
  try{const observed=await measureReads(()=>Promise.all([attachmentContent(db,env.H001_FILES,owner,first.image.linkId,'original'),attachmentContent(db,env.H001_FILES,other.owner,second.image.linkId,'original')]));expect(await Promise.all(observed.result.map(value=>value.object.text()))).toEqual([first.bytes,second.bytes]);expect(observed.metrics.deadlockFailures??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${fn} ON attachment_access_events;DROP FUNCTION ${fn}()`);}
  expect(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id IN (?,?) AND outcome='allowed'").bind(first.image.linkId,second.image.linkId).first('n')).toBe(2);
 });
-it('purchasedSocialBytes waits for a normal committed Project membership writer before its fresh source snapshot instead of returning stale included private bytes',async()=>{
- const {attachmentContent}=await import('@erpx/server-files/public/attachments/service'),{saveProject,projectSchema}=await import('@erpx/server-projects/public/staff-projects');await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');const project=await saveProject(db,owner,null,projectSchema.parse({title:'Actual committed private source writer',memberUserIds:[worker.userId]}),key()),f=await privateSocialFile(owner,true,[{kind:'staff_project',id:project.id}]),document=f.document!,command=key(),fn=`social_byte_writer_${key().replaceAll('-','')}`;
- await db.exec(`CREATE SEQUENCE ${fn}_fired;CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fn}_fired');PERFORM pg_sleep(0.7);RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fn}()`);
- let writer:Promise<{id:string;version:number}>|undefined,reads=0;
- try{writer=saveProject(db,owner,project.id,projectSchema.parse({title:'Actual committed private source writer',memberUserIds:[],expectedVersion:1}),command);const deadline=Date.now()+5000;while(!await db.prepare(`SELECT is_called FROM ${fn}_fired`).first<boolean>('is_called')){if(Date.now()>deadline)throw Error('Actual native Project writer did not reach its durable deferred receipt');await new Promise(resolve=>setTimeout(resolve,5));}
- await expect(attachmentContent(db,socialByteStore(()=>{reads++;}),worker,document.linkId,'original')).rejects.toMatchObject({status:404,code:'POST_NOT_FOUND'});expect((await writer).version).toBe(2);expect(reads).toBe(0);expect(await db.prepare('SELECT count(*) n FROM staff_project_members WHERE project_id=? AND user_id=?').bind(project.id,worker.userId).first('n')).toBe(0);
- }finally{await writer?.catch(()=>{});await db.exec(`DROP TRIGGER ${fn} ON command_receipts;DROP FUNCTION ${fn}();DROP SEQUENCE ${fn}_fired`);}
- await saveProject(db,owner,project.id,projectSchema.parse({title:'Actual committed private source writer',memberUserIds:[worker.userId],expectedVersion:2}),key());expect(await (await attachmentContent(db,env.H001_FILES,worker,document.linkId,'original')).object.text()).toBe('DOCUMENT');expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=?').bind(company).all()).results).toEqual([{package_id:'projects'}]);
-});
-
 it('purchasedSocialBytes preserves only original quarantined and unavailable-storage denial events with exact policy source and no byte delivery',async()=>{
  const {attachmentContent}=await import('@erpx/server-files/public/attachments/service'),{seedAttachmentSet}=await import('../../support/helpers/attachment-v2'),f=await privateSocialFile(),postVersion=(await db.prepare('SELECT version FROM social_posts WHERE id=?').bind(f.postId).first<number>('version'))!,quarantined=await seedAttachmentSet(db,owner,{targetType:'social_post',targetId:f.postId!,componentKind:'record',purposeKey:'thread_file',expectedTargetVersion:postVersion,sourceState:'quarantined'});let reads=0;
  await expect(attachmentContent(db,socialByteStore(()=>{reads++;}),owner,quarantined.linkId,'original')).rejects.toMatchObject({status:423,code:'ATTACHMENT_NOT_AVAILABLE'});expect(reads).toBe(0);expect(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='denied' AND reason='ATTACHMENT_NOT_AVAILABLE'").bind(quarantined.linkId).first('n')).toBe(1);
@@ -1664,22 +1618,22 @@ it('purchasedSocialBytes preserves only original quarantined and unavailable-sto
 });
 
 it('purchasedHandoverReceipt seeds actual Projects-only participants and confirms the rendered version without Work or full People while current source removal stays private',async()=>{
- const {saveProject,projectSchema}=await import('@erpx/server-projects/public/staff-projects'),{handoverAcknowledgements}=await import('@erpx/server-operations/public/handover-acknowledgement-read'),{handoverAcknowledgement,acknowledgeHandoverVersion}=await import('@erpx/server-operations/public/handover');await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
- const project=await saveProject(db,owner,null,projectSchema.parse({title:'Actual included rendered handover receipt',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'Read this actual Project handover before confirming',audience:{kind:'participants',userIds:[worker.userId]},sources:[{kind:'staff_project',id:project.id}],purpose:'handover',expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key()),initial=await handoverAcknowledgement(db,worker,published.id);
+ const {projectSchema}=await import('@erpx/server-projects/public/staff-projects'),{handoverAcknowledgements}=await import('@erpx/server-operations/public/handover-acknowledgement-read'),{handoverAcknowledgement,acknowledgeHandoverVersion}=await import('@erpx/server-operations/public/handover');await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
+ const project=await seedProjectFor(db,owner,null,projectSchema.parse({title:'Actual included rendered handover receipt',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'Read this actual Project handover before confirming',audience:{kind:'participants',userIds:[worker.userId]},sources:[{kind:'staff_project',id:project.id}],purpose:'handover',expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key()),initial=await handoverAcknowledgement(db,worker,published.id);
  expect(initial).toMatchObject({postVersion:1,recipientCount:1,acknowledgedCount:0,canAcknowledge:true,acknowledged:false});expect((await postView(db,worker,published.id)).handoverReceipt).toEqual(initial);expect(await handoverAcknowledgements(db,worker,[published.id])).toEqual([initial]);expect((await postView(db,owner,published.id)).handoverReceipt).toMatchObject({canAcknowledge:false});expect(await handoverAcknowledgements(db,reviewer,[published.id])).toEqual([]);
  const command=key();expect(await acknowledgeHandoverVersion(db,worker,published.id,command,1)).toMatchObject({postId:published.id,postVersion:1,acknowledged:true,acknowledgedCount:1});expect((await postView(db,worker,published.id)).handoverReceipt).toMatchObject({postVersion:1,acknowledged:true,acknowledgedCount:1});expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=?').bind(company).all()).results).toEqual([{package_id:'projects'}]);expect(worker.modules).toEqual([]);
- await saveProject(db,owner,project.id,projectSchema.parse({title:'Actual included rendered handover receipt',memberUserIds:[],expectedVersion:1}),key());expect(await handoverAcknowledgements(db,worker,[published.id])).toEqual([]);await expect(acknowledgeHandoverVersion(db,worker,published.id,command,1)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect(await db.prepare('SELECT count(*) n FROM social_handover_acknowledgements WHERE post_id=?').bind(published.id).first('n')).toBe(1);
+ await seedProjectFor(db,owner,project.id,projectSchema.parse({title:'Actual included rendered handover receipt',memberUserIds:[],expectedVersion:1}),key());expect(await handoverAcknowledgements(db,worker,[published.id])).toEqual([]);await expect(acknowledgeHandoverVersion(db,worker,published.id,command,1)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect(await db.prepare('SELECT count(*) n FROM social_handover_acknowledgements WHERE post_id=?').bind(published.id).first('n')).toBe(1);
 });
 it('includedProductPost preserves strict Projects entry with all modes disabled and native Project-only new-work settlement and source privacy when only Projects enforcement is enabled',async()=>{
- const {saveProject,projectSchema}=await import('@erpx/server-projects/public/staff-projects'),{socialPostProductSourceEntry}=await import('@erpx/server-collaboration/public/product-entry'),project=await saveProject(db,owner,null,projectSchema.parse({title:'Actual Project product post source',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'Actual Project-only ordinary update',audience:{kind:'company'},sources:[{kind:'staff_project',id:project.id}],expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key()),scope={companyId:worker.companyId,branchId:worker.branchId,departmentId:worker.departmentId,userId:worker.userId,assignmentId:worker.assignmentId,assignmentVersion:1,role:worker.role};
+ const {projectSchema}=await import('@erpx/server-projects/public/staff-projects'),{socialPostProductSourceEntry}=await import('@erpx/server-collaboration/public/product-entry'),project=await seedProjectFor(db,owner,null,projectSchema.parse({title:'Actual Project product post source',memberUserIds:[worker.userId]}),key()),draft=await savePostDraft(db,owner,null,{body:'Actual Project-only ordinary update',audience:{kind:'company'},sources:[{kind:'staff_project',id:project.id}],expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key()),scope={companyId:worker.companyId,branchId:worker.branchId,departmentId:worker.departmentId,userId:worker.userId,assignmentId:worker.assignmentId,assignmentVersion:1,role:worker.role};
  expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:published.id})).toBeNull();await socialPackage('projects');expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:published.id})).toEqual({purchasePurpose:'history'});vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');expect((await postView(db,worker,published.id)).purchase).toMatchObject({newWork:true,settleExisting:true,history:true});await socialPackage('projects','draining');expect((await postView(db,worker,published.id)).purchase).toMatchObject({newWork:false,settleExisting:true,history:true});await expect(postAction(db,owner,published.id,{action:'edit',expectedVersion:1,body:'A new unlicensed Project amendment'},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});await postAction(db,worker,published.id,{action:'comment',body:'Actual Project settlement without full Work'},key());await db.prepare('DELETE FROM staff_project_members WHERE project_id=? AND user_id=?').bind(project.id,worker.userId).run();expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:published.id})).toBeNull();await expect(postView(db,worker,published.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=?').bind(company).all()).results).toEqual([{package_id:'projects'}]);expect(worker.modules).toEqual([]);
 });
 
 
 it('projectAudienceOptions hides actual unpurchased Projects from the normal Work Social composer', async () => {
-  const { saveProject, getProject, projectSchema } = await import('@erpx/server-projects/public/staff-projects');
+  const { getProject, projectSchema } = await import('@erpx/server-projects/public/staff-projects');
   const { socialAudienceOptions } = await import('@erpx/server-collaboration/public/social-home');
-  const project = await saveProject(db, owner, null, projectSchema.parse({ title: 'Private Project audience requires its actual owner history', memberUserIds: [worker.userId] }), key());
+  const project = await seedProjectFor(db, owner, null, projectSchema.parse({ title: 'Private Project audience requires its actual owner history', memberUserIds: [worker.userId] }), key());
   const legacyDraft = await savePostDraft(db, worker, null, { body: 'Original Project audience before the owner purchase boundary', audience: { kind: 'project', id: project.id }, expectedVersion: 1 }, key());
   const legacyPost = await publishPost(db, worker, legacyDraft.id, legacyDraft.version, key());
   await socialPackage('work');
@@ -1697,8 +1651,8 @@ it('projectAudienceOptions hides actual unpurchased Projects from the normal Wor
 });
 
 it('projectAudienceOptions also refuses an actual Project audience draft command when the owner purchase is absent', async () => {
-  const { saveProject, projectSchema } = await import('@erpx/server-projects/public/staff-projects');
-  const project = await saveProject(db, owner, null, projectSchema.parse({ title: 'Actual Project audience command source', memberUserIds: [worker.userId] }), key());
+  const { projectSchema } = await import('@erpx/server-projects/public/staff-projects');
+  const project = await seedProjectFor(db, owner, null, projectSchema.parse({ title: 'Actual Project audience command source', memberUserIds: [worker.userId] }), key());
   const legacyDraft = await savePostDraft(db, worker, null, { body: 'An existing draft retains its actual audience identity', audience: { kind: 'project', id: project.id }, expectedVersion: 1 }, key());
   await socialPackage('work');
   await socialPackage();
@@ -1711,14 +1665,14 @@ it('projectAudienceOptions also refuses an actual Project audience draft command
 });
 
 it('projectAudienceOptions preserves Projects-only membership and expired purchased history without full People or Work', async () => {
-  const { saveProject, projectSchema } = await import('@erpx/server-projects/public/staff-projects');
+  const { projectSchema } = await import('@erpx/server-projects/public/staff-projects');
   const { socialAudienceOptions } = await import('@erpx/server-collaboration/public/social-home');
   const { readCompanyPackageGrants } = await import('@erpx/server-commercial/public/package-grants');
   await socialPackage('projects');
   vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT', 'enforced');
   vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT', 'enforced');
   vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT', 'enforced');
-  const project = await saveProject(db, owner, null, projectSchema.parse({ title: 'Actual included Project audience', memberUserIds: [worker.userId] }), key());
+  const project = await seedProjectFor(db, owner, null, projectSchema.parse({ title: 'Actual included Project audience', memberUserIds: [worker.userId] }), key());
   const expected = [{ id: project.id, title: 'Actual included Project audience' }];
   expect((await socialAudienceOptions(db, worker)).projects).toEqual(expected);
   expect((await socialAudienceOptions(db, reviewer)).projects).toEqual([]);
@@ -1734,15 +1688,15 @@ it('projectAudienceOptions preserves Projects-only membership and expired purcha
   await postAction(db, worker, published.id, { action: 'comment', body: 'Current member settles the retained Project conversation' }, key());
   expect((await readCompanyPackageGrants(db, company)).map(row => row.packageId)).toEqual(['projects']);
   await socialPackage('projects');
-  await saveProject(db, owner, project.id, projectSchema.parse({ title: 'Actual included Project audience', memberUserIds: [], expectedVersion: 1 }), key());
+  await seedProjectFor(db, owner, project.id, projectSchema.parse({ title: 'Actual included Project audience', memberUserIds: [], expectedVersion: 1 }), key());
   expect((await socialAudienceOptions(db, worker)).projects).toEqual([]);
   await expect(postView(db, worker, published.id)).rejects.toMatchObject({ code: 'POST_NOT_FOUND' });
 });
 
 it('projectAudienceOptions retains legacy Beta scope and refreshes current role and release before cached choices', async () => {
-  const { saveProject, projectSchema } = await import('@erpx/server-projects/public/staff-projects');
+  const { projectSchema } = await import('@erpx/server-projects/public/staff-projects');
   const { socialAudienceOptions } = await import('@erpx/server-collaboration/public/social-home');
-  const project = await saveProject(db, owner, null, projectSchema.parse({ title: 'Original Beta Project membership audience', memberUserIds: [worker.userId] }), key());
+  const project = await seedProjectFor(db, owner, null, projectSchema.parse({ title: 'Original Beta Project membership audience', memberUserIds: [worker.userId] }), key());
   const expected = [{ id: project.id, title: 'Original Beta Project membership audience' }];
   for (const mode of ['disabled', 'shadow'] as const) {
     vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT', mode);
@@ -1765,12 +1719,12 @@ it('projectAudienceOptions retains legacy Beta scope and refreshes current role 
 });
 
 it('projectAudienceOptions rolls back a real Project audience source change after the native Social receipt', async () => {
-  const { saveProject, projectSchema } = await import('@erpx/server-projects/public/staff-projects');
+  const { projectSchema } = await import('@erpx/server-projects/public/staff-projects');
   await socialPackage('projects');
   vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT', 'enforced');
   vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT', 'enforced');
   vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT', 'enforced');
-  const project = await saveProject(db, owner, null, projectSchema.parse({ title: 'Original reviewed Project audience source', memberUserIds: [worker.userId] }), key());
+  const project = await seedProjectFor(db, owner, null, projectSchema.parse({ title: 'Original reviewed Project audience source', memberUserIds: [worker.userId] }), key());
   const command = key(), draftId = `post-draft-${command}`, fault = `project_audience_${key().replaceAll('-', '')}`;
   const before = await db.prepare('SELECT title,version FROM staff_projects WHERE id=?').bind(project.id).first();
   await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${command}' THEN PERFORM nextval('${fault}');UPDATE staff_projects SET title='Deferred unreviewed Project audience',version=version+1 WHERE id='${project.id}';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ${fault}()`);
@@ -1804,11 +1758,11 @@ async function projectCleanupFixture(mode:'disabled'|'enforced'){
  const native=await import('@erpx/server-projects/public/staff-projects');
  await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT',mode);vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_ATTACHMENTS_V2','true');vi.stubEnv('ERPX_ATTACHMENT_UPLOAD_FREEZE','false');
  await freshIam(worker);await freshIam(reviewer);
- const project=await native.saveProject(db,owner,null,native.projectSchema.parse({title:'Actual author-owned pending Project uploads',memberUserIds:[worker.userId]}),key());
+ const project=await seedProjectFor(db,owner,null,native.projectSchema.parse({title:'Actual author-owned pending Project uploads',memberUserIds:[worker.userId]}),key());
  const draft=await savePostDraft(db,worker,null,{body:'Private Project source must remain inaccessible after membership ends',audience:{kind:'project',id:project.id},sources:[{kind:'staff_project',id:project.id}],expectedVersion:1},key()),published=await publishPost(db,worker,draft.id,draft.version,key());
  const comment=await createCommentUploadDraft(db,worker,published.id,key()),edit=await createPostEditUploadDraft(db,worker,published.id,1,key());
  const commentFile=await projectCleanupImage(worker,comment.id,1),editFile=await projectCleanupImage(worker,edit.id,edit.version,false);
- return {project,published,comment,edit,commentFile,editFile,removeMember:()=>native.saveProject(db,owner,project.id,native.projectSchema.parse({title:'Actual author-owned pending Project uploads',memberUserIds:[],expectedVersion:1}),key())};
+ return {project,published,comment,edit,commentFile,editFile,removeMember:()=>seedProjectFor(db,owner,project.id,native.projectSchema.parse({title:'Actual author-owned pending Project uploads',memberUserIds:[],expectedVersion:1}),key())};
 }
 async function projectCleanupState(ids:string[],command?:string){return db.prepare(`SELECT jsonb_build_object('drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_post_drafts d WHERE d.id IN(SELECT jsonb_array_elements_text(?::jsonb))),'files',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM attachments a WHERE a.owner_type='social_draft' AND a.owner_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'uploads',(SELECT jsonb_agg(to_jsonb(u) ORDER BY u.id) FROM upload_intents u WHERE u.owner_type='social_draft' AND u.owner_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'sets',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.id) FROM attachment_sets s WHERE s.target_type='social_draft' AND s.target_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'links',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE s.target_type='social_draft' AND s.target_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM attachment_events e JOIN attachment_sets s ON s.id=e.set_id WHERE s.target_type='social_draft' AND s.target_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'assignment',(SELECT to_jsonb(a) FROM assignments a WHERE a.id=?),'receipt',(SELECT to_jsonb(c) FROM command_receipts c WHERE c.command_id=?),'audit',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM audit_events a WHERE a.command_id=?),'outbox',(SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM outbox_events o WHERE o.command_id=?))::text image`).bind(JSON.stringify(ids),JSON.stringify(ids),JSON.stringify(ids),JSON.stringify(ids),JSON.stringify(ids),JSON.stringify(ids),worker.assignmentId,command??'',command??'',command??'').first<string>('image');}
 for(const mode of ['disabled','enforced'] as const)it(`projectUploadCleanup preserves actual pending author File closure after member loss with Work ${mode}`,async()=>{

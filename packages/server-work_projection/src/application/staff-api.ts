@@ -11,10 +11,10 @@ import type {listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSche
 import type {canEditTemplate,changeScheduleState,endSchedule,getTemplate,listTemplates,runTemplate,saveSchedule,saveTemplate,scheduleSchema,templateSchema,ScheduleRow} from "@erpx/server-operations/public/routines";
 import type {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import type {changeAppointment} from '@erpx/server-organization/public/department-authority';
-import type {getProject,listProjects,projectSchema,saveProject} from "@erpx/server-projects/public/staff-projects";
+import type {getProject,listProjects,projectSchema} from "@erpx/server-projects/public/staff-projects";
 import type {StaffResource,StaffRequestContext} from "@erpx/server-work_projection/domain/staff-api";
 type WithoutDatabase<F> = F extends (...args:infer A)=>infer R ? A extends [unknown,...infer Tail] ? (...args:Tail)=>R:never:never;
-export type ProjectCommandPort = {request:Request;holdingSlug:string;operation:"work-log.save" | "work-log.review" | "milestone.save" | "milestone.transition";projectId:string;recordId?:string;input:unknown;key:string;branchSlug?:string;departmentSlug?:string};
+export type ProjectCommandPort = {request:Request;holdingSlug:string;operation:"work-log.save" | "work-log.review" | "milestone.save" | "milestone.transition" | "project.save";projectId?:string;recordId?:string;input:unknown;key:string;branchSlug?:string;departmentSlug?:string};
 export type StaffApiPorts={requireWorkContext:typeof requireWorkContext;prepare(actor:WorkContext):Promise<void>;now():number;error(status:number,code:string,message:string):Error;requestPublicOrigin:typeof requestPublicOrigin;markNotificationRead(actor:WorkContext,id:string,key:string,now:number):Promise<unknown>;
 listStaffNotifications:WithoutDatabase<typeof listStaffNotifications>;
 staffPeople:WithoutDatabase<typeof staffPeople>;
@@ -26,7 +26,6 @@ staffSettings:WithoutDatabase<typeof staffSettings>;
 getProject:WithoutDatabase<typeof getProject>;
 listProjects:WithoutDatabase<typeof listProjects>;
 listTasks:WithoutDatabase<typeof listTasks>;
-saveProject:WithoutDatabase<typeof saveProject>;
 taskDetail:WithoutDatabase<typeof taskDetail>;
 listProjectMilestones:WithoutDatabase<typeof listProjectMilestones>;
 listProjectWorkLogs:WithoutDatabase<typeof listProjectWorkLogs>;
@@ -205,13 +204,18 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
             input: ports.projectMilestoneSchema(input),
             key,
           });
-        else if (resource === "projects" && p.length < 2)
-          data = await ports.saveProject(
-            actor,
-            p[0] ?? null,
-            ports.projectSchema(input),
+        else if (resource === "projects" && p.length < 2) {
+          const command = ports.projectSchema(input);
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "project.save",
+            projectId: p[0],
+            input: command,
             key,
-          );
+          });
+        }
         else if (resource === "routine-templates" && p[1] === "run") {
           const body = z
             .object({ dueAt: z.iso.datetime({ offset: true }) })

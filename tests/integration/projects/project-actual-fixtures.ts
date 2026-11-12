@@ -7,6 +7,107 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
  * coverage without a TypeScript writer.
  */
 
+export type ProjectSeed = Readonly<{
+  id: string;
+  companyId: string;
+  title: string;
+  description?: string;
+  ownerUserId: string;
+  branchId?: string | null;
+  departmentId?: string | null;
+  lifecycleStatus?: 'active' | 'handoff_pending' | 'completed' | 'cancelled';
+  version?: number;
+  memberUserIds?: readonly string[];
+  now?: number;
+}>;
+
+/** Stage one already-settled Project row plus its membership. */
+export async function seedProject(db: SqlDatabase, seed: ProjectSeed) {
+  const now = seed.now ?? Date.now();
+  const version = seed.version ?? 1;
+  const statements = [
+    db
+      .prepare(
+        `INSERT INTO staff_projects
+          (id,company_id,branch_id,department_id,title,description,owner_user_id,lifecycle_status,version,created_at,updated_at)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .bind(
+        seed.id,
+        seed.companyId,
+        seed.branchId ?? null,
+        seed.departmentId ?? null,
+        seed.title,
+        seed.description ?? '',
+        seed.ownerUserId,
+        seed.lifecycleStatus ?? 'active',
+        version,
+        now,
+        now,
+      ),
+  ];
+  for (const member of [...new Set(seed.memberUserIds ?? [])])
+    statements.push(
+      db
+        .prepare(
+          'INSERT INTO staff_project_members(project_id,user_id,added_by,created_at) VALUES(?,?,?,?)',
+        )
+        .bind(seed.id, member, seed.ownerUserId, now),
+    );
+  await db.batch(statements);
+  return { id: seed.id, version };
+}
+
+export type ProjectSeedInput = Readonly<{
+  title: string;
+  description?: string;
+  memberUserIds?: readonly string[];
+  expectedVersion?: number;
+}>;
+
+/**
+ * Retained test seeding entry. Project create/edit is native-owned; TS suites
+ * stage the already-settled row instead of running a TypeScript writer.
+ */
+export async function seedProjectFor(
+  db: SqlDatabase,
+  actor: { userId: string; companyId: string; branchId?: string | null; departmentId?: string | null },
+  id: string | null,
+  input: ProjectSeedInput,
+  key = `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+) {
+  const now = Date.now();
+  if (id === null)
+    return seedProject(db, {
+      id: `project-${key}`,
+      companyId: actor.companyId,
+      branchId: actor.branchId ?? null,
+      departmentId: actor.departmentId ?? null,
+      title: input.title,
+      description: input.description ?? '',
+      ownerUserId: actor.userId,
+      memberUserIds: input.memberUserIds ?? [],
+    });
+  const version = (input.expectedVersion ?? 1) + 1;
+  const statements = [
+    db
+      .prepare(
+        `UPDATE staff_projects SET title=?,description=?,version=?,updated_at=?
+         WHERE id=? AND company_id=?`,
+      )
+      .bind(input.title, input.description ?? '', version, now, id, actor.companyId),
+    db.prepare('DELETE FROM staff_project_members WHERE project_id=?').bind(id),
+  ];
+  for (const member of [...new Set(input.memberUserIds ?? [])])
+    statements.push(
+      db
+        .prepare('INSERT INTO staff_project_members(project_id,user_id,added_by,created_at) VALUES(?,?,?,?)')
+        .bind(id, member, actor.userId, now),
+    );
+  await db.batch(statements);
+  return { id, version };
+}
+
 export type MilestoneSeed = Readonly<{
   id: string;
   companyId: string;

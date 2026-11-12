@@ -1,7 +1,7 @@
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from '../../support/runtime-env';
 import {expenseDb as db,expenseFixture,key} from '../../support/helpers/expense-fixture';
-import {saveProject,projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import {saveTemplate,templateSchema,runTemplate} from '@erpx/server-operations/public/routines';
 import {recordsPage,getRecord,searchReferences} from '@erpx/server-records/public/records';
@@ -11,6 +11,7 @@ import {packageGrantStore,readCompanyPackageGrants} from '@erpx/server-commercia
 import {readExecutiveMetricProjection} from '@erpx/server-operations/public/executive-metric-projections';
 import {metricCatalogFor,queryMetric} from '@erpx/server-runtime/public/executive/metrics';
 import {searchExecutiveEvidence,readExecutiveEvidence} from '@erpx/server-runtime/public/executive/evidence';
+import {seedProjectFor} from '../projects/project-actual-fixtures';
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);});
@@ -44,7 +45,7 @@ it('keeps actual routine addon identity out of generic records until purchased a
  expect((await recordsPage(f.head,'operations','exceptions',{})).items).toEqual([]);await expect(getRecord(f.head,'operations',id)).rejects.toMatchObject({status:404});await purchase('work-routines');await purchase('work-routines','draining');await purchase('work','draining');expect((await recordsPage(f.head,'operations','exceptions',{})).items.map(row=>row.id)).toEqual([id]);expect((await getRecord(f.head,'operations',id)).id).toBe(id);
 });
 it('keeps Projects-only Task metric and evidence foundations without Work or People and rechecks captured drilldown after original IAM revocation',async()=>{
- const project=await saveProject(db,f.claimant,null,projectSchema.parse({title:'Original Projects-only metric foundation',memberUserIds:[f.head.userId]}),key()),id=await task(f.head,String(project.id));await record(id);await purchase('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');
+ const project=await seedProjectFor(db,f.claimant,null,projectSchema.parse({title:'Original Projects-only metric foundation',memberUserIds:[f.head.userId]}),key()),id=await task(f.head,String(project.id));await record(id);await purchase('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');
  const day=Date.now()-60000;await db.prepare('UPDATE staff_tasks SET due_at=? WHERE id=?').bind(day,id).run();
  expect((await recordsPage(f.head,'operations','exceptions',{})).items.map(row=>row.id)).toEqual([id]);expect((await metricCatalogFor(db,f.head)).find(row=>row.id==='my-tasks')?.available).toBe(true);const projection=await readExecutiveMetricProjection(db,f.head,'my-tasks',filters(),'default');expect(projection.raw).toEqual([{label:'ready',value:'1'}]);expect((await projection.source({label:'ready',page:1},'1')).rows.map(row=>row.id)).toEqual([id]);expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['projects']);
  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.head.assignmentId).run();expect((await metricCatalogFor(db,f.head)).find(row=>row.id==='my-tasks')?.available).toBe(false);await expect(projection.source({label:'ready',page:1},'1')).rejects.toMatchObject({code:'METRIC_SOURCE_UNAVAILABLE'});
@@ -63,7 +64,7 @@ it('rechecks a captured Work task item and removes unavailable draft actions whi
  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.claimant.assignmentId).run();expect((await enrichFlowWork(f.claimant,stale)).filter(row=>row.id===id)).toEqual([]);
 });
 it('counts only actual licensed ordinary or Project routine templates and retains original unpublished visibility',async()=>{
- const project=await saveProject(db,f.claimant,null,projectSchema.parse({title:'Original Project routine metric',memberUserIds:[f.head.userId]}),key());
+ const project=await seedProjectFor(db,f.claimant,null,projectSchema.parse({title:'Original Project routine metric',memberUserIds:[f.head.userId]}),key());
  const base={assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[f.manager.userId]};
  await saveTemplate(db,f.claimant,null,templateSchema.parse({...base,title:'Original ordinary published routine'}),key());await saveTemplate(db,f.tie,null,templateSchema.parse({...base,title:'Original private unpublished routine',published:false}),key());await saveTemplate(db,f.claimant,null,templateSchema.parse({...base,title:'Original Project published routine',projectId:String(project.id)}),key());
  await purchase('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');
@@ -78,10 +79,10 @@ it('intersects the actual release decision with purchased ordinary Task records 
 it('reuses the current included Social owner policy for actual Project-derived ordinary Task projections without a Social purchase',async()=>{
  const {savePostDraft,publishPost}=await import('@erpx/server-collaboration/public/social-home'),{sourceSnapshot}=await import('@erpx/server-collaboration/public/social-source');
  await purchase();await purchase('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');
- const project=await saveProject(db,f.owner,null,projectSchema.parse({title:'Original native conversation Project',memberUserIds:[f.head.userId]}),key()),draft=await savePostDraft(db,f.owner,null,{body:'Actual native Project conversation source',audience:{kind:'company'},sources:[{kind:'staff_project',id:String(project.id)}],purpose:'update',expectedVersion:1},key()),post=await publishPost(db,f.owner,draft.id,draft.version,key()),snapshot=await sourceSnapshot(db,f.owner,post.id,[]),created=await saveTask(db,f.owner,null,taskSchema.parse({title:'Actual ordinary source-derived Task',assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[]}),key(),false,{postId:post.id,sourceVersion:snapshot.post.version,sourceHash:snapshot.hash,commentIds:[],aiDraftId:null}),id=String(created.id);await record(id,0,f.head);await db.prepare('UPDATE staff_tasks SET due_at=? WHERE id=?').bind(Date.now()-60000,id).run();
+ const project=await seedProjectFor(db,f.owner,null,projectSchema.parse({title:'Original native conversation Project',memberUserIds:[f.head.userId]}),key()),draft=await savePostDraft(db,f.owner,null,{body:'Actual native Project conversation source',audience:{kind:'company'},sources:[{kind:'staff_project',id:String(project.id)}],purpose:'update',expectedVersion:1},key()),post=await publishPost(db,f.owner,draft.id,draft.version,key()),snapshot=await sourceSnapshot(db,f.owner,post.id,[]),created=await saveTask(db,f.owner,null,taskSchema.parse({title:'Actual ordinary source-derived Task',assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[]}),key(),false,{postId:post.id,sourceVersion:snapshot.post.version,sourceHash:snapshot.hash,commentIds:[],aiDraftId:null}),id=String(created.id);await record(id,0,f.head);await db.prepare('UPDATE staff_tasks SET due_at=? WHERE id=?').bind(Date.now()-60000,id).run();
  await publishInboxEvent(db,{key:key(),companyId:f.company,sourceType:'task',sourceId:id,sourceVersion:1,category:'work',preview:'Actual included conversation Task',recipientIds:[f.head.userId]});
  expect((await recordsPage(f.head,'operations','exceptions',{})).items.map(row=>row.id)).toEqual([id]);expect((await listStaffNotifications(db,f.head)).some(row=>row.record_id===id)).toBe(true);expect((await inboxPage(db,f.head,{view:'all'})).items.some(row=>row.sourceId===id)).toBe(true);const projection=await readExecutiveMetricProjection(db,f.head,'open-operations-exceptions',filters(),'default');expect(projection.raw).toEqual([{label:'Overdue operational tasks',value:'1'}]);
- await saveProject(db,f.owner,String(project.id),projectSchema.parse({title:'Original native conversation Project',memberUserIds:[],expectedVersion:1}),key());
+ await seedProjectFor(db,f.owner,String(project.id),projectSchema.parse({title:'Original native conversation Project',memberUserIds:[],expectedVersion:1}),key());
  expect((await recordsPage(f.head,'operations','exceptions',{})).items).toEqual([]);await expect(getRecord(f.head,'operations',id)).rejects.toMatchObject({status:404});expect((await listStaffNotifications(db,f.head)).some(row=>row.record_id===id)).toBe(false);expect((await inboxPage(db,f.head,{view:'all'})).items.some(row=>row.sourceId===id)).toBe(false);expect((await projection.source({label:'Overdue operational tasks',page:1},'1')).rows).toEqual([]);expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId).sort()).toEqual(['projects','work']);
 });
 

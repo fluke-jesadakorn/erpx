@@ -11,7 +11,8 @@ import {moduleRegistry} from "@erpx/catalogue/module-registry";
 import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
-import {saveProject,projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {seedProjectFor} from '../../../tests/integration/projects/project-actual-fixtures';
 import {createAgent,createAgentVersion,createAgentAssignment,changeAgentRecord} from "@erpx/server-agent/public/agent-governance";
 import {prepareGuidedIntake} from "@erpx/server-operations/public/guided-intake";
 import {guidedIntakeInputSchema} from "@erpx/feature-shared/lib/ai/guided-intake";
@@ -64,7 +65,7 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
  const proposalSource=await saveTask(input.h001,operator,null,taskSchema.parse({title:'Fictional reviewed-proposal source',description:'Explicit no-network provider fixture; human reviews all fields before creating work',assigneeUserId:operator.userId}),key());
  // Project membership gives each intended reviewer real access to the shared
  // showcase sources. The separate private proposal source stays unchanged.
- const showcaseProject=await saveProject(input.h001,author,null,projectSchema.parse({title:'Fictional delivery review project',description:'Declared engineering participants share native evidence for human delivery review',memberUserIds:[reviewer.userId,operator.userId]}),key());
+ const showcaseProject=await seedProjectFor(input.h001,author,null,projectSchema.parse({title:'Fictional delivery review project',description:'Declared engineering participants share native evidence for human delivery review',memberUserIds:[reviewer.userId,operator.userId]}),key());
  const task=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional shipment exception source',description:'Native task source; no real customer incident',projectId:String(showcaseProject.id),assigneeUserId:operator.userId,dueAt:'2026-10-20T00:00:00+07:00'}),key());
  const showcaseSource=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional shared delivery review source',description:'Native project evidence readable only by its owner, members and task participants',projectId:String(showcaseProject.id),assigneeUserId:operator.userId}),key());
  const showcaseTarget=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional shared delivery confirmation',description:'Second native task in the same participant-controlled project',projectId:String(showcaseProject.id),assigneeUserId:reviewer.userId}),key());
