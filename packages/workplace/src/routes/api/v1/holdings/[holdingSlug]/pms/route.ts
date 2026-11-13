@@ -1,7 +1,6 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { pmsCommand, pmsWorkspace } from "../../../../../../../../../packages/server-pms/src/public/pms";
 import { nativePmsAvailable, nativePmsFailure, nativePmsFrontDesk, nativePmsRoomBoard } from "../../../../../../lib/native-pms";
-import { nativePmsGuestAccountAvailable, nativePmsGuestAccountCommand, nativePmsGuestAccountOperations } from "@erpx/feature-pms/public/native-pms";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { holdingResources } from "../../../../../../../../../packages/server-runtime/src/public/runtime";
@@ -116,15 +115,7 @@ export async function POST(request: Request, { params }: Context) {
     const { write } = await holdingResources(actor.holdingId);
     if (!isTransactionalSqlDatabase(write))
       throw new Error("POSTGRES_REQUIRED");
-    const operation = body && typeof body === "object" && typeof (body as { operation?: unknown }).operation === "string" ? (body as { operation: string }).operation : "";
-    const data = nativePmsGuestAccountOperations.has(operation)
-      ? await (async () => {
-          if (!nativePmsGuestAccountAvailable())
-            throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel service is unavailable.");
-          return nativePmsGuestAccountCommand(request, actor, holdingSlug, body as Record<string, unknown>, key);
-        })()
-      : await measureReadPhase("pms_command", () => pmsCommand(write, actor, body, key));
-    return Response.json(canonicalDestinationLinks({ data }));
+    return Response.json(canonicalDestinationLinks({ data: await measureReadPhase("pms_command", () => pmsCommand(write, actor, body, key)) }));
   } catch (e) {
     return errorResponse(e);
   }
