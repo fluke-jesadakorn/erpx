@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1311,
+    "revision": 1317,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-12T23:52:03.192Z",
-      "expiresAt": "2026-11-13T00:22:03.194Z",
+      "heartbeatAt": "2026-11-13T00:01:54.969Z",
+      "expiresAt": "2026-11-13T00:31:54.969Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -20872,6 +20872,7 @@
           "packages/feature-admin/src/routes/api/v1/platform/billing/**",
           "src/composition/src/billing.rs",
           "src/composition/src/lib.rs",
+          "src/composition/src/private_development_api.rs",
           "tests/unit/billing/**",
           "tests/integration/billing/**",
           "tests/integration/commercial/**"
@@ -20879,8 +20880,15 @@
         "resources": [
           "owner:billing"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-billing-conformance",
+          "claimedAt": "2026-11-13T00:01:20.634Z",
+          "heartbeatAt": "2026-11-13T00:01:54.969Z",
+          "expiresAt": "2026-11-13T00:31:54.969Z",
+          "generation": 50
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -20967,8 +20975,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Native billing transport non-conformant: the owner returns a 15-key context without \"platform\" (src/composition/src/billing.rs context()), while createNativeBillingClient requires exactly 6 keys {userId,holdingId,platform,role,assignmentId,expiresAt}; expiresAt equality is unsatisfiable from WorkContext/PlatformContext; and the client binds the target Holding to the Host header, which the cross-Holding platform route cannot satisfy. The cost-review cutover was reverted at f0aa0dfcd.",
-        "nextAction": "Transport conformance first: return BillingActor::context(target) (6 camelCase keys incl. platform/expiresAt) from all billing router responses, settle the client expiresAt rule and platform cross-Holding target binding, add a captured-fixture TS/Rust conformance test, then redo the cost/delete/complete cutover and record the KPI pair.",
+        "blocker": null,
+        "nextAction": "Conformance first: (1) all billing router responses return BillingActor::context(target) with exactly the 6 camelCase keys {userId,holdingId,platform,role,assignmentId,expiresAt}; (2) client validator accepts exactly that shape, identity-matches, and settles expiresAt (actor equality when provided, otherwise a positive future value); (3) platform actors may target a configured holding by id on the platform route while non-platform keeps Host binding, with owner-side platform_admin still enforced; (4) add a captured-fixture Rust->TS conformance test; (5) then redo the authority-safe cost/delete/complete native cutover (KPI 82->77) and record checks.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -21512,8 +21520,8 @@
         "status": "blocked",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "9b304dfbb6aca3424a478b9b2495ed70c9760cee",
-        "lastPushedSha": "9b304dfbb6aca3424a478b9b2495ed70c9760cee",
+        "implementedCommit": "f464c04d93512773682deb09dfd4bc0a846417d9",
+        "lastPushedSha": "f464c04d93512773682deb09dfd4bc0a846417d9",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-legal/src/**/*.ts'",
@@ -21544,18 +21552,36 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "9b304dfbb6aca3424a478b9b2495ed70c9760cee"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "f464c04d93512773682deb09dfd4bc0a846417d9",
+            "note": "Portal enrollment clock sized as a trait object; the shared composition and native binary build again."
+          },
+          {
+            "command": "cargo build -p erpx-service --features private-development-api --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "f464c04d93512773682deb09dfd4bc0a846417d9",
+            "note": "target/debug/erpx-server rebuilt with private-development-api so SSO-dependent suites run."
+          },
+          {
+            "command": "vitest integration tests/integration/legal/legal-queued-completion-writers.test.ts",
+            "result": "passed",
+            "sourceSha": "f464c04d93512773682deb09dfd4bc0a846417d9",
+            "note": "52/52 across 7 files with pinned Node v26.11.1 and Bun 1.4.3; previously 12 cases failed with NATIVE_ACCOUNT_TEST_PASSWORD_HASH_FAILED because the binary lacked private-development-api."
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Lead: extend the native legal command set + destruction worker; then retire legal/service.ts writers per action and record deltas. Rebuild target/debug/erpx-server with private-development-api before rerunning the queued-completion suite.",
+        "nextAction": "Lead: extend the native legal command set + destruction worker; the SSO/queued-completion gate is green now.",
         "handoff": {
-          "runId": "run-20261113-d",
+          "runId": "run-20261113-f",
           "agentId": "worker-legal-retire",
-          "at": "2026-11-12T23:10:13.218Z",
+          "at": "2026-11-13T00:07:48.167Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Lead: extend the native legal command set + destruction worker; then retire legal/service.ts writers per action and record deltas. Rebuild target/debug/erpx-server with private-development-api before rerunning the queued-completion suite."
+          "nextAction": "Lead: extend the native legal command set + destruction worker; the SSO/queued-completion gate is green now."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -30222,17 +30248,17 @@
       "migratedPackets": 77,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 3,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 77,
-        "blocked": 32,
+        "blocked": 31,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T00:00:02.031Z",
+    "updatedAt": "2026-11-13T00:07:48.167Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
