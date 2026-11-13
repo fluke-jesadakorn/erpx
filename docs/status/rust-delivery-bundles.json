@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1424,
+    "revision": 1426,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T01:34:26.274Z",
-      "expiresAt": "2026-11-13T02:04:26.275Z",
+      "heartbeatAt": "2026-11-13T01:44:43.769Z",
+      "expiresAt": "2026-11-13T02:14:43.769Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -29992,8 +29992,8 @@
           "runId": "run-20261113-f",
           "agentId": "lead",
           "claimedAt": "2026-11-13T01:24:34.686Z",
-          "heartbeatAt": "2026-11-13T01:34:26.274Z",
-          "expiresAt": "2026-11-13T02:04:26.275Z",
+          "heartbeatAt": "2026-11-13T01:44:43.769Z",
+          "expiresAt": "2026-11-13T02:14:43.769Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30139,7 +30139,7 @@
           "reason": "handoff",
           "nextAction": "Refine allowedPaths for the cross-owner workflow source and staff-work oracle, then commit the cutover."
         },
-        "nextAction": "Cutover increment verified at 250ec8d41: feed create/comments/reaction/follow are native-only, collaboration KPI 185->176 and workflow 113->102; social-beta 94/94. Remaining before closure: (1) handover post route still blocked on the operations purchase/transaction boundary (migrate.operations.handover-publish), (2) story create/archive still TS pending a native story producer, (3) agent-replies/hide TS callers before social-home deletion.",
+        "nextAction": "Story producer blocked on claim: the native story create/archive command needs the SocialHttpBackend dispatch arm in src/composition/src/collaboration.rs, but migrate.agent.ai-gateway-commands (worker-agent-gateway) holds src/composition/src/** and fixtures/** until 02:14. Owner-side domain/application/adapter work can proceed in packages/server-collaboration/src/**; the route switch, composition dispatch, fixtures and TS story deletion must wait for that claim to release. Handover cutover remains blocked on migrate.operations.handover-publish. Do not overlap.",
         "scopeRefinementRequired": false
       },
       {
@@ -31274,8 +31274,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-agent-gateway",
           "claimedAt": "2026-11-13T00:57:48.147Z",
-          "heartbeatAt": "2026-11-13T01:34:26.274Z",
-          "expiresAt": "2026-11-13T02:04:26.275Z",
+          "heartbeatAt": "2026-11-13T01:44:43.769Z",
+          "expiresAt": "2026-11-13T02:14:43.769Z",
           "generation": 50
         },
         "baseSha": null,
@@ -31325,8 +31325,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-talent-retire",
           "claimedAt": "2026-11-13T01:27:06.518Z",
-          "heartbeatAt": "2026-11-13T01:34:26.274Z",
-          "expiresAt": "2026-11-13T02:04:26.275Z",
+          "heartbeatAt": "2026-11-13T01:44:43.769Z",
+          "expiresAt": "2026-11-13T02:14:43.769Z",
           "generation": 50
         },
         "baseSha": null,
@@ -31421,7 +31421,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:40:51.858Z",
+    "updatedAt": "2026-11-13T01:46:15.575Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
