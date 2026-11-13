@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1900,
+    "revision": 1907,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-r",
       "agentId": "lead",
       "startedAt": "2026-11-13T17:35:31.335Z",
-      "heartbeatAt": "2026-11-13T17:35:47.755Z",
-      "expiresAt": "2026-11-13T18:05:47.755Z",
+      "heartbeatAt": "2026-11-13T17:36:48.922Z",
+      "expiresAt": "2026-11-13T18:06:48.922Z",
       "generation": 62,
       "tokenHash": "58ab7b868337adde184eb9a528bfe5bc726c47796c02644a2db5ced8bebaf6d5"
     },
@@ -21341,14 +21341,21 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-r",
+          "agentId": "worker-collaboration-home",
+          "claimedAt": "2026-11-13T17:36:28.694Z",
+          "heartbeatAt": "2026-11-13T17:36:48.922Z",
+          "expiresAt": "2026-11-13T18:06:48.922Z",
+          "generation": 62
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "BLOCKED ON NATIVE PRODUCER: native social.rs covers post/comment/mention/topic/reaction/follow/notification but has no writer for social_post_drafts, social_post_participants, social_post_sources, social_post_revisions, social_reports or upload-discard intake; live TS callers remain in server-operations handover, server-manage_erpx beta-api and server-pms home-api. Implement those native commands and switch those owners before retiring the TS writer; removalTaskId=retire.collaboration.social-home.",
         "handoff": {
           "runId": "run-20261113-b",
@@ -21713,8 +21720,15 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-r",
+          "agentId": "worker-finance-residual-2",
+          "claimedAt": "2026-11-13T17:36:28.590Z",
+          "heartbeatAt": "2026-11-13T17:36:48.922Z",
+          "expiresAt": "2026-11-13T18:06:48.922Z",
+          "generation": 62
+        },
         "baseSha": null,
         "implementedCommit": "5d50d70763d63a86d2ec2beb0342342095a38f07",
         "lastPushedSha": "5d50d70763d63a86d2ec2beb0342342095a38f07",
@@ -21779,7 +21793,7 @@
             "removalCondition": "Move the retained application-layer cases to native Rust seeding, then delete this test and its catalogue entry."
           }
         ],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "nextAction": "Residual 370 after retiring finance-manual-drafts (375->370). Classified: 154 in nine blocked producer files (finance-ai 18, supplier batches/instructions 17, VAT 13, consolidation 13, accruals 12, instruments 11, asset policies 11, refunds 10, adapters/finance.ts 49); 17 in 14 command_assertions-only guards; 199 cross-owner published facts/capability modules whose native producer lives in the originating owner. Highest leverage: make the workplace finance [...path] route native-only for chart/account/import/status/period and bank import/reconcile (needs lead path extension), then split the remaining producers by capability.",
         "handoff": {
           "runId": "run-20261113-i",
@@ -22561,8 +22575,15 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261113-r",
+          "agentId": "worker-pms-residual",
+          "claimedAt": "2026-11-13T17:36:28.730Z",
+          "heartbeatAt": "2026-11-13T17:36:48.922Z",
+          "expiresAt": "2026-11-13T18:06:48.922Z",
+          "generation": 62
+        },
         "baseSha": null,
         "implementedCommit": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
         "lastPushedSha": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
@@ -22634,7 +22655,7 @@
             "removalCondition": "Mount drain_booking_mail_turn in pmsWork and the mail/link queue in the public booking route with the three composition ports (mail provider, cipher, purchase guard), then delete deliverBookingEmails and the token/email/limit unit members plus the ./adapters/pms-booking barrel export."
           }
         ],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "nextAction": "Native booking mail/token/rate-limit producer is committed (210 tests pass). Lead: implement the three composition ports (PmsBookingMailProvider, PmsBookingMailCipher, PmsBookingPurchaseGuard), call drain_booking_mail_turn from pmsWork and the public booking route, then delete the 9 covered pms-booking.ts writers (PMS 109 -> 100). The remaining 100 residual is blocked on the native quote/payment/change/refund engine.",
         "handoff": {
           "runId": "run-20261113-i",
@@ -23617,12 +23638,19 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "ready_for_integration",
+        "status": "integrating",
         "nextAction": "Classic invitation acceptance retired (IAM 211 -> 204). Residual 204 remains blocked on: production PositionGpoDirectory + GPO HTTP/mount (33), directory sync/connection routers (~26), directory-operations (15), user-management (12), iam-migrations/account-recovery (22), iam-api branches (10), the product SSO/app routes, and the native jobs runtime. Dispatch per-capability producer tasks.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261113-r",
+          "agentId": "worker-iam-residual-3",
+          "claimedAt": "2026-11-13T17:36:28.625Z",
+          "heartbeatAt": "2026-11-13T17:36:48.922Z",
+          "expiresAt": "2026-11-13T18:06:48.922Z",
+          "generation": 62
+        },
         "baseSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
         "implementedCommit": "72717fd9961028db1aaa9f895a299760a97af37a",
         "lastPushedSha": "72717fd9961028db1aaa9f895a299760a97af37a",
@@ -23765,7 +23793,7 @@
             "removalCondition": "Mount the native PeopleRelationshipsHttpBackend in composition, register the Holding route, add the TS transport client and switch peopleRelationshipsSnapshot/previewPeopleRelationships/applyPeopleRelationships, then delete the 18 TS statements and exports."
           }
         ],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261113-m",
           "agentId": "worker-iam-residual-2",
@@ -38124,8 +38152,15 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-r",
+          "agentId": "worker-manufacturing-residual",
+          "claimedAt": "2026-11-13T17:36:28.660Z",
+          "heartbeatAt": "2026-11-13T17:36:48.922Z",
+          "expiresAt": "2026-11-13T18:06:48.922Z",
+          "generation": 62
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -38225,18 +38260,18 @@
       "totalPackets": 202,
       "migratedPackets": 122,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 0,
-        "ready_for_integration": 20,
-        "integrating": 0,
+        "pending": 20,
+        "in_progress": 3,
+        "ready_for_integration": 18,
+        "integrating": 2,
         "migrated": 122,
-        "blocked": 39,
+        "blocked": 37,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 62,
-    "updatedAt": "2026-11-13T17:35:47.757Z",
+    "updatedAt": "2026-11-13T17:36:48.924Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
