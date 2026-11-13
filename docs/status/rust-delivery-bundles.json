@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1426,
+    "revision": 1428,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -31320,23 +31320,23 @@
         "resources": [
           "owner:talent"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "worker-talent-retire",
-          "claimedAt": "2026-11-13T01:27:06.518Z",
-          "heartbeatAt": "2026-11-13T01:44:43.769Z",
-          "expiresAt": "2026-11-13T02:14:43.769Z",
-          "generation": 50
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Zero-caller/native-only analysis for the 16 residual Talent writes in owner paths; delete the safe set, move in-lane oracles, record the KPI pair.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead: sequence the Finance talent-offer money-snapshot producer and native offer route branch; add a native people_payroll hire/privacy command; then retire the 16 writes.",
+        "handoff": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-talent-retire",
+          "at": "2026-11-13T01:46:51.173Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Lead: sequence the Finance talent-offer money-snapshot producer and native offer route branch; add a native people_payroll hire/privacy command; then retire the 16 writes."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -31411,17 +31411,17 @@
       "migratedPackets": 84,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 84,
-        "blocked": 33,
+        "blocked": 34,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:46:15.575Z",
+    "updatedAt": "2026-11-13T01:46:51.174Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
