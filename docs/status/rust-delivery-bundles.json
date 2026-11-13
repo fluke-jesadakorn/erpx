@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1663,
+    "revision": 1666,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-j",
       "agentId": "lead",
       "startedAt": "2026-11-13T08:01:06.178Z",
-      "heartbeatAt": "2026-11-13T08:10:41.302Z",
-      "expiresAt": "2026-11-13T08:40:41.302Z",
+      "heartbeatAt": "2026-11-13T08:11:33.854Z",
+      "expiresAt": "2026-11-13T08:41:33.854Z",
       "generation": 54,
       "tokenHash": "ce5fa52d8a7699eb63bf471e2e0f5260b9740763f65f28788a2783dbb4bae986"
     },
@@ -34123,6 +34123,50 @@
         "nextAction": "Step-0 audit the residual POS writers against packages/server-pos/src/**/*.rs. Implement the missing native provider/command producers (Stripe payment/refund, day close, purchase admission, image intake, PMS/Finance room-charge effects), switch the consumers, then delete each TS branch and record the POS KPI pair. Report composition mounts to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "migrate.finance.supplier-batches",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Native supplier payment batches and instructions",
+        "scope": "Implement the native Finance supplier-batch/instruction command family (create, approve, export, confirm, import, retry, corrections) with purchase admission, replay, audit/outbox, Finance journal and Files evidence. Switch the workplace finance supplier-payment route to the native command, then delete the replaced TS writers in supplier-payment-repository.ts and its barrels and record the owner KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/server-finance/Cargo.toml",
+          "packages/server-finance/package.json",
+          "packages/feature-finance/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "fixtures/finance/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-j",
+          "agentId": "worker-finance-supplier",
+          "claimedAt": "2026-11-13T08:11:13.863Z",
+          "heartbeatAt": "2026-11-13T08:11:33.854Z",
+          "expiresAt": "2026-11-13T08:41:33.854Z",
+          "generation": 54
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 audit supplier-payment-repository.ts (17 writes) against packages/server-finance/src/**/*.rs. Implement the native supplier batch/instruction commands, mount the HTTP route via the lead, switch the workplace finance supplier-payment route, then delete the replaced TS writers and record the Finance KPI pair. Report composition mounts to the lead.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure"
       }
     ],
     "migrationProgress": {
@@ -34131,11 +34175,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 170,
+      "totalPackets": 171,
       "migratedPackets": 96,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 15,
         "integrating": 0,
         "migrated": 96,
@@ -34145,7 +34189,7 @@
       }
     },
     "lastCoordinatorGeneration": 54,
-    "updatedAt": "2026-11-13T08:10:41.303Z",
+    "updatedAt": "2026-11-13T08:11:33.855Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
