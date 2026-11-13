@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1505,
+    "revision": 1506,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -14213,8 +14213,8 @@
           "generation": 51
         },
         "baseSha": "0517689d6ee4b7217e1646de7789ecc0285acf54",
-        "implementedCommit": "761c248958d7ebe1539004d7caa7163890c4dfd4",
-        "lastPushedSha": "761c248958d7ebe1539004d7caa7163890c4dfd4",
+        "implementedCommit": "a0f2f09e5fcaf771631e115c8f10855bec3f15cd",
+        "lastPushedSha": "a0f2f09e5fcaf771631e115c8f10855bec3f15cd",
         "checks": [
           {
             "command": "cargo check -p erpx-server-pms",
@@ -14504,11 +14504,23 @@
             "result": "blocked",
             "sourceSha": "761c248958d7ebe1539004d7caa7163890c4dfd4",
             "note": "The running dev gateway (pid 92992) has many native configs but NOT ERPX_NATIVE_PMS_CONFIG; the container start script sets it, but the macOS gateway does not. Re-wiring the six guest-account operations fail-closed would make charge.add return 503 in the current dev UI. The payload adapter is code-ready; the route switch needs the native PMS config + private service enabled in the target environment first."
+          },
+          {
+            "command": "native PMS private API route probe",
+            "result": "blocked",
+            "sourceSha": "a0f2f09e5fcaf771631e115c8f10855bec3f15cd",
+            "note": "The running native private API at http://127.0.0.1:3198/api/health returns 200, but POST /api/v1/holdings/acme/pms/guest-account returns 404. The process (pid 92675) started 2026-11-10 22:07, before the PMS guest-account router landed at 6a0995214, and its development-config file has since been deleted. The Next gateway also lacks ERPX_NATIVE_PMS_CONFIG. Re-wiring the PMS routes is therefore blocked on rebuilding/restarting the shared native private API with the guest-account router and adding the gateway config; this is a shared-environment operation, not a source change."
+          },
+          {
+            "command": "environment: native PMS config",
+            "result": "blocked",
+            "sourceSha": "a0f2f09e5fcaf771631e115c8f10855bec3f15cd",
+            "note": "The running dev gateway (pid 92992) has many ERPX_NATIVE_* configs but not ERPX_NATIVE_PMS_CONFIG. The container start script sets it; the macOS gateway does not. Native-only PMS command routing would return 503/404 until the service and config are prepared."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Legacy-to-native guest-account body adapter is implemented/tested (13/13: flatten input, charge.add, transfer id->entryId). Route re-wire is blocked on the target environment: the running dev gateway lacks ERPX_NATIVE_PMS_CONFIG (the container script sets it, the macOS gateway does not), so native-only charge.add would 503 the current dev UI. Enable the native PMS config/private service in the target env, then re-wire both routes, split the monolithic pmsCommand guest-account branches, delete the TS branches/writers and record the PMS KPI pair. Handover purchase boundary remains blocked by retire.customer_authority.portal-support on src/composition/src/**.",
+        "nextAction": "Source parity/body adapter is ready and tested (13/13), but the route switch is blocked on the shared environment: native private API 3198 health 200 yet POST /pms/guest-account returns 404 (binary started 2026-11-10, before the router landed at 6a0995214; its dev-config file is deleted), and the gateway lacks ERPX_NATIVE_PMS_CONFIG. Rebuild/restart the shared private API with the guest-account router and add the gateway config, then re-wire both routes, split the monolithic pmsCommand guest-account branches, delete the TS branches/writers and record the PMS KPI pair. Handover purchase boundary remains blocked by retire.customer_authority.portal-support on src/composition/src/**.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "lead",
@@ -32392,7 +32404,7 @@
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:12:24.510Z",
+    "updatedAt": "2026-11-13T03:15:24.173Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
