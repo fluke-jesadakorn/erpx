@@ -5,6 +5,7 @@ pub(crate) mod scheduled_inventory_rollouts;
 pub(crate) mod record_source;
 pub mod front_desk;
 pub mod room_board;
+pub mod booking_postgres;
 pub mod pms_http;
 pub mod stay_room_http;
 pub mod stay_room_postgres;

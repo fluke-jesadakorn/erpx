@@ -4,6 +4,7 @@ pub(crate) mod initial_count_modules;
 pub(crate) mod record_source;
 pub mod front_desk;
 pub mod room_board;
+pub mod booking;
 
 pub(crate) mod stay_room;
 pub(crate) mod room_command;
