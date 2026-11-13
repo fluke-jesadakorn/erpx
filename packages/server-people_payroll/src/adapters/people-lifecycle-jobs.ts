@@ -15,6 +15,7 @@ import {transactionDatabase} from '@erpx/server-runtime/public/runtime/postgres'
 import {peoplePackageEnforcementMode,holdingPurchaseReadLocks,purchaseCommandBoundary,checkPurchasedCapability,purchaseCommandFailure,companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 function repository(client: PoolClient): PeopleLifecycleWorkerRepository {
     return { readAvailable() { return client.query<{
             available: boolean;
@@ -81,7 +82,7 @@ export async function drainPeopleLifecycle(raw: PostgresDatabase, now = Date.now
                 }};
                 const result = await run({ repository: guarded });
                 if(projectJob)await projectJob.finish();
-                else if(selected){await flushFinanceDeferredEffects(database);if(queuedAuthority&&!(await original.readValid(queuedAuthority,Date.now())).rowCount)throw Error("LIFECYCLE_AUTHORITY_CHANGED");const current=await database.prepare(sourceImageSql).bind(selected.id).first<string>("image");if(!sourceImage||sourceImage!==current)throw Error("LIFECYCLE_PURCHASE_SOURCE_CHANGED");const observed=await database.batch([...boundary!.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(boundaryKey)]);boundary!.observe?.(observed);}
+                else if(selected){await flushFinanceDeferredEffects(database);if(queuedAuthority&&!(await original.readValid(queuedAuthority,Date.now())).rowCount)throw Error("LIFECYCLE_AUTHORITY_CHANGED");const current=await database.prepare(sourceImageSql).bind(selected.id).first<string>("image");if(!sourceImage||sourceImage!==current)throw Error("LIFECYCLE_PURCHASE_SOURCE_CHANGED");const observed=await database.batch([...boundary!.after,clearWorkflowCommandAssertions(database, boundaryKey!)]);boundary!.observe?.(observed);}
                 await client.query('COMMIT');
                 return result;
             }

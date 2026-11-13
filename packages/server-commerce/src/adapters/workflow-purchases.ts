@@ -10,6 +10,7 @@ import {financialConstraintError} from '@erpx/server-workflow/public/command-gua
 import {commerceKindCapability,commercePurchaseSource,requireCommerceCurrentAuthority,type CommercePurchaseActor} from "@erpx/server-commerce/adapters/purchase-boundary";
 import {commerceWorkAccess} from "@erpx/server-commerce/adapters/record-purchases";
 import {commerceCompleteOwnerSourceReadLocks} from "@erpx/server-commerce/adapters/owner-source-locks";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 /** The generic Flow API supplies its original minimal actor and trusted Holding
  * pool. A product label or a transaction client cannot manufacture ownership. */
@@ -56,7 +57,7 @@ export async function withCommerceFlowAssignment<Result>(owner:SqlDatabase,actor
   if(!after||!current||order?.state!==current.state||order.version!==current.version||Object.keys(before).some(field=>before[field as keyof typeof before]!==after[field as keyof typeof after]))
    throw new ApiError(409,"COMMERCE_SOURCE_CHANGED","The original Commerce source or workspace changed. Review it again.");
   await requireCommerceCurrentAuthority(database,actor,["commerce.read"],after,key);
-  const observations=await database.batch([...boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+  const observations=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database, key)]);
   boundary.observe?.(observations);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }

@@ -19,6 +19,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
 import {qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
 import {requireCountPurchasedRead} from "@erpx/server-inventory/adapters/count-purchases";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 export type CountAttachmentPurchase={companyId:string;capability:string;additionalCapabilities:readonly string[];qualityWitness:string|null;initialWitness:string|null;manufacturingWitness:string|null;posWitness:string|null;serviceWitness:string|null;purpose:CapabilityPurpose;actor:WorkContext;targetId:string;witness:string};
 const target=(type:string)=>type==="stock_count"||type==="inventory_stock_count";
@@ -63,9 +64,9 @@ export async function countAttachmentCommandBoundary(database:SqlDatabase,scopes
    ...(scope.qualityWitness?[assertion(database,key,"count-file-quality-source",`(${disposalImage})=?`,[scope.targetId,scope.companyId,scope.qualityWitness])]:[]),
    assertion(database,key,"count-file-owner",`(${image})=?`,[scope.targetId,scope.companyId,scope.witness]),
    assertion(database,key,"count-file-authority",`EXISTS(SELECT 1 FROM (SELECT id,company_id,branch_id,NULL::text department_id FROM inventory_counts) count_file_scope WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) AND ?::text IS NULL AND (${assignmentReadSql("count_file_scope","inventory.prepare")} OR ${assignmentReadSql("count_file_scope","inventory.approve")}))`,[scope.targetId,scope.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]),
-   database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)];
+   clearWorkflowCommandAssertions(database, key)];
  });
- return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards("before")],after:[...financeDeferredEffectStatements(database),...guards("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};
+ return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards("before")],after:[...financeDeferredEffectStatements(database),...guards("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>clearWorkflowCommandAssertions(database, item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};
 }
 export function countAttachmentFailure(error:unknown){
  let current=error;

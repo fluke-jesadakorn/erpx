@@ -16,6 +16,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {initialPhysicalStockCapabilities,initialPhysicalStockCountSourceRows,initialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/initial-physical-stock-count-source-sql';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 export {initialPhysicalStockCapabilities,initialPhysicalStockMarker,initialPhysicalStockCountSourceRows,initialPhysicalStockMarkedRows,type InitialPhysicalStockProof} from '@erpx/server-inventory/adapters/initial-physical-stock-count-source-sql';
 export async function initialPhysicalStockCountMarked(database:SqlDatabase,id:string){return !!await database.prepare(`SELECT 1 FROM (${initialPhysicalStockMarkedRows}) marker WHERE id=?`).bind(id).first();}
 export async function initialPhysicalStockCountSource(database:SqlDatabase,scope:{companyId:string;branchId:string|null},id:string){return database.prepare(`SELECT source_proof::text proof FROM (${initialPhysicalStockCountSourceRows}) source WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)`).bind(id,scope.companyId,scope.branchId,scope.branchId).first<string>('proof');}
@@ -55,7 +56,7 @@ export async function withInitialPhysicalStockCountUnit<Result>(owner:SqlDatabas
   const finalGuards:Array<()=>Promise<void>>=[],register=(guard:()=>Promise<void>)=>{finalGuards.push(guard);};
   initialPhysicalUnits.set(database,{binding:binding(actor,command),source:before,replay,current,register});
   let result:Result;try{result=await run(database,before,replay,current,register);}finally{initialPhysicalUnits.delete(database);}
-  if(!command.readOnly)await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));
+  if(!command.readOnly)await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));
   if(!command.readOnly)await flushFinanceDeferredEffects(database);
   for(const guard of finalGuards)await guard();
   if(before!==null&&before!==await initialPhysicalStockCountSource(database,actor,command.id!))throw new ApiError(409,'INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED','The original Count source changed before completion.');

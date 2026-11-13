@@ -22,6 +22,7 @@ import {posStartupDocumentState} from '@erpx/server-commerce/adapters/pos-postin
 import {createPosPostingSetup} from '@erpx/server-commerce/application/pos-posting-setup';
 import {posPostingSetupSchema,type PosPostingSetupInput,type PosPostingSetupResult,type PosPostingSetupView} from '@erpx/server-commerce/domain/pos-posting-setup';
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 const operation='commerce.pos-posting-setup.initialize',capabilities=['pos.sales','inventory.stock-core','finance.pos-posting'] as const;
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;
@@ -77,7 +78,7 @@ export async function initializePosPostingSetup(actor:WorkContext,raw:unknown,ke
   const result=await run(input,key);
   // Original boundary effects/cleanup and every deferred owner write finish
   // before the final source/current-authority/purchase reads; no later writes.
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));await flushFinanceDeferredEffects(database);
   if(authorityImage(authority)!==authorityImage(await requirePosStartupFinanceAuthority(database,actor)))throw new ApiError(409,'POS_POSTING_CONTEXT_CHANGED','Current Company Finance authority changed before initial posting setup completed.');
   if(JSON.stringify(await current(database,actor.companyId))!==JSON.stringify(mapping(input)))throw new ApiError(409,'POS_POSTING_SOURCE_CHANGED','The original Company posting mapping changed before completion.');
   if(applied){const after=await sources(database,actor);if(after.image!==before.image||refusal(after)==='history-requires-review')throw new ApiError(409,'POS_POSTING_SOURCE_CHANGED','Original POS/Stock/Finance sources changed after initial setup effects.');await validatePosStartupFinanceState(database,actor,input,before.documents.history);

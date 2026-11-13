@@ -20,6 +20,7 @@ import {recordAttachmentVersionSourceReadLocks} from '@erpx/server-files/public/
 import {finalPayCancellationTerminal} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-terminal-sources';
 import {readFinalPayCancellationSource,finalPayCancellationSchemaAvailable} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-sources';
 import type {FinalPayCancellationInput,FinalPayCancellationResult,FinalPayCancellationSource} from '@erpx/server-people_payroll/domain/final-pay-cancellation';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 const operation='people.payroll.final-pay.cancel';
 const changed=()=>new ApiError(409,'FINAL_PAY_CANCELLATION_SOURCE_CHANGED','The original final-pay preparation, cancelled case/task or money evidence changed. Reload its current source.');
 const authorityImage=(actor:WorkContext)=>JSON.stringify([actor.holdingId,actor.companyId,actor.userId,actor.assignmentId,actor.role,actor.branchId,actor.departmentId,actor.scope,actor.authority,actor.iam]);
@@ -53,7 +54,7 @@ async function owned<Result>(actor:WorkContext,runId:string,key:string|undefined
   let captured:FinalPayCancellationSource|null|undefined,expected:string|undefined;
   const source=async()=>{if(captured===undefined){captured=await readFinalPayCancellationSource(database,actor,runId);expected=captured?.image;}return captured;};
   const result=await run(database,schemaAvailable,source,image=>{expected=image;});
-  if(boundary){const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(fence)]);boundary.observe?.(observed);}
+  if(boundary){const observed=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database, fence)]);boundary.observe?.(observed);}
   if(key)await flushFinanceDeferredEffects(database);
   const final=await currentAuthority(database,actor);if(authorityImage(authorized)!==authorityImage(final))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original Payroll preparation authority changed.');
   if(captured!==undefined&&(await readFinalPayCancellationSource(database,actor,runId))?.image!==expected)throw changed();

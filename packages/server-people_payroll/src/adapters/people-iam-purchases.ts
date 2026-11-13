@@ -8,6 +8,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {peoplePackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 /** IAM recipes and position bindings remain shared identity foundation. Only an
  * actual employment lifecycle case consumes People lifecycle authority. */
@@ -41,7 +42,7 @@ async function prepare(client:PoolClient,actor:IamActor,key:string,capability:st
    if(!replay)await finalAuthority?.();
    if(await authority()!==originalAuthority)throw new ApiError(403,"PEOPLE_IAM_AUTHORITY_CHANGED","Your selected authority changed before completion.");
    if(identity&&JSON.stringify(await identity())!==originalIdentity||JSON.stringify(await source())!==expected)throw new ApiError(409,"PEOPLE_IAM_SOURCE_CHANGED","The original People or identity source changed before completion.");
-   const observed=await database.batch([...boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(checkKey)]);boundary.observe?.(observed);
+   const observed=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database, checkKey)]);boundary.observe?.(observed);
   }catch(error){throw purchaseCommandFailure(error)??error;}
  });
  return async()=>{if(identity&&JSON.stringify(await identity())!==originalIdentity)throw new ApiError(409,"PEOPLE_IAM_SOURCE_CHANGED","The original People source changed.");expected=JSON.stringify(await source());};

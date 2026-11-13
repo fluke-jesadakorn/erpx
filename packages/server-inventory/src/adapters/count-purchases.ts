@@ -19,6 +19,7 @@ import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-t
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
 type Source={id:string;company_id:string;branch_id:string|null;warehouse_id:string};
@@ -33,7 +34,7 @@ async function current(database:SqlDatabase,actor:Actor,key:string,permission:st
  const assignment=await database.prepare(`SELECT ${assignmentReadSql("count_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) count_scope`)
   .bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
  if(!assignment?.allowed)throw new ApiError(403,"COUNT_ACCESS_CHANGED","Choose a current inventory assignment.");
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 
 /** Count management is supply.counts; shared Stock posting/reservation facts
@@ -118,7 +119,7 @@ export async function withCountPurchasedCommand<Result>(owner:SqlDatabase,actor:
   if(before&&Object.keys(before).some(field=>before[field as keyof Source]!==after[field as keyof Source]))throw new ApiError(409,"COUNT_SOURCE_CHANGED","The original count workspace or warehouse changed.");
   if(included&&(await qualityDisposalCountSource(database,actor,command.id))?.witness!==included.witness)throw new ApiError(409,"COUNT_SOURCE_CHANGED","The actual retained Quality disposal source changed.");
   await current(database,actor,key,command.permission);
-  const observations=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));
+  const observations=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));
   boundaries[0]?.boundary.observe?.(observations);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
