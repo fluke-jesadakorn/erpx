@@ -59,11 +59,12 @@ pub(super) async fn assemble(
         Router,
         Vec<NativeFilesScanWorker<SharedClock>>,
         BTreeSet<(String, String)>,
+        BTreeMap<HoldingId, Arc<LocalFieldQuarantineWriter>>,
     ),
     &'static str,
 > {
     let Some(raw) = &config.field_files_providers else {
-        return Ok((Router::new(), Vec::new(), BTreeSet::new()));
+        return Ok((Router::new(), Vec::new(), BTreeSet::new(), BTreeMap::new()));
     };
     if pools.len() != config.holdings.len() + 1 {
         return Err("FIELD_FILES_DATABASES_INVALID");
@@ -149,6 +150,7 @@ pub(super) async fn assemble(
         #[cfg(feature = "finance-field-write")]
         let mut journal_configurations = Vec::new();
         let mut mounted = BTreeSet::new();
+        let mut writers: BTreeMap<HoldingId, Arc<LocalFieldQuarantineWriter>> = BTreeMap::new();
         for (holding_id, (companies, root, indices)) in grouped {
             let (i, h) = config
                 .holdings
@@ -184,6 +186,7 @@ pub(super) async fn assemble(
             };
             let writer = LocalFieldQuarantineWriter::open(&root, 2)
                 .map_err(|_| "FIELD_FILES_STORE_UNAVAILABLE")?;
+            writers.insert(h.registration.holding_id.clone(), Arc::new(writer.clone()));
             let store = LocalSanitizationStore::open(&root, 2)
                 .map_err(|_| "FIELD_FILES_STORE_UNAVAILABLE")?;
             mounted.insert((h.host.clone(), h.registration.slug.clone()));
@@ -301,7 +304,7 @@ pub(super) async fn assemble(
         Ok((router, mounted))
     })();
     match result {
-        Ok((router, mounted)) => Ok((router, workers, mounted)),
+        Ok((router, mounted)) => Ok((router, workers, mounted, writers)),
         Err(error) => {
             for w in workers {
                 w.close().await;

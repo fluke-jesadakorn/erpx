@@ -40,6 +40,8 @@ use crate::{
     support_ticket_http::{SupportTicketHttpTarget, support_ticket_http_router},
     support_ticket_read::SupportTicketReadService,
 };
+#[cfg(feature = "files-scan-worker")]
+use crate::support_files::{SupportFilesBackend, SupportFilesService};
 #[cfg(feature = "finance-field-write")]
 use crate::{
     finance_journal_create::FinanceJournalCreateConfiguration as InvoicePostConfiguration,
@@ -1836,7 +1838,7 @@ impl DevelopmentApiConfiguration {
 struct CheckedAssembly {
     router: Router,
     #[cfg(feature = "files-scan-worker")]
-    files_workers: Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>,
+    files_workers: Arc<tokio::sync::Mutex<Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>>>,
 }
 /// The assembled private API runtime. Development and production share the
 /// same owner routers; only the database binding and environment label differ.
@@ -1845,7 +1847,7 @@ pub struct DevelopmentApiRuntime {
     listen: SocketAddr,
     pools: Vec<DatabasePool>,
     #[cfg(feature = "files-scan-worker")]
-    files_workers: Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>,
+    files_workers: Arc<tokio::sync::Mutex<Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>>>,
 }
 impl DevelopmentApiRuntime {
     pub fn router(&self) -> Router {
@@ -1856,7 +1858,9 @@ impl DevelopmentApiRuntime {
     }
     pub async fn close(self) {
         #[cfg(feature = "files-scan-worker")]
-        for worker in self.files_workers {
+        let workers = self.files_workers.lock().await.drain(..).collect::<Vec<_>>();
+        #[cfg(feature = "files-scan-worker")]
+        for worker in workers {
             worker.close().await;
         }
         for pool in &self.pools {
@@ -7229,11 +7233,81 @@ async fn assemble_checked(
         );
     }
     #[cfg(feature = "files-scan-worker")]
-    let (files_router, files_workers, field_files_targets) =
+    let (files_router, files_workers, field_files_targets, field_file_writers) =
         field_files::assemble(config, pools, clock.clone()).await?;
+    #[cfg(feature = "files-scan-worker")]
+    let files_workers = Arc::new(tokio::sync::Mutex::new(files_workers));
     #[cfg(feature = "files-scan-worker")]
     {
         router = router.merge(files_router);
+    }
+    #[cfg(feature = "files-scan-worker")]
+    {
+        let catalogue = Arc::new(
+            current_package_catalogue()
+                .map_err(|_| "PRIVATE_API_SUPPORT_FILES_CONFIGURATION_INVALID")?,
+        );
+        let scanner_ready = !files_workers.lock().await.is_empty();
+        let mut targets = Vec::new();
+        for (holding_id, company) in &config.support_evidence_writes {
+            let index = config
+                .holdings
+                .iter()
+                .position(|h| &h.registration.holding_id == holding_id)
+                .ok_or("PRIVATE_API_SUPPORT_FILES_CONFIGURATION_INVALID")?;
+            let holding = &config.holdings[index];
+            let Some(writer) = field_file_writers.get(holding_id).cloned() else {
+                continue;
+            };
+            let authorizer = Arc::new(
+                HoldingWorkAuthorizer::new(
+                    pools[0].clone(),
+                    pools[index + 1].clone(),
+                    holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_SUPPORT_FILES_CONFIGURATION_INVALID")?,
+            );
+            let service = Arc::new(SupportFilesService::new(
+                authorizer,
+                crate::files::FilesConfiguration::new(
+                    holding.registration.holding_id.clone(),
+                    holding.registration.slug.clone(),
+                    company.clone(),
+                ),
+                Arc::new(SharedClock(clock.clone())),
+                catalogue.clone(),
+                writer,
+                erpx_server_files::public::support_attachment_intake::SupportAttachmentIntakeAvailability {
+                    uploads_frozen: config.field_files_policy.uploads_frozen,
+                    scanner_ready,
+                    preview_ready: scanner_ready,
+                },
+                files_workers.clone(),
+            ));
+            targets.push(
+                erpx_server_files::public::support_attachment_http::SupportAttachmentHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(SupportFilesBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        service,
+                    )),
+                },
+            );
+        }
+        if !targets.is_empty() {
+            router = router.merge(
+                erpx_server_files::public::support_attachment_http::support_attachment_router(
+                    targets,
+                )
+                .map_err(|_| "PRIVATE_API_SUPPORT_FILES_CONFIGURATION_INVALID")?,
+            );
+        }
     }
     #[cfg(not(feature = "files-scan-worker"))]
     let field_files_targets = BTreeSet::new();

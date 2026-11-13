@@ -115,6 +115,8 @@ pub mod marketing;
 pub mod operations;
 #[cfg(feature = "existing-business")]
 pub mod support_workspace;
+#[cfg(feature = "files-scan-worker")]
+pub mod support_files;
 #[cfg(feature = "existing-business")]
 pub mod collaboration;
 #[cfg(feature = "existing-business")]
