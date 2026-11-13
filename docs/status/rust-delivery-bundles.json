@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1477,
+    "revision": 1480,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-g",
       "agentId": "lead",
       "startedAt": "2026-11-13T02:33:37.747Z",
-      "heartbeatAt": "2026-11-13T02:33:37.747Z",
-      "expiresAt": "2026-11-13T03:03:37.748Z",
+      "heartbeatAt": "2026-11-13T02:41:50.790Z",
+      "expiresAt": "2026-11-13T03:11:50.790Z",
       "generation": 51,
       "tokenHash": "b4636d5dac92c67424e4a78a1bf1883bb0ebe4a1220c27578bab9a4ba2ad62fd"
     },
@@ -20141,8 +20141,8 @@
           "runId": "run-20261113-g",
           "agentId": "lead",
           "claimedAt": "2026-11-13T02:34:43.712Z",
-          "heartbeatAt": "2026-11-13T02:34:43.712Z",
-          "expiresAt": "2026-11-13T03:04:43.712Z",
+          "heartbeatAt": "2026-11-13T02:41:50.790Z",
+          "expiresAt": "2026-11-13T03:11:50.790Z",
           "generation": 51
         },
         "baseSha": null,
@@ -30092,11 +30092,18 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T02:48:54.843Z",
+          "heartbeatAt": "2026-11-13T02:48:54.843Z",
+          "expiresAt": "2026-11-13T03:18:54.843Z",
+          "generation": 51
+        },
         "baseSha": null,
-        "implementedCommit": "be42a7b48bbe0e7dee36d948df6512be11036263",
-        "lastPushedSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+        "implementedCommit": "4e9456f8ab45a879baa3c4e837b0495dba6bf69e",
+        "lastPushedSha": "4e9456f8ab45a879baa3c4e837b0495dba6bf69e",
         "checks": [
           {
             "command": "npx tsc --noEmit",
@@ -30315,10 +30322,22 @@
             "before": 2371,
             "after": 2362,
             "note": "Global owner KPI drops by exactly the nine deleted story/collaboration writers."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_postgres",
+            "result": "passed",
+            "sourceSha": "4e9456f8ab45a879baa3c4e837b0495dba6bf69e",
+            "note": "11/11. The handover case now asserts the extra work.handover.publish receipt with actor/company authority and sourceBindings equal to the ordered social_post_sources rows, so operationalHandoverReceiptPredicate can admit the native post."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "4e9456f8ab45a879baa3c4e837b0495dba6bf69e",
+            "note": "The shared apply_plan handover arm writes the operations receipt in the same transaction as the post/participants/sources; the test harness and PgSocialUnit both use it."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired at 02:31Z after the mount wait; all task-claim heartbeats were last renewed at 02:01Z. Reviewed WIP: Support mount inputs ready, quality alert-sweep Rust WIP preserved (TS typecheck red in quality alerts), no process conflict; previous run stopped",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261113-f",
           "agentId": "lead",
@@ -30327,7 +30346,7 @@
           "reason": "Recovery: Coordinator lease expired at 02:31Z after the mount wait; all task-claim heartbeats were last renewed at 02:01Z. Reviewed WIP: Support mount inputs ready, quality alert-sweep Rust WIP preserved (TS typecheck red in quality alerts), no process conflict; previous run stopped",
           "nextAction": "Story create/archive is native end-to-end and the TS story/workflow writers are deleted (collaboration 176->174, workflow 102->95, global 2371->2362; unit 117/117, social-beta 94/94, Rust unit/HTTP/PG 15/3/11, service composition compiles). Remaining before this task can close: the pms/operations handover route cutover, blocked on the same-transaction purchase boundary in migrate.operations.handover-publish; agent-replies/hide remain before social-home deletion. Do not mark migrated until the handover caller is resolved or explicitly split by the lead."
         },
-        "nextAction": "Story create/archive is native end-to-end and the TS story/workflow writers are deleted (collaboration 176->174, workflow 102->95, global 2371->2362; unit 117/117, social-beta 94/94, Rust unit/HTTP/PG 15/3/11, service composition compiles). Remaining before this task can close: the pms/operations handover route cutover, blocked on the same-transaction purchase boundary in migrate.operations.handover-publish; agent-replies/hide remain before social-home deletion. Do not mark migrated until the handover caller is resolved or explicitly split by the lead.",
+        "nextAction": "Native handover read-visibility receipt is now written in the same transaction (work.handover.publish with authority_json and ordered sourceBindings), verified by social_postgres 11/11. Remaining for the preserve-atomicity cutover: add the native work.social purchase boundary in src/composition/src/collaboration.rs, switch pms /home/handover to the native command, and delete the TS operations/social-home writers. That composition path is currently held by retire.customer_authority.portal-tail; do not overlap. KPI unchanged by this prerequisite (collaboration 174, global 2360).",
         "scopeRefinementRequired": false
       },
       {
@@ -31204,8 +31223,8 @@
           "runId": "run-20261113-g",
           "agentId": "worker-ca-portal-tail",
           "claimedAt": "2026-11-13T02:38:39.000Z",
-          "heartbeatAt": "2026-11-13T02:38:39.000Z",
-          "expiresAt": "2026-11-13T03:08:39.000Z",
+          "heartbeatAt": "2026-11-13T02:41:50.790Z",
+          "expiresAt": "2026-11-13T03:11:50.790Z",
           "generation": 51
         },
         "baseSha": null,
@@ -32037,17 +32056,17 @@
       "migratedPackets": 87,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 4,
+        "in_progress": 5,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 87,
-        "blocked": 35,
+        "blocked": 34,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T02:41:41.132Z",
+    "updatedAt": "2026-11-13T02:50:18.056Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
