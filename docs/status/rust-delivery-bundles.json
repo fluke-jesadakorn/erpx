@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1626,
+    "revision": 1630,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T06:19:49.938Z",
-      "expiresAt": "2026-11-13T06:49:49.938Z",
+      "heartbeatAt": "2026-11-13T06:20:48.902Z",
+      "expiresAt": "2026-11-13T06:50:48.902Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -22423,22 +22423,29 @@
           "packages/server-people_payroll/Cargo.toml",
           "packages/server-people_payroll/package.json",
           "packages/feature-people_payroll/**",
-          "fixtures/**",
+          "fixtures/people_payroll/**",
           "tests/unit/people_payroll/**",
           "tests/integration/people_payroll/**"
         ],
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-payroll",
+          "claimedAt": "2026-11-13T06:20:18.543Z",
+          "heartbeatAt": "2026-11-13T06:20:48.902Z",
+          "expiresAt": "2026-11-13T06:50:48.902Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/people-payroll.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Step-0 native counterpart audit for adapters/people-payroll.ts and the remaining payroll writers; retire only files with a complete native counterpart and no live TS caller, delete writers/barrels, move oracles to native seeding, and record the owner KPI pair. Report each missing native producer as blocked.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -23333,12 +23340,19 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "blocked",
+        "status": "in_progress",
         "nextAction": "BLOCKED ON A NATIVE OWNER PORT: native code only reads iam_access_subjects/iam_access_invitations; there are no Rust writers for iam_access_previews, iam_external_organizations, iam_external_teams or the access-preview/apply transaction. Implement that native people-access producer and mount it before retiring the 18 TS statements.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-iam-residual",
+          "claimedAt": "2026-11-13T06:20:18.578Z",
+          "heartbeatAt": "2026-11-13T06:20:48.902Z",
+          "expiresAt": "2026-11-13T06:50:48.902Z",
+          "generation": 53
+        },
         "baseSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -23381,7 +23395,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261112-s",
           "agentId": "lead",
@@ -25381,8 +25395,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-collaboration-drafts",
           "claimedAt": "2026-11-13T06:13:06.774Z",
-          "heartbeatAt": "2026-11-13T06:19:49.938Z",
-          "expiresAt": "2026-11-13T06:49:49.938Z",
+          "heartbeatAt": "2026-11-13T06:20:48.902Z",
+          "expiresAt": "2026-11-13T06:50:48.902Z",
           "generation": 53
         },
         "baseSha": null,
@@ -33633,18 +33647,18 @@
       "totalPackets": 168,
       "migratedPackets": 94,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 1,
+        "pending": 19,
+        "in_progress": 3,
         "ready_for_integration": 12,
         "integrating": 0,
         "migrated": 94,
-        "blocked": 41,
+        "blocked": 40,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T06:19:49.939Z",
+    "updatedAt": "2026-11-13T06:20:48.903Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
