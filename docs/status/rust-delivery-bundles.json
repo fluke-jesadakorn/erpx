@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1697,
+    "revision": 1701,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-l",
       "agentId": "lead",
       "startedAt": "2026-11-13T09:48:56.055Z",
-      "heartbeatAt": "2026-11-13T10:13:17.134Z",
-      "expiresAt": "2026-11-13T10:43:17.134Z",
+      "heartbeatAt": "2026-11-13T10:31:46.424Z",
+      "expiresAt": "2026-11-13T11:01:46.424Z",
       "generation": 56,
       "tokenHash": "eef7dc6029068a20afe93aded0ad39b8746ef9f44c054adc9240abf2c97997ee"
     },
@@ -34714,25 +34714,106 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "ffd5ecd3f7e6eebd8d47caa4edf7df824aa2ec5a",
+        "lastPushedSha": "ffd5ecd3f7e6eebd8d47caa4edf7df824aa2ec5a",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "ffd5ecd3f7e6eebd8d47caa4edf7df824aa2ec5a",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the people-relationship mount."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --lib",
+            "result": "passed",
+            "sourceSha": "ffd5ecd3f7e6eebd8d47caa4edf7df824aa2ec5a",
+            "sourceKind": "committed",
+            "note": "12 passed, 3 ignored."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --lib -- --ignored",
+            "result": "passed",
+            "sourceSha": "ffd5ecd3f7e6eebd8d47caa4edf7df824aa2ec5a",
+            "sourceKind": "committed",
+            "note": "3/3 PostgreSQL relationship proofs."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "ffd5ecd3f7e6eebd8d47caa4edf7df824aa2ec5a",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "ffd5ecd3f7e6eebd8d47caa4edf7df824aa2ec5a",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 229,
+            "after": 226,
+            "sourceSha": "ffd5ecd3f7e6eebd8d47caa4edf7df824aa2ec5a",
+            "sourceKind": "committed",
+            "note": "Removed the TS organization/team/subject relationship writers; preview/apply are native. The remaining 15 grants/invitation writes are shared and need a native producer."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "nextAction": "Native people-relationship preview/apply routes are mounted and the TS organization/team/subject writers are retired (IAM 229 -> 226). Remaining: add a native GET snapshot route or keep the TS read; implement the native grants/invitation producer (peopleAccess/previewPeopleAccess/applyPeopleAccess/directInvitationEligible/activateDirectInvitation) to retire the remaining 15 shared writers (target 211).",
+        "handoff": {
           "runId": "run-20261113-l",
           "agentId": "integrator-identity",
-          "claimedAt": "2026-11-13T10:12:53.562Z",
-          "heartbeatAt": "2026-11-13T10:13:17.134Z",
-          "expiresAt": "2026-11-13T10:43:17.134Z",
-          "generation": 56
+          "at": "2026-11-13T10:31:24.645Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native people-relationship preview/apply routes are mounted and the TS organization/team/subject writers are retired (IAM 229 -> 226). Remaining: add a native GET snapshot route or keep the TS read; implement the native grants/invitation producer (peopleAccess/previewPeopleAccess/applyPeopleAccess/directInvitationEligible/activateDirectInvitation) to retire the remaining 15 shared writers (target 211)."
         },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.people-grants",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Native people grants and invitations, then retire the shared TS writer",
+        "scope": "Implement the native people grants/invitation capability (peopleAccess, previewPeopleAccess, applyPeopleAccess, directInvitationEligible, activateDirectInvitation) with authority, preview-token, CAS and receipt semantics. Switch the /iam/people-access routes and the technology Accounts consumers, then delete the remaining shared writers in people-access.ts and record the Identity Access KPI pair (226 -> 211).",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/server-identity_access/Cargo.toml",
+          "packages/server-identity_access/package.json",
+          "packages/feature-identity_access/**",
+          "packages/feature-account/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "pending",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Mount people_relationships_http_router (public::people_access_http) in composition: implement PeopleRelationshipsHttpBackend from the authorized Holding work context, open one serializable transaction, call preview_relationship/apply_relationship with PgPeopleRelationships, and register the Holding route. Add the TS native transport (mirror native-iam-assignments) and switch iam-api people-relationships snapshot/preview/apply to native with fail-closed. Then delete the 18 people-access.ts relationship writers/barrel and record Identity Access 229 -> 211.",
+        "nextAction": "Audit the 15 remaining grants/invitation writes in people-access.ts; implement the native command family with preview/apply, role/assignment/invitation lifecycle, direct-invitation activation and account_invitations delivery, then switch the /iam/people-access routes and technology Accounts consumers, delete the TS writers/barrels, move oracles to native seeding, and record Identity Access 226 -> 211.",
         "handoff": null,
-        "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "procedureRef": "executionPlan.sliceProcedure"
       }
     ],
     "migrationProgress": {
@@ -34741,12 +34822,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 174,
+      "totalPackets": 175,
       "migratedPackets": 99,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 1,
-        "ready_for_integration": 15,
+        "pending": 21,
+        "in_progress": 0,
+        "ready_for_integration": 16,
         "integrating": 0,
         "migrated": 99,
         "blocked": 39,
@@ -34755,7 +34836,7 @@
       }
     },
     "lastCoordinatorGeneration": 56,
-    "updatedAt": "2026-11-13T10:13:17.135Z",
+    "updatedAt": "2026-11-13T10:31:46.425Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
