@@ -2,9 +2,43 @@
 //! authority remains with the selected coordinator; owner ports supply the
 //! assignment workspace and withdrawal facts.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_identity_access::public::iam_roles::{
+    AccessReviewCampaignInput, AccessReviewCancelInput, AccessReviewDecisionInput, IamRoleActor,
+    PgIamRolesReviews, ReviewDecisionInput, RoleSaveInput, cancel_access_review_campaign,
+    decide_access_review_item, decide_review, save_role, start_access_review,
+};
+use erpx_server_identity_access::public::iam_roles_http::{
+    IamRolesReviewsHttpBackend, IamRolesReviewsHttpCommand, IamRolesReviewsHttpFuture,
+    IamRolesReviewsHttpRequest, IamRolesReviewsHttpResponse, IamRolesReviewsHttpTarget,
+};
+use erpx_server_identity_access::public::people_access::{
+    PeopleAccessActor, PgPeopleRelationships, RELATIONSHIP_MANAGE_PERMISSION, apply_relationship,
+    preview_relationship,
+};
+use erpx_server_identity_access::public::people_access_http::{
+    PeopleRelationshipsHttpBackend, PeopleRelationshipsHttpCommand, PeopleRelationshipsHttpFuture,
+    PeopleRelationshipsHttpRequest, PeopleRelationshipsHttpResponse,
+};
+use erpx_server_identity_access::public::people_grants::{
+    ACCESS_APPLY_PERMISSION, DirectInvitationDelivery, PeopleGrantActor, PgPeopleGrants,
+    apply_grant_change, direct_invitation_token_hash, preview_grant_change, read_direct_invitation,
+    stage_direct_invitation_delivery,
+};
+use erpx_server_identity_access::public::people_grants_http::{
+    PeopleGrantsHttpBackend, PeopleGrantsHttpCommand, PeopleGrantsHttpFuture,
+    PeopleGrantsHttpRequest, PeopleGrantsHttpResponse,
+};
+use erpx_server_identity_access::public::permission_catalog::permission_catalog;
+use erpx_server_identity_access::public::position_gpo::{
+    FreshMfa, PgPositionGpo, PgPositionGpoDirectory, PositionGpoHttpBackend,
+    PositionGpoHttpCommand, PositionGpoHttpFuture, PositionGpoHttpRequest, PositionGpoHttpResponse,
+    ReqwestConnector, position_gpo_overview, preview_position_gpo, preview_unmap_position_gpo,
+    publish_position_gpo, retry_position_gpo, retry_position_gpo_config, unmap_position_gpo,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
+    account_security::MFA_FRESH_MS,
     assignment::{
         AssignmentActor, AssignmentRevocation, PgIdentityAssignments, assignment_workspace,
         revoke_assignment,
@@ -15,38 +49,11 @@ use erpx_server_identity_access::public::{
     },
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
-        WorkAuthorizationRequest,
+        WorkAuthorizationRequest, WorkPermissionRequirement,
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_identity_access::public::iam_roles::{
-    AccessReviewCampaignInput, AccessReviewCancelInput, AccessReviewDecisionInput, IamRoleActor,
-    PgIamRolesReviews, ReviewDecisionInput, RoleSaveInput, cancel_access_review_campaign,
-    decide_access_review_item, decide_review, save_role, start_access_review,
-};
-use erpx_server_identity_access::public::iam_roles_http::{
-    IamRolesReviewsHttpBackend, IamRolesReviewsHttpCommand, IamRolesReviewsHttpFuture,
-    IamRolesReviewsHttpRequest, IamRolesReviewsHttpResponse, IamRolesReviewsHttpTarget,
-};
-use erpx_server_identity_access::public::permission_catalog::permission_catalog;
-use erpx_server_identity_access::public::people_access::{
-    PgPeopleRelationships, PeopleAccessActor, RELATIONSHIP_MANAGE_PERMISSION, apply_relationship,
-    preview_relationship,
-};
-use erpx_server_identity_access::public::people_access_http::{
-    PeopleRelationshipsHttpBackend, PeopleRelationshipsHttpCommand, PeopleRelationshipsHttpFuture,
-    PeopleRelationshipsHttpRequest, PeopleRelationshipsHttpResponse,
-};
-use erpx_server_identity_access::public::people_grants::{
-    ACCESS_APPLY_PERMISSION, DirectInvitationDelivery, PgPeopleGrants, PeopleGrantActor,
-    apply_grant_change, direct_invitation_token_hash, preview_grant_change, read_direct_invitation,
-    stage_direct_invitation_delivery,
-};
-use erpx_server_identity_access::public::people_grants_http::{
-    PeopleGrantsHttpBackend, PeopleGrantsHttpCommand, PeopleGrantsHttpFuture,
-    PeopleGrantsHttpRequest, PeopleGrantsHttpResponse,
-};
 use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, UserId,
@@ -140,7 +147,6 @@ fn assignment_actor(current: &AuthorizedWorkContext) -> Result<AssignmentActor, 
         expires_at: current.expires_at(),
     })
 }
-
 
 fn iam_role_actor(current: &AuthorizedWorkContext) -> Result<IamRoleActor, BusinessError> {
     let selected = current.selection();
@@ -259,6 +265,7 @@ pub struct IdentityAccessService<C> {
     authorizer: Arc<HoldingWorkAuthorizer>,
     configuration: IdentityAccessConfiguration,
     clock: Arc<C>,
+    control: Option<DatabasePool>,
 }
 
 impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
@@ -271,7 +278,15 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
             authorizer,
             configuration,
             clock,
+            control: None,
         }
+    }
+
+    /// Supply the Control pool for the fresh-MFA fact of a sensitive Directory
+    /// command. Without it every write fails closed with `FRESH_MFA_REQUIRED`.
+    pub fn with_control_pool(mut self, control: DatabasePool) -> Self {
+        self.control = Some(control);
+        self
     }
 
     pub fn company(&self) -> &CompanyId {
@@ -703,6 +718,204 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
             )
             .await
     }
+
+    /// One native Position GPO command. Account session, selected Company,
+    /// current Work authority and the serializable Holding transaction stay
+    /// here; the owner application and the installed Directory connector own
+    /// the mapping rules and effects.
+    pub async fn position_gpo_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: PositionGpoHttpCommand,
+    ) -> Result<PositionGpoHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let control = self.control.clone();
+        let write = matches!(
+            &command,
+            PositionGpoHttpCommand::Publish { .. }
+                | PositionGpoHttpCommand::Unmap { .. }
+                | PositionGpoHttpCommand::Retry { .. }
+                | PositionGpoHttpCommand::RetryConfig { .. }
+        );
+        let expected = company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = write;
+            Ok(request)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: WorkPermissionRequirement::AnyOf(vec![
+                        "iam.read".into(),
+                        "iam.directory.apply".into(),
+                    ]),
+                    module: Some("iam".into()),
+                    destination: "technology".into(),
+                    api: true,
+                },
+                IdentityAccessSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let control = control.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let actor = iam_role_actor(current)?;
+                        let now = clock.now().get();
+                        let fresh = if write {
+                            fresh_mfa(
+                                control.as_ref(),
+                                current.user_id().as_str(),
+                                current.session_id().as_str(),
+                                now,
+                            )
+                            .await
+                        } else {
+                            false
+                        };
+                        let key = match &command {
+                            PositionGpoHttpCommand::Publish {
+                                idempotency_key, ..
+                            }
+                            | PositionGpoHttpCommand::Unmap {
+                                idempotency_key, ..
+                            }
+                            | PositionGpoHttpCommand::Retry {
+                                idempotency_key, ..
+                            }
+                            | PositionGpoHttpCommand::RetryConfig {
+                                idempotency_key, ..
+                            } => Some(
+                                CommandKey::new(idempotency_key.clone())
+                                    .map_err(PgTransactionError::Business)?,
+                            ),
+                            _ => None,
+                        };
+                        let key = key.as_ref().map(CommandKey::as_str).unwrap_or_default();
+                        let profile = std::env::var("ERPX_IAM_SECRET_PROFILES")
+                            .map(std::path::PathBuf::from)
+                            .unwrap_or_default();
+                        let mut directory = PgPositionGpoDirectory::new(profile, ReqwestConnector);
+                        let mut repository = PgPositionGpo::new(connection);
+                        let data = match command {
+                            PositionGpoHttpCommand::Overview => {
+                                position_gpo_overview(&mut repository, &actor, now).await
+                            }
+                            PositionGpoHttpCommand::Preview { input } => preview_position_gpo(
+                                &mut repository,
+                                &mut directory,
+                                &actor,
+                                &input,
+                                now,
+                            )
+                            .await
+                            .map(|preview| preview.value),
+                            PositionGpoHttpCommand::Publish { input, .. } => {
+                                publish_position_gpo(
+                                    &mut repository,
+                                    &mut directory,
+                                    &actor,
+                                    FreshMfa(fresh),
+                                    key,
+                                    &input,
+                                    now,
+                                )
+                                .await
+                            }
+                            PositionGpoHttpCommand::UnmapPreview { input } => {
+                                preview_unmap_position_gpo(&mut repository, &actor, &input, now)
+                                    .await
+                            }
+                            PositionGpoHttpCommand::Unmap { input, .. } => {
+                                unmap_position_gpo(
+                                    &mut repository,
+                                    &actor,
+                                    FreshMfa(fresh),
+                                    key,
+                                    &input,
+                                    now,
+                                )
+                                .await
+                            }
+                            PositionGpoHttpCommand::Retry { input, .. } => {
+                                retry_position_gpo(
+                                    &mut repository,
+                                    &actor,
+                                    FreshMfa(fresh),
+                                    key,
+                                    &input,
+                                    now,
+                                )
+                                .await
+                            }
+                            PositionGpoHttpCommand::RetryConfig { input, .. } => {
+                                retry_position_gpo_config(
+                                    &mut repository,
+                                    &actor,
+                                    FreshMfa(fresh),
+                                    key,
+                                    &input,
+                                    now,
+                                )
+                                .await
+                            }
+                        }?;
+                        Ok(PositionGpoHttpResponse { data })
+                    })
+                },
+            )
+            .await
+    }
+}
+
+/// Fresh-MFA is a Control-store fact for the same session. A missing Control
+/// pool or a failed read is reported as not fresh, never as success.
+async fn fresh_mfa(
+    control: Option<&DatabasePool>,
+    user_id: &str,
+    session_id: &str,
+    now: i64,
+) -> bool {
+    let Some(control) = control else {
+        return false;
+    };
+    let Ok(mut connection) = control.raw().acquire().await else {
+        return false;
+    };
+    sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM iam_mfa_sessions f \
+         JOIN iam_mfa m ON m.user_id=f.user_id AND m.enabled=true \
+         JOIN session s ON s.id=f.session_id AND s.\"userId\"=f.user_id \
+         WHERE f.user_id=$1 AND f.session_id=$2 AND f.verified_at>$3 \
+         AND s.\"expiresAt\"::timestamptz>to_timestamp($4::double precision/1000.0))",
+    )
+    .bind(user_id)
+    .bind(session_id)
+    .bind(now - MFA_FRESH_MS)
+    .bind(now as f64)
+    .fetch_one(&mut *connection)
+    .await
+    .unwrap_or(false)
 }
 
 pub struct IdentityAccessBackend<C> {
@@ -731,11 +944,7 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessBackend<C> {
     /// Supply the committed Control and Holding pools for the post-commit
     /// direct-invitation delivery staging. Without them an invitation commits
     /// the review but fails closed before any Control delivery row is written.
-    pub fn with_delivery_databases(
-        mut self,
-        control: DatabasePool,
-        holding: DatabasePool,
-    ) -> Self {
+    pub fn with_delivery_databases(mut self, control: DatabasePool, holding: DatabasePool) -> Self {
         self.control = Some(control);
         self.holding_database = Some(holding);
         self
@@ -795,7 +1004,6 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessBackend<C> {
     }
 }
 
-
 impl<C: Clock + Send + Sync + 'static> IamRolesReviewsHttpBackend for IdentityAccessBackend<C> {
     fn execute<'a>(
         &'a self,
@@ -819,12 +1027,7 @@ impl<C: Clock + Send + Sync + 'static> PeopleRelationshipsHttpBackend for Identi
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .people_command(
-                    request.host,
-                    proof,
-                    move || Ok(selection),
-                    request.command,
-                )
+                .people_command(request.host, proof, move || Ok(selection), request.command)
                 .await
                 .map_err(business)
         })
@@ -846,7 +1049,9 @@ impl<C: Clock + Send + Sync + 'static> PeopleGrantsHttpBackend for IdentityAcces
             // The Holding unit has committed. Staging only queues Control rows:
             // a failure here must never roll back the assignment or invitation.
             if let Some(delivery) = delivery {
-                self.stage_direct_invitation(delivery).await.map_err(business)?;
+                self.stage_direct_invitation(delivery)
+                    .await
+                    .map_err(business)?;
             }
             Ok(reply)
         })
@@ -885,6 +1090,21 @@ impl<C: Clock + Send + Sync + 'static> IamAssignmentHttpBackend for IdentityAcce
                         .map_err(business)
                 }
             }
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PositionGpoHttpBackend for IdentityAccessBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: PositionGpoHttpRequest<'a>,
+    ) -> PositionGpoHttpFuture<'a, PositionGpoHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .position_gpo_command(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map_err(business)
         })
     }
 }

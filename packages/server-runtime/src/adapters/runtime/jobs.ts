@@ -3,7 +3,6 @@ import {holdingRoutingEnabled,activeHoldingHosts} from '@erpx/feature-runtime/li
 import { drainProvisioning } from "@erpx/server-identity_access/public/technology";
 import { drainPeopleLifecycle } from "@erpx/server-people_payroll/public/people-lifecycle-jobs";
 import { drainDirectoryOperations } from "@erpx/server-identity_access/public/directory-operations";
-import { drainPositionGpo } from "@erpx/server-identity_access/public/position-gpo";
 import { drainDirectoryJobs } from "@erpx/server-identity_access/public/iam-directories";
 import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import { drainSocialAgent } from "@erpx/server-collaboration/public/social-agent";
@@ -56,7 +55,7 @@ export async function directoryWork(env: JobEnv) {
   for(const slot of await activeSlots(env)) {
     const db=registeredResources(env,slot.id).write as PostgresDatabase;
     await drainDirectoryJobs(db);
-    if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); await drainPositionGpo(db); }
+    if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); await runNativePositionGpoWorker(slot.id); }
     await (await import("@erpx/server-identity_access/public/user-management")).managementWork(db);
   }
 }
@@ -242,6 +241,26 @@ async function runNativeCustomerPortalInvitationWorker(holdingId:string):Promise
  catch{throw Object.assign(new Error("The native Customer Portal invitation worker response is invalid."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_RESPONSE_INVALID"});}
  const holdings=outcome&&typeof outcome==="object"&&!Array.isArray(outcome)?(outcome as {holdings?:unknown}).holdings:undefined;
  if(!Array.isArray(holdings)||holdings.length!==1||!holdings[0]||typeof holdings[0]!=="object"||(holdings[0] as {holdingId?:unknown}).holdingId!==holdingId)throw Object.assign(new Error("The native Customer Portal invitation worker target is invalid."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_TARGET_MISMATCH"});
+}
+
+/**
+ * Runs one bounded native Position GPO delivery cycle for one exact Holding.
+ * The native worker takes the catalog and provider advisory locks, reconciles
+ * desired mappings, applies the bounded connector effects and commits the unit;
+ * this transport only supplies the reviewed manifest path. A missing worker is
+ * a hard failure, never a TypeScript delivery.
+ */
+async function runNativePositionGpoWorker(holdingId:string):Promise<void>{
+ const binary=process.env.ERPX_NATIVE_SERVER_BIN,manifest=process.env.ERPX_DATABASE_MANIFEST;
+ if(!binary||!manifest)throw Object.assign(new Error("The native Position GPO worker is not configured."),{code:"NATIVE_POSITION_GPO_WORKER_REQUIRED"});
+ let stdout:string;
+ try{({stdout}=await exec(binary,["position-gpo-worker","--once","--database-manifest",manifest,"--holding",holdingId],{timeout:120_000,maxBuffer:2*1024*1024,env:process.env,windowsHide:true}));}
+ catch{throw Object.assign(new Error("The native Position GPO worker did not complete."),{code:"NATIVE_POSITION_GPO_WORKER_FAILED"});}
+ let outcome:unknown;
+ try{outcome=JSON.parse(stdout);}
+ catch{throw Object.assign(new Error("The native Position GPO worker response is invalid."),{code:"NATIVE_POSITION_GPO_WORKER_RESPONSE_INVALID"});}
+ const holdings=outcome&&typeof outcome==="object"&&!Array.isArray(outcome)?(outcome as {holdings?:unknown}).holdings:undefined;
+ if(!Array.isArray(holdings)||holdings.length!==1||!holdings[0]||typeof holdings[0]!=="object"||(holdings[0] as {holdingId?:unknown}).holdingId!==holdingId)throw Object.assign(new Error("The native Position GPO worker target is invalid."),{code:"NATIVE_POSITION_GPO_WORKER_TARGET_MISMATCH"});
 }
 
 /**

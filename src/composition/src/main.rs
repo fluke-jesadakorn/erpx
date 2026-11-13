@@ -216,6 +216,21 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
         }
         #[cfg(feature = "existing-business")]
         [command, once, option, path, holding_flag, holding]
+            if command == "position-gpo-worker"
+                && once == "--once"
+                && option == "--database-manifest"
+                && holding_flag == "--holding" =>
+        {
+            let outcome = erpx_service::position_gpo_worker::run_once_file(
+                std::path::Path::new(path),
+                holding,
+            )
+            .await?;
+            println!("{outcome}");
+            Ok(())
+        }
+        #[cfg(feature = "existing-business")]
+        [command, once, option, path, holding_flag, holding]
             if command == "sales-notification-worker"
                 && once == "--once"
                 && option == "--database-manifest"
@@ -281,7 +296,7 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             }
             if cfg!(feature = "existing-business") {
                 usage.push_str(
-                    " | erpx-server sales-notification-worker --once --database-manifest /absolute/databases-jobs.json --holding h001 | erpx-server sales-notification-worker --once --notification <id> --database-manifest /absolute/databases-jobs.json | erpx-server customer-portal-invitation-worker --once --database-manifest /absolute/databases-jobs.json --holding h001",
+                    " | erpx-server sales-notification-worker --once --database-manifest /absolute/databases-jobs.json --holding h001 | erpx-server sales-notification-worker --once --notification <id> --database-manifest /absolute/databases-jobs.json | erpx-server customer-portal-invitation-worker --once --database-manifest /absolute/databases-jobs.json --holding h001 | erpx-server position-gpo-worker --once --database-manifest /absolute/databases-jobs.json --holding h001",
                 );
             }
             if cfg!(feature = "production-api") {

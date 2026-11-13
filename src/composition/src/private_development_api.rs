@@ -2951,6 +2951,7 @@ async fn assemble_checked(
         let mut people_relationship_targets = Vec::new();
         let mut people_grants_targets = Vec::new();
         let mut iam_roles_targets = Vec::new();
+        let mut position_gpo_targets = Vec::new();
         let mut billing_targets = Vec::new();
         let mut billing_invoice_targets = Vec::new();
         let mut billing_rollout_targets = Vec::new();
@@ -3935,6 +3936,31 @@ async fn assemble_checked(
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
                         backend: identity_backend.clone(),
+                    },
+                );
+                let position_gpo_backend = Arc::new(
+                    crate::identity_access::IdentityAccessBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(
+                            crate::identity_access::IdentityAccessService::new(
+                                authorizer.clone(),
+                                crate::identity_access::IdentityAccessConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )
+                            .with_control_pool(pools[0].clone()),
+                        ),
+                    ),
+                );
+                position_gpo_targets.push(
+                    erpx_server_identity_access::public::position_gpo_http::PositionGpoHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: position_gpo_backend,
                     },
                 );
                 people_relationship_targets.push(
@@ -5532,6 +5558,14 @@ async fn assemble_checked(
                     iam_roles_targets,
                 )
                 .map_err(|_| "PRIVATE_API_IDENTITY_ACCESS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !position_gpo_targets.is_empty() {
+            router = router.merge(
+                erpx_server_identity_access::public::position_gpo_http::position_gpo_http_router(
+                    position_gpo_targets,
+                )
+                .map_err(|_| "PRIVATE_API_POSITION_GPO_CONFIGURATION_INVALID")?,
             );
         }
         if !people_relationship_targets.is_empty() {

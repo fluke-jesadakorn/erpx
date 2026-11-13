@@ -164,6 +164,8 @@ pub mod sales_notification_reconciliation;
 #[cfg(feature = "existing-business")]
 pub mod customer_portal_invitation_worker;
 #[cfg(feature = "existing-business")]
+pub mod position_gpo_worker;
+#[cfg(feature = "existing-business")]
 pub mod portal_enrollment;
 #[cfg(feature = "existing-business")]
 pub mod sales_notification_worker;

@@ -14,8 +14,7 @@ import {
 } from "@erpx/server-identity_access/public/technology";
 import { provisioningInput } from "@erpx/server-identity_access/public/rules/technology";
 import { directoryOperationsApi } from "@erpx/server-identity_access/public/directory-operations-api";
-import { positionGpoOverview, previewPositionGpo, publishPositionGpo, previewUnmapPositionGpo, unmapPositionGpo, retryPositionGpo, retryPositionGpoConfig } from "@erpx/server-identity_access/public/position-gpo";
-import { nativePositionGpoAvailable, nativePositionGpoCommand, nativePositionGpoOverview } from "@erpx/server-identity_access/public/native-position-gpo";
+import { nativePositionGpoCommand, nativePositionGpoOverview } from "@erpx/server-identity_access/public/native-position-gpo";
 import { gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, retryGpoRuleConfig, markPositionGpoNotRequired } from "@erpx/server-identity_access/public/gpo-rules";
 import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
 import { readAdminOrganization } from "@erpx/workplace/lib/native-admin-organization";
@@ -33,7 +32,7 @@ export async function GET(request: Request, context: Context) {
       canonicalDestinationLinks({
         data: path[0] === "organization" ? await organization()
           : path[0] === "gpo-rules" ? await gpoRulesOverview(write as PostgresDatabase, actor)
-          : path[0]==="position-gpo" ? (nativePositionGpoAvailable() ? await nativePositionGpoOverview(request, holdingSlug) : await positionGpoOverview(write as PostgresDatabase,actor)) : await technologyData(
+          : path[0]==="position-gpo" ? await nativePositionGpoOverview(request, holdingSlug) : await technologyData(
           write as PostgresDatabase,
           iamActorFromWork(actor),
         ),
@@ -87,12 +86,12 @@ export async function POST(request: Request, context: Context) {
       if (path[1] === "retry-config") return Response.json(canonicalDestinationLinks({ data: await retryGpoRuleConfig(db, contextActor, raw, key) }));
       throw new ApiError(404, "NOT_FOUND", "GPO rule operation not found.");
     }
-    if(path[0]==="position-gpo" && path[1]==="preview")return Response.json(canonicalDestinationLinks({data:nativePositionGpoAvailable() ? await nativePositionGpoCommand(request, holdingSlug, "preview", raw, key) : await previewPositionGpo(db,contextActor,raw)}));
-    if(path[0]==="position-gpo" && path[1]==="publish")return Response.json(canonicalDestinationLinks({data:nativePositionGpoAvailable() ? await nativePositionGpoCommand(request, holdingSlug, "publish", raw, key) : await publishPositionGpo(db,contextActor,raw,key)}));
-    if(path[0]==="position-gpo" && path[1]==="unmap-preview")return Response.json(canonicalDestinationLinks({data:nativePositionGpoAvailable() ? await nativePositionGpoCommand(request, holdingSlug, "unmap-preview", raw, key) : await previewUnmapPositionGpo(db,contextActor,raw)}));
-    if(path[0]==="position-gpo" && path[1]==="unmap")return Response.json(canonicalDestinationLinks({data:nativePositionGpoAvailable() ? await nativePositionGpoCommand(request, holdingSlug, "unmap", raw, key) : await unmapPositionGpo(db,contextActor,raw,key)}));
-    if(path[0]==="position-gpo" && path[1]==="retry")return Response.json(canonicalDestinationLinks({data:nativePositionGpoAvailable() ? await nativePositionGpoCommand(request, holdingSlug, "retry", raw, key) : await retryPositionGpo(db,contextActor,raw,key)}));
-    if(path[0]==="position-gpo" && path[1]==="retry-config")return Response.json(canonicalDestinationLinks({data:nativePositionGpoAvailable() ? await nativePositionGpoCommand(request, holdingSlug, "retry-config", raw, key) : await retryPositionGpoConfig(db,contextActor,raw,key)}));
+    if(path[0]==="position-gpo" && path[1]==="preview")return Response.json(canonicalDestinationLinks({data:await nativePositionGpoCommand(request, holdingSlug, "preview", raw, key)}));
+    if(path[0]==="position-gpo" && path[1]==="publish")return Response.json(canonicalDestinationLinks({data:await nativePositionGpoCommand(request, holdingSlug, "publish", raw, key)}));
+    if(path[0]==="position-gpo" && path[1]==="unmap-preview")return Response.json(canonicalDestinationLinks({data:await nativePositionGpoCommand(request, holdingSlug, "unmap-preview", raw, key)}));
+    if(path[0]==="position-gpo" && path[1]==="unmap")return Response.json(canonicalDestinationLinks({data:await nativePositionGpoCommand(request, holdingSlug, "unmap", raw, key)}));
+    if(path[0]==="position-gpo" && path[1]==="retry")return Response.json(canonicalDestinationLinks({data:await nativePositionGpoCommand(request, holdingSlug, "retry", raw, key)}));
+    if(path[0]==="position-gpo" && path[1]==="retry-config")return Response.json(canonicalDestinationLinks({data:await nativePositionGpoCommand(request, holdingSlug, "retry-config", raw, key)}));
     if (path[0] === "provisioning" && path[1] === "preview")
       return Response.json(canonicalDestinationLinks({
         data: await previewProvisioning(
