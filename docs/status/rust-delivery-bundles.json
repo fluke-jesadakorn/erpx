@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1456,
+    "revision": 1457,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -30051,8 +30051,8 @@
           "generation": 50
         },
         "baseSha": null,
-        "implementedCommit": "250ec8d413377d0306c29ef0a2bef074b20ec8fb",
-        "lastPushedSha": "250ec8d413377d0306c29ef0a2bef074b20ec8fb",
+        "implementedCommit": "be42a7b48bbe0e7dee36d948df6512be11036263",
+        "lastPushedSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
         "checks": [
           {
             "command": "npx tsc --noEmit",
@@ -30205,6 +30205,72 @@
             "result": "passed",
             "sourceSha": "0d66296be11385cb9497f7f243b4737d677e8772",
             "note": "Owner crate compiles with the new Change/OwnerPlan variants, wire decode, SQL apply and retain image."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "note": "15/15, including the story create/archive planning and receipt case."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_http",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "note": "3/3; the native router declares POST /stories and POST /stories/{id}/archive."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_postgres",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "note": "11/11, including story publish/replay/archive CAS and the STORY_CONFLICT non-author denial."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "note": "Composition compiles; the existing generic SocialHttpBackend::command dispatches the new Change variants without a composition edit."
+          },
+          {
+            "command": "bun run test:unit -- --suite=collaboration.semantic-services.unit",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "note": "117/117 after removing the retired story command fixture/test."
+          },
+          {
+            "command": "bun run test:integration -- --suite=collaboration.social-beta.integration",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "note": "94/94 after removing the TS story purchase assertions; drafts, publish, post actions and uploads remain covered."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "note": "Layout passes after deleting the workflow social-source adapter/public barrel and their package exports."
+          },
+          {
+            "command": "retirement:ts-writes: collaboration",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "before": 176,
+            "after": 174,
+            "note": "Deleted the social_stories insert/update writers with the TS createStory/archiveStory application, adapter methods and public exports."
+          },
+          {
+            "command": "retirement:ts-writes: workflow",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "before": 102,
+            "after": 95,
+            "note": "Deleted adapters/collaboration-social-sources.ts and its public barrel (story/archive receipt, audit, outbox and assertion-clear writers)."
+          },
+          {
+            "command": "retirement:ts-writes: global",
+            "result": "passed",
+            "sourceSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
+            "before": 2371,
+            "after": 2362,
+            "note": "Global owner KPI drops by exactly the nine deleted story/collaboration writers."
           }
         ],
         "retainedLegacy": [],
@@ -30217,7 +30283,7 @@
           "reason": "handoff",
           "nextAction": "Refine allowedPaths for the cross-owner workflow source and staff-work oracle, then commit the cutover."
         },
-        "nextAction": "Owner-side story create/archive is implemented and tested at 0d66296be (Change/OwnerPlan, wire decode social.story.publish/archive, social_stories SQL, retain image, owner routes; unit 15/15, HTTP 3/3, PG 11/11). Remaining to close: composition SocialHttpBackend dispatch + apps stories route switch + TS story/workflow writer deletion + oracle migration, all blocked by the active migrate.agent.ai-gateway-commands claim on src/composition/src/** and fixtures/** until 02:14. Do not overlap.",
+        "nextAction": "Story create/archive is native end-to-end and the TS story/workflow writers are deleted (collaboration 176->174, workflow 102->95, global 2371->2362; unit 117/117, social-beta 94/94, Rust unit/HTTP/PG 15/3/11, service composition compiles). Remaining before this task can close: the pms/operations handover route cutover, blocked on the same-transaction purchase boundary in migrate.operations.handover-publish; agent-replies/hide remain before social-home deletion. Do not mark migrated until the handover caller is resolved or explicitly split by the lead.",
         "scopeRefinementRequired": false
       },
       {
@@ -31723,7 +31789,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T02:06:35.729Z",
+    "updatedAt": "2026-11-13T02:10:14.935Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
