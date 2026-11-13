@@ -3089,6 +3089,7 @@ async fn assemble_checked(
         let mut identity_access_targets = Vec::new();
         let mut people_relationship_targets = Vec::new();
         let mut people_grants_targets = Vec::new();
+        let mut user_management_targets = Vec::new();
         let mut iam_roles_targets = Vec::new();
         let mut position_gpo_targets = Vec::new();
         let mut billing_targets = Vec::new();
@@ -4104,6 +4105,14 @@ async fn assemble_checked(
                 );
                 people_relationship_targets.push(
                     erpx_server_identity_access::public::people_access_http::PeopleRelationshipsHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: identity_backend.clone(),
+                    },
+                );
+                user_management_targets.push(
+                    erpx_server_identity_access::public::user_management::UserManagementHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -5721,6 +5730,14 @@ async fn assemble_checked(
                     people_grants_targets,
                 )
                 .map_err(|_| "PRIVATE_API_IDENTITY_ACCESS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !user_management_targets.is_empty() {
+            router = router.merge(
+                erpx_server_identity_access::public::user_management::user_management_http_router(
+                    user_management_targets,
+                )
+                .map_err(|_| "PRIVATE_API_USER_MANAGEMENT_CONFIGURATION_INVALID")?,
             );
         }
         if !billing_targets.is_empty() {

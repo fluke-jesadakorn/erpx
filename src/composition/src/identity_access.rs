@@ -29,6 +29,12 @@ use erpx_server_identity_access::public::people_grants_http::{
     PeopleGrantsHttpRequest, PeopleGrantsHttpResponse,
 };
 use erpx_server_identity_access::public::permission_catalog::permission_catalog;
+use erpx_server_identity_access::public::user_management::{
+    UserManagementActor, UserManagementHttpBackend, UserManagementHttpCommand,
+    UserManagementHttpFuture, UserManagementHttpRequest, UserManagementHttpResponse,
+    apply_management_review, decide_management_review, management_command, management_read,
+    reconcile_management,
+};
 use erpx_server_identity_access::public::position_gpo::{
     FreshMfa, PgPositionGpo, PgPositionGpoDirectory, PositionGpoHttpBackend,
     PositionGpoHttpCommand, PositionGpoHttpFuture, PositionGpoHttpRequest, PositionGpoHttpResponse,
@@ -181,6 +187,57 @@ fn iam_role_actor(current: &AuthorizedWorkContext) -> Result<IamRoleActor, Busin
         emergency_until: iam.emergency_until,
         expires_at: current.expires_at(),
     })
+}
+
+fn management_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<UserManagementActor, BusinessError> {
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    let iam = current.command_iam_metadata();
+    Ok(UserManagementActor {
+        user_id: current.user_id().as_str().to_owned(),
+        session_id: current.session_id().as_str().to_owned(),
+        holding_id: current.holding_id().as_str().to_owned(),
+        company_id: workspace.company_id.as_str().to_owned(),
+        assignment_id: assignment.id.as_str().to_owned(),
+        scope_kind: match assignment.scope_kind {
+            WorkScopeKind::Holding => "holding",
+            WorkScopeKind::Branch => "branch",
+            WorkScopeKind::Department => "department",
+        }
+        .to_owned(),
+        scope_node_id: assignment.scope_node_id.as_ref().map(|value| value.as_str().to_owned()),
+        role: assignment.role.clone(),
+        permissions: iam.permissions.clone(),
+        grantable_permissions: iam.grantable_permissions.clone(),
+        platform: false,
+        expires_at: current.expires_at(),
+    })
+}
+
+fn management_route_access(command: &UserManagementHttpCommand) -> WorkAuthorizationRequest {
+    let permission = match command {
+        UserManagementHttpCommand::Read => WorkPermissionRequirement::Exact("iam.read".into()),
+        UserManagementHttpCommand::DecideReview { .. } => {
+            WorkPermissionRequirement::Exact("iam.review".into())
+        }
+        _ => WorkPermissionRequirement::AnyOf(vec![
+            "iam.manage".into(),
+            "iam.directory.manage".into(),
+            "iam.attributes.manage".into(),
+            "people.custom_attributes.write".into(),
+            "people.manage".into(),
+            "organization.manage".into(),
+        ]),
+    };
+    WorkAuthorizationRequest {
+        permission,
+        module: Some("iam".into()),
+        destination: "iam".into(),
+        api: true,
+    }
 }
 
 fn people_actor(current: &AuthorizedWorkContext) -> PeopleAccessActor {
@@ -616,6 +673,118 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
             .await
     }
 
+    /// Reviewed user-management command family. Read/preview/save, the
+    /// independent `policy.grant` decision and the native worker reconcile all
+    /// run inside the selected serializable Holding unit.
+    pub async fn user_management_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: UserManagementHttpCommand,
+    ) -> Result<UserManagementHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        let mutation = !matches!(command, UserManagementHttpCommand::Read);
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = mutation;
+            Ok(request)
+        };
+        let access = management_route_access(&command);
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                access,
+                IdentityAccessSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let actor = management_actor(current)?;
+                        let now = clock.now().get();
+                        let data = match command {
+                            UserManagementHttpCommand::Read => {
+                                current.require_permission("iam.read")?;
+                                management_read(connection, &actor, now).await?
+                            }
+                            UserManagementHttpCommand::Preview { change } => {
+                                management_command(
+                                    connection, &actor, change, "", true, None, now,
+                                )
+                                .await?
+                            }
+                            UserManagementHttpCommand::Apply {
+                                change,
+                                token,
+                                idempotency_key,
+                            } => {
+                                let key = CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                management_command(
+                                    connection,
+                                    &actor,
+                                    change,
+                                    key.as_str(),
+                                    false,
+                                    Some(&token),
+                                    now,
+                                )
+                                .await?
+                            }
+                            UserManagementHttpCommand::ApplyReview {
+                                payload,
+                                idempotency_key,
+                            } => {
+                                CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                apply_management_review(connection, &actor, payload, now).await?
+                            }
+                            UserManagementHttpCommand::DecideReview {
+                                review_id,
+                                payload,
+                                idempotency_key,
+                            } => {
+                                CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                decide_management_review(
+                                    connection, &actor, &review_id, payload, now,
+                                )
+                                .await?
+                            }
+                            UserManagementHttpCommand::Reconcile => {
+                                current.require_permission("iam.manage")?;
+                                reconcile_management(connection, company.as_str(), now).await?;
+                                serde_json::json!({"companyId": company.as_str(), "reconciled": true})
+                            }
+                        };
+                        Ok(UserManagementHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn iam_command<Input>(
         &self,
         host: &str,
@@ -1001,6 +1170,26 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> UserManagementHttpBackend for IdentityAccessBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: UserManagementHttpRequest<'a>,
+    ) -> UserManagementHttpFuture<'a, UserManagementHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .user_management_command(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.command,
+                )
+                .await
+                .map_err(business)
+        })
     }
 }
 

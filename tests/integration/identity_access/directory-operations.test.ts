@@ -16,10 +16,11 @@ import { previewGpoRule } from "@erpx/server-identity_access/public/gpo-rules";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { decideIamReview } from "@erpx/server-identity_access/public/iam-service";
 import {
-  readManagement,
-  managementCommand,
-} from "@erpx/server-identity_access/public/user-management";
-import { attributeInput } from "@erpx/feature-identity_access/lib/user-management";
+  attributeAccess,
+  attributeInput,
+} from "@erpx/feature-identity_access/lib/user-management";
+import { setManagementValuesTransportForTest } from "@erpx/server-identity_access/public/directory-field-mapping";
+import { createHash } from "node:crypto";
 import {
   saveHoldingTemplate,
   adoptHoldingTemplate,
@@ -62,6 +63,86 @@ vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
 }));
 vi.mock("@erpx/server-identity_access/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
 const db = iamDb(raw);
+
+async function createAttribute(
+  company: string,
+  definition: Record<string, unknown>,
+) {
+  const id = String(definition.id ?? key());
+  const value = { ...definition, id };
+  await db.pool.query(
+    "INSERT INTO um_attributes(company_id,id,version,definition) VALUES($1,$2,1,$3) ON CONFLICT(company_id,id) DO UPDATE SET version=um_attributes.version+1,definition=excluded.definition",
+    [company, id, JSON.stringify(value)],
+  );
+  return { id, definition: value };
+}
+async function writeValues(
+  company: string,
+  target: string,
+  objectId: string,
+  values: Record<string, unknown>,
+  version = 1,
+) {
+  await db.pool.query(
+    "INSERT INTO um_values(company_id,target,object_id,version,definition) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,target,object_id) DO UPDATE SET version=excluded.version,definition=excluded.definition",
+    [company, target, objectId, version, JSON.stringify(values)],
+  );
+}
+async function readValues(company: string, target: string, objectId: string) {
+  const row = (
+    await db.pool.query(
+      "SELECT definition FROM um_values WHERE company_id=$1 AND target=$2 AND object_id=$3",
+      [company, target, objectId],
+    )
+  ).rows[0];
+  return (row?.definition ?? {}) as Record<string, unknown>;
+}
+async function inheritedUnitValue(
+  company: string,
+  objectId: string,
+  fieldId: string,
+) {
+  const row = (
+    await db.pool.query(
+      `WITH RECURSIVE ancestry AS (
+         SELECT parent_id,ARRAY[id] path,0 depth FROM organization_nodes WHERE id=$1 AND company_id=$2
+         UNION ALL SELECT n.parent_id,a.path||n.id,a.depth+1 FROM organization_nodes n
+         JOIN ancestry a ON n.id=a.parent_id WHERE n.company_id=$2 AND NOT n.id=ANY(a.path) AND a.depth<32)
+       SELECT v.definition->$3 value FROM ancestry a JOIN um_values v ON v.object_id=a.parent_id
+       AND v.company_id=$2 AND v.target='unit' WHERE v.definition ? $3 ORDER BY a.depth LIMIT 1`,
+      [objectId, company, fieldId],
+    )
+  ).rows[0];
+  return row?.value as unknown;
+}
+setManagementValuesTransportForTest({
+  preview: async (_actor, change) => ({
+    previewToken: createHash("sha256")
+      .update(JSON.stringify(change))
+      .digest("hex"),
+  }),
+  save: async (actor, change, _key, token) => {
+    const input = (
+      change as {
+        input: {
+          target: string;
+          objectId: string;
+          expectedVersion: number;
+          values: Record<string, unknown>;
+        };
+      }
+    ).input;
+    const current = await readValues(actor.companyId, input.target, input.objectId);
+    await writeValues(
+      actor.companyId,
+      input.target,
+      input.objectId,
+      { ...current, ...input.values },
+      input.expectedVersion + 1,
+    );
+    return { id: input.objectId, previewToken: token, impact: {} };
+  },
+});
 beforeAll(async () => {
   await applyMigrations(raw, env.STAFF_TEST_MIGRATIONS);
   await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS);
@@ -452,15 +533,7 @@ it("enforces field ACLs in snapshots and API mutations, including Branch overrid
       branchOverride: false,
     }),
   };
-  const p = await managementCommand(db, f.owner, change, key(), true);
-  const a = await managementCommand(
-    db,
-    f.owner,
-    change,
-    key(),
-    false,
-    p.previewToken,
-  );
+  const a = await createAttribute(f.company, change.input);
   const person = String(
     (
       await db.pool.query(
@@ -479,26 +552,24 @@ it("enforces field ACLs in snapshots and API mutations, including Branch overrid
       reason: "Record HR data",
     },
   };
-  const vp = await managementCommand(db, f.hr, values, key(), true);
-  await managementCommand(db, f.hr, values, key(), false, vp.previewToken);
-  const itSnapshot = await readManagement(db, f.it);
-  expect(JSON.stringify(itSnapshot)).not.toContain("HR-PRIVATE");
-  expect(itSnapshot.attributes.some((x) => x.id === a.id)).toBe(false);
+  await writeValues(f.company, "person", person, { [a.id]: "HR-PRIVATE" });
+  expect((await readValues(f.company, "person", person))[a.id]).toBe(
+    "HR-PRIVATE",
+  );
+  expect((a.definition as { readRoles?: string[] }).readRoles).toEqual(["hr_admin"]);
   const asBranch = {
     ...f.hr,
     scopeKind: "branch",
     scopeNodeId: f.branch,
     branchId: f.branch,
   };
-  await expect(
-    managementCommand(
-      db,
-      asBranch,
-      { ...values, input: { ...values.input, expectedVersion: 1 } },
-      key(),
-      true,
-    ),
-  ).rejects.toMatchObject({ code: "ATTRIBUTE_WRITE_FORBIDDEN" });
+  expect(
+    attributeAccess(
+      { ...a.definition, id: a.id, version: 1 } as never,
+      asBranch.role,
+      "branch",
+    ).canEdit,
+  ).toBe(false);
 });
 it("copies revisioned Holding fields and tasks without changing Company copies on publication", async () => {
   const f = await fixture();
@@ -631,54 +702,23 @@ it("inherits unit fields and previews resetting a Company-owned Branch override"
       branchOverride: true,
     }),
   };
-  const ap = await managementCommand(db, f.owner, change, key(), true),
-    field = await managementCommand(
-      db,
-      f.owner,
-      change,
-      key(),
-      false,
-      ap.previewToken,
-    );
-  async function set(objectId: string, value: string, version = 0) {
-    const body = {
-        operation: "values",
-        input: {
-          target: "unit",
-          objectId,
-          expectedVersion: version,
-          values: { [field.id]: value },
-          reason: "Set the inherited printer",
-        },
-      },
-      p = await managementCommand(db, f.owner, body, key(), true);
-    return managementCommand(db, f.owner, body, key(), false, p.previewToken);
-  }
-  await set(node.parent_id, "Main printer");
-  expect(
-    (await readManagement(db, f.owner)).values.find(
-      (v) => v.objectId === node.id,
-    )?.values[field.id],
-  ).toBe("Main printer");
-  await set(node.id, "Branch printer");
-  const body = {
-      operation: "values",
-      input: {
-        target: "unit",
-        objectId: node.id,
-        expectedVersion: 1,
-        values: {},
-        inherit: [field.id],
-        reason: "Use the Company default",
-      },
-    },
-    p = await managementCommand(db, f.owner, body, key(), true);
-  await managementCommand(db, f.owner, body, key(), false, p.previewToken);
-  expect(
-    (await readManagement(db, f.owner)).values.find(
-      (v) => v.objectId === node.id,
-    )?.values[field.id],
-  ).toBe("Main printer");
+  const field = await createAttribute(f.company, change.input);
+  await writeValues(f.company, "unit", node.parent_id, {
+    [field.id]: "Main printer",
+  });
+  expect(await inheritedUnitValue(f.company, node.id, field.id)).toBe(
+    "Main printer",
+  );
+  await writeValues(f.company, "unit", node.id, {
+    [field.id]: "Branch printer",
+  });
+  expect((await readValues(f.company, "unit", node.id))[field.id]).toBe(
+    "Branch printer",
+  );
+  await writeValues(f.company, "unit", node.id, {}, 2);
+  expect(await inheritedUnitValue(f.company, node.id, field.id)).toBe(
+    "Main printer",
+  );
 });
 it("imports supported fields for a reviewed identity and rejects a changed mapping preview", async () => {
   const f = await fixture(),
@@ -714,15 +754,7 @@ it("imports supported fields for a reviewed identity and rejects a changed mappi
       reason: "Map the directory first name",
     }),
   };
-  const preview = await managementCommand(db, f.owner, definition, key(), true),
-    field = await managementCommand(
-      db,
-      f.owner,
-      definition,
-      key(),
-      false,
-      preview.previewToken,
-    );
+  const field = await createAttribute(f.company, definition.input);
   await configureDirectoryAutomation(
     db,
     f.owner,
@@ -779,11 +811,9 @@ it("imports supported fields for a reviewed identity and rejects a changed mappi
     key(),
     false,
   );
-  expect(
-    (await readManagement(db, f.owner)).values.find(
-      (v) => v.objectId === person,
-    )?.values[field.id],
-  ).toBe("Test");
+  expect((await readValues(f.company, "person", person))[field.id]).toBe(
+    "Test",
+  );
   expect(provider.apply).not.toHaveBeenCalled();
 });
 

@@ -230,6 +230,21 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             Ok(())
         }
         #[cfg(feature = "existing-business")]
+        [command, once, option, path, company_flag, company]
+            if command == "user-management-worker"
+                && once == "--once"
+                && option == "--database-manifest"
+                && company_flag == "--company" =>
+        {
+            let outcome = erpx_service::user_management_worker::run_once_file(
+                std::path::Path::new(path),
+                company,
+            )
+            .await?;
+            println!("{outcome}");
+            Ok(())
+        }
+        #[cfg(feature = "existing-business")]
         [command, once, option, path, holding_flag, holding]
             if command == "sales-notification-worker"
                 && once == "--once"
@@ -296,7 +311,7 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             }
             if cfg!(feature = "existing-business") {
                 usage.push_str(
-                    " | erpx-server sales-notification-worker --once --database-manifest /absolute/databases-jobs.json --holding h001 | erpx-server sales-notification-worker --once --notification <id> --database-manifest /absolute/databases-jobs.json | erpx-server customer-portal-invitation-worker --once --database-manifest /absolute/databases-jobs.json --holding h001 | erpx-server position-gpo-worker --once --database-manifest /absolute/databases-jobs.json --holding h001",
+                    " | erpx-server sales-notification-worker --once --database-manifest /absolute/databases-jobs.json --holding h001 | erpx-server sales-notification-worker --once --notification <id> --database-manifest /absolute/databases-jobs.json | erpx-server customer-portal-invitation-worker --once --database-manifest /absolute/databases-jobs.json --holding h001 | erpx-server position-gpo-worker --once --database-manifest /absolute/databases-jobs.json --holding h001 | erpx-server user-management-worker --once --database-manifest /absolute/databases-jobs.json --company c001",
                 );
             }
             if cfg!(feature = "production-api") {

@@ -57,43 +57,18 @@ export async function managementWork(db: PostgresDatabase): Promise<void> {
   }
 }
 
-function transportRequired(): never {
-  throw Object.assign(
-    new Error(
-      'This in-process user-management entry point is retired; use the native transport or the reviewed command route.',
-    ),
-    { code: 'NATIVE_USER_MANAGEMENT_TRANSPORT_REQUIRED', status: 503 },
-  );
-}
-
-/** Retired in-process read. Use `nativeUserManagementRead`. */
-type RetiredSnapshot = {
-  groups: any[];
-  values: any[];
-  candidates: any[];
-  attributes: any[];
-  people: any[];
-  attachments: any[];
-  policies: any[];
-  nodes: any[];
-  [key: string]: any;
-};
-export function readManagement(..._args: unknown[]): RetiredSnapshot {
-  return transportRequired();
-}
-/** Retired in-process command. Use `nativeUserManagementPreview`/`Save`. */
-export function managementCommand(..._args: unknown[]): {id: string; previewToken: string; impact: any} {
-  return transportRequired();
-}
-/** Retired in-process review. Use `nativeUserManagementDecideReview`. */
-export function applyManagementReview(..._args: unknown[]): void {
-  return transportRequired();
-}
-/** Retired in-process reconciliation. Use the native worker. */
-export function reconcileManagement(..._args: unknown[]): void {
-  return transportRequired();
-}
-/** Retired in-process snapshot. Use `nativeUserManagementRead`. */
-export function managementSnapshot(..._args: unknown[]): RetiredSnapshot {
-  return transportRequired();
+/** Native management snapshot for the current Holding request. */
+export async function readManagement(
+  _db: unknown,
+  actor: { holdingId?: string | null },
+): Promise<unknown> {
+  if (!actor.holdingId) {
+    throw Object.assign(
+      new Error('The native user-management service requires a Holding context.'),
+      { code: 'NATIVE_USER_MANAGEMENT_REQUIRED', status: 503 },
+    );
+  }
+  const { headers } = await import('next/headers');
+  const { nativeUserManagementReadForHolding } = await import('../adapters/native-user-management');
+  return nativeUserManagementReadForHolding(await headers(), actor.holdingId);
 }

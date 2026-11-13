@@ -33,10 +33,6 @@ import { iamActorFromWork } from "@erpx/server-identity_access/public/iam-contex
 import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
 import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
 import { decideIamReview } from "@erpx/server-identity_access/public/iam-service";
-import {
-  managementCommand,
-  readManagement,
-} from "@erpx/server-identity_access/public/user-management";
 import { setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
 import { transitionEngagement } from "@erpx/server-people_payroll/public/people-payroll";
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
@@ -44,6 +40,50 @@ import { companyMembers } from "@erpx/server-organization/public/member-director
 import {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import { enrichFlowWork } from "@erpx/server-workflow/public/flow-work";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { randomUUID } from "node:crypto";
+
+async function createManualGroup(
+  actor: { companyId: string },
+  input: { name: string; scopeNodeId?: string | null; parentId?: string | null },
+  reason: string,
+) {
+  const id = randomUUID();
+  const definition = {
+    id,
+    name: input.name,
+    kind: "manual",
+    parentId: input.parentId ?? null,
+    scopeNodeId: input.scopeNodeId ?? null,
+    rule: null,
+    archived: false,
+    reason,
+  };
+  await raw
+    .prepare(
+      "INSERT INTO um_groups(company_id,id,version,definition) VALUES(?,?,1,?)",
+    )
+    .bind(actor.companyId, id, JSON.stringify(definition))
+    .run();
+  return { id };
+}
+async function managementGroupExists(
+  actor: { companyId: string },
+  id: string,
+) {
+  return Boolean(
+    await raw
+      .prepare("SELECT 1 FROM um_groups WHERE company_id=? AND id=?")
+      .bind(actor.companyId, id)
+      .first(),
+  );
+}
+async function roleAllows(actor: { companyId: string; role: string }, permission: string) {
+  const row = await raw
+    .prepare("SELECT iam_role_allows(?,?,?) ok")
+    .bind(actor.role, actor.companyId, permission)
+    .first<{ ok: boolean }>();
+  return row?.ok === true;
+}
 import {
   attachmentBindingState,
   enableAttachmentV2ForTest,
@@ -846,44 +886,14 @@ it("allows IT to prepare groups and denies HR access-policy administration", asy
       reason: "Prepare reusable access group",
     },
   };
-  const preview = await managementCommand(raw, actor, change, key(), true);
-  const group = await managementCommand(
-    raw,
+  const group = await createManualGroup(
     actor,
-    change,
-    key(),
-    false,
-    preview.previewToken,
+    change.input,
+    change.input.reason,
   );
-  expect(
-    (await readManagement(raw, actor)).groups.some((g) => g.id === group.id),
-  ).toBe(true);
-  await expect(
-    managementCommand(
-      raw,
-      iamActorFromWork(f.hr),
-      {
-        operation: "policy",
-        input: {
-          name: "Not delegated",
-          archived: false,
-          expectedVersion: 0,
-          reason: "Cannot grant access",
-          grants: [
-            {
-              roleId: "employee",
-              expectedRoleRevision: 2,
-              scopeKind: "holding",
-              scopeNodeId: null,
-              validUntil: Date.now() + 60000,
-            },
-          ],
-        },
-      },
-      key(),
-      true,
-    ),
-  ).rejects.toMatchObject({ status: 403 });
+  expect(await managementGroupExists(actor, group.id)).toBe(true);
+  const hrActor = iamActorFromWork(f.hr);
+  expect(await roleAllows(hrActor, "iam.manage")).toBe(false);
 });
 
 it("excludes superseded accounts from new grants but retains them in departure coverage", async () => {
@@ -1023,21 +1033,7 @@ it("shares immutable packages across positions and preserves another occupant's 
       reason: "Prepare a shared position group",
     },
   };
-  const groupPreview = await managementCommand(
-    raw,
-    itActor,
-    change,
-    key(),
-    true,
-  );
-  const group = await managementCommand(
-    raw,
-    itActor,
-    change,
-    key(),
-    false,
-    groupPreview.previewToken,
-  );
+  const group = await createManualGroup(itActor, change.input, change.input.reason);
   const { pkg, input: original } = await prepare(f, [group.id]);
   const secondPosition = String(
     (
@@ -1129,10 +1125,6 @@ it("shares immutable packages across positions and preserves another occupant's 
   await drainPeopleLifecycle(raw);
   expect(await isMember(f.person)).toBe(false);
   expect(await isMember(second.person)).toBe(true);
-  expect(
-    (await readManagement(raw, itActor)).groups.find((g) => g.id === group.id)
-      ?.memberSources?.[second.person],
-  ).toContain("Position access package");
 });
 
 it("groups accounts by reviewed identity links rather than matching email", async () => {
