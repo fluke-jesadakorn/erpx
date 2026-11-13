@@ -118,6 +118,30 @@ export function nativeCreatePost(
   return call(request, holdingSlug, '/feed', { body, key });
 }
 
+export function nativeCreateStory(
+  request: Request,
+  holdingSlug: string,
+  body: unknown,
+  key: string,
+) {
+  return call(request, holdingSlug, '/stories', { body, key });
+}
+
+export function nativeArchiveStory(
+  request: Request,
+  holdingSlug: string,
+  id: string,
+  expectedVersion: number,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/stories/${encodeURIComponent(id)}/archive`,
+    { body: { expectedVersion }, key },
+  );
+}
+
 export function nativeSaveDraft(
   request: Request,
   holdingSlug: string,

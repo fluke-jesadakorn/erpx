@@ -86,17 +86,11 @@ describe('Private message intake guards precede owner file creation',()=>{
  test('lost response replay returns the original receipt before creating any new file set',async()=>{const f=messageFile();f.ports.commands.replay=async<Result>()=>({id:'original'} as Result);expect(await f.app.uploadMessagingFile(actor,'room',{id:'10000000-0000-4000-8000-000000000001',name:'image.png',type:'image/png'})).toEqual({id:'original'});expect(f.calls).toEqual([]);});
 });
 
-import {createSocialApplication,type SocialPorts,type SocialRepository} from "@erpx/server-collaboration/application/social";
-import {createStorySchema} from "@erpx/server-collaboration/domain/social";
 import {createSocialTaskApplication,type SocialTaskPorts} from "@erpx/server-collaboration/application/social-task";
 import {createSocialAgentApplication,type SocialAgentPorts} from "@erpx/server-collaboration/application/social-agent";
 import {createCurrentPushSessionCleanup,createWebPushApplication,type CurrentPushSessionCleanupPorts,type WebPushPorts} from "@erpx/server-collaboration/application/web-push";
 import {createMessagingApplication,type MessagingPorts,type MessagingRepository} from "@erpx/server-collaboration/application/messaging";
 const emptyCalls:string[]=[];
-function basicSocial(facts:Partial<SocialRepository<string>>={}){const calls:string[]=[],ports=repository<SocialPorts<string>>({repository:repository<SocialRepository<string>>({priorReceipt:async()=>null,...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'post'},sha256:async()=> 'digest',commit:async()=>{calls.push('commit');}},calls);return {calls,ports,app:createSocialApplication<string>(ports)};}
-describe('Legacy public story APIs have real injected business decisions',()=>{
- test('branch stories cannot be published without choosing a branch assignment',async()=>{const f=basicSocial();await expect(f.app.createStory('holding',createStorySchema.parse({title:'News',body:'Text',audience:'branch'}),'key',actor)).rejects.toMatchObject({code:'BRANCH_REQUIRED'});expect(f.calls).toEqual([]);});
-});
 function linkedTask(){const calls:string[]=[],ports:SocialTaskPorts<string>={clock:{now:()=>42},repository:{taskOrigin:async()=>null,aiProvider:async()=>null,guardAiDraft:()=> 'draft',bindTaskOrigin:()=> 'origin'},sources:{read:async()=>({...post}),snapshot:async()=>({post:{...post},hash:'digest'}),guard:(_key,_post,user)=>{calls.push(user);return 'guard:'+user;}},providerGuard:()=> 'provider'};return {calls,ports,app:createSocialTaskApplication<string>(ports)};}
 describe('Conversation to Operations task handoff',()=>{
  test('standalone tasks do not invent a conversation dependency',async()=>{const f=linkedTask();expect(await f.app.taskSourceStatements(actor,'key','task',[])).toEqual([]);});

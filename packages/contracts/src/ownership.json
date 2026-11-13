@@ -4406,7 +4406,6 @@
             "packages/server-workflow/src/adapters/department-override-facts.ts",
             "packages/server-workflow/src/adapters/collaboration-ai-sources.ts",
             "packages/server-workflow/src/adapters/finance-ai-revision-sources.ts",
-            "packages/server-workflow/src/adapters/collaboration-social-sources.ts",
             "packages/server-workflow/src/adapters/operations-staff-task-alerts-facts.ts",
             "packages/server-workflow/src/adapters/approvals.ts",
             "packages/server-workflow/src/adapters/flow-access.ts",
