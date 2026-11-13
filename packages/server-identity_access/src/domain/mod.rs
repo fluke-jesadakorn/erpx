@@ -38,3 +38,5 @@ pub(crate) mod directory_source_review;
 
 pub(crate) mod iam_roles;
 pub(crate) mod directory_runtime;
+
+pub(crate) mod position_gpo;

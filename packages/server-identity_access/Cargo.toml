@@ -283,3 +283,11 @@ path = "../../tests/integration/identity_access/rust-staff-facts-postgres.test.r
 [[test]]
 name = "pms_social_recipients_postgres"
 path = "../../tests/integration/identity_access/rust-pms-social-recipients-postgres.test.rs"
+
+[[test]]
+name = "position_gpo"
+path = "../../tests/unit/identity_access/rust-position-gpo.test.rs"
+
+[[test]]
+name = "position_gpo_postgres"
+path = "../../tests/integration/identity_access/rust-position-gpo-postgres.test.rs"
