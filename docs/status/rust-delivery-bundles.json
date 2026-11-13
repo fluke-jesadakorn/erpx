@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1630,
+    "revision": 1636,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T06:20:48.902Z",
-      "expiresAt": "2026-11-13T06:50:48.902Z",
+      "heartbeatAt": "2026-11-13T06:35:30.871Z",
+      "expiresAt": "2026-11-13T07:05:30.871Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -22430,23 +22430,53 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-payroll",
-          "claimedAt": "2026-11-13T06:20:18.543Z",
-          "heartbeatAt": "2026-11-13T06:20:48.902Z",
-          "expiresAt": "2026-11-13T06:50:48.902Z",
-          "generation": 53
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/people-payroll.ts and the remaining payroll writers; retire only files with a complete native counterpart and no live TS caller, delete writers/barrels, move oracles to native seeding, and record the owner KPI pair. Report each missing native producer as blocked.",
-        "handoff": null,
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-people-payroll --offline",
+            "result": "passed",
+            "sourceSha": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "before": 326,
+            "after": 326,
+            "sourceSha": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
+            "sourceKind": "committed",
+            "note": "Step-0 audit: 326 writes across 61 files; no file has both a complete native counterpart and no live TS caller."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-people_payroll/src/adapters/people-payroll.ts",
+            "writes": 50,
+            "removalTaskId": "retire.people_payroll.people-payroll",
+            "removalCondition": "Native approve, pay groups, country packs, time entries, cost-assignment verify, final pay, advances, account mappings, corrections, review exports, payment batches and settlements exist, and the compatibility barrel has no live TS consumer."
+          },
+          {
+            "path": "packages/server-people_payroll/src/adapters/*.ts (remaining 60 writer files)",
+            "writes": 276,
+            "removalTaskId": "retire.people_payroll.people-payroll",
+            "removalCondition": "Each capability gets a native producer/read port and its route/barrel consumer switches off the TS path."
+          }
+        ],
+        "blocker": "released with work preserved",
+        "nextAction": "BLOCKED: 326 writes across 61 files; no file has a complete native counterpart and no live TS caller. First split retire.people_payroll.payroll-run-native-residual (6 writes: calculatePayrollRun 3 + postPayroll 3, route already native) with test paths tests/integration/identity_access/iam.test.ts and tests/support/helpers/payroll-run-seed.ts. Then implement native approve/advances/corrections/payment-batch/country-pack/pay-group/cost-assignment/final-pay commands before retiring people-payroll.ts; keep approvePayrollRun TS until then.",
+        "handoff": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-payroll",
+          "at": "2026-11-13T06:35:08.926Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED: 326 writes across 61 files; no file has a complete native counterpart and no live TS caller. First split retire.people_payroll.payroll-run-native-residual (6 writes: calculatePayrollRun 3 + postPayroll 3, route already native) with test paths tests/integration/identity_access/iam.test.ts and tests/support/helpers/payroll-run-seed.ts. Then implement native approve/advances/corrections/payment-batch/country-pack/pay-group/cost-assignment/final-pay commands before retiring people-payroll.ts; keep approvePayrollRun TS until then."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -23349,8 +23379,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-iam-residual",
           "claimedAt": "2026-11-13T06:20:18.578Z",
-          "heartbeatAt": "2026-11-13T06:20:48.902Z",
-          "expiresAt": "2026-11-13T06:50:48.902Z",
+          "heartbeatAt": "2026-11-13T06:35:30.871Z",
+          "expiresAt": "2026-11-13T07:05:30.871Z",
           "generation": 53
         },
         "baseSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
@@ -25390,23 +25420,71 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
+        "lastPushedSha": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-collaboration --offline",
+            "result": "passed",
+            "sourceSha": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles; one pre-existing messaging warning."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --offline --test social_postgres",
+            "result": "passed",
+            "sourceSha": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
+            "sourceKind": "committed",
+            "note": "12/12, including upload-draft comment/edit consumption binding and reuse rejection."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --offline --test social",
+            "result": "passed",
+            "sourceSha": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
+            "sourceKind": "committed",
+            "note": "16/16."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --offline --test social_http",
+            "result": "passed",
+            "sourceSha": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
+            "sourceKind": "committed",
+            "note": "4/4."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --offline --lib",
+            "result": "passed",
+            "sourceSha": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
+            "sourceKind": "committed",
+            "note": "67/67."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-collaboration/src/adapters/social-home.ts",
+            "writes": 33,
+            "removalTaskId": "retire.collaboration.social-home",
+            "removalCondition": "Switch server-pms, server-operations, server-manage_erpx, server-agent and server-organization to public/native-social-page, add native comment/revision reads for the remaining feature-apps GETs, then delete the TS draft/post/upload writers and the public/social-home barrel."
+          },
+          {
+            "path": "packages/server-collaboration/src/public/social-home.ts",
+            "removalTaskId": "retire.collaboration.social-home",
+            "removalCondition": "Delete when no public/social-home import remains outside the migration tests."
+          }
+        ],
+        "blocker": "released with work preserved",
+        "nextAction": "Native upload-draft consumption binding is committed. Remaining cutover: switch server-pms, server-operations, server-manage_erpx, server-agent and server-organization to public/native-social-page, add native comment/revision reads for the remaining feature-apps GETs, then delete social-home.ts and its barrel under retire.collaboration.social-home.",
+        "handoff": {
           "runId": "run-20261113-i",
           "agentId": "worker-collaboration-drafts",
-          "claimedAt": "2026-11-13T06:13:06.774Z",
-          "heartbeatAt": "2026-11-13T06:20:48.902Z",
-          "expiresAt": "2026-11-13T06:50:48.902Z",
-          "generation": 53
+          "at": "2026-11-13T06:34:51.912Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native upload-draft consumption binding is committed. Remaining cutover: switch server-pms, server-operations, server-manage_erpx, server-agent and server-organization to public/native-social-page, add native comment/revision reads for the remaining feature-apps GETs, then delete social-home.ts and its barrel under retire.collaboration.social-home."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the native social draft producer in packages/server-collaboration, expose it through the public boundary, switch the feature-apps draft consumers, then delete the replaced TS writers/branches and record the Collaboration KPI pair. Report any composition mount contract to the lead.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -33636,6 +33714,43 @@
         "nextAction": "Step-0 audit each remaining legal TS writer (portal 14, law-corpus 11, documents 11, operations 8, retention 7, governance 7, jobs 5, invitations 5, approval 5, and the rest) against packages/server-legal/src/**/*.rs; implement the missing native producers/read ports, switch the consumers, then delete the TS branches and record the owner KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "retire.people_payroll.payroll-run-native-residual",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "people_payroll",
+        "workflowIds": [],
+        "workstream": "S09",
+        "kind": "migration",
+        "title": "Retire the dead TS calculate/post payroll-run writers",
+        "scope": "The workplace route already uses the native runs/{id}/calculate and runs/{id}/post commands. Delete the TS calculatePayrollRun (3 writes) and postPayroll (3 writes) branches and their exports, replace the identity_access and payroll-run seed oracles with native seeding, keep approvePayrollRun TS until a native approve command exists, and record the owner KPI pair (326 -> 320).",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "packages/server-people_payroll/Cargo.toml",
+          "packages/server-people_payroll/package.json",
+          "packages/feature-people_payroll/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**",
+          "tests/integration/identity_access/iam.test.ts",
+          "tests/support/helpers/payroll-run-seed.ts"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Confirm no non-test caller of calculatePayrollRun/postPayroll remains, delete the six TS write statements and their exports, replace tests/integration/identity_access/iam.test.ts and tests/support/helpers/payroll-run-seed.ts oracles with native seeding, run the payroll-run unit/integration gates, and record KPI 326 -> 320.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure"
       }
     ],
     "migrationProgress": {
@@ -33644,21 +33759,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 168,
+      "totalPackets": 169,
       "migratedPackets": 94,
       "statusCounts": {
-        "pending": 19,
-        "in_progress": 3,
-        "ready_for_integration": 12,
+        "pending": 20,
+        "in_progress": 1,
+        "ready_for_integration": 13,
         "integrating": 0,
         "migrated": 94,
-        "blocked": 40,
+        "blocked": 41,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T06:20:48.903Z",
+    "updatedAt": "2026-11-13T06:35:30.871Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
