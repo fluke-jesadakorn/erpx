@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1609,
+    "revision": 1613,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T05:53:22.499Z",
-      "expiresAt": "2026-11-13T06:23:22.499Z",
+      "heartbeatAt": "2026-11-13T06:06:30.176Z",
+      "expiresAt": "2026-11-13T06:36:30.176Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -15082,8 +15082,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-workflow",
           "claimedAt": "2026-11-13T05:52:20.328Z",
-          "heartbeatAt": "2026-11-13T05:53:22.499Z",
-          "expiresAt": "2026-11-13T06:23:22.499Z",
+          "heartbeatAt": "2026-11-13T06:06:30.176Z",
+          "expiresAt": "2026-11-13T06:36:30.176Z",
           "generation": 53
         },
         "baseSha": null,
@@ -21920,8 +21920,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-legal-service",
           "claimedAt": "2026-11-13T05:52:20.296Z",
-          "heartbeatAt": "2026-11-13T05:53:22.499Z",
-          "expiresAt": "2026-11-13T06:23:22.499Z",
+          "heartbeatAt": "2026-11-13T06:06:30.176Z",
+          "expiresAt": "2026-11-13T06:36:30.176Z",
           "generation": 53
         },
         "baseSha": null,
@@ -24112,23 +24112,81 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "nextAction": "STEP 1 IN PROGRESS: 13 of 31 finance journal consumers fully migrated to tests/support/helpers/finance-journal-seed.ts. Evidence: reporting 6/6, expansion-rehearsal 1/1, money-people attachments 46/46, project-cost 1/1, record-details 6/6, operations-attachments 8/8, planning 10/10, group-editions 14/14, thai-foundation 13/13, bank-automation 16/16, close-fixture 3/3. Remaining are the behavioural oracles needing native HTTP porting (opening-balances preview/import/replay/race/subledger/void; manual-drafts; books posting rules; pms opening; commerce/payroll forged sources) plus a few setup consumers and scripts/local/browser-simulation.ts. Then route switch + delete createJournal/postJournal/reverseJournal (finance 381 -> 376).",
+        "status": "migrated",
+        "nextAction": "Complete: journal-port SQL writers were deleted at 56326d72c; this slice removed the dead application branches and classified the 370 finance residual under retire.finance.finance.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-finance-journals",
-          "claimedAt": "2026-11-13T05:52:20.264Z",
-          "heartbeatAt": "2026-11-13T05:53:22.499Z",
-          "expiresAt": "2026-11-13T06:23:22.499Z",
-          "generation": 53
-        },
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "cc5a2c043f6129bf0283546e9f2ac42f50cfc403",
+        "lastPushedSha": "cc5a2c043f6129bf0283546e9f2ac42f50cfc403",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "before": 376,
+            "after": 370,
+            "sourceSha": "cc5a2c043f6129bf0283546e9f2ac42f50cfc403",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-finance/src/adapters/{finance-ai,supplier-payment-repository,finance-tax-register,finance-consolidation,finance-accruals,finance-instruments,finance-asset-policies,refunds}.ts and adapters/finance.ts",
+                "writes": 154,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Native producers land for finance AI, supplier batches/instructions, VAT, consolidation, accruals, instruments, asset policies, refunds and the remaining adapters/finance.ts branches."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/*-guards.ts (14 command_assertions-only modules)",
+                "writes": 17,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Remove the guard-only writers after the owning purchase commands become fully native."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/*-facts.ts / *-sources.ts / *-evidence.ts (cross-owner published facts)",
+                "writes": 199,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "The originating owner (commerce, POS, PMS, payroll) publishes a native fact source that Finance consumes."
+              }
+            ],
+            "note": "Journal-port writer deletion realized 380->376 at 56326d72c; manual-draft slice realized 375->370. This task removes the dead application branches and classifies the 370 residual."
+          },
+          {
+            "command": "cd packages/server-finance && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "cc5a2c043f6129bf0283546e9f2ac42f50cfc403",
+            "sourceKind": "committed",
+            "note": "Finance package typecheck passed."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --offline",
+            "result": "passed",
+            "sourceSha": "cc5a2c043f6129bf0283546e9f2ac42f50cfc403",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "bun run test:unit -- --suite=finance.core-services.unit",
+            "result": "passed",
+            "sourceSha": "cc5a2c043f6129bf0283546e9f2ac42f50cfc403",
+            "sourceKind": "committed",
+            "note": "73 passed."
+          },
+          {
+            "command": "bun run test:unit -- --suite=finance.rust-journal-review.unit",
+            "result": "passed",
+            "sourceSha": "cc5a2c043f6129bf0283546e9f2ac42f50cfc403",
+            "sourceKind": "committed",
+            "note": "9 passed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.rust-journal-review-postgres.integration",
+            "result": "passed",
+            "sourceSha": "cc5a2c043f6129bf0283546e9f2ac42f50cfc403",
+            "sourceKind": "committed",
+            "note": "21 passed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": {
@@ -33337,20 +33395,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 165,
-      "migratedPackets": 92,
+      "migratedPackets": 93,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 2,
+        "in_progress": 1,
         "ready_for_integration": 11,
         "integrating": 1,
-        "migrated": 92,
+        "migrated": 93,
         "blocked": 41,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:53:22.500Z",
+    "updatedAt": "2026-11-13T06:06:30.177Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
