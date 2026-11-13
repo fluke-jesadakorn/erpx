@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1429,
+    "revision": 1432,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -20442,7 +20442,7 @@
         "resources": [
           "owner:quality"
         ],
-        "status": "blocked",
+        "status": "in_progress",
         "nextAction": "Implement the native quality alert sweep (due_soon/overdue idempotent inserts with the supply.quality purchase fence) in Rust, mount it in the composition worker/job path, then delete the TS drainQualityAlerts writer and exports and record the owner KPI pair.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
@@ -20455,7 +20455,14 @@
           "Deleted TS readers and exports",
           "Moved oracles and KPI delta"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-quality-sweep",
+          "claimedAt": "2026-11-13T01:51:51.052Z",
+          "heartbeatAt": "2026-11-13T01:51:51.052Z",
+          "expiresAt": "2026-11-13T02:21:51.052Z",
+          "generation": 50
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -20513,7 +20520,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Recover expired run-20261112-r after the agent AI-provider worker completed its slice and lease expired; WIP reviewed, previous run stopped.",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261112-r",
           "agentId": "lead",
@@ -30950,7 +30957,7 @@
         "workstream": "S05",
         "kind": "integration",
         "title": "Mount the native Support Files attachment producer",
-        "scope": "Apply the prepared composition mount for the native Support attachment intake: SupportFilesService/SupportFilesBackend (current Account authority + Support ticket/version guard + same-connection support.evidence purchase + LocalFieldQuarantineWriter + shared scan workers), expose the field_files quarantine writer map, mount the router for every support_evidence_writes holding, and document ERPX_NATIVE_SUPPORT_ATTACHMENT_CONFIG client alignment. Availability only; the producer and TS-writer deletion are migrate.files.generic-attachment-command at 6d69edfde. Known correction: NativeFilesScanWorker is not Clone and close(self) consumes it, so share Arc<tokio::sync::Mutex<Vec<..>>> and drain on close.",
+        "scope": "Apply the prepared composition mount for the native Support attachment intake: SupportFilesService/SupportFilesBackend (current Account authority + Support ticket/version guard + same-connection support.evidence purchase + LocalFieldQuarantineWriter + shared scan workers), expose the field_files quarantine writer map, mount the router for every support_evidence_writes holding, and document ERPX_NATIVE_SUPPORT_ATTACHMENT_CONFIG client alignment. Availability only; the producer and TS-writer deletion are migrate.files.generic-attachment-command at 6d69edfde. Known correction: NativeFilesScanWorker is not Clone and close(self) consumes it, so share Arc<tokio::sync::Mutex<Vec<..>>> and drain on close. Reconcile the agent-gateway WIP before touching lib.rs/private_development_api.rs.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -30967,7 +30974,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Mount is ready: apply .scratch/dev/rust-migration/support_files.rs (already corrected for the non-Clone NativeFilesScanWorker: Arc<tokio::sync::Mutex<Vec<..>>> shared with CheckedAssembly/DevelopmentApiRuntime, drained on close) plus the lib.rs module, field_files write-map and private_development_api.rs assembly/mount hunks in files-support-mount.patch.md. Blocked only by worker-agent-gateway holding src/composition/src/** + fixtures/** under run-20261113-f (its agent_ai_gateway composition is wired and it is finishing). When released: claim, apply, cargo check -p erpx-service --features private-development-api, cargo test -p erpx-server-files --test attachment_command_postgres -- --test-threads=1, commit/push non-force, verify remote SHA, record.",
+        "nextAction": "Mount is ready: apply .scratch/dev/rust-migration/support_files.rs (corrected for the non-Clone NativeFilesScanWorker: Arc<tokio::sync::Mutex<Vec<..>>> shared with CheckedAssembly/DevelopmentApiRuntime, drained on close) plus the lib.rs, field_files write-map and private_development_api.rs hunks in files-support-mount.patch.md. Current serialized blocker: retire.quality.residual-writers / worker-quality-sweep holds src/composition/src/** (lease 02:21Z); worker-agent-gateway released its agent-gateway claim as blocked with WIP preserved (src/composition/src/agent_ai_gateway.rs + lib.rs/private_development_api.rs remain dirty) so the next composition owner must reconcile that WIP before committing. Resume: claim when no composition claim is active, apply, cargo check -p erpx-service --features private-development-api, cargo test -p erpx-server-files --test attachment_command_postgres -- --test-threads=1, commit/push non-force, verify remote SHA, record.",
         "handoff": null
       },
       {
@@ -31269,23 +31276,23 @@
         "resources": [
           "owner:agent"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "worker-agent-gateway",
-          "claimedAt": "2026-11-13T00:57:48.147Z",
-          "heartbeatAt": "2026-11-13T01:44:43.769Z",
-          "expiresAt": "2026-11-13T02:14:43.769Z",
-          "generation": 50
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement native gateway commands + composition platform mount, switch feature-admin platform billing ai-gateway native-only, delete ai-gateway.ts policy/statement/cost/reconcile writers + barrels, move oracles to native PG/HTTP tests, and record Agent KPI 22->16 (or the exact achieved delta).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead serialization: composition claim released with WIP preserved (server-agent gateway modules and private_development_api/lib.rs hunks compile under private-development-api). Next: lead integrates that slice, then mounts the native quality alert sweep.",
+        "handoff": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-agent-gateway",
+          "at": "2026-11-13T01:51:43.857Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead serialization: composition claim released with WIP preserved (server-agent gateway modules and private_development_api/lib.rs hunks compile under private-development-api). Next: lead integrates that slice, then mounts the native quality alert sweep."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -31421,7 +31428,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:47:22.111Z",
+    "updatedAt": "2026-11-13T01:52:51.218Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
