@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1320,
+    "revision": 1327,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T00:01:54.969Z",
-      "expiresAt": "2026-11-13T00:31:54.969Z",
+      "heartbeatAt": "2026-11-13T00:12:51.660Z",
+      "expiresAt": "2026-11-13T00:42:51.660Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -20381,7 +20381,9 @@
         ],
         "allowedPaths": [
           "packages/server-quality/src/**",
-          "packages/feature-quality/**",
+          "packages/server-quality/Cargo.toml",
+          "src/composition/src/**",
+          "packages/server-runtime/src/adapters/runtime/jobs.ts",
           "tests/unit/quality/**",
           "tests/integration/quality/**"
         ],
@@ -20389,7 +20391,7 @@
           "owner:quality"
         ],
         "status": "blocked",
-        "nextAction": "Alert acknowledge retired (quality KPI 15->14 at fa7cd6e05): native owner command+route+client, TS writer/schema/export deleted, oracles native. Known parity note: native admission uses supply.quality settle-existing like the other native Quality commands; the TS writer additional Quality-hold purchase-source witness expansion has no native port yet (same posture as native inspect/release). Residual 14: alert sweep inserts 2, inventory-count-effects 5, attachment-purchases 2, product-entry 1, quality purchase helpers 4; each needs its native owner port before deletion.",
+        "nextAction": "Implement the native quality alert sweep (due_soon/overdue idempotent inserts with the supply.quality purchase fence) in Rust, mount it in the composition worker/job path, then delete the TS drainQualityAlerts writer and exports and record the owner KPI pair.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -20880,13 +20882,13 @@
         "resources": [
           "owner:billing"
         ],
-        "status": "in_progress",
+        "status": "blocked",
         "claim": {
           "runId": "run-20261113-f",
           "agentId": "worker-billing-conformance",
           "claimedAt": "2026-11-13T00:01:20.634Z",
-          "heartbeatAt": "2026-11-13T00:01:54.969Z",
-          "expiresAt": "2026-11-13T00:31:54.969Z",
+          "heartbeatAt": "2026-11-13T00:12:51.660Z",
+          "expiresAt": "2026-11-13T00:42:51.660Z",
           "generation": 50
         },
         "baseSha": null,
@@ -20972,11 +20974,56 @@
             "sourceSha": "e495cb5820b7ffb38f02bad84c9e0fd646171b5b",
             "sourceKind": "committed",
             "note": "No Rust edits required."
+          },
+          {
+            "command": "cargo check -p erpx-server-billing --locked",
+            "result": "passed",
+            "sourceSha": "0c9035fe045408cd1b5c5fa8663083e778f40b57",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business --locked",
+            "result": "passed",
+            "sourceSha": "0c9035fe045408cd1b5c5fa8663083e778f40b57",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:unit -- --suite=shared.billing.owner-services.unit",
+            "result": "passed",
+            "sourceSha": "0c9035fe045408cd1b5c5fa8663083e778f40b57",
+            "sourceKind": "committed",
+            "note": "2 files, 86 passed"
+          },
+          {
+            "command": "bun run test:integration -- --suite=commercial.billing.integration --suite=commercial.target.integration --suite=commercial.api.integration",
+            "result": "passed",
+            "sourceSha": "0c9035fe045408cd1b5c5fa8663083e778f40b57",
+            "sourceKind": "committed",
+            "note": "3 files, 27 passed"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "0c9035fe045408cd1b5c5fa8663083e778f40b57",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "0c9035fe045408cd1b5c5fa8663083e778f40b57",
+            "sourceKind": "committed",
+            "note": "1211 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "0c9035fe045408cd1b5c5fa8663083e778f40b57",
+            "sourceKind": "committed"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Conformance first: (1) all billing router responses return BillingActor::context(target) with exactly the 6 camelCase keys {userId,holdingId,platform,role,assignmentId,expiresAt}; (2) client validator accepts exactly that shape, identity-matches, and settles expiresAt (actor equality when provided, otherwise a positive future value); (3) platform actors may target a configured holding by id on the platform route while non-platform keeps Host binding, with owner-side platform_admin still enforced; (4) add a captured-fixture Rust->TS conformance test; (5) then redo the authority-safe cost/delete/complete native cutover (KPI 82->77) and record checks.",
+        "nextAction": "Conformance fixed at 0c9035fe0: owner returns BillingActor::context (6 keys), client shape/identity/expiry rules and platform cross-Holding routing tested. BLOCKED ON A SECURITY/PRODUCT DECISION: cross-Holding platform native dispatch is routed but the owner audience-bound session proof returns 401 because the browser carries only the current host cookie. Choose (a) platform console navigates to the target Holding host before acting, or (b) identity authorizes a platform audience for cross-Holding session proofs. Then apply the provider-harness cost seeding patch and run an authenticated native Platform+Holding cost journey before removing approve/void. KPI unchanged at 77 (no writer deletion in this conformance claim).",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -29683,14 +29730,21 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T00:16:11.607Z",
+          "heartbeatAt": "2026-11-13T00:16:11.607Z",
+          "expiresAt": "2026-11-13T00:46:11.607Z",
+          "generation": 50
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261113-c",
           "agentId": "lead",
@@ -30236,6 +30290,55 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.procurement",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "procurement",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the residual Procurement TypeScript writers",
+        "scope": "Classify the 32 retained Procurement owner write statements against packages/server-procurement/src/**/*.rs and retire every writer whose native command owns the table and whose TS caller is native-only or dead. Delete members, interface declarations and barrels; move oracles to native seeding; record the owner KPI pair. Removal condition: the owner KPI command returns 0 or every residual carries a removalTaskId/removalCondition.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "packages/server-procurement/Cargo.toml",
+          "packages/server-procurement/package.json",
+          "packages/feature-procurement/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-procurement-retire",
+          "claimedAt": "2026-11-13T00:14:01.763Z",
+          "heartbeatAt": "2026-11-13T00:14:01.763Z",
+          "expiresAt": "2026-11-13T00:44:01.763Z",
+          "generation": 50
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Zero-caller/native-only writer analysis for adapters with writes, then delete the safe set and record the delta.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -30244,11 +30347,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 144,
+      "totalPackets": 145,
       "migratedPackets": 77,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 4,
+        "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 77,
@@ -30258,7 +30361,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T00:09:30.285Z",
+    "updatedAt": "2026-11-13T00:16:17.523Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
