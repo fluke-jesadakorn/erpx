@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1877,
+    "revision": 1880,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-q",
       "agentId": "lead",
       "startedAt": "2026-11-13T16:24:08.855Z",
-      "heartbeatAt": "2026-11-13T16:26:31.117Z",
-      "expiresAt": "2026-11-13T16:56:31.117Z",
+      "heartbeatAt": "2026-11-13T16:35:15.163Z",
+      "expiresAt": "2026-11-13T17:05:15.163Z",
       "generation": 61,
       "tokenHash": "35462438ad1c1d80cc706a6083159260aad2c4c08dcaff3c53cd62f2c0c9b0b2"
     },
@@ -37574,8 +37574,8 @@
           "runId": "run-20261113-q",
           "agentId": "worker-manufacturing-order",
           "claimedAt": "2026-11-13T16:26:06.670Z",
-          "heartbeatAt": "2026-11-13T16:26:31.117Z",
-          "expiresAt": "2026-11-13T16:56:31.117Z",
+          "heartbeatAt": "2026-11-13T16:35:15.163Z",
+          "expiresAt": "2026-11-13T17:05:15.163Z",
           "generation": 61
         },
         "baseSha": null,
@@ -37816,23 +37816,45 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "dd21deee7821a157528a8d6186deb0539a90cb30",
+        "lastPushedSha": "dd21deee7821a157528a8d6186deb0539a90cb30",
+        "checks": [
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=shared.executive.executive-canvas.integration -t 'reconciles inventory shortages'",
+            "result": "passed",
+            "sourceSha": "dd21deee7821a157528a8d6186deb0539a90cb30",
+            "sourceKind": "committed",
+            "note": "1 passed | 76 skipped."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "dd21deee7821a157528a8d6186deb0539a90cb30",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "git grep -n 'saveInventoryReorderPolicy|transitionInventoryReorderPolicy' -- 'packages/**/*.ts' 'tests/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "dd21deee7821a157528a8d6186deb0539a90cb30",
+            "sourceKind": "committed",
+            "note": "No external consumer remains; the public fail-closed exports were dropped."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "nextAction": "Executive reorder oracle is native-seeded and the public fail-closed exports are dropped. No KPI change (the shims had no writes); the task can be closed with the next inventory retirement.",
+        "handoff": {
           "runId": "run-20261113-q",
           "agentId": "worker-executive-oracle",
-          "claimedAt": "2026-11-13T16:26:06.740Z",
-          "heartbeatAt": "2026-11-13T16:26:31.117Z",
-          "expiresAt": "2026-11-13T16:56:31.117Z",
-          "generation": 61
+          "at": "2026-11-13T16:35:04.055Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Executive reorder oracle is native-seeded and the public fail-closed exports are dropped. No KPI change (the shims had no writes); the task can be closed with the next inventory retirement."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Replace the executive-canvas saveInventoryReorderPolicy/transitionInventoryReorderPolicy setup with native-row seeding (inventory_reorder_policy/current/proposed/version/events), keep the executive assertions, and report the file + evidence so the lead can drop the fail-closed exports.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -37866,8 +37888,8 @@
           "runId": "run-20261113-q",
           "agentId": "worker-iam-directory-ops",
           "claimedAt": "2026-11-13T16:26:06.809Z",
-          "heartbeatAt": "2026-11-13T16:26:31.117Z",
-          "expiresAt": "2026-11-13T16:56:31.117Z",
+          "heartbeatAt": "2026-11-13T16:35:15.163Z",
+          "expiresAt": "2026-11-13T17:05:15.163Z",
           "generation": 61
         },
         "baseSha": null,
@@ -37892,8 +37914,8 @@
       "migratedPackets": 120,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 3,
-        "ready_for_integration": 17,
+        "in_progress": 2,
+        "ready_for_integration": 18,
         "integrating": 0,
         "migrated": 120,
         "blocked": 39,
@@ -37902,7 +37924,7 @@
       }
     },
     "lastCoordinatorGeneration": 61,
-    "updatedAt": "2026-11-13T16:26:31.118Z",
+    "updatedAt": "2026-11-13T16:35:15.163Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
