@@ -1,4 +1,4 @@
-import {createDirectorySynchronization} from '@erpx/server-identity_access/application/directory-synchronization';
+import {createDirectorySynchronization} from './directory-synchronization';
 import { z } from 'zod';
 import { connectionInput, mappingInput, type ConnectionRow, type ConnectionInput, type MappingInput, type DirectoryMappingFact } from '@erpx/server-identity_access/domain/directories';
 import { grantInput, type GrantInput, type IamAssignmentFact } from '@erpx/server-identity_access/domain/iam-service';

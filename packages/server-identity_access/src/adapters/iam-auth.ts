@@ -11,9 +11,9 @@ import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
 async function directoryUser(connectionId: string, externalId: string) {
-    const {routedConnection}=await import('@erpx/server-identity_access/public/directory-lookup'); const {synchronizeConnection}=await import('@erpx/server-identity_access/public/directory-synchronization');
+    const {routedConnection}=await import('@erpx/server-identity_access/public/directory-lookup');
     let routed: Awaited<ReturnType<typeof routedConnection>>;
-    return createDirectoryUser({ connection: async (id) => (routed = await routedConnection(id)).connection, synchronize: async (connection) => synchronizeConnection(routed!.db, connection), identity: async (connectionId, externalId, cutoff) => {
+    return createDirectoryUser({ connection: async (id) => (routed = await routedConnection(id)).connection, synchronize: async () => {},  identity: async (connectionId, externalId, cutoff) => {
             const db = routed!.db;
             return await db
                 .prepare(`SELECT i.user_id FROM iam_identities i JOIN iam_members m ON m.identity_id=i.id AND m.company_id=i.company_id AND m.user_id=i.user_id WHERE i.connection_id=? AND i.external_id=? AND i.enabled=true AND i.observed_at>? AND m.status='active' AND m.login_policy='directory'`)

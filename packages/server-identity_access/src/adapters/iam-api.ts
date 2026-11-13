@@ -37,9 +37,7 @@ import { iamContext } from "@erpx/server-identity_access/public/iam-context";
 import {grantIamAccess,grantInput,proposeIamReview,revokeIamAssignment,decideIamReview,reviewInput} from "@erpx/server-identity_access/public/iam-service";
 import {iamOverview,iamAuditHistory} from '@erpx/server-identity_access/public/iam-service-reads';
 import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
-import {saveConnection,connectionInput,testConnection,proposeConnectionActivation,disableConnection,applyDirectoryReview,proposeMapping,mappingInput} from "@erpx/server-identity_access/public/iam-directories";
-import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
-import {synchronizeConnection} from '@erpx/server-identity_access/public/directory-synchronization';
+import {proposeMapping,mappingInput} from "@erpx/server-identity_access/public/directory-mapping";
 import {
   prepareMigration,
   migrationInput,
@@ -490,54 +488,6 @@ export async function iamApi(
           v.reason,
           key,
         ));
-    } else if (route === "connections")
-      result = await saveConnection(
-        db,
-        actor,
-        connectionInput.parse(input),
-        key,
-      );
-    else if (path[0] === "connections") {
-      const v = versionInput.parse(input),
-        id = path[1];
-      if (path[2] === "test")
-        result = await testConnection(db, actor, id, v.expectedVersion, key);
-      else if (path[2] === "activate")
-        result = await proposeConnectionActivation(
-          db,
-          actor,
-          id,
-          v.expectedVersion,
-          key,
-        );
-      else if (path[2] === "disable")
-        result = await disableConnection(db, actor, id, v.expectedVersion, key);
-      else if (path[2] === "sync") {
-        const connection = await connectionById(db, actor.companyId, id);
-        await iamCommand(
-          db,
-          actor,
-          key,
-          "connection.sync.request",
-          { id, ...v },
-          "iam.directory.manage",
-          async () => {
-            if (
-              connection.version !== v.expectedVersion ||
-              connection.status !== "active"
-            )
-              throw new ApiError(
-                409,
-                "CONNECTION_CHANGED",
-                "Choose an active connection.",
-              );
-            return { id };
-          },
-        );
-        await synchronizeConnection(db, connection);
-        result = { id, status: "synchronized" };
-      } else
-        throw new ApiError(404, "NOT_FOUND", "Connection action not found.");
     } else if (route === "mappings")
       result = await proposeMapping(db, actor, mappingInput.parse(input), key);
     else if (path[0] === "mappings" && path[2] === "revoke") {
@@ -669,7 +619,7 @@ export async function iamApi(
           if (kind === "migration.activate") return applyMigration(c, actor, p);
           if (kind === "emergency.designate")
             return applyEmergency(c, actor, p);
-          return applyDirectoryReview(c, actor, kind, p);
+          throw new ApiError(409, "REVIEW_UNSUPPORTED", "The review kind is not supported here.");
         },
         async (c, kind, p) => {
           if (!actor.platform && kind === "people.provision.grant") return applyProvisioningReview(c,actor,p,"reject");

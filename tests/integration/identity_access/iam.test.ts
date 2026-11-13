@@ -7,9 +7,9 @@ import { loadIamAuthority, iamRole, iamRoles } from "@erpx/server-identity_acces
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import {roleInput,decideIamReview,grantIamAccess,grantInput,revokeIamAssignment} from "@erpx/server-identity_access/public/iam-service";
 import {iamOverview,iamAuditHistory} from '@erpx/server-identity_access/public/iam-service-reads';
-import {connectionInput,saveConnection,proposeMapping,mappingInput,applyDirectoryReview} from "@erpx/server-identity_access/public/iam-directories";
+import {connectionInput,saveConnection,proposeMapping,mappingInput,applyDirectoryReview} from "../../support/legacy-directory";
 import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
-import {applyDirectorySnapshot} from '@erpx/server-identity_access/public/directory-synchronization';
+import {applyDirectorySnapshot} from '../../support/legacy-directory';
 import {
   prepareMigration,
   migrationInput,
@@ -1423,7 +1423,7 @@ it('reads Company-scoped session revocation afresh before any directory refresh'
 
 it('refreshes only stale active directory evidence and never contacts it after session revocation',async()=>{
  const {accountDirectoryGate}=await import("@erpx/server-identity_access/public/iam-directory-refresh");
- const directories=await import("@erpx/server-identity_access/public/directory-synchronization");
+ const directories=await import("../../support/legacy-directory");
  const synchronize=vi.spyOn(directories,'synchronizeConnection').mockRejectedValue(new Error('mock directory outage'));
  try {
  const f=await fixture(),other=await fixture(),session=key();
@@ -1494,7 +1494,7 @@ it('combined account authority observes node withdrawal, published role changes 
 it('discards stale account grants and rereads after directory refresh while failing closed on outage, unchanged evidence and refresh-time revocation',async()=>{
  const {accountDirectoryGate}=await import("@erpx/server-identity_access/public/iam-directory-refresh");
  const {measureReads}=await import("@erpx/server-runtime/adapters/runtime/read-metrics");
- const directories=await import("@erpx/server-identity_access/public/directory-synchronization");
+ const directories=await import("../../support/legacy-directory");
  const f=await fixture(),session=key();
  const saved=await saveConnection(db,f.owner,connectionInput.parse({expectedVersion:0,name:'Combined refresh evidence',provider:'univention',config:{mode:'ldaps',secretProfile:'ucs',authority:'ucs.corp',ldapUrl:'ldaps://ucs.corp',baseDn:'dc=corp'}}),key());
  await db.prepare("UPDATE iam_connections SET status='active' WHERE id=?").bind(saved.id).run();

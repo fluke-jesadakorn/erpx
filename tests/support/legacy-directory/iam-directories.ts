@@ -1,7 +1,7 @@
-import {directoryTx as createDirectoryTransaction} from '@erpx/server-identity_access/adapters/directory-transaction';
+import {directoryTx as createDirectoryTransaction} from './directory-transaction';
 import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
-import {synchronizeConnection} from '@erpx/server-identity_access/public/directory-synchronization';
-import { createDirectories, createDirectoryJobDrain, createRunDirectoryJob, type DirectoryTransaction } from '@erpx/server-identity_access/application/directories';
+import {synchronizeConnection} from './synchronization';
+import { createDirectories, createDirectoryJobDrain, createRunDirectoryJob, type DirectoryTransaction } from './directories';
 const clients = new WeakMap<DirectoryTransaction, PoolClient>();
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import "server-only";

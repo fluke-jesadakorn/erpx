@@ -3,7 +3,7 @@ import type {ProviderSnapshot} from '@erpx/server-identity_access/domain/provide
 import type {IamActor} from '@erpx/server-identity_access/domain/iam-actor';
 import {grantInput} from '@erpx/server-identity_access/domain/iam-service';
 import {emptyDirectoryHierarchy,validateDirectoryHierarchy} from '@erpx/feature-organization/lib/hierarchy';
-import type {DirectoryPorts} from '@erpx/server-identity_access/application/directories';
+import type {DirectoryPorts} from './directories';
 export type DirectorySynchronizationPorts = Pick<DirectoryPorts,'error'|'now'|'id'|'apiError'|'read'|'syncFailure'|'snapshotTransaction'|'validateGrant'|'insertGrant'>;
 export function createDirectorySynchronization(ports: DirectorySynchronizationPorts) {
 async function applyDirectorySnapshot(connection: ConnectionRow, snapshot: ProviderSnapshot, observedAt = ports.now()) {

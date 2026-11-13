@@ -20,7 +20,8 @@ import {createMarketingAsset,createMarketingCandidate,changeMarketing} from "@er
 import {createAuth} from "@erpx/server-identity_access/public/auth";
 import {beginMfa,totp,verifyMfa} from "@erpx/server-identity_access/public/iam-mfa";
 import type {IamActor} from "@erpx/server-identity_access/public/iam-context";
-import {connectionInput,saveConnection} from "@erpx/server-identity_access/public/iam-directories";
+import {connectionInput} from "@erpx/server-identity_access/domain/directories";
+import {saveConnection} from "../../../tests/support/legacy-directory";
 import {selectWorkRole} from "@erpx/server-work_projection/public/work-role-store";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,createAttachmentPublication,approveAttachmentPublication} from "@erpx/server-files/public/attachments/service";
 import {savePostDraft,publishPost,postDraftSchema,postView} from '@erpx/server-collaboration/public/social-home';

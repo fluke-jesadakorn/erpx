@@ -2,14 +2,14 @@ import 'server-only';
 import type {PoolClient} from 'pg';
 import type {ConnectionRow} from '@erpx/server-identity_access/domain/directories';
 import type {ProviderSnapshot} from '@erpx/server-identity_access/domain/providers';
-import type {DirectoryTransaction} from '@erpx/server-identity_access/application/directories';
+import type {DirectoryTransaction} from './directories';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
 import {iamDb} from '@erpx/server-identity_access/public/iam-db';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {readDirectory} from '@erpx/server-identity_access/public/iam-providers';
 import {validateIamGrant,insertIamGrant} from '@erpx/server-identity_access/public/iam-grants';
-import {directoryTx} from '@erpx/server-identity_access/adapters/directory-transaction';
-import {createDirectorySynchronization} from '@erpx/server-identity_access/application/directory-synchronization';
+import {directoryTx} from './directory-transaction';
+import {createDirectorySynchronization} from './directory-synchronization';
 function synchronization(raw: PostgresDatabase) {
 const db=iamDb(raw),clients=new WeakMap<DirectoryTransaction,PoolClient>();
 const client=(tx:DirectoryTransaction)=>{const c=clients.get(tx);if(!c)throw Error('DIRECTORY_TRANSACTION_CLOSED');return c;};

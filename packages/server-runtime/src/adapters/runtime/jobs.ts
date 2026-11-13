@@ -3,7 +3,6 @@ import {holdingRoutingEnabled,activeHoldingHosts} from '@erpx/feature-runtime/li
 import { drainProvisioning } from "@erpx/server-identity_access/public/technology";
 import { drainPeopleLifecycle } from "@erpx/server-people_payroll/public/people-lifecycle-jobs";
 import { drainDirectoryOperations } from "@erpx/server-identity_access/public/directory-operations";
-import { drainDirectoryJobs } from "@erpx/server-identity_access/public/iam-directories";
 import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import { drainSocialAgent } from "@erpx/server-collaboration/public/social-agent";
 import { randomUUID } from 'node:crypto';
@@ -51,10 +50,8 @@ export async function activeSlots(env: JobEnv) {
 export async function directoryWork(env: JobEnv) {
   const control=env.CONTROL_DB;
   if(control){const delivery=await import("@erpx/server-identity_access/public/account-invitation-delivery");for(const slot of await activeSlots(env))await delivery.promoteAccountInvitationDeliveries(control,registeredResources(env,slot.id).write,slot.id);await delivery.deliverAccountInvitation(control,env);await (await import("@erpx/server-identity_access/public/account-recovery")).deliverAccountRecovery(control,env as JobEnv&{BETTER_AUTH_SECRET:string});}
-  if(env.CONTROL_DB) await drainDirectoryJobs(env.CONTROL_DB as PostgresDatabase);
   for(const slot of await activeSlots(env)) {
     const db=registeredResources(env,slot.id).write as PostgresDatabase;
-    await drainDirectoryJobs(db);
     if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); await runNativePositionGpoWorker(slot.id); }
     await (await import("@erpx/server-identity_access/public/user-management")).managementWork(db);
   }
