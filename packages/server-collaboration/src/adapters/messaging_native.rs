@@ -73,7 +73,7 @@ pub async fn read_room(
     id: &str,
 ) -> Result<Option<RoomSnapshot>, Error> {
     let row = sqlx::query(
-        "SELECT id,company_id,kind,name,owner_id,version,last_seq,created_at FROM messaging_rooms WHERE id=$1 AND company_id=$2",
+        "SELECT id,company_id,kind,name,owner_id,version,last_seq,created_at,private,team_id FROM messaging_rooms WHERE id=$1 AND company_id=$2",
     )
     .bind(id)
     .bind(company.as_str())
@@ -83,21 +83,12 @@ pub async fn read_room(
         return Ok(None);
     };
     let kind = RoomKind::parse(&row.try_get::<String, _>(2)?)?;
+    let private: bool = row.try_get(8)?;
+    let team_id: Option<String> = row.try_get(9)?;
     // Public team channels take membership from the owning team; private
     // channels and direct/group rooms use explicit room membership.
-    let members = match kind {
-        RoomKind::Channel => {
-            let (team_id, private): (String, bool) =
-                sqlx::query_as("SELECT team_id,private FROM messaging_rooms WHERE id=$1")
-                    .bind(id)
-                    .fetch_one(&mut *c)
-                    .await?;
-            if private {
-                room_members(c, id).await?
-            } else {
-                team_members(c, &team_id).await?
-            }
-        }
+    let members = match (kind, private, team_id.as_deref()) {
+        (RoomKind::Channel, false, Some(team)) => team_members(c, team).await?,
         _ => room_members(c, id).await?,
     };
     Ok(Some(RoomSnapshot {
@@ -109,6 +100,8 @@ pub async fn read_room(
         version: row.try_get(5)?,
         last_seq: row.try_get(6)?,
         members,
+        private,
+        team_id,
         created_at: row.try_get(7)?,
     }))
 }
@@ -354,6 +347,48 @@ pub async fn apply_plan(
             .await?;
             Ok(expected.clone())
         }
+        OwnerPlan::ManageRoom {
+            room_id,
+            company_id,
+            name,
+            owner_id,
+            expected_version,
+            members,
+        } => {
+            let updated = sqlx::query(
+                "UPDATE messaging_rooms SET name=$1,version=version+1 WHERE id=$2 AND company_id=$3 AND owner_id=$4 AND version=$5",
+            )
+            .bind(name)
+            .bind(room_id)
+            .bind(company_id)
+            .bind(owner_id)
+            .bind(expected_version)
+            .execute(&mut *c)
+            .await?
+            .rows_affected();
+            if updated != 1 {
+                return Err(changed());
+            }
+            if let Some(members) = members {
+                sqlx::query(
+                    "DELETE FROM messaging_room_members WHERE room_id=$1 AND user_id<>ALL($2)",
+                )
+                .bind(room_id)
+                .bind(members)
+                .execute(&mut *c)
+                .await?;
+                for member in members {
+                    sqlx::query(
+                        "INSERT INTO messaging_room_members(room_id,user_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
+                    )
+                    .bind(room_id)
+                    .bind(member)
+                    .execute(&mut *c)
+                    .await?;
+                }
+            }
+            Ok(expected.clone())
+        }
     };
     let receipt = result?;
     if receipt != expected {
@@ -427,6 +462,15 @@ pub async fn retain_effects(
                 .await?
                 .ok_or_else(changed)?;
             images.push((format!("read:{room_id}"), raw));
+        }
+        OwnerPlan::ManageRoom { room_id, .. } => {
+            if receipt.id != *room_id {
+                return Err(changed());
+            }
+            let raw = image(c, &format!("room:{room_id}"))
+                .await?
+                .ok_or_else(changed)?;
+            images.push((format!("room:{room_id}"), raw));
         }
     }
     Ok(CurrentMessagingEffects {

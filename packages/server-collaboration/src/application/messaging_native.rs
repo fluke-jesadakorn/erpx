@@ -1,7 +1,8 @@
 //! Conversation command sequencing on one caller-owned owner unit.
 use crate::domain::messaging_native::{
-    Change, MessagingActor, OwnerPlan, Receipt, RoomSnapshot, message_body, members, next_seq,
-    plan_receipt, require_member, room_name, room_not_found, validate_seq,
+    Change, MessagingActor, OwnerPlan, Receipt, RoomKind, RoomSnapshot, changed, message_body,
+    members, next_seq, owner_required, plan_receipt, require_member, room_name, room_not_found,
+    validate_seq,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use std::future::Future;
@@ -127,6 +128,38 @@ pub async fn execute<P: MessagingUnit>(
                     room_id,
                     user_id: actor.user_id.clone(),
                     seq: seq.min(room.last_seq),
+                });
+            }
+            Change::ManageRoom {
+                room_id,
+                name,
+                members: requested,
+                expected_version,
+            } => {
+                let room = p.room(&room_id).await?.ok_or_else(room_not_found)?;
+                require_member(&actor, &room)?;
+                if room.owner_id != actor.user_id || room.kind == RoomKind::Direct {
+                    return Err(owner_required().into());
+                }
+                if expected_version <= 0 || room.version != expected_version {
+                    return Err(changed().into());
+                }
+                let members = members(&actor.user_id, &requested)?;
+                for member in &members {
+                    if !p.is_company_member(member).await? {
+                        return Err(participant_required().into());
+                    }
+                }
+                let name = room_name(&name, room.kind)?;
+                let reconcile =
+                    room.kind == RoomKind::Group || (room.kind == RoomKind::Channel && room.private);
+                plan = Some(OwnerPlan::ManageRoom {
+                    room_id,
+                    company_id: actor.company_id.clone(),
+                    name,
+                    owner_id: actor.user_id.clone(),
+                    expected_version,
+                    members: reconcile.then_some(members),
                 });
             }
         }

@@ -309,6 +309,7 @@ impl<'c> PgMessagingUnit<'c> {
             Change::CreateRoom { .. } => "messaging.create",
             Change::SendMessage { .. } => "messaging.send",
             Change::MarkRead { .. } => "messaging.read",
+            Change::ManageRoom { .. } => "messaging.manage",
         }
     }
 
@@ -327,6 +328,7 @@ impl<'c> PgMessagingUnit<'c> {
             }
             Change::SendMessage { .. } => crate::domain::messaging_native::message_id(&self.key),
             Change::MarkRead { room_id, .. } => room_id.clone(),
+            Change::ManageRoom { room_id, .. } => room_id.clone(),
         })
     }
 
@@ -621,6 +623,11 @@ impl MessagingUnit for PgMessagingUnit<'_> {
                 "Mark conversation read",
                 "messaging.room.read",
             ),
+            OwnerPlan::ManageRoom { .. } => (
+                "messaging_room",
+                "Manage workplace conversation",
+                "messaging.room.updated",
+            ),
         };
         let value = serde_json::to_value(&receipt).map_err(|_| {
             source_changed(
@@ -765,6 +772,7 @@ impl<'c> PgMessagingTeamUnit<'c> {
         match change {
             TeamChange::CreateTeam { .. } => "messaging.team-create",
             TeamChange::CreateChannel { .. } => "messaging.channel-create",
+            TeamChange::ManageTeam { .. } => "messaging.team-manage",
         }
     }
 
@@ -772,6 +780,7 @@ impl<'c> PgMessagingTeamUnit<'c> {
         match change {
             TeamChange::CreateTeam { .. } => format!("team-{}", key.as_str()),
             TeamChange::CreateChannel { .. } => format!("channel-{}", key.as_str()),
+            TeamChange::ManageTeam { team_id, .. } => team_id.clone(),
         }
     }
 
@@ -899,6 +908,11 @@ impl MessagingTeamUnit for PgMessagingTeamUnit<'_> {
                 "messaging_room",
                 "Create workplace channel",
                 "messaging.channel.created",
+            ),
+            TeamPlan::ManageTeam { .. } => (
+                "messaging_team",
+                "Manage workplace team",
+                "messaging.team.updated",
             ),
         };
         let value = serde_json::to_value(&receipt).map_err(|_| {

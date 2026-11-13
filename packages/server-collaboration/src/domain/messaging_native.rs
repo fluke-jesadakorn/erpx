@@ -50,6 +50,9 @@ pub struct RoomSnapshot {
     pub version: i64,
     pub last_seq: i64,
     pub members: Vec<String>,
+    /// True only for a private team channel; group/direct rooms are explicit.
+    pub private: bool,
+    pub team_id: Option<String>,
     pub created_at: i64,
 }
 
@@ -87,6 +90,12 @@ pub enum Change {
         room_id: String,
         seq: i64,
     },
+    ManageRoom {
+        room_id: String,
+        name: String,
+        members: Vec<String>,
+        expected_version: i64,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -112,6 +121,16 @@ pub enum OwnerPlan {
         user_id: String,
         seq: i64,
     },
+    ManageRoom {
+        room_id: String,
+        company_id: String,
+        name: String,
+        owner_id: String,
+        expected_version: i64,
+        /// `Some` records explicit room membership (group/private channel);
+        /// `None` leaves public channel membership on the owning team.
+        members: Option<Vec<String>>,
+    },
 }
 
 fn invalid() -> BusinessError {
@@ -121,7 +140,7 @@ fn invalid() -> BusinessError {
     )
 }
 
-fn changed() -> BusinessError {
+pub fn changed() -> BusinessError {
     BusinessError::new(
         FailureKind::Conflict,
         "MESSAGING_SOURCE_CHANGED",
@@ -142,6 +161,14 @@ pub fn user_required() -> BusinessError {
         FailureKind::Forbidden,
         "ROOM_MEMBER_REQUIRED",
         "Current conversation membership is required.",
+    )
+}
+
+pub fn owner_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "OWNER_REQUIRED",
+        "Only the owner can manage this conversation.",
     )
 }
 
@@ -246,6 +273,16 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             status: "read",
             seq: *seq,
         },
+        OwnerPlan::ManageRoom {
+            room_id,
+            expected_version,
+            ..
+        } => Receipt {
+            id: room_id.clone(),
+            version: expected_version + 1,
+            status: "updated",
+            seq: 0,
+        },
     })
 }
 
@@ -316,6 +353,8 @@ mod tests {
             version: 1,
             last_seq: 0,
             members: vec!["user".into()],
+            private: false,
+            team_id: None,
             created_at: 1,
         };
         assert!(require_member(&actor, &room).is_ok());

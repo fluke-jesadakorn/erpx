@@ -896,6 +896,7 @@ mod tests {
             department_id: None,
             can_share_company: false,
             can_moderate: false,
+            can_hide_posts: false,
         };
         assert_eq!(
             require_audience(&actor, Audience::Holding)
@@ -926,6 +927,7 @@ mod tests {
             department_id: None,
             can_share_company: false,
             can_moderate: false,
+            can_hide_posts: false,
         };
         let post = PostSnapshot {
             id: "post".into(),
@@ -963,6 +965,7 @@ mod tests {
             department_id: None,
             can_share_company: true,
             can_moderate: false,
+            can_hide_posts: false,
         };
         let mut comment = CommentSnapshot {
             id: "comment".into(),

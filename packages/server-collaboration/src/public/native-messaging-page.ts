@@ -219,6 +219,26 @@ export function nativeCreateChannel(
   return command(request, holdingSlug, `/teams/${encodeURIComponent(teamId)}/channels`, body, key);
 }
 
+export function nativeManageRoom(
+  request: Request,
+  holdingSlug: string,
+  roomId: string,
+  body: unknown,
+  key: string,
+) {
+  return command(request, holdingSlug, `/rooms/${encodeURIComponent(roomId)}`, body, key);
+}
+
+export function nativeManageTeam(
+  request: Request,
+  holdingSlug: string,
+  teamId: string,
+  body: unknown,
+  key: string,
+) {
+  return command(request, holdingSlug, `/teams/${encodeURIComponent(teamId)}`, body, key);
+}
+
 export async function nativeMessagingFileContent(
   request: Request,
   holdingSlug: string,

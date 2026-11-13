@@ -296,6 +296,53 @@ pub async fn apply_plan(
             }
             Ok(expected.clone())
         }
+        OwnerPlan::ManageTeam {
+            team_id,
+            company_id,
+            name,
+            owner_id,
+            expected_version,
+            members,
+        } => {
+            let updated = sqlx::query(
+                "UPDATE messaging_teams SET name=$1,version=version+1 WHERE id=$2 AND company_id=$3 AND owner_id=$4 AND version=$5",
+            )
+            .bind(name)
+            .bind(team_id)
+            .bind(company_id)
+            .bind(owner_id)
+            .bind(expected_version)
+            .execute(&mut *c)
+            .await?
+            .rows_affected();
+            if updated != 1 {
+                return Err(changed());
+            }
+            sqlx::query(
+                "DELETE FROM messaging_team_members WHERE team_id=$1 AND user_id<>ALL($2)",
+            )
+            .bind(team_id)
+            .bind(members)
+            .execute(&mut *c)
+            .await?;
+            for member in members {
+                sqlx::query(
+                    "INSERT INTO messaging_team_members(team_id,user_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
+                )
+                .bind(team_id)
+                .bind(member)
+                .execute(&mut *c)
+                .await?;
+            }
+            sqlx::query(
+                "DELETE FROM messaging_room_members WHERE room_id IN (SELECT id FROM messaging_rooms WHERE team_id=$1) AND user_id<>ALL($2)",
+            )
+            .bind(team_id)
+            .bind(members)
+            .execute(&mut *c)
+            .await?;
+            Ok(expected.clone())
+        }
     };
     let receipt = result?;
     if receipt != expected {
@@ -359,6 +406,14 @@ pub async fn retain_effects(
                 return Err(changed());
             }
             let key = format!("room:{id}");
+            let raw = image(c, &key).await?.ok_or_else(changed)?;
+            images.push((key, raw));
+        }
+        OwnerPlan::ManageTeam { team_id, .. } => {
+            if receipt.id != *team_id {
+                return Err(changed());
+            }
+            let key = format!("team:{team_id}");
             let raw = image(c, &key).await?.ok_or_else(changed)?;
             images.push((key, raw));
         }

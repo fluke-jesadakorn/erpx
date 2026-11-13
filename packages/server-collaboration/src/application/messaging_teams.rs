@@ -1,8 +1,8 @@
 //! Team/channel command sequencing on one caller-owned owner unit.
 use crate::domain::messaging_native::MessagingActor;
 use crate::domain::messaging_teams::{
-    Change, OwnerPlan, Receipt, TeamSnapshot, channel_name, plan_receipt, require_team_owner,
-    team_members, team_name, team_not_found,
+    Change, OwnerPlan, Receipt, TeamSnapshot, changed, channel_name, plan_receipt,
+    require_team_owner, team_members, team_name, team_not_found,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use std::future::Future;
@@ -102,6 +102,33 @@ pub async fn execute<P: MessagingTeamUnit>(
                     name,
                     owner_id: actor.user_id.clone(),
                     private,
+                    members,
+                });
+            }
+            Change::ManageTeam {
+                team_id,
+                name,
+                members: requested,
+                expected_version,
+            } => {
+                let team = p.team(&team_id).await?.ok_or_else(team_not_found)?;
+                require_team_owner(&actor, &team)?;
+                if expected_version <= 0 || team.version != expected_version {
+                    return Err(changed().into());
+                }
+                let members = team_members(&actor.user_id, &requested)?;
+                for member in &members {
+                    if !p.is_company_member(member).await? {
+                        return Err(participant_required().into());
+                    }
+                }
+                let name = team_name(&name)?;
+                plan = Some(OwnerPlan::ManageTeam {
+                    team_id,
+                    company_id: actor.company_id.clone(),
+                    name,
+                    owner_id: actor.user_id.clone(),
+                    expected_version,
                     members,
                 });
             }

@@ -324,6 +324,10 @@ pub fn messaging_router(targets: Vec<MessagingHttpTarget>) -> Result<Router, Bus
             post(mark_read),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/messaging/rooms/{room_id}",
+            post(manage_room),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/messaging/rooms/{room_id}/members",
             get(read_room_members),
         )
@@ -350,6 +354,10 @@ pub fn messaging_router(targets: Vec<MessagingHttpTarget>) -> Result<Router, Bus
         .route(
             "/api/v1/holdings/{holding_slug}/messaging/teams/{team_id}/members",
             get(read_team_members),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/messaging/teams/{team_id}",
+            post(manage_team),
         )
         .with_state(Arc::new(state)))
 }
@@ -681,6 +689,42 @@ pub async fn create_team(
 ) -> Response {
     let headers = request.headers().clone();
     let prepared = prepare_command(state, slug, request, "messaging.team.create", None, None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn manage_room(
+    State(state): State<Arc<MessagingHttpState>>,
+    Path((slug, room_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "messaging.manage",
+        Some(room_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn manage_team(
+    State(state): State<Arc<MessagingHttpState>>,
+    Path((slug, team_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "messaging.team.manage",
+        None,
+        Some(team_id),
+    )
+    .await;
     command_response(prepared, headers).await
 }
 

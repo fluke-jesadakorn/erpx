@@ -49,6 +49,12 @@ pub enum Change {
         private: bool,
         members: Vec<String>,
     },
+    ManageTeam {
+        team_id: String,
+        name: String,
+        members: Vec<String>,
+        expected_version: i64,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -70,12 +76,28 @@ pub enum OwnerPlan {
         private: bool,
         members: Vec<String>,
     },
+    ManageTeam {
+        team_id: String,
+        company_id: String,
+        name: String,
+        owner_id: String,
+        expected_version: i64,
+        members: Vec<String>,
+    },
 }
 
 fn invalid() -> BusinessError {
     BusinessError::invalid(
         "MESSAGING_INPUT_INVALID",
         "Provide a valid team or channel value.",
+    )
+}
+
+pub fn changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "MESSAGING_SOURCE_CHANGED",
+        "The team changed. Refresh and retry.",
     )
 }
 
@@ -135,6 +157,15 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             id: id.clone(),
             version: 1,
             status: "created",
+        },
+        OwnerPlan::ManageTeam {
+            team_id,
+            expected_version,
+            ..
+        } => Receipt {
+            id: team_id.clone(),
+            version: expected_version + 1,
+            status: "updated",
         },
     })
 }

@@ -87,6 +87,12 @@ pub fn decode_room_command(
             room_id: room()?,
             seq: unsigned(raw, "seq")?,
         },
+        "messaging.manage" => RoomChange::ManageRoom {
+            room_id: room()?,
+            name: name(raw)?,
+            members: members(raw)?,
+            expected_version: unsigned(raw, "expectedVersion")?,
+        },
         _ => return Err(invalid()),
     };
     Ok(DecodedMessagingCommand::Room(change))
@@ -110,6 +116,12 @@ pub fn decode_team_command(
             name: name(raw)?,
             private: boolean(raw, "private")?,
             members: members(raw)?,
+        },
+        "messaging.team.manage" => TeamChange::ManageTeam {
+            team_id: team_id.map(str::to_owned).ok_or_else(invalid)?,
+            name: name(raw)?,
+            members: members(raw)?,
+            expected_version: unsigned(raw, "expectedVersion")?,
         },
         _ => return Err(invalid()),
     };
@@ -177,5 +189,58 @@ mod tests {
                     .is_err()
             );
         }
+    }
+
+    #[test]
+    fn manage_commands_require_the_owner_version_and_member_list() {
+        let decoded = decode_room_command(
+            "messaging.manage",
+            Some("room-1"),
+            &json!({"name":"Ops","members":["u1","u2"],"expectedVersion":3}),
+        )
+        .unwrap();
+        match decoded {
+            DecodedMessagingCommand::Room(RoomChange::ManageRoom {
+                room_id,
+                name,
+                members,
+                expected_version,
+            }) => {
+                assert_eq!(room_id, "room-1");
+                assert_eq!(name, "Ops");
+                assert_eq!(members, vec!["u1".to_owned(), "u2".to_owned()]);
+                assert_eq!(expected_version, 3);
+            }
+            _ => panic!("unexpected decode"),
+        }
+        let decoded = decode_team_command(
+            "messaging.team.manage",
+            Some("team-1"),
+            &json!({"name":"Ops","members":["u1"],"expectedVersion":2}),
+        )
+        .unwrap();
+        assert!(matches!(
+            decoded,
+            DecodedMessagingCommand::Team(TeamChange::ManageTeam {
+                expected_version: 2,
+                ..
+            })
+        ));
+        assert!(
+            decode_room_command(
+                "messaging.manage",
+                Some("x"),
+                &json!({"name":"Ops","members":[]})
+            )
+            .is_err()
+        );
+        assert!(
+            decode_team_command(
+                "messaging.team.manage",
+                Some("x"),
+                &json!({"name":"Ops","members":[],"expectedVersion":-1})
+            )
+            .is_err()
+        );
     }
 }
