@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1480,
+    "revision": 1482,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -31218,29 +31218,22 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "worker-ca-portal-tail",
-          "claimedAt": "2026-11-13T02:38:39.000Z",
-          "heartbeatAt": "2026-11-13T02:41:50.790Z",
-          "expiresAt": "2026-11-13T03:11:50.790Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Scope expanded with server-customer_360 consumers. Build native portal-support (respond/ack/close/threads) and portal projection/read-audit/evidence-bind ports in server-customer_authority, mount with portal-session parity in composition, switch server-customer_360 portal adapters + feature routes native-only, delete portal-support.ts/portal-access.ts and barrels, migrate oracles, record customer_authority KPI 12->3.",
+        "blocker": "handoff",
+        "nextAction": "Blocked on the portal-support/customer-360 split; released.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "worker-ca-portal-tail",
-          "at": "2026-11-13T02:38:38.931Z",
-          "previousStatus": "in_progress",
+          "at": "2026-11-13T02:50:54.250Z",
+          "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "Released for scope expansion."
+          "nextAction": "Blocked on the portal-support/customer-360 split; released."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -32056,17 +32049,17 @@
       "migratedPackets": 87,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 87,
-        "blocked": 34,
+        "blocked": 35,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T02:50:18.056Z",
+    "updatedAt": "2026-11-13T02:50:54.250Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
