@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1741,
+    "revision": 1745,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-m",
       "agentId": "lead",
       "startedAt": "2026-11-13T11:17:19.844Z",
-      "heartbeatAt": "2026-11-13T12:00:00.184Z",
-      "expiresAt": "2026-11-13T12:30:00.184Z",
+      "heartbeatAt": "2026-11-13T12:01:38.682Z",
+      "expiresAt": "2026-11-13T12:31:38.682Z",
       "generation": 57,
       "tokenHash": "c5910c1521e976b448c7f793731ca689a6583e9888385019ac1912b7f6c666cd"
     },
@@ -23565,12 +23565,19 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "ready_for_integration",
+        "status": "integrating",
         "nextAction": "Native people-access relationship preview/apply producer is committed with 12 lib tests and 3 PostgreSQL proofs. Lead: mount PeopleRelationshipsHttpBackend in src/composition, register the Holding route, add the TS transport client and switch the people-access snapshot/preview/apply consumers, then delete the 18 statements (KPI 229 -> 211). Optionally relocate the 3 ignored PG proofs to a registered test target.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261113-m",
+          "agentId": "worker-iam-residual-2",
+          "claimedAt": "2026-11-13T12:01:07.366Z",
+          "heartbeatAt": "2026-11-13T12:01:38.682Z",
+          "expiresAt": "2026-11-13T12:31:38.682Z",
+          "generation": 57
+        },
         "baseSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
         "implementedCommit": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
         "lastPushedSha": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
@@ -23655,7 +23662,7 @@
             "removalCondition": "Mount the native PeopleRelationshipsHttpBackend in composition, register the Holding route, add the TS transport client and switch peopleRelationshipsSnapshot/previewPeopleRelationships/applyPeopleRelationships, then delete the 18 TS statements and exports."
           }
         ],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261113-i",
           "agentId": "worker-iam-residual",
@@ -35486,8 +35493,15 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-m",
+          "agentId": "worker-inventory-counts",
+          "claimedAt": "2026-11-13T12:01:07.334Z",
+          "heartbeatAt": "2026-11-13T12:01:38.682Z",
+          "expiresAt": "2026-11-13T12:31:38.682Z",
+          "generation": 57
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -35544,10 +35558,10 @@
       "totalPackets": 181,
       "migratedPackets": 104,
       "statusCounts": {
-        "pending": 22,
-        "in_progress": 0,
-        "ready_for_integration": 16,
-        "integrating": 0,
+        "pending": 21,
+        "in_progress": 1,
+        "ready_for_integration": 15,
+        "integrating": 1,
         "migrated": 104,
         "blocked": 39,
         "deferred": 0,
@@ -35555,7 +35569,7 @@
       }
     },
     "lastCoordinatorGeneration": 57,
-    "updatedAt": "2026-11-13T12:00:00.184Z",
+    "updatedAt": "2026-11-13T12:01:38.683Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
