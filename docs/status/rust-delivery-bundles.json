@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1599,
+    "revision": 1602,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T05:45:41.356Z",
-      "expiresAt": "2026-11-13T06:15:41.356Z",
+      "heartbeatAt": "2026-11-13T05:50:12.355Z",
+      "expiresAt": "2026-11-13T06:20:12.355Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -21771,8 +21771,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-iam-gpo",
           "claimedAt": "2026-11-13T05:16:06.169Z",
-          "heartbeatAt": "2026-11-13T05:45:41.356Z",
-          "expiresAt": "2026-11-13T06:15:41.356Z",
+          "heartbeatAt": "2026-11-13T05:50:12.355Z",
+          "expiresAt": "2026-11-13T06:20:12.355Z",
           "generation": 53
         },
         "baseSha": null,
@@ -25350,23 +25350,85 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "84b89516f173b49e7d2b17e45596188dac44d554",
+        "lastPushedSha": "84b89516f173b49e7d2b17e45596188dac44d554",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "84b89516f173b49e7d2b17e45596188dac44d554",
+            "sourceKind": "committed",
+            "note": "Owner crate and all registered targets compile."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib --offline domain::transit",
+            "result": "passed",
+            "sourceSha": "84b89516f173b49e7d2b17e45596188dac44d554",
+            "sourceKind": "committed",
+            "note": "5/5 native transit planner cases."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib --offline domain::counts",
+            "result": "passed",
+            "sourceSha": "84b89516f173b49e7d2b17e45596188dac44d554",
+            "sourceKind": "committed",
+            "note": "5/5 native count planner cases."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --test stock_receipt_postgres --offline transit_count_writers",
+            "result": "passed",
+            "sourceSha": "84b89516f173b49e7d2b17e45596188dac44d554",
+            "sourceKind": "committed",
+            "note": "2/2 PostgreSQL cases: dispatch/receive/cancel stock+audit effects and count draft revision snapshots."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "84b89516f173b49e7d2b17e45596188dac44d554",
+            "sourceKind": "committed",
+            "note": "Test inventory and ownership registers are consistent."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-inventory/src/adapters/inventory-transit.ts",
+            "removalTaskId": "migrate.inventory.transit-and-count-writers",
+            "removalCondition": "Composition mounts the native transit command HTTP with current authority/purchase/replay/audit/journal/evidence; feature-supply stock-transit route switches to it; then delete the adapter, public barrel, export key and ownership entry."
+          },
+          {
+            "path": "packages/server-inventory/src/adapters/inventory-counts.ts",
+            "removalTaskId": "migrate.inventory.transit-and-count-writers",
+            "removalCondition": "Composition mounts the native generic Count save/transition command and the workplace stock-counts route switches to it; then delete the generic writer branch, barrel and export."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts",
+            "removalTaskId": "migrate.inventory.transit-and-count-writers",
+            "removalCondition": "Switch the other-owner count branch to the native client once the composition endpoint exists."
+          },
+          {
+            "path": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts",
+            "removalTaskId": "migrate.inventory.transit-and-count-writers",
+            "removalCondition": "Switch the stock-transit route to the native client once the composition endpoint exists."
+          },
+          {
+            "path": "fixtures/inventory/legacy-count-oracle/inventory-counts.ts.snapshot",
+            "removalTaskId": "migrate.inventory.transit-and-count-writers",
+            "removalCondition": "Replace with a native-seeded oracle after the TS count adapter is deleted."
+          }
+        ],
+        "blocker": "released with work preserved",
+        "nextAction": "Native transit and count producers are committed. Lead must extend this task with src/composition/src/inventory_transit_commands.rs and inventory_count_commands.rs mount paths plus the workplace stock-counts route path, compose the ports with current IAM/Commercial authority, PgCommandLedger, Finance journal and Files evidence, switch the feature-supply stock-transit route, then delete the TS writers/barrels/exports and move the legacy count oracle. KPI remains 132 until that cutover.",
+        "handoff": {
           "runId": "run-20261113-i",
           "agentId": "worker-inventory-transit",
-          "claimedAt": "2026-11-13T05:16:06.203Z",
-          "heartbeatAt": "2026-11-13T05:45:41.356Z",
-          "expiresAt": "2026-11-13T06:15:41.356Z",
-          "generation": 53
+          "at": "2026-11-13T05:50:05.748Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native transit and count producers are committed. Lead must extend this task with src/composition/src/inventory_transit_commands.rs and inventory_count_commands.rs mount paths plus the workplace stock-counts route path, compose the ports with current IAM/Commercial authority, PgCommandLedger, Finance journal and Files evidence, switch the feature-supply stock-transit route, then delete the TS writers/barrels/exports and move the legacy count oracle. KPI remains 132 until that cutover."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the native transit and stock-count producers in packages/server-inventory, switch the supply consumers, then retire the replaced TS writers with native seeding and record the Inventory KPI pair.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -33207,8 +33269,8 @@
       "migratedPackets": 92,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 2,
-        "ready_for_integration": 10,
+        "in_progress": 1,
+        "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 92,
         "blocked": 43,
@@ -33217,7 +33279,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:45:49.518Z",
+    "updatedAt": "2026-11-13T05:50:12.356Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
