@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1308,
+    "revision": 1311,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -30061,18 +30061,11 @@
         "resources": [
           "owner:sales"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "worker-sales-notes",
-          "claimedAt": "2026-11-12T23:52:16.944Z",
-          "heartbeatAt": "2026-11-12T23:52:16.944Z",
-          "expiresAt": "2026-11-13T00:22:16.944Z",
-          "generation": 50
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "d8281721221d9ce74f346dce62bc6b88f694d707",
+        "lastPushedSha": "d8281721221d9ce74f346dce62bc6b88f694d707",
         "checks": [
           {
             "command": "retirement:ts-writes packages/server-sales/src",
@@ -30153,11 +30146,59 @@
             "result": "passed",
             "sourceSha": "b158554f95723b541439baf06713e267c463fb7a",
             "sourceKind": "committed"
+          },
+          {
+            "command": "retirement:ts-writes packages/server-sales/src",
+            "result": "passed",
+            "before": 13,
+            "after": 7,
+            "sourceSha": "d8281721221d9ce74f346dce62bc6b88f694d707",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-sales/src/adapters/notifications.ts",
+                "writes": 3,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native notification settings/queue/retry ingress ships."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/notification-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native notification purchase boundary owns queue/retry authorization."
+              },
+              {
+                "path": "packages/server-sales/src/adapters/pricing-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.sales.residual-writers",
+                "removalCondition": "Native pricing purchase boundary owns command assertions."
+              }
+            ],
+            "note": "Customer note commands retired; reads retained. Fixtures seed owner rows."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "d8281721221d9ce74f346dce62bc6b88f694d707",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "d8281721221d9ce74f346dce62bc6b88f694d707",
+            "sourceKind": "committed",
+            "note": "1211 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "d8281721221d9ce74f346dce62bc6b88f694d707",
+            "sourceKind": "committed"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Retire the remaining Sales note writers: seed customer_contact_notes + history rows directly in tests/integration/support/{support,package-obligations}.test.ts and tests/integration/customer_360/customer-timeline.test.ts, move/delete the command oracle in tests/integration/sales/customer-notes.test.ts, delete createCustomerNote/changeCustomerNote from server-sales notes.ts + public barrel/package key (keep customerNotesForOrder/Customer reads), reuse the native customer_360 note oracles, and record sales KPI 13->7.",
+        "nextAction": "Closed: follow-ups + notes native. Remaining sales 7 (notifications/purchase boundaries) bound to retire.sales.residual-writers.",
         "handoff": {
           "runId": "run-20261113-f",
           "agentId": "worker-sales-notes",
@@ -30178,20 +30219,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 144,
-      "migratedPackets": 76,
+      "migratedPackets": 77,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 4,
+        "in_progress": 3,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 76,
+        "migrated": 77,
         "blocked": 32,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-12T23:56:02.807Z",
+    "updatedAt": "2026-11-13T00:00:02.031Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
