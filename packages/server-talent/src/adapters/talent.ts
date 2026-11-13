@@ -89,7 +89,6 @@ async applications(a){const write=await database();return (await write
 async people(a){return recruiterReferences(await database(),a);}
 });}
 export async function talentWorkspace(a:WorkContext){return withTalentPurchasedRead(a,["recruit.positions","recruit.candidates","recruit.applications","recruit.offers"],async db=>({...await nativeTalentWorkspace(db??lazyDatabase(a))(a),canWrite:hasPermission(a,"records.write"),purchases:await talentPurchaseControls(a,db)}));}
-export {createTalentRequisition} from "@erpx/server-talent/adapters/requisition";
 export function nativeTalentCandidate(source:DatabaseSource){const database=databaseSource(source);return createTalentCandidateApplication({...commandPorts(database),
 async prepare(command,i){const write=await database(),{actor:a,key,id,now}=command;return {native:[
     write

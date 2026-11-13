@@ -1,44 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { createTalentRequisitionApplication, type TalentRequisitionInputPorts } from "@erpx/server-talent/application/requisition";
 import { createUsagePeriodApplication } from "@erpx/server-commercial/application/usage";
 import { platformUsageItems, type UsageItem } from "@erpx/server-commercial/domain/usage";
 import { agentSourceAllowed } from "@erpx/server-agent/domain/source-policy";
-
-const requisition = { jobTitle: "Engineer", openings: 2, targetStartDate: "2026-10-31", description: "Maintain the company service" };
-type Command = Parameters<TalentRequisitionInputPorts["persist"]>[0];
-function fixture() {
-  const calls: string[] = [];
-  const commands: Command[] = [];
-  const ports = {
-    clock: { now: () => 42 }, branchId: "branch-1" as string | null,
-    async authorize() { calls.push("authorize"); },
-    async replay(): Promise<Record<string, unknown> | null> { calls.push("replay"); return null; },
-    async persist(command: Command): Promise<Record<string, unknown>> { commands.push(command); return command.result; },
-  };
-  return { calls, commands, ports };
-}
-
-describe("owner draft commands without PostgreSQL", () => {
-  test("Talent requires Branch scope before receipt lookup and persists a reviewable requisition", async () => {
-    const f = fixture();
-    f.ports.branchId = null;
-    await expect(createTalentRequisitionApplication(f.ports)(requisition, "key-123456")).rejects.toMatchObject({ code: "BRANCH_SCOPE_REQUIRED" });
-    expect(f.calls).toEqual(["authorize"]);
-    expect(f.commands).toEqual([]);
-    f.ports.branchId = "branch-1";
-    expect(await createTalentRequisitionApplication(f.ports)(requisition, "key-123456")).toEqual({ id: "talent-req-key-123456", status: "draft", version: 1 });
-  });
-  test("permission failures and replay do not persist a second draft", async () => {
-    const f = fixture();
-    f.ports.authorize = async () => { throw new Error("authority revoked"); };
-    await expect(createTalentRequisitionApplication(f.ports)(requisition, "key-123456")).rejects.toThrow("authority revoked");
-    expect(f.commands).toEqual([]);
-    f.ports.authorize = async () => {};
-    f.ports.replay = async () => ({ id: "original-requisition", status: "draft", version: 1 });
-    expect(await createTalentRequisitionApplication(f.ports)(requisition, "key-123456")).toMatchObject({ id: "original-requisition" });
-    expect(f.commands).toEqual([]);
-  });
-});
 
 describe("owner time and Agent source policies", () => {
   test("uses the injected clock and Bangkok month boundary", () => {

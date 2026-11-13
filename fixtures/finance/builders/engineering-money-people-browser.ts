@@ -16,7 +16,7 @@ import {createAccount,createAccountSchema,createChart,createChartSchema,createPe
 import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-finance/public/accounting-profiles";
 import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import {createPayGroup,payGroupSchema} from "@erpx/server-people_payroll/public/people-payroll";
-import {createTalentRequisition,createTalentCandidate,createTalentApplication,createTalentProposal,createTalentOffer,changeTalentRecord,talentDetail} from "@erpx/server-talent/public/talent";
+import {createTalentCandidate,createTalentApplication,createTalentProposal,createTalentOffer,changeTalentRecord,talentDetail} from "@erpx/server-talent/public/talent";
 import {changeLearningAssignment} from "@erpx/server-learning/public/learning";
 
 type Input={run:string;directory:string;control:PostgresDatabase;db:PostgresDatabase;files:FileStore;workspaceProducts?:readonly ProductId[]};
@@ -94,7 +94,7 @@ export async function seedEngineeringMoneyPeopleBrowser(input:Input){
    monthlyBankIds.push(String(await input.db.prepare('SELECT id FROM finance_bank_transactions WHERE statement_id=?').bind(statement.id).first('id')));
   }
   const group=await createPayGroup(payroll,payGroupSchema.parse({name:'Engineering monthly THB',countryCode:'TH',currency:'THB',frequency:'monthly',timezone:'Asia/Bangkok'}),key());
-  const req=await createTalentRequisition(talent,{jobTitle:'Synthetic service specialist',openings:1,targetStartDate:'2026-11-01',description:'Fictional role for normal Talent-to-HR browser consumption.'},key());
+  const reqId=`talent-req-${key()}`,reqNow=Date.now();await input.db.batch([input.db.prepare("INSERT INTO talent_requisitions(id,company_id,branch_id,department_id,job_title,openings,target_start_date,description,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'draft',?,?,?)").bind(reqId,f.company,talent.branchId,talent.departmentId,'Synthetic service specialist',1,'2026-11-01','Fictional role for normal Talent-to-HR browser consumption.',talent.userId,reqNow,reqNow),input.db.prepare("INSERT INTO talent_requisition_events VALUES(?,?,1,'create',?,'Hiring need drafted','draft',?)").bind(`talent-req-event-${reqId}`,reqId,talent.userId,reqNow)]);const req={id:reqId};
   await changeTalentRecord(talentReview,'requisition',String(req.id),{action:'approve',expectedVersion:1,reason:'Independent fictional headcount review'},key());await changeTalentRecord(talentReview,'requisition',String(req.id),{action:'open',expectedVersion:2,reason:'Reviewed fictional role opened to candidates'},key());
   const candidateName=`${project} Synthetic Candidate`,candidate=await createTalentCandidate(talent,{legalName:candidateName,email:`candidate-${input.run}-${project}@simulation.test`,consentEvidence:'Fictional candidate consent for browser workflow verification only.',retentionUntil:'2027-12-31'},key()),app=await createTalentApplication(talent,{requisitionId:req.id,requisitionVersion:3,candidateId:candidate.id,ownerId:talent.userId},key());
   await changeTalentRecord(talent,'application',String(app.id),{action:'interview',expectedVersion:1,reason:'Fictional interview completed with retained panel evidence'},key());

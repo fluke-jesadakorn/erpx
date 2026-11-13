@@ -9,7 +9,6 @@ import {
   createTalentCandidate,
   createTalentOffer,
   createTalentProposal,
-  createTalentRequisition,
   talentDetail,
   talentWorkspace,
 } from "@erpx/server-talent/public/talent";
@@ -112,7 +111,11 @@ export async function POST(r: Request, c: C) {
       data = await changeTalentRecord(a, i.entity, i.id, i, key);
     }
     else if (i.entity === "requisition")
-      data = await createTalentRequisition(a, i, key);
+      throw new ApiError(
+        503,
+        "NATIVE_TALENT_REQUISITION_UNAVAILABLE",
+        "The native Talent requisition command is unavailable.",
+      );
     else if (i.entity === "candidate")
       data = await createTalentCandidate(a, i, key);
     else if (i.entity === "application")

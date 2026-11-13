@@ -18,7 +18,6 @@ import {
   createTalentCandidate,
   createTalentOffer,
   createTalentProposal,
-  createTalentRequisition,
   talentDetail,
   talentWork,
   talentWorkspace,
@@ -54,17 +53,27 @@ beforeEach(async () => {
     modules: ["talent"],
   };
 });
+async function seedRequisition(
+  input: { jobTitle: string; openings: number; targetStartDate: string; description: string },
+) {
+  const id = `talent-req-${key()}`, now = Date.now();
+  await db.batch([
+    db.prepare(
+      "INSERT INTO talent_requisitions(id,company_id,branch_id,department_id,job_title,openings,target_start_date,description,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'draft',?,?,?)",
+    ).bind(id, creator.companyId, creator.branchId, creator.departmentId, input.jobTitle, input.openings, input.targetStartDate, input.description, creator.userId, now, now),
+    db.prepare(
+      "INSERT INTO talent_requisition_events VALUES(?,?,1,'create',?,'Hiring need drafted','draft',?)",
+    ).bind(`talent-req-event-${id}`, id, creator.userId, now),
+  ]);
+  return { id, status: "draft" as const, version: 1 };
+}
 async function application() {
-  const req = await createTalentRequisition(
-    creator,
-    {
-      jobTitle: "Service specialist",
-      openings: 1,
-      targetStartDate: "2026-11-01",
-      description: "Serve customer cases and complete field handoffs.",
-    },
-    key(),
-  );
+  const req = await seedRequisition({
+    jobTitle: "Service specialist",
+    openings: 1,
+    targetStartDate: "2026-11-01",
+    description: "Serve customer cases and complete field handoffs.",
+  });
   await expect(
     changeTalentRecord(
       creator,
@@ -381,7 +390,7 @@ it("surfaces an ineligible application owner for reviewed reassignment", async (
 });
 
 it("requires the actual Recruitment package for new work and keeps bounded application withdrawal and source history while draining",async()=>{
- vi.stubEnv("ERPX_TALENT_PACKAGE_ENFORCEMENT","enforced");await expect(application()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await talentWork(creator)).toEqual([]);const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});const {app}=await application();await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});await expect(createTalentCandidate(creator,{legalName:"New unpurchased intake",email:`candidate-${key()}@example.test`,consentEvidence:"New recruitment consent must require active work",retentionUntil:"2027-09-30"},key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});expect((await talentWork(creator)).find(item=>item.id===app.id)).toMatchObject({canAct:false,queue:"waiting"});
+ vi.stubEnv("ERPX_TALENT_PACKAGE_ENFORCEMENT","enforced");const unpurchased=await seedRequisition({jobTitle:"Service specialist",openings:1,targetStartDate:"2026-11-01",description:"Serve customer cases and complete field handoffs."});await expect(changeTalentRecord(creator,"requisition",unpurchased.id,{action:"approve",expectedVersion:1,reason:"Unpurchased new recruitment work"},key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await talentWork(creator)).toEqual([]);const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});const {app}=await application();await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});await expect(createTalentCandidate(creator,{legalName:"New unpurchased intake",email:`candidate-${key()}@example.test`,consentEvidence:"New recruitment consent must require active work",retentionUntil:"2027-09-30"},key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});expect((await talentWork(creator)).find(item=>item.id===app.id)).toMatchObject({canAct:false,queue:"waiting"});
  const command=key(),input={action:"withdraw",expectedVersion:1,reason:"Complete the retained recruitment withdrawal"},result=await changeTalentRecord(creator,"application",String(app.id),input,command);expect(await changeTalentRecord(creator,"application",String(app.id),input,command)).toEqual(result);expect((await talentDetail(creator,String(app.id))).purchases?.["recruit.applications"]).toMatchObject({newWork:false,settleExisting:true,history:true});
 });
 it("rolls Recruitment source and selected-role changes back after deferred effects, preserving original receipts and exact retry",async()=>{
