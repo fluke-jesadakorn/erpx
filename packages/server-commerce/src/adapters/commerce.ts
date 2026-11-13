@@ -362,34 +362,22 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             lineId: string;
             id: string;
         }) => db.prepare("SELECT l.*,p.tracking_mode,p.unit FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.id=? AND l.order_id=?").bind(facts.lineId, facts.id).first<Row>(),
-        readInventoryActiveReservations3: facts => CommerceInventoryFacts(db).readInventoryActiveReservations3(facts),
-        readInventoryOrderReservations3: facts => CommerceInventoryFacts(db).readInventoryOrderReservations3(facts),
         readCommerceFulfillmentLines2: (facts: {
             id: string | number | null;
         }) => db.prepare("SELECT COALESCE(SUM(subtotal_minor),0) subtotal,COALESCE(SUM(tax_minor),0) tax FROM commerce_fulfillment_lines WHERE order_line_id=?").bind(facts.id).first<{
             subtotal: number;
             tax: number;
         }>(),
-        readInventoryLots1: facts => CommerceInventoryFacts(db).readInventoryLots1(facts),
-        readInventoryQualityHolds3: facts => CommerceInventoryFacts(db).readInventoryQualityHolds3(facts),
         prepareCommerceStock2: (facts: {
             warehouse_id: string | number | null;
             product_id: string | number | null;
         }) => commerceCommerceStockEffects(db).prepareCommerceStock2(facts),
-        prepareInventoryOrderReservations4: facts => CommerceInventoryFacts(db).prepareInventoryOrderReservations4(facts),
         prepareCommerceStock3: (facts: {
             fact0: number;
             fact1: number;
             warehouse_id: string | number | null;
             product_id: string | number | null;
         }) => commerceCommerceStockEffects(db).prepareCommerceStock3(facts),
-        prepareInventoryLots3: facts => CommerceInventoryFacts(db).prepareInventoryLots3(facts),
-        prepareInventoryLots4: facts => CommerceInventoryFacts(db).prepareInventoryLots4(facts),
-        prepareInventoryLotBalances3: facts => CommerceInventoryFacts(db).prepareInventoryLotBalances3(facts),
-        prepareInventoryLotBalances4: facts => CommerceInventoryFacts(db).prepareInventoryLotBalances4(facts),
-        prepareInventoryLots5: facts => CommerceInventoryFacts(db).prepareInventoryLots5(facts),
-        prepareInventoryLotMoves2: facts => CommerceInventoryFacts(db).prepareInventoryLotMoves2(facts),
-        prepareInventoryFulfillmentLotAllocations1: facts => CommerceInventoryFacts(db).prepareInventoryFulfillmentLotAllocations1(facts),
         prepareCommerceStockMoves1: (facts: {
             fact0: string;
             warehouse_id: string | number | null;
@@ -521,7 +509,6 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         guardRule21: facts => CommerceFinanceFacts(db).guardRule21(facts),
         guardRule22: facts => CommerceFinanceFacts(db).guardRule22(facts),
         guardRule23: facts => CommerceFilesFacts(db).guardRule23(facts),
-        guardRule24: facts => CommerceInventoryFacts(db).guardRule24(facts),
         guardRule25: (facts: {
             key: string;
             guardId: string;
@@ -532,9 +519,6 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             guardId: string;
             values: (string | number | null)[];
         }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)`, facts.values),
-        guardRule27: facts => CommerceInventoryFacts(db).guardRule27(facts),
-        guardRule28: facts => CommerceInventoryFacts(db).guardRule28(facts),
-        guardRule29: facts => CommerceInventoryFacts(db).guardRule29(facts),
         guardRule30: (facts: {
             key: string;
             guardId: string;

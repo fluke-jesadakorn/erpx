@@ -1,7 +1,7 @@
 import type {FileStore,SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 import {preventivePlanDetail} from "@erpx/server-maintenance/public/maintenance-preventive";
-import {prepareInventoryConsumption} from "@erpx/server-inventory/public/inventory-consumption";
+import {prepareInventoryConsumption} from "../../support/inventory/consumption-writer";
 import {journalDetail} from "@erpx/server-finance/public/ledger";
 import {financeProductDocumentEntry,financeDocumentPostAccess} from "@erpx/server-finance/public/document-purchases";
 import {beforeAll,beforeEach,afterEach,expect,it,vi} from 'vitest';import {applyMigrations,env} from "../../support/runtime-env";import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";import {maintenanceDetail,maintenanceWork} from "@erpx/server-assets/public/asset-maintenance";import {assetSchema as financeAssetSchema,createAsset as createFinanceAsset,activateAsset,prepareAssetDisposal,decideAssetDisposal} from "@erpx/server-finance/public/finance-assets";vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:assetDatabase??env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));let assetDatabase:SqlDatabase|undefined;let f:Awaited<ReturnType<typeof expenseFixture>>;beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});beforeEach(async()=>{f=await expenseFixture();for(const a of [f.owner,f.head,f.claimant])a.modules=['assets','maintenance'];});
@@ -129,8 +129,9 @@ it('consumes the selected spare lot once, reconciles exact stock cost with revie
  const {store,grant}=purchases();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{...grant,packageId:"assets-parts-costs"}});vi.stubEnv("ERPX_ASSETS_PACKAGE_ENFORCEMENT","enforced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
  const work=await seedWork({assetId,title:'Install replacement bearings',ownerId:f.head.userId,status:'in_progress',version:4,events:[{action:'create',version:1,status:'open'},{action:'start',version:2,status:'in_progress'},{action:'issue-part',version:3,status:'in_progress'},{action:'issue-part',version:4,status:'in_progress'}]});
  // Lot-allocation refusal, stale version refusal and idempotent receipt replay are
- // native (maintenance.rust-issue-part-command-postgres.integration). The retained
- // Inventory owner port and settlement/read behavior stay with this suite.
+ // native (maintenance.rust-issue-part-command-postgres.integration). The retired
+ // TypeScript command effects are reseeded by a test-only oracle; settlement/read
+ // behavior stays with this suite.
  await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});
  const consume=async(sourceVersion:number,quantityMilli:number,balanceVersion:number,reason:string)=>{await db.transaction(async tx=>{const prepared=await prepareInventoryConsumption(tx,f.owner,{key:key(),sourceKind:'maintenance',sourceId:work,sourceVersion,branchId:f.branch,departmentId:f.department??null,warehouseId:warehouse,productId:product,quantityMilli,entryDate:'2026-10-02',allocations:[{lotId:lot,quantityMilli,balanceVersion}],reason});for(const step of prepared.steps)await step.run();});};
  await consume(3,1000,1,'Install the first bearing from the selected lot');

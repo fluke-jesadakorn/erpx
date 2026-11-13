@@ -557,97 +557,21 @@ export type CommerceUnit<Effect> = {
         lineId: string;
         id: string;
     }): Promise<Row | null>;
-    readInventoryActiveReservations3(facts: {
-        warehouse_id: string | number | null;
-        product_id: string | number | null;
-    }): Promise<Row | null>;
-    readInventoryOrderReservations3(facts: {
-        id: string | number | null;
-    }): Promise<CommerceRows<Row>>;
     readCommerceFulfillmentLines2(facts: {
         id: string | number | null;
     }): Promise<{
         subtotal: number;
         tax: number;
     } | null>;
-    readInventoryLots1(facts: {
-        warehouse_id: string | number | null;
-        companyId: string;
-        product_id: string | number | null;
-        identity: string;
-        tracking: string;
-    }): Promise<Row | null>;
-    readInventoryQualityHolds3(facts: {
-        fact0: string;
-        companyId: string;
-        product_id: string | number | null;
-        warehouse_id: string | number | null;
-    }): Promise<Row | null>;
     prepareCommerceStock2(facts: {
         warehouse_id: string | number | null;
         product_id: string | number | null;
-    }): Effect;
-    prepareInventoryOrderReservations4(facts: {
-        n: number;
-        id: string | number | null;
     }): Effect;
     prepareCommerceStock3(facts: {
         fact0: number;
         fact1: number;
         warehouse_id: string | number | null;
         product_id: string | number | null;
-    }): Effect;
-    prepareInventoryLots3(facts: {
-        lotId: string;
-        companyId: string;
-        product_id: string | number | null;
-        tracking: string;
-        lotCode: string | null;
-        serialNumber: string | null;
-        manufacturedDate: string | null;
-        expiryDate: string | null;
-        userId: string;
-        fact9: number;
-    }): Effect;
-    prepareInventoryLots4(facts: {
-        lotId: string;
-    }): Effect;
-    prepareInventoryLotBalances3(facts: {
-        lotId: string;
-        warehouse_id: string | number | null;
-        quantityMilli: number;
-        valueMinor: number;
-    }): Effect;
-    prepareInventoryLotBalances4(facts: {
-        quantityMilli: number;
-        valueMinor: number;
-        lotId: string;
-        warehouse_id: string | number | null;
-    }): Effect;
-    prepareInventoryLots5(facts: {
-        lotId: string;
-        lotId2: string;
-    }): Effect;
-    prepareInventoryLotMoves2(facts: {
-        fact0: string;
-        lotId: string;
-        warehouse_id: string | number | null;
-        fact3: "goods_receipt" | "delivery";
-        lineId: string;
-        fact5: number;
-        fact6: number;
-        date: string;
-        userId: string;
-        fact9: number;
-    }): Effect;
-    prepareInventoryFulfillmentLotAllocations1(facts: {
-        fact0: string;
-        lineId: string;
-        lotId: string;
-        quantityMilli: number;
-        valueMinor: number;
-        disposition: "available" | "quarantine";
-        qualityHoldId: string | null;
     }): Effect;
     prepareCommerceStockMoves1(facts: {
         fact0: string;
@@ -958,32 +882,12 @@ export type CommerceUnit<Effect> = {
         guardId: string;
         values: string[];
     }): Effect;
-    guardRule24(facts: {
-        key: string;
-        guardId: string;
-        values: (string | number | null)[];
-    }): Effect;
     guardRule25(facts: {
         key: string;
         guardId: string;
         values: (string | number | null)[];
     }): Effect;
     guardRule26(facts: {
-        key: string;
-        guardId: string;
-        values: (string | number | null)[];
-    }): Effect;
-    guardRule27(facts: {
-        key: string;
-        guardId: string;
-        values: (string | number | null)[];
-    }): Effect;
-    guardRule28(facts: {
-        key: string;
-        guardId: string;
-        values: (string | number | null)[];
-    }): Effect;
-    guardRule29(facts: {
         key: string;
         guardId: string;
         values: (string | number | null)[];

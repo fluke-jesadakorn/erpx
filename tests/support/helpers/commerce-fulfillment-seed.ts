@@ -9,7 +9,7 @@ import { executeCommand, replayCommand } from '@erpx/server-workflow/public/comm
 import { fulfillmentSchema, roles } from '@erpx/server-commerce/domain/commerce';
 import { commerceFinanceJoinedFacts } from '@erpx/server-finance/public/commerce-joined-facts';
 import { CommerceFinanceFacts } from '@erpx/server-finance/public/commerce-facts';
-import { CommerceInventoryFacts } from '@erpx/server-inventory/public/commerce-facts';
+import { inventoryExecutiveOwnerProjections as qualityProjectionSources } from '@erpx/server-quality/public/inventory-executive-owner-projections';
 import { CommerceFilesFacts } from '@erpx/server-files/public/commerce-facts';
 import { commerceCommerceStockEffects } from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { prepareBusinessEvidence } from '@erpx/server-records/public/business-evidence';
@@ -41,6 +41,29 @@ import type { z } from 'zod';
 export type CommerceFulfillmentInput = z.input<typeof fulfillmentSchema>;
 export type CommerceFulfillmentReceipt = { id: string; fulfillmentId: string; version: number };
 type Row = Record<string, string | number | null>;
+
+/** Retired Inventory fulfillment facts, kept only for this test seed oracle. */
+function retiredInventoryFacts(db: SqlDatabase) {
+  return {
+  readInventoryActiveReservations3:(facts:{warehouse_id:string | number | null;product_id:string | number | null;})=>db.prepare(`SELECT s.*,COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,CASE WHEN EXISTS(SELECT 1 FROM (${qualityProjectionSources.inventory_quality_holds}) h WHERE h.warehouse_id=s.warehouse_id AND h.product_id=s.product_id AND h.status NOT IN ('released','cancelled','disposed')) THEN 1 ELSE 0 END quality_held FROM commerce_stock s WHERE warehouse_id=? AND product_id=?`).bind(facts.warehouse_id,facts.product_id).first<Row>(),
+  readInventoryOrderReservations3:(facts:{id:string | number | null;})=>db.prepare('SELECT r.* FROM inventory_order_reservations r WHERE order_line_id=? AND quantity_milli>consumed_milli+released_milli AND expires_at>floor(extract(epoch FROM statement_timestamp())*1000)::bigint ORDER BY created_at,id').bind(facts.id).all<Row>(),
+  readInventoryLots1:(facts:{warehouse_id:string | number | null;companyId:string;product_id:string | number | null;identity:string;tracking:string;})=>db.prepare(`SELECT l.*,b.quantity_milli,b.value_minor,b.version balance_version,b.warehouse_id FROM inventory_lots l LEFT JOIN inventory_lot_balances b ON b.lot_id=l.id AND b.warehouse_id=? WHERE l.company_id=? AND l.product_id=? AND ${facts.tracking==='serial'?"l.serial_number=?":"l.lot_code=?"}`).bind(facts.warehouse_id,facts.companyId,facts.product_id,facts.identity).first<Row>(),
+  readInventoryQualityHolds3:(facts:{fact0:string;companyId:string;product_id:string | number | null;warehouse_id:string | number | null;})=>db.prepare(`SELECT l.*,b.quantity_milli,b.value_minor,b.version balance_version,b.warehouse_id,CASE WHEN EXISTS(SELECT 1 FROM (${qualityProjectionSources.inventory_quality_holds}) h WHERE h.lot_id=l.id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed')) THEN 1 ELSE 0 END quality_held FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id WHERE l.id=? AND l.company_id=? AND l.product_id=? AND b.warehouse_id=?`).bind(facts.fact0,facts.companyId,facts.product_id,facts.warehouse_id).first<Row>(),
+  prepareInventoryOrderReservations4:(facts:{n:number;id:string | number | null;})=>db.prepare('UPDATE inventory_order_reservations SET consumed_milli=consumed_milli+? WHERE id=?').bind(facts.n,facts.id),
+  prepareInventoryLots3:(facts:{lotId:string;companyId:string;product_id:string | number | null;tracking:string;lotCode:string | null;serialNumber:string | null;manufacturedDate:string | null;expiryDate:string | null;userId:string;fact9:number;})=>db.prepare("INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,serial_number,manufactured_date,expiry_date,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(facts.lotId,facts.companyId,facts.product_id,facts.tracking,facts.lotCode,facts.serialNumber,facts.manufacturedDate,facts.expiryDate,facts.userId,facts.fact9),
+  prepareInventoryLots4:(facts:{lotId:string;})=>db.prepare("UPDATE inventory_lots SET status='active' WHERE id=? AND status='depleted'").bind(facts.lotId),
+  prepareInventoryLotBalances3:(facts:{lotId:string;warehouse_id:string | number | null;quantityMilli:number;valueMinor:number;})=>db.prepare("INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor) VALUES(?,?,?,?) ON CONFLICT(lot_id,warehouse_id) DO UPDATE SET quantity_milli=inventory_lot_balances.quantity_milli+EXCLUDED.quantity_milli,value_minor=inventory_lot_balances.value_minor+EXCLUDED.value_minor,version=inventory_lot_balances.version+1").bind(facts.lotId,facts.warehouse_id,facts.quantityMilli,facts.valueMinor),
+  prepareInventoryLotBalances4:(facts:{quantityMilli:number;valueMinor:number;lotId:string;warehouse_id:string | number | null;})=>db.prepare("UPDATE inventory_lot_balances SET quantity_milli=quantity_milli-?,value_minor=value_minor-?,version=version+1 WHERE lot_id=? AND warehouse_id=?").bind(facts.quantityMilli,facts.valueMinor,facts.lotId,facts.warehouse_id),
+  prepareInventoryLots5:(facts:{lotId:string;lotId2:string;})=>db.prepare("UPDATE inventory_lots SET status=CASE WHEN NOT EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND quantity_milli>0) THEN 'depleted' ELSE status END WHERE id=?").bind(facts.lotId,facts.lotId2),
+  prepareInventoryLotMoves2:(facts:{fact0:string;lotId:string;warehouse_id:string | number | null;fact3:"goods_receipt" | "delivery";lineId:string;fact5:number;fact6:number;date:string;userId:string;fact9:number;})=>db.prepare("INSERT INTO inventory_lot_moves(id,lot_id,warehouse_id,source_type,source_id,quantity_milli,value_minor,movement_date,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(facts.fact0,facts.lotId,facts.warehouse_id,facts.fact3,facts.lineId,facts.fact5,facts.fact6,facts.date,facts.userId,facts.fact9),
+  prepareInventoryFulfillmentLotAllocations1:(facts:{fact0:string;lineId:string;lotId:string;quantityMilli:number;valueMinor:number;disposition:"available" | "quarantine";qualityHoldId:string | null;})=>db.prepare("INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition,quality_hold_id) VALUES(?,?,?,?,?,?,?)").bind(facts.fact0,facts.lineId,facts.lotId,facts.quantityMilli,facts.valueMinor,facts.disposition,facts.qualityHoldId),
+  guardRule24:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,"NOT EXISTS(SELECT 1 FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>?)",facts.values),
+  guardRule27:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,"EXISTS(SELECT 1 FROM inventory_lots WHERE id=? AND company_id=? AND product_id=? AND tracking_mode=? AND lot_code IS NOT DISTINCT FROM ? AND serial_number IS NOT DISTINCT FROM ? AND manufactured_date IS NOT DISTINCT FROM ? AND expiry_date IS NOT DISTINCT FROM ?)",facts.values),
+  guardRule28:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,"EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=? AND version=?)",facts.values),
+  guardRule29:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,`EXISTS(SELECT 1 FROM inventory_lot_balances b WHERE b.lot_id=? AND b.warehouse_id=? AND b.version=? AND b.quantity_milli>=? AND NOT EXISTS(SELECT 1 FROM (${qualityProjectionSources.inventory_quality_holds}) h WHERE h.lot_id=b.lot_id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed')))`,facts.values)
+  };
+}
+
 type Statement = ReturnType<SqlDatabase['prepare']>;
 
 const error = (status: number, code: string, message: string) => new ApiError(status, code, message);
@@ -140,7 +163,7 @@ async function fulfill(
     for (const [index, attachmentId] of input.evidenceIds.entries())
       steps.push(CommerceFilesFacts(db).guardRule23({ key, guardId: `delivery-evidence-${index}`, values: [attachmentId, id] }));
   const stock = commerceCommerceStockEffects(db);
-  const inventory = CommerceInventoryFacts(db);
+  const inventory = retiredInventoryFacts(db);
   let value = 0, documentSubtotal = 0, goodsCount = 0;
   for (const [i, entry] of input.lines.entries()) {
     const line = await db.prepare('SELECT l.*,p.tracking_mode,p.unit FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.id=? AND l.order_id=?').bind(entry.lineId, id).first<Row>();

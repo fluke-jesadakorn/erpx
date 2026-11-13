@@ -4,7 +4,7 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { maintenanceDetail } from "@erpx/server-assets/public/asset-maintenance";
-import { prepareInventoryConsumption } from "@erpx/server-inventory/public/inventory-consumption";
+import { prepareInventoryConsumption } from "../../support/inventory/consumption-writer";
 import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import JournalPage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen";
@@ -43,9 +43,9 @@ beforeEach(async () => {
       { version: 2, action: "start", status: "in_progress", start: work.at },
       { version: 3, action: "issue-part", status: "in_progress", start: work.at },
     ]) await tx.prepare("INSERT INTO maintenance_work_events(id,work_order_id,version,action,actor_id,reason,status,owner_id,scheduled_at,downtime_started_at,downtime_ended_at,created_at) VALUES(?,?,?,?,?,?,?,?,NULL,?,NULL,?)").bind(`maintenance-event-${key()}`, workId, event.version, event.action, work.owner, "Native owner event retained for the parts journal.", event.status, work.owner, event.start, work.at).run();
-    // The Inventory owner port prepares the consumption, its Finance journal and
-    // the money snapshot in the caller's transaction. Maintenance no longer owns
-    // a TypeScript issue-part writer.
+    // Native Rust owns the issue-part command. This test-only oracle reproduces
+    // the retired TypeScript consumption effects (consumption, Finance journal
+    // and money snapshot) so the retained journal read is proved here.
     const prepared = await prepareInventoryConsumption(tx, f.owner, { key: key(), sourceKind: "maintenance", sourceId: workId, sourceVersion: 3, branchId: f.branch, departmentId: f.department, warehouseId: warehouse, productId: product, quantityMilli: 1000, entryDate: "2026-10-02", reason: "Issue one valued fuse through the native owner.", allocations: [] });
     for (const step of prepared.steps) await step.run();
     journalId = String(prepared.journalId);
