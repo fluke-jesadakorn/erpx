@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1950,
+    "revision": 1955,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-s",
       "agentId": "lead",
       "startedAt": "2026-11-13T18:23:29.035Z",
-      "heartbeatAt": "2026-11-13T18:28:50.689Z",
-      "expiresAt": "2026-11-13T18:58:50.689Z",
+      "heartbeatAt": "2026-11-13T18:30:14.026Z",
+      "expiresAt": "2026-11-13T19:00:14.026Z",
       "generation": 63,
       "tokenHash": "3479e142b09480adda880d5209347ff6c3b50cc562def46caa019fa2555ebe47"
     },
@@ -38464,8 +38464,8 @@
           "runId": "run-20261113-s",
           "agentId": "worker-collab-mount",
           "claimedAt": "2026-11-13T18:27:32.338Z",
-          "heartbeatAt": "2026-11-13T18:28:50.689Z",
-          "expiresAt": "2026-11-13T18:58:50.689Z",
+          "heartbeatAt": "2026-11-13T18:30:14.026Z",
+          "expiresAt": "2026-11-13T19:00:14.026Z",
           "generation": 63
         },
         "baseSha": null,
@@ -38508,8 +38508,8 @@
           "runId": "run-20261113-s",
           "agentId": "worker-finance-cutover",
           "claimedAt": "2026-11-13T18:27:11.377Z",
-          "heartbeatAt": "2026-11-13T18:28:50.689Z",
-          "expiresAt": "2026-11-13T18:58:50.689Z",
+          "heartbeatAt": "2026-11-13T18:30:14.026Z",
+          "expiresAt": "2026-11-13T19:00:14.026Z",
           "generation": 63
         },
         "baseSha": null,
@@ -38549,8 +38549,8 @@
           "runId": "run-20261113-s",
           "agentId": "worker-mfg-dead-lots",
           "claimedAt": "2026-11-13T18:26:58.332Z",
-          "heartbeatAt": "2026-11-13T18:28:50.689Z",
-          "expiresAt": "2026-11-13T18:58:50.689Z",
+          "heartbeatAt": "2026-11-13T18:30:14.026Z",
+          "expiresAt": "2026-11-13T19:00:14.026Z",
           "generation": 63
         },
         "baseSha": null,
@@ -39054,6 +39054,53 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.command-assertions-owner-cleanup",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "workflow",
+        "workflowIds": [],
+        "workstream": "S01",
+        "kind": "migration",
+        "title": "Collapse duplicated command_assertions cleanup in people_payroll, commerce and inventory",
+        "scope": "38 byte-identical `DELETE FROM command_assertions WHERE command_id=?` statements remain in packages/server-people_payroll, server-commerce and server-inventory adapters. Replace each with the shared workflow port clearWorkflowCommandAssertions so the SQL has one authoritative writer, then record the owner KPI pairs.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "packages/server-commerce/src/**",
+          "packages/server-inventory/src/**",
+          "tests/unit/people_payroll/**",
+          "tests/unit/commerce/**",
+          "tests/unit/inventory/**",
+          "tests/integration/people_payroll/**",
+          "tests/integration/commerce/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:workflow",
+          "resource:command-assertions"
+        ],
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261113-s",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T18:30:14.124Z",
+          "heartbeatAt": "2026-11-13T18:30:14.124Z",
+          "expiresAt": "2026-11-13T19:00:14.125Z",
+          "generation": 63
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Lead review.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -39062,13 +39109,13 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 218,
+      "totalPackets": 219,
       "migratedPackets": 122,
       "statusCounts": {
         "pending": 33,
         "in_progress": 3,
         "ready_for_integration": 23,
-        "integrating": 0,
+        "integrating": 1,
         "migrated": 122,
         "blocked": 37,
         "deferred": 0,
@@ -39076,7 +39123,7 @@
       }
     },
     "lastCoordinatorGeneration": 63,
-    "updatedAt": "2026-11-13T18:28:58.245Z",
+    "updatedAt": "2026-11-13T18:33:45.163Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
