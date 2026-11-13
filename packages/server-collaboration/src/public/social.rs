@@ -2,9 +2,9 @@
 pub const CONTRACT_VERSION: &str = "collaboration.social.v1";
 
 pub use crate::adapters::social::{
-    CurrentSocialEffects, FeedComment, FeedFilter, FeedPost, FeedRecord, apply_plan,
-    lock_social_sources, read_comment, read_comments, read_feed, read_feed_page, read_post,
-    read_thread, retain_effects,
+    CommentPageRow, CurrentSocialEffects, FeedComment, FeedFilter, FeedPost, FeedRecord,
+    RevisionRow, apply_plan, lock_social_sources, read_comment, read_comment_page, read_comments,
+    read_feed, read_feed_page, read_post, read_revisions, read_thread, retain_effects,
 };
 pub use crate::adapters::social_upload_files::{
     SocialUploadFilesFuture, SocialUploadFilesPort, UnavailableSocialUploadFiles,

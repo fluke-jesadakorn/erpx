@@ -1729,3 +1729,174 @@ async fn upload_drafts_bind_comment_and_edit_consumption() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn comment_pages_expand_ancestors_and_revision_history_is_author_only() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let post = run(
+            &pool,
+            "author",
+            "company",
+            "social-read-1201",
+            Change::PublishPost {
+                body: "Read target".into(),
+                audience: Audience::Branch,
+                tags: vec![],
+                mentions: vec![],
+                linked_record: None,
+            },
+        )
+        .await
+        .unwrap();
+        let mut parent = None;
+        let mut ids = Vec::new();
+        for (index, key) in ["social-read-1202", "social-read-1203", "social-read-1204"]
+            .into_iter()
+            .enumerate()
+        {
+            let comment = run(
+                &pool,
+                "author",
+                "company",
+                key,
+                Change::PublishComment {
+                    post_id: post.id.clone(),
+                    body: format!("Comment {index}"),
+                    parent_comment_id: parent.clone(),
+                    comment_upload_id: None,
+                    mentions: vec![],
+                },
+            )
+            .await
+            .unwrap();
+            parent = Some(comment.id.clone());
+            ids.push(comment.id);
+        }
+        let version: (i64,) = sqlx::query_as("SELECT version FROM social_posts WHERE id=$1")
+            .bind(&post.id)
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        run(
+            &pool,
+            "author",
+            "company",
+            "social-read-1205",
+            Change::EditPost {
+                id: post.id.clone(),
+                expected_version: version.0,
+                body: "Edited read target".into(),
+                mentions: vec![],
+                content_json: None,
+                rich_content_json: None,
+                edit_upload_id: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let reply = run(
+            &pool,
+            "person-1",
+            "company",
+            "social-read-1206",
+            Change::PublishComment {
+                post_id: post.id.clone(),
+                body: "Reply from person one".into(),
+                parent_comment_id: Some(ids[0].clone()),
+                comment_upload_id: None,
+                mentions: vec![],
+            },
+        )
+        .await
+        .unwrap();
+        let notices: Vec<(String, String, String, i64)> = sqlx::query_as(
+            "SELECT user_id,message,record_id,record_version FROM staff_notifications WHERE id=$1",
+        )
+        .bind(format!("reply-{}", reply.id))
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        let current: (i64,) = sqlx::query_as("SELECT version FROM social_posts WHERE id=$1")
+            .bind(&post.id)
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(
+            notices,
+            vec![(
+                "author".into(),
+                "Someone replied to your comment".into(),
+                post.id.clone(),
+                current.0,
+            )],
+            "a reply must notify the parent author once with the retained post version"
+        );
+
+        let author = actor("author", "company", Some("branch-a"), false);
+        let mut tx = pool.raw().begin().await.unwrap();
+        let (page, next) = read_comment_page(&mut tx, &author, &post.id, None, 1, 20)
+            .await
+            .unwrap();
+        assert_eq!(page.len(), 2, "the newest reply plus its retained parent");
+        assert_eq!(page[0].id, reply.id);
+        assert_eq!(page[0].author_kind, "person");
+        assert!(page[0].mentions.is_array());
+        assert!(page[0].rich_content.is_none());
+        assert_eq!(page[0].parent_comment_id.as_deref(), Some(ids[0].as_str()));
+        assert_eq!(page[0].parent_author_name.as_deref(), Some("Author"));
+        assert_eq!(page[1].id, ids[0]);
+        let next = next.expect("an older page must keep a cursor");
+        assert_eq!(next.id, reply.id);
+        let (older, last) = read_comment_page(&mut tx, &author, &post.id, Some(&next), 1, 20)
+            .await
+            .unwrap();
+        assert_eq!(older[0].id, ids[2], "the next page continues below the reply");
+        assert_eq!(older[1].id, ids[1], "its ancestor remains attached");
+        assert!(last.is_some());
+
+        let revisions = read_revisions(&mut tx, &author, &post.id).await.unwrap();
+        assert_eq!(revisions.len(), 1);
+        assert_eq!(revisions[0].prior_version, version.0);
+        assert_eq!(revisions[0].action, "edit");
+        assert_eq!(revisions[0].body, "Read target");
+        tx.rollback().await.unwrap();
+
+        let current: (i64,) = sqlx::query_as("SELECT version FROM social_posts WHERE id=$1")
+            .bind(&post.id)
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        run(
+            &pool,
+            "author",
+            "company",
+            "social-read-1207",
+            Change::RetractPost {
+                id: post.id.clone(),
+                expected_version: current.0,
+            },
+        )
+        .await
+        .unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        let revisions = read_revisions(&mut tx, &author, &post.id).await.unwrap();
+        assert_eq!(revisions.len(), 2, "retracted posts retain their history");
+        assert_eq!(revisions[0].action, "retract");
+        let reader = actor("reader", "company", Some("branch-a"), false);
+        let denied = read_revisions(&mut tx, &reader, &post.id).await.unwrap_err();
+        assert!(matches!(denied, PgTransactionError::Business(e) if e.code == "POST_NOT_FOUND"));
+        tx.rollback().await.unwrap();
+
+        let other = actor("other-author", "other", Some("branch-a"), false);
+        let mut tx = pool.raw().begin().await.unwrap();
+        let denied =
+            read_comment_page(&mut tx, &other, &post.id, None, 10, 20)
+                .await
+                .unwrap_err();
+        assert!(matches!(denied, PgTransactionError::Business(e) if e.code == "POST_NOT_FOUND"));
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}

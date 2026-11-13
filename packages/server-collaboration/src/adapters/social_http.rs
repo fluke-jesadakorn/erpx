@@ -63,6 +63,30 @@ pub struct SocialThreadData {
     pub posts: Vec<FeedPost>,
 }
 
+/// One bounded comment page. Item fields stay snake_case because the existing
+/// conversation client renders them directly.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialCommentsData {
+    pub items: Vec<crate::adapters::social::CommentPageRow>,
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
+}
+
+impl SocialCommentsData {
+    pub fn new(
+        items: Vec<crate::adapters::social::CommentPageRow>,
+        next: Option<FeedCursor>,
+    ) -> Self {
+        let has_more = next.is_some();
+        Self {
+            items,
+            next_cursor: next.map(|cursor| cursor.encode()),
+            has_more,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum SocialReadKind {
     Feed {
@@ -91,6 +115,24 @@ pub struct SocialHttpCommandRequest<'a> {
     pub key: CommandKey,
 }
 
+/// One paged comment read for a retained post.
+pub struct SocialHttpCommentsRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub post_id: &'a str,
+    pub cursor: Option<FeedCursor>,
+    pub limit: usize,
+}
+
+/// One author-only revision-history read.
+pub struct SocialHttpRevisionsRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub post_id: &'a str,
+}
+
 pub enum SocialHttpReadReply {
     Feed(Box<SocialFeedData>),
     Thread(Box<SocialThreadData>),
@@ -107,6 +149,35 @@ pub trait SocialHttpBackend: Send + Sync {
         &'a self,
         request: SocialHttpCommandRequest<'a>,
     ) -> SocialHttpFuture<'a, Receipt>;
+
+    /// Paged comments. Composition overrides this once its owner unit is
+    /// bound; the default fails closed instead of inventing rows.
+    fn comments_page<'a>(
+        &'a self,
+        _request: SocialHttpCommentsRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialCommentsData> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "SOCIAL_COMMENTS_PORT_UNAVAILABLE",
+                "The native Social comment reader is unavailable.",
+            ))
+        })
+    }
+
+    /// Author-only revision history, with the same fail-closed default.
+    fn revisions<'a>(
+        &'a self,
+        _request: SocialHttpRevisionsRequest<'a>,
+    ) -> SocialHttpFuture<'a, Vec<crate::adapters::social::RevisionRow>> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "SOCIAL_REVISIONS_PORT_UNAVAILABLE",
+                "The native Social revision reader is unavailable.",
+            ))
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -163,6 +234,14 @@ pub struct ThreadQuery {
     pub limit: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct CommentsQuery {
+    #[serde(default)]
+    pub cursor: Option<String>,
+    #[serde(default)]
+    pub limit: Option<String>,
+}
+
 fn missing() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
 }
@@ -180,7 +259,11 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
         )
         .route(
             "/api/v1/holdings/{holding_slug}/feed/{post_id}/comments",
-            post(create_comment),
+            get(read_post_comments).post(create_comment),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/revisions",
+            get(read_post_revisions),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/feed/{post_id}/comments/{comment_id}/actions",
@@ -348,6 +431,61 @@ pub async fn read_thread(
             "SOCIAL_HTTP_RESPONSE_INVALID",
             "The native Social reader returned the wrong shape.",
         )),
+        Err(error) => error_response(error),
+    }
+}
+
+pub async fn read_post_comments(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    Query(query): Query<CommentsQuery>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let target = target(&state, &headers, &slug)?;
+        let cursor = cursor(query.cursor.as_deref())?;
+        let limit = read_limit(query.limit.as_deref())?;
+        target
+            .backend
+            .comments_page(SocialHttpCommentsRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                post_id: &post_id,
+                cursor,
+                limit,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply),
+        Err(error) => error_response(error),
+    }
+}
+
+pub async fn read_post_revisions(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let target = target(&state, &headers, &slug)?;
+        target
+            .backend
+            .revisions(SocialHttpRevisionsRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                post_id: &post_id,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(rows) => bounded(rows),
         Err(error) => error_response(error),
     }
 }

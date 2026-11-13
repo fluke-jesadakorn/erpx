@@ -2,8 +2,8 @@
 //! composition supplies the current authority result and readable mention labels.
 use crate::domain::social::{
     Audience, CommentSnapshot, CommentState, FeedCursor, Mention, MentionKind, OwnerPlan,
-    PostSnapshot, PostState, Receipt, SocialActor, hashtags, normalize_tags, plan_receipt,
-    story_conflict,
+    PostSnapshot, PostState, Receipt, SocialActor, can_read_post, hashtags, normalize_tags,
+    plan_receipt, post_not_found, require_published_post, story_conflict,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use crate::adapters::social_upload_files::SocialUploadFilesPort;
@@ -485,6 +485,211 @@ pub async fn read_comments(
     .map_err(Into::into)
 }
 
+/// One retained revision row as the original reader returned it. Field names
+/// stay snake_case because the existing client contract consumes them.
+#[derive(Clone, Debug, Serialize)]
+pub struct RevisionRow {
+    pub prior_version: i64,
+    pub action: String,
+    pub body: String,
+    pub created_at: i64,
+}
+
+/// One paged comment row including the parsed mention and rich-content
+/// projections the existing comment client renders.
+#[derive(Clone, Debug, Serialize)]
+pub struct CommentPageRow {
+    pub id: String,
+    pub post_id: String,
+    pub body: String,
+    pub author_id: String,
+    pub author_name: String,
+    pub created_at: i64,
+    pub mentions_json: String,
+    pub rich_content_json: Option<String>,
+    pub author_kind: String,
+    pub parent_comment_id: Option<String>,
+    pub parent_author_name: Option<String>,
+    pub mentions: Value,
+    pub rich_content: Option<Value>,
+}
+
+impl CommentPageRow {
+    fn new(
+        id: String,
+        post_id: String,
+        body: String,
+        author_id: String,
+        author_name: String,
+        created_at: i64,
+        mentions_json: String,
+        rich_content_json: Option<String>,
+        author_kind: Option<String>,
+        parent_comment_id: Option<String>,
+        parent_author_name: Option<String>,
+    ) -> Result<Self, Error> {
+        let mentions: Value = serde_json::from_str(&mentions_json).map_err(|_| changed())?;
+        let rich_content = match rich_content_json.as_deref() {
+            Some(raw) => Some(serde_json::from_str(raw).map_err(|_| changed())?),
+            None => None,
+        };
+        Ok(Self {
+            id,
+            post_id,
+            body,
+            author_id,
+            author_name,
+            created_at,
+            mentions_json,
+            rich_content_json,
+            author_kind: author_kind.unwrap_or_else(|| "person".into()),
+            parent_comment_id,
+            parent_author_name,
+            mentions,
+            rich_content,
+        })
+    }
+}
+
+fn comment_page_row(row: sqlx::postgres::PgRow) -> Result<CommentPageRow, Error> {
+    Ok(CommentPageRow::new(
+        row.try_get(0)?,
+        row.try_get(1)?,
+        row.try_get(2)?,
+        row.try_get(3)?,
+        row.try_get(4)?,
+        row.try_get(5)?,
+        row.try_get(6)?,
+        row.try_get(7)?,
+        row.try_get(8)?,
+        row.try_get(9)?,
+        row.try_get(10)?,
+    )?)
+}
+
+/// The retained revision history of one team post. The original reader only
+/// exposed it to the author, so this function enforces the same author and
+/// current-readability guard instead of trusting the caller.
+pub async fn read_revisions(
+    c: &mut PgConnection,
+    actor: &SocialActor,
+    post_id: &str,
+) -> Result<Vec<RevisionRow>, Error> {
+    let post = read_post(c, &CompanyId::new(actor.company_id.clone())?, post_id)
+        .await?
+        .ok_or_else(|| Error::from(post_not_found()))?;
+    if !can_read_post(actor, &post) || post.author_id != actor.user_id {
+        return Err(post_not_found().into());
+    }
+    sqlx::query(
+        "SELECT prior_version,action,body,created_at FROM social_post_revisions \
+         WHERE post_id=$1 ORDER BY prior_version DESC",
+    )
+    .bind(post_id)
+    .fetch_all(&mut *c)
+    .await?
+    .into_iter()
+    .map(|row| {
+        Ok(RevisionRow {
+            prior_version: row.try_get(0)?,
+            action: row.try_get(1)?,
+            body: row.try_get(2)?,
+            created_at: row.try_get(3)?,
+        })
+    })
+    .collect::<Result<Vec<_>, sqlx::Error>>()
+    .map_err(Into::into)
+}
+
+/// One bounded comment page plus the ancestors needed to render replies. The
+/// cursor is the oldest returned `(created_at,id)` pair; callers treat it as
+/// opaque. The caller must hold the same retained transaction that authorized
+/// the post.
+pub async fn read_comment_page(
+    c: &mut PgConnection,
+    actor: &SocialActor,
+    post_id: &str,
+    cursor: Option<&FeedCursor>,
+    limit: usize,
+    history_limit: usize,
+) -> Result<(Vec<CommentPageRow>, Option<FeedCursor>), Error> {
+    let post = read_post(c, &CompanyId::new(actor.company_id.clone())?, post_id)
+        .await?
+        .ok_or_else(|| Error::from(post_not_found()))?;
+    require_published_post(actor, &post).map_err(Error::from)?;
+    let limit = limit.clamp(1, 100);
+    let history_limit = history_limit.clamp(1, 100);
+    let rows = sqlx::query(
+        "WITH ranked AS (
+           SELECT c.id,c.post_id,c.body,c.author_id,c.author_name,c.created_at,c.mentions_json,
+             c.rich_content_json,c.author_kind,c.parent_comment_id,
+             row_number() OVER(PARTITION BY c.post_id ORDER BY c.created_at DESC,c.id DESC) ordinal
+           FROM social_comments c WHERE c.post_id=$1 AND c.state='published'
+         ), selected AS (
+           SELECT * FROM ranked WHERE ordinal<=$2
+             AND ($3::bigint IS NULL OR (created_at,id)<($3,$4))
+         )
+         SELECT s.id,s.post_id,s.body,s.author_id,s.author_name,s.created_at,s.mentions_json,
+           s.rich_content_json,s.author_kind,s.parent_comment_id,
+           parent.author_name AS parent_author_name
+         FROM selected s
+         LEFT JOIN social_comments parent ON parent.id=s.parent_comment_id AND parent.post_id=s.post_id
+         ORDER BY s.created_at DESC,s.id DESC LIMIT $5",
+    )
+    .bind(post_id)
+    .bind(history_limit as i64)
+    .bind(cursor.map(|value| value.at))
+    .bind(cursor.map(|value| value.id.as_str()))
+    .bind((limit + 1) as i64)
+    .fetch_all(&mut *c)
+    .await?;
+    let has_more = rows.len() > limit;
+    let mut page = Vec::with_capacity(rows.len().min(limit));
+    for row in rows.into_iter().take(limit) {
+        page.push(comment_page_row(row)?);
+    }
+    let next = if has_more {
+        page.last().map(|row| FeedCursor {
+            at: row.created_at,
+            id: row.id.clone(),
+        })
+    } else {
+        None
+    };
+    let seeds: Vec<String> = page
+        .iter()
+        .filter(|row| row.parent_comment_id.is_some())
+        .map(|row| row.id.clone())
+        .collect();
+    if !seeds.is_empty() {
+        let ancestors = sqlx::query(
+            "WITH RECURSIVE ancestors AS (
+               SELECT parent.* FROM social_comments child JOIN social_comments parent
+                 ON parent.id=child.parent_comment_id AND parent.post_id=child.post_id
+               WHERE child.post_id=$1 AND child.id=ANY($2) AND child.state='published'
+               UNION
+               SELECT parent.* FROM ancestors child JOIN social_comments parent
+                 ON parent.id=child.parent_comment_id AND parent.post_id=child.post_id
+               WHERE parent.state='published'
+             )
+             SELECT a.id,a.post_id,a.body,a.author_id,a.author_name,a.created_at,a.mentions_json,
+               a.rich_content_json,a.author_kind,a.parent_comment_id,
+               parent.author_name AS parent_author_name
+             FROM ancestors a
+             LEFT JOIN social_comments parent ON parent.id=a.parent_comment_id AND parent.post_id=a.post_id
+             WHERE a.state='published'",
+        )
+        .bind(post_id)
+        .bind(&seeds)
+        .fetch_all(&mut *c)
+        .await?;
+        for row in ancestors {
+            page.push(comment_page_row(row)?);
+        }
+    }
+    Ok((page, next))
+}
+
 /// Stage only Social-owned rows in the caller's retained transaction. The
 /// Files owner port performs the canceled-draft attachment revocation and
 /// upload-intent expiry; this module never writes Files tables.
@@ -612,6 +817,31 @@ pub async fn apply_plan(
             .bind(comment_upload_id)
             .execute(&mut *c)
             .await?;
+            if let Some(parent_id) = parent_comment_id {
+                let parent_author = sqlx::query_scalar::<_, String>(
+                    "SELECT author_id FROM social_comments WHERE id=$1 AND post_id=$2 AND state='published'",
+                )
+                .bind(parent_id)
+                .bind(post_id)
+                .fetch_optional(&mut *c)
+                .await?;
+                if let Some(parent) = parent_author.filter(|author| author != &actor.user_id) {
+                    // The comment insert trigger already advanced the post
+                    // version, so the notice carries the same retained version
+                    // the original reply effect used.
+                    sqlx::query(
+                        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) \
+                         SELECT $1,p.company_id,$2,'post',p.id,p.version,'Someone replied to your comment',$3 \
+                         FROM social_posts p WHERE p.id=$4 ON CONFLICT DO NOTHING",
+                    )
+                    .bind(format!("reply-{id}"))
+                    .bind(parent)
+                    .bind(now)
+                    .bind(post_id)
+                    .execute(&mut *c)
+                    .await?;
+                }
+            }
             if let Some(upload_id) = comment_upload_id {
                 let bound = sqlx::query(
                     "UPDATE social_post_drafts SET published_comment_id=$1,version=version+1,updated_at=$2 WHERE id=$3 AND published_comment_id IS NULL",
@@ -1260,6 +1490,10 @@ pub async fn retain_effects(
                 .is_none()
             {
                 return Err(changed());
+            }
+            let reply = format!("notice:reply-{id}");
+            if image(c, &reply).await?.is_some() {
+                capture(c, &mut images, reply).await?;
             }
         }
         OwnerPlan::UpdateComment { id, .. } | OwnerPlan::TombstoneComment { id, .. } => {

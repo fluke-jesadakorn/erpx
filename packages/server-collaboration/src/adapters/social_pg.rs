@@ -373,6 +373,36 @@ impl<'c> PgSocialUnit<'c> {
         read_comments(&mut *self.connection, post_id, limit).await
     }
 
+    /// Paged comments plus their retained ancestors, with the same current
+    /// post-readability guard as a feed read.
+    pub async fn comments_page(
+        &mut self,
+        post_id: &str,
+        cursor: Option<&FeedCursor>,
+        limit: usize,
+        history_limit: usize,
+    ) -> Result<(Vec<crate::adapters::social::CommentPageRow>, Option<FeedCursor>), Error> {
+        let actor = self.verify_authority().await?;
+        crate::adapters::social::read_comment_page(
+            &mut *self.connection,
+            &actor,
+            post_id,
+            cursor,
+            limit,
+            history_limit,
+        )
+        .await
+    }
+
+    /// Author-only revision history of one readable post.
+    pub async fn revisions(
+        &mut self,
+        post_id: &str,
+    ) -> Result<Vec<crate::adapters::social::RevisionRow>, Error> {
+        let actor = self.verify_authority().await?;
+        crate::adapters::social::read_revisions(&mut *self.connection, &actor, post_id).await
+    }
+
     pub async fn post(&mut self, id: &str) -> Result<Option<PostSnapshot>, Error> {
         read_post(&mut *self.connection, &self.scope.company_id, id).await
     }

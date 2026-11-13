@@ -1,12 +1,16 @@
 //! Owner-local HTTP adapter tests for native Social ingress. The exact owner
 //! dispatch is exercised without opening a socket; mounting the router into
 //! composition remains a lead integration step.
-use erpx_server_collaboration::public::social::{FeedComment, FeedPost, Receipt};
+use erpx_server_collaboration::public::social::{
+    CommentPageRow, FeedComment, FeedPost, Receipt, RevisionRow,
+};
 use erpx_server_collaboration::public::social_http::{
-    FeedQuery, SocialFeedData, SocialHttpBackend, SocialHttpCommandRequest, SocialHttpFuture,
-    SocialHttpReadReply, SocialHttpReadRequest, SocialHttpState, SocialHttpTarget, SocialReadKind,
-    SocialThreadData, ThreadQuery, cancel_comment_upload, cancel_edit_upload, comment_action,
-    create_comment_upload, create_edit_upload, create_post, read_feed, read_thread, set_reaction,
+    CommentsQuery, FeedQuery, SocialCommentsData, SocialFeedData, SocialHttpBackend,
+    SocialHttpCommandRequest, SocialHttpCommentsRequest, SocialHttpFuture, SocialHttpReadReply,
+    SocialHttpReadRequest, SocialHttpRevisionsRequest, SocialHttpState, SocialHttpTarget,
+    SocialReadKind, SocialThreadData, ThreadQuery, cancel_comment_upload, cancel_edit_upload,
+    comment_action, create_comment_upload, create_edit_upload, create_post, read_feed,
+    read_post_comments, read_post_revisions, read_thread, set_reaction,
 };
 use erpx_server_runtime::public::http_support::{
     Path, Query, Request, Response, State, StatusCode,
@@ -21,6 +25,7 @@ use std::sync::{Arc, Mutex};
 struct Probe {
     reads: Mutex<Vec<String>>,
     commands: Mutex<Vec<String>>,
+    scoped: Mutex<Vec<String>>,
     failure: Option<BusinessError>,
 }
 
@@ -99,6 +104,67 @@ impl SocialHttpBackend for Probe {
                 version: 1,
                 status: "published",
             })
+        })
+    }
+
+    fn comments_page<'a>(
+        &'a self,
+        request: SocialHttpCommentsRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialCommentsData> {
+        self.scoped.lock().unwrap().push(format!(
+            "comments|{}|{}|{}|{}",
+            request.host,
+            request.holding_slug,
+            request.post_id,
+            request.cursor.as_ref().map(|cursor| cursor.encode()).unwrap_or_default()
+        ));
+        Box::pin(async move {
+            if let Some(error) = &self.failure {
+                return Err(error.clone());
+            }
+            let items = vec![CommentPageRow {
+                id: "comment-1".into(),
+                post_id: request.post_id.into(),
+                body: "Reply".into(),
+                author_id: "user".into(),
+                author_name: "User".into(),
+                created_at: 11,
+                mentions_json: "[]".into(),
+                rich_content_json: None,
+                author_kind: "person".into(),
+                parent_comment_id: None,
+                parent_author_name: None,
+                mentions: json!([]),
+                rich_content: None,
+            }];
+            Ok(SocialCommentsData::new(
+                items,
+                Some(erpx_server_collaboration::public::social::FeedCursor {
+                    at: 11,
+                    id: "comment-1".into(),
+                }),
+            ))
+        })
+    }
+
+    fn revisions<'a>(
+        &'a self,
+        request: SocialHttpRevisionsRequest<'a>,
+    ) -> SocialHttpFuture<'a, Vec<RevisionRow>> {
+        self.scoped.lock().unwrap().push(format!(
+            "revisions|{}|{}|{}",
+            request.host, request.holding_slug, request.post_id
+        ));
+        Box::pin(async move {
+            if let Some(error) = &self.failure {
+                return Err(error.clone());
+            }
+            Ok(vec![RevisionRow {
+                prior_version: 2,
+                action: "edit".into(),
+                body: "Earlier".into(),
+                created_at: 9,
+            }])
         })
     }
 }
@@ -297,6 +363,64 @@ async fn upload_draft_commands_decode_to_the_four_native_changes() {
     assert!(commands[1].contains("CommentUploadCancel"));
     assert!(commands[2].contains("PostEditUploadCreate"));
     assert!(commands[3].contains("PostEditUploadCancel"));
+}
+
+#[tokio::test]
+async fn comment_pages_and_revision_history_read_the_exact_post_scope() {
+    let probe = Arc::new(Probe::default());
+    let state = state(probe.clone());
+
+    let response = read_post_comments(
+        State(state.clone()),
+        Path(("acme".into(), "post-1".into())),
+        Query(CommentsQuery {
+            cursor: Some("11:comment-0".into()),
+            limit: Some("10".into()),
+        }),
+        request("GET", "", false),
+    )
+    .await;
+    assert_eq!(
+        response.headers().get(header::CACHE_CONTROL).unwrap(),
+        "private, no-store"
+    );
+    let (status, value) = reply(response).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(value["data"]["items"][0]["parent_comment_id"], Value::Null);
+    assert_eq!(value["data"]["items"][0]["mentions"], json!([]));
+    assert_eq!(value["data"]["nextCursor"], "11:comment-1");
+    assert_eq!(value["data"]["hasMore"], true);
+
+    let response = read_post_revisions(
+        State(state.clone()),
+        Path(("acme".into(), "post-1".into())),
+        request("GET", "", false),
+    )
+    .await;
+    let (status, value) = reply(response).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(value["data"][0]["prior_version"], 2);
+    assert_eq!(value["data"][0]["action"], "edit");
+
+    assert_eq!(
+        probe.scoped.lock().unwrap().as_slice(),
+        [
+            "comments|acme.example.test|acme|post-1|11:comment-0",
+            "revisions|acme.example.test|acme|post-1"
+        ]
+    );
+
+    let response = read_post_comments(
+        State(state),
+        Path(("acme".into(), "post-1".into())),
+        Query(CommentsQuery {
+            cursor: Some("bad".into()),
+            limit: None,
+        }),
+        request("GET", "", false),
+    )
+    .await;
+    assert_eq!(reply(response).await.0, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]

@@ -196,6 +196,22 @@ export function nativeReportPost(
   );
 }
 
+/** Paged comments with the retained ancestors the conversation client renders. */
+export function nativePostComments(
+  request: Request,
+  holdingSlug: string,
+  id: string,
+  cursor?: string,
+) {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  return call(request, holdingSlug, `/feed/${encodeURIComponent(id)}/comments${query}`);
+}
+
+/** Author-only revision history of one readable post. */
+export function nativePostRevisions(request: Request, holdingSlug: string, id: string) {
+  return call(request, holdingSlug, `/feed/${encodeURIComponent(id)}/revisions`);
+}
+
 export function nativeCommentUploadCreate(
   request: Request,
   holdingSlug: string,

@@ -1,4 +1,4 @@
-import {describe,expect,test,vi} from 'vitest';
+import {afterEach,describe,expect,test,vi} from 'vitest';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createSocialSourceApplication,type SocialSourcePorts,type SocialSourceRepository} from "@erpx/server-collaboration/application/social-source";
@@ -350,4 +350,42 @@ describe('native Field Inbox transport',()=>{
    const rows=await createNativeFieldInboxReader(config,async()=>({status:200,body:reply}))(incoming(),scoped,{all:true,search:'',limit:100});expect(rows[0].source_type).toBe(kind);expect(rows[0].native_field_item?.href).toBe(href);expect(rows[0].native_field_item).not.toHaveProperty('source');}
  });
 
+});
+
+describe('Native social comment and revision read transport',()=>{
+ const configuration=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3105',timeoutMs:1000});
+ const session=()=>new Request('https://acme.jesadakorn.com/posts/post-1',{method:'GET',headers:{cookie:'__Host-erpx-product=session','x-erpx-context-company':'company'}});
+ afterEach(()=>{vi.unstubAllGlobals();delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;});
+
+ test('reads a bounded comment page through the exact Holding path and opaque cursor',async()=>{
+  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
+  const {nativePostComments}=await import('@erpx/server-collaboration/public/native-social-page');
+  const calls:{url:string;method:string;headers:Headers}[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:string,init:RequestInit)=>{calls.push({url,method:String(init.method),headers:new Headers(init.headers)});return Response.json({data:{items:[],nextCursor:null,hasMore:false}});}));
+  expect(await nativePostComments(session(),'acme','post 1','1700000000000:comment-1')).toEqual({items:[],nextCursor:null,hasMore:false});
+  expect(calls).toHaveLength(1);
+  expect(calls[0]!.method).toBe('GET');
+  expect(calls[0]!.url).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/feed/post%201/comments?cursor=1700000000000%3Acomment-1');
+  expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(calls[0]!.headers.get('x-erpx-context-company')).toBe('company');
+  expect(calls[0]!.headers.get('idempotency-key')).toBeNull();
+ });
+
+ test('reads the author-only revision history without a command key',async()=>{
+  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
+  const {nativePostRevisions}=await import('@erpx/server-collaboration/public/native-social-page');
+  const calls:string[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:string)=>{calls.push(url);return Response.json({data:[{prior_version:2,action:'edit',body:'Earlier',created_at:9}]});}));
+  expect(await nativePostRevisions(session(),'acme','post-1')).toEqual([{prior_version:2,action:'edit',body:'Earlier',created_at:9}]);
+  expect(calls).toEqual(['http://127.0.0.1:3105/api/v1/holdings/acme/feed/post-1/revisions']);
+ });
+
+ test('fails closed without configuration and maps the owner read port denial',async()=>{
+  const {nativePostRevisions}=await import('@erpx/server-collaboration/public/native-social-page');
+  delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;
+  await expect(nativePostRevisions(session(),'acme','post-1')).rejects.toMatchObject({code:'NATIVE_COLLABORATION_UNAVAILABLE'});
+  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
+  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({error:{code:'SOCIAL_REVISIONS_PORT_UNAVAILABLE',message:'unavailable'}},{status:503})));
+  await expect(nativePostRevisions(session(),'acme','post-1')).rejects.toMatchObject({code:'SOCIAL_REVISIONS_PORT_UNAVAILABLE',status:503});
+ });
 });
