@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1422,
+    "revision": 1424,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -25053,11 +25053,11 @@
         "resources": [
           "owner:files"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "6d69edfde2aa8169357b65d866270213299387cc",
-        "lastPushedSha": "6d69edfde2aa8169357b65d866270213299387cc",
+        "lastPushedSha": "c57d2d75cfcf98fd80e265ca53851c06c8c433ed",
         "checks": [
           {
             "command": "cargo test -p erpx-server-files --test attachment_read_http",
@@ -25231,8 +25231,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Producer, native client parity, workplace route authority, Support TS-writer deletion and oracle move are pushed at 6d69edfde with Support 1->0 and global 2402->2401. Integration is the prepared composition mount migrate.files.support-attachment-mount; until it lands the four support_ticket routes fail closed 503 SUPPORT_ATTACHMENT_NATIVE_REQUIRED. After the mount, extend the same producer to the remaining non-field owners and delete service-repository.ts 55 / hospitality-purchases.ts 1.",
+        "blocker": null,
+        "nextAction": "Producer/TS retirement closed (Support KPI 1->0). Remaining availability: migrate.files.support-attachment-mount, blocked by the active agent-gateway claim on src/composition/src/**.",
         "handoff": {
           "runId": "run-20261113-f",
           "agentId": "lead",
@@ -25243,7 +25243,13 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.files.service-repository"
       },
       {
         "id": "retire.support.sessions",
@@ -31402,20 +31408,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 153,
-      "migratedPackets": 83,
+      "migratedPackets": 84,
       "statusCounts": {
         "pending": 21,
         "in_progress": 5,
-        "ready_for_integration": 11,
+        "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 83,
+        "migrated": 84,
         "blocked": 33,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:37:45.511Z",
+    "updatedAt": "2026-11-13T01:40:51.858Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
