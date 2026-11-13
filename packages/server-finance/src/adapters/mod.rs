@@ -108,3 +108,5 @@ pub mod pos_journal;
 
 pub(crate) mod revenue_recognition;
 pub(crate) mod revenue_recognition_http;
+
+pub(crate) mod supplier_batch;
