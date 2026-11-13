@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1636,
+    "revision": 1638,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T06:35:30.871Z",
-      "expiresAt": "2026-11-13T07:05:30.871Z",
+      "heartbeatAt": "2026-11-13T06:36:22.475Z",
+      "expiresAt": "2026-11-13T07:06:22.475Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -22509,8 +22509,15 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-pms-booking",
+          "claimedAt": "2026-11-13T06:36:02.840Z",
+          "heartbeatAt": "2026-11-13T06:36:22.475Z",
+          "expiresAt": "2026-11-13T07:06:22.475Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": "a993150cd2d4676f907d25c111ba4e21469ac998",
         "lastPushedSha": "a993150cd2d4676f907d25c111ba4e21469ac998",
@@ -22547,7 +22554,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Lead: scope a native public booking/payment/refund/email port before removing the 109 residual PMS writers.",
         "handoff": {
           "runId": "run-20261113-d",
@@ -23379,8 +23386,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-iam-residual",
           "claimedAt": "2026-11-13T06:20:18.578Z",
-          "heartbeatAt": "2026-11-13T06:35:30.871Z",
-          "expiresAt": "2026-11-13T07:05:30.871Z",
+          "heartbeatAt": "2026-11-13T06:36:22.475Z",
+          "expiresAt": "2026-11-13T07:06:22.475Z",
           "generation": 53
         },
         "baseSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
@@ -33763,17 +33770,17 @@
       "migratedPackets": 94,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 1,
+        "in_progress": 2,
         "ready_for_integration": 13,
         "integrating": 0,
         "migrated": 94,
-        "blocked": 41,
+        "blocked": 40,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T06:35:30.871Z",
+    "updatedAt": "2026-11-13T06:36:22.475Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
