@@ -12,6 +12,7 @@ pub(crate) mod account_revocation;
 
 pub(crate) mod account_security;
 pub(crate) mod command_metadata;
+pub(crate) mod recovery;
 
 pub(crate) mod assignment;
 

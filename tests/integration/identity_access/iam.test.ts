@@ -15,7 +15,8 @@ import {
   migrationInput,
   applyMigration,
 } from "@erpx/server-identity_access/public/iam-migrations";
-import { sealSecret, totp, verifyMfa } from "@erpx/server-identity_access/public/iam-mfa";
+import { sealSecret, totp } from "@erpx/server-identity_access/public/iam-mfa";
+import { iamMfaEnrollment } from "../../../fixtures/identity_access/mfa-enrollment";
 import { adGuid, escapeLdap, ldapEnabled } from "@erpx/server-identity_access/public/iam-providers";
 import {
   permissionCatalog,
@@ -33,11 +34,7 @@ import { escalateAccessReviews } from "@erpx/server-identity_access/public/iam-a
 import {privateFileDenialAuthoritySourceLocks,privateFileDenialAuthorityWitness} from '@erpx/server-identity_access/public/private-file-denial-authority';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";
-import {
-  activateEmergency,
-  listEmergencyAccess,
-  revokeEmergency,
-} from "@erpx/server-identity_access/public/iam-recovery";
+import { createNativeEmergencyAccess } from "@erpx/server-identity_access/adapters/native-recovery";
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   runtimeEnv: async () => env,
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
@@ -135,127 +132,58 @@ it("stores topology only with a complete sync, backfills without reseed, and ret
   expect((await read())?.hierarchy_json.containers).toEqual([]);
   expect((await peopleAccessData(db,f.owner)).entries.find(e=>e.kind === "identity")?.status).toBe("Disabled");
 });
-it("activates, lists, and immediately revokes only the current emergency session with replay-safe audit receipts", async () => {
-  const f = await fixture(),
-    owner = f.owner,
-    input = {
-      holdingSlug: "rehearsal",
-      companyId: f.companyId,
-      reason: "Restore access while the normal administrator is unavailable.",
-    },
-    activateKey = key(),
-    revokeKey = key();
-  await db
-    .prepare(
-      "INSERT INTO iam_members(company_id,user_id,principal_id,login_policy) VALUES(?,?,?,'emergency')",
-    )
-    .bind(f.companyId, owner.userId, `recovery:${owner.userId}`)
-    .run();
-  await db
-    .prepare("INSERT INTO iam_emergency_sessions VALUES(?,?,?,?,?)")
-    .bind(
-      `sibling-${key()}`,
-      f.companyId,
-      owner.userId,
-      now() + 120_000,
-      "Other browser session",
-    )
-    .run();
-  await db
-    .prepare("INSERT INTO iam_emergency_sessions VALUES(?,?,?,?,?)")
-    .bind(
-      owner.sessionId,
-      f.companyId,
-      owner.userId,
-      now() - 1,
-      "Expired activation",
-    )
-    .run();
-  await db
-    .prepare("INSERT INTO iam_emergency_sessions VALUES(?,?,?,?,?)")
-    .bind(
-      owner.sessionId,
-      `expired-${key()}`,
-      owner.userId,
-      now() - 1,
-      "Expired in another company",
-    )
-    .run();
-
-  const [activated, replayed] = await Promise.all([
-    activateEmergency(owner, input, activateKey),
-    activateEmergency(owner, input, activateKey),
-  ]);
-  expect(replayed).toEqual(activated);
-  expect(activated.expiresAt).toBeGreaterThan(now());
-  expect(
-    await loadIamAuthority(
-      db,
-      f.companyId,
-      owner.userId,
-      "holding_owner",
-      owner.sessionId,
-    ),
-  ).toMatchObject({ emergencyUntil: activated.expiresAt });
-  await expect(
-    activateEmergency(
-      owner,
-      { ...input, reason: "A different authorized recovery reason." },
-      activateKey,
-    ),
-  ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
-
-  const listed = await listEmergencyAccess(owner);
-  expect(listed.unavailableScopes).toEqual([]);
-  expect(listed.access).toEqual([
-    expect.objectContaining({
-      companyId: f.companyId,
-      holdingSlug: "rehearsal",
-      reason: input.reason,
-      expiresAt: activated.expiresAt,
-    }),
-  ]);
-
-  const revokeInput = {
-      ...input,
-      reason: "The administrator has restored normal access.",
-    };
-  await expect(
-    revokeEmergency(owner, revokeInput, activateKey),
-  ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
-  const [revoked, revokeReplay] = await Promise.all([
-    revokeEmergency(owner, revokeInput, revokeKey),
-    revokeEmergency(owner, revokeInput, revokeKey),
-  ]);
-  expect(revokeReplay).toEqual(revoked);
+it("forwards reviewed emergency access to the native owner port without reading the body as an actor", async () => {
+  const calls: { url: string; method: string; key: string | null; body: string | null }[] = [];
+  const responses = [
+    { data: { access: [], unavailableScopes: [] } },
+    { data: { expiresAt: 1_800_000_000_000, message: "Emergency access activated for up to one hour." } },
+    { data: { revoked: true, message: "Temporary emergency access was revoked for this session." } },
+  ];
+  const client = createNativeEmergencyAccess(async request => {
+    calls.push({
+      url: request.url,
+      method: request.method,
+      key: request.headers.get("idempotency-key"),
+      body: request.body ? await request.text() : null,
+    });
+    return Response.json(responses[calls.length - 1]);
+  });
+  const request = (path: string, origin = "https://account-dev-erpx.jesadakorn.com") =>
+    new Request(`${origin}${path}`, {
+      method: "POST",
+      headers: { host: "account-dev-erpx.jesadakorn.com", origin, cookie: "__Secure-erpx-account.session_token=opaque" },
+    });
+  const active = await client.active(request("/api/v1/account/iam/emergency/active"));
+  expect(active).toEqual({ access: [], unavailableScopes: [] });
+  const body = { holdingSlug: "rehearsal", companyId: "company", reason: "Restore access while the normal administrator is unavailable." };
+  const activated = (await client.activate(request("/api/v1/account/iam/emergency/activate"), "reviewed:activate-2026", body)) as { expiresAt: number };
+  expect(activated.expiresAt).toBe(1_800_000_000_000);
+  const revoked = (await client.revoke(request("/api/v1/account/iam/emergency/revoke"), "reviewed:revoke-2026", { ...body, reason: "The administrator has restored normal access." })) as { revoked: boolean };
   expect(revoked.revoked).toBe(true);
+  expect(calls.map(call => [call.method, new URL(call.url).pathname])).toEqual([
+    ["GET", "/api/v1/account/iam/emergency/active"],
+    ["POST", "/api/v1/account/iam/emergency/activate"],
+    ["POST", "/api/v1/account/iam/emergency/revoke"],
+  ]);
+  expect(calls[1]).toMatchObject({ key: "reviewed:activate-2026" });
+  expect(JSON.parse(calls[1]!.body!)).toEqual(body);
+  expect(calls[2]).toMatchObject({ key: "reviewed:revoke-2026" });
+
+  const failing = createNativeEmergencyAccess(async () =>
+    Response.json({ error: { code: "RECOVERY_UNAVAILABLE", message: "Not a designated recovery administrator." } }, { status: 403 }),
+  );
+  await expect(failing.activate(request("/activate"), "reviewed:activate-2026", body)).rejects.toMatchObject({
+    status: 403,
+    code: "RECOVERY_UNAVAILABLE",
+  });
   await expect(
-    loadIamAuthority(
-      db,
-      f.companyId,
-      owner.userId,
-      "holding_owner",
-      owner.sessionId,
-    ),
-  ).rejects.toMatchObject({ code: "EMERGENCY_ACCESS_REQUIRED" });
-  expect(
-    await db
-      .prepare(
-        "SELECT count(*) count FROM iam_emergency_sessions WHERE company_id=? AND user_id=?",
-      )
-      .bind(f.companyId, owner.userId)
-      .first<{ count: number }>(),
-  ).toMatchObject({ count: 1 });
-  expect(
-    (
-      await db
-        .prepare(
-          "SELECT action FROM iam_audit WHERE company_id=? AND actor_id=? AND action IN ('emergency.activated','emergency.revoked') ORDER BY action",
-        )
-        .bind(f.companyId, owner.userId)
-        .all<{ action: string }>()
-    ).results.map((row) => row.action),
-  ).toEqual(["emergency.activated", "emergency.revoked"]);
+    createNativeEmergencyAccess(async () => Response.json({ data: null }))
+      .active(request("/active")),
+  ).rejects.toMatchObject({ code: "NATIVE_EMERGENCY_ACCESS_RESPONSE_INVALID" });
+  await expect(
+    createNativeEmergencyAccess(async () => Response.json({ error: { code: "IDEMPOTENCY_CONFLICT" } }, { status: 409 }))
+      .activate(request("/activate"), "reviewed:activate-2026", body),
+  ).rejects.toMatchObject({ status: 409, code: "IDEMPOTENCY_CONFLICT" });
 });
 beforeAll(async () => {
   await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS);
@@ -863,8 +791,9 @@ it("prevents authenticator replay and rejects MFA proof after the five minute bo
   const f = await fixture(),
     counter = Math.floor(now() / 30000),
     code = totp("JBSWY3DPEHPK3PXP", counter);
-  await verifyMfa(f.owner, code);
-  await expect(verifyMfa(f.owner, code)).rejects.toMatchObject({
+  const mfa = iamMfaEnrollment(env.CONTROL_DB);
+  await mfa.verify(f.owner, code);
+  await expect(mfa.verify(f.owner, code)).rejects.toMatchObject({
     code: "MFA_INVALID",
   });
 });

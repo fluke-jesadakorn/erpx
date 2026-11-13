@@ -130,6 +130,8 @@ pub mod position_gpo_http {
 }
 
 pub mod people_access;
+pub mod recovery;
+pub mod recovery_http;
 pub mod people_access_http;
 pub mod people_grants;
 pub mod people_grants_http;

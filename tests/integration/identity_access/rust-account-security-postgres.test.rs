@@ -8,9 +8,14 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
-use erpx_server_identity_access::public::{account_security_http::account_security_router, *};
+use erpx_server_identity_access::public::{
+    account_security_http::account_security_router,
+    recovery::{EmergencyAccess, PgRecoveryCommands, PgRecoveryRegistry, RecoveryCommands, RecoveryInput, target as recovery_target},
+    *,
+};
 use erpx_server_shared::public::Clock;
 use serde_json::{Value, json};
+use std::sync::Arc;
 use support::{fixture, *};
 use tower::ServiceExt;
 
@@ -300,4 +305,85 @@ async fn foreign_child_reference_and_oversized_receipt_or_mfa_material_fail_with
     sqlx::query("UPDATE iam_mfa SET secret=repeat('x',1000000) WHERE user_id='fixture-a'").execute(system.control.raw()).await.unwrap();assert_eq!(s.service.read(&proof).await.err().unwrap().code,"ACCOUNT_SECURITY_SOURCE_LIMIT");
     assert!(system.scenario.auth.session(&proof,RequestAudience::Account).await.unwrap().is_some());assert!(!fixture::fenced(&system.holdings[0],&child,"fixture-a").await);
 }).await;
+}
+
+#[tokio::test]
+async fn emergency_access_activation_is_exactly_once_revocable_and_audited() {
+    fixture::with_system(|system| async move {
+        let proof = fixture::login(&system, "a@example.test", None).await;
+        let s = services(&system);
+        verified(&system, &s, &proof).await;
+        let now = system.scenario.clock.now().get();
+        sqlx::query("INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy) VALUES('platform','fixture-a','local:fixture-a','active','emergency') ON CONFLICT(company_id,user_id) DO UPDATE SET login_policy='emergency',status='active'")
+            .execute(system.control.raw())
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO platform_assignments(id,user_id,role,modules_json,valid_from,valid_until) VALUES('fixture-recovery','fixture-a','platform_admin','[]',$1,$2)")
+            .bind(now - 1000)
+            .bind(now + 3_600_000)
+            .execute(system.control.raw())
+            .await
+            .unwrap();
+        let commands: Arc<dyn RecoveryCommands> = Arc::new(PgRecoveryCommands::new(
+            system.control.clone(),
+            "development".into(),
+            s.keys.clone(),
+            fixture::fixture::account::holding_registry(),
+        ));
+        let target = recovery_target(commands.clone(), "platform".into(), None, String::new());
+        let device = proof.proof(&SystemAuthenticationSecrets);
+        let input = RecoveryInput {
+            holding_slug: None,
+            company_id: "platform".into(),
+            reason: "Restore access while the normal administrator is unavailable.".into(),
+        };
+        let key = "reviewed:emergency-2026-11-13";
+        let activated = commands
+            .activate(device.clone(), &target, &input, key, now)
+            .await
+            .unwrap();
+        assert_eq!(
+            activated["message"],
+            "Emergency access activated for up to one hour."
+        );
+        assert_eq!(
+            commands.activate(device.clone(), &target, &input, key, now).await.unwrap(),
+            activated
+        );
+        let conflicting = RecoveryInput {
+            reason: "A different authorized recovery reason.".into(),
+            ..input.clone()
+        };
+        assert_eq!(
+            commands
+                .activate(device.clone(), &target, &conflicting, key, now)
+                .await
+                .unwrap_err()
+                .code,
+            "IDEMPOTENCY_CONFLICT"
+        );
+        assert_eq!(commands.active(device.clone(), "platform", now).await.unwrap().len(), 1);
+        let revoked = commands
+            .revoke(device.clone(), &target, &conflicting, "reviewed:revoke-2026-11-13", now)
+            .await
+            .unwrap();
+        assert_eq!(revoked["revoked"], true);
+        assert!(commands.active(device.clone(), "platform", now).await.unwrap().is_empty());
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM iam_audit WHERE action IN ('emergency.activated','emergency.revoked')")
+                .fetch_one(system.control.raw())
+                .await
+                .unwrap(),
+            2
+        );
+        let registry = PgRecoveryRegistry::new(target, Vec::new());
+        let service = EmergencyAccess::new(
+            fixture::fixture::account::policy(),
+            Arc::new(SystemAuthenticationSecrets),
+            Arc::new(registry),
+            system.scenario.clock.clone(),
+        );
+        let seed = service.active(device).await.unwrap();
+        assert_eq!(seed["access"], json!([]));
+    }).await;
 }

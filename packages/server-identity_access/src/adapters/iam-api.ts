@@ -8,13 +8,7 @@ import { applyLifecycleReview } from "@erpx/server-people_payroll/public/people-
 import { inspectIamAccess, inspectorInput } from "@erpx/server-identity_access/public/iam-inspector";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { nativeUserManagementAvailable, nativeUserManagementDecideReview, nativeUserManagementPreview, nativeUserManagementSave } from "@erpx/server-identity_access/public/native-user-management";
-import {
-  activateEmergency,
-  emergencyRevocationInput,
-  listEmergencyAccess,
-  recoveryInput,
-  revokeEmergency,
-} from "@erpx/server-identity_access/public/iam-recovery";
+import { nativeEmergencyAccess } from "@erpx/server-identity_access/adapters/native-recovery";
 import "server-only";
 import { peopleRelationshipsSnapshot, peopleAccessSnapshot } from "@erpx/server-identity_access/public/people-access";
 import {
@@ -159,7 +153,7 @@ export async function iamAccountApi(request: Request, path: string[]) {
     if (request.method === "GET") {
       if (path.join("/") === "emergency/active")
         return Response.json(
-          canonicalDestinationLinks({ data: await listEmergencyAccess(actor) }),
+          canonicalDestinationLinks({ data: await nativeEmergencyAccess.active(request) }),
           { headers: { "Cache-Control": "no-store" } },
         );
       const env = await runtimeEnv();
@@ -187,18 +181,18 @@ export async function iamAccountApi(request: Request, path: string[]) {
     const input = await request.json();
     if (path.join("/") === "emergency/activate")
       return Response.json(canonicalDestinationLinks({
-        data: await activateEmergency(
-          actor,
-          recoveryInput.parse(input),
+        data: await nativeEmergencyAccess.activate(
+          request,
           request.headers.get("Idempotency-Key") ?? "",
+          input,
         ),
       }));
     if (path.join("/") === "emergency/revoke")
       return Response.json(canonicalDestinationLinks({
-        data: await revokeEmergency(
-          actor,
-          emergencyRevocationInput.parse(input),
+        data: await nativeEmergencyAccess.revoke(
+          request,
           request.headers.get("Idempotency-Key") ?? "",
+          input,
         ),
       }));
     if (path.join("/") === "sessions/revoke") {

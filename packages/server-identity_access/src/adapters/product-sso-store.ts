@@ -2,7 +2,6 @@ import "server-only";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { TransactionalSqlDatabase, SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { bindingIsCurrent, browserTransactionLifetime, safeProductReturnPath, sessionLifetime, singleUseGrantLifetime, type SsoSessionBinding } from "@erpx/server-identity_access/domain/product-sso";
-import {revokeProductSessionFamily} from '@erpx/server-identity_access/adapters/product-session-revocation';
 import {deviceSessionSelected} from '@erpx/server-identity_access/adapters/device-account-store';
 
 export const ssoHash = (value: string) => createHash("sha256").update(value).digest("base64url");
@@ -111,9 +110,6 @@ export function productSsoStore(db: TransactionalSqlDatabase, environment: "deve
         session: { id: row.id, userId: row.userId, token: "", expiresAt: new Date(Math.min(new Date(row.expiresAt).getTime(), new Date(row.parent_expires_at).getTime(), Number(row.absolute_expires_at))), createdAt: new Date(Number(row.authenticated_at)), updatedAt: new Date(Number(row.authenticated_at)), ipAddress: null, userAgent: null },
         user: { id: row.userId, name: row.name, email: row.email, emailVerified: Boolean(Number(row.emailVerified)), image: row.image, createdAt: new Date(Number(row.user_created_at)), updatedAt: new Date(Number(row.user_updated_at)) },
       };
-    },
-    async revokeFamily(sessionId: string) {
-      await db.transaction(tx=>revokeProductSessionFamily(tx,sessionId,environment));
     },
   };
 }

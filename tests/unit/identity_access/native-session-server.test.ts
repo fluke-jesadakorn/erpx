@@ -299,7 +299,7 @@ it('uses native Account security for the SSR seed and never falls back to the re
  const native=vi.fn<(headers:Pick<Headers,'get'>)=>Promise<typeof seed>>(async()=>seed),session=vi.fn(async()=>({session:{user:{id:'alpha'},session:{id:'session-alpha'}}}));
  vi.resetModules();
  vi.doMock('@erpx/server-identity_access/adapters/authorization',()=>({currentSession:session}));
- vi.doMock('@erpx/server-identity_access/adapters/iam-recovery',()=>({listEmergencyAccess:async()=>[]}));
+ vi.doMock('@erpx/server-identity_access/adapters/native-recovery',()=>({nativeEmergencyAccess:{active:async()=>[]}}));
  vi.doMock('@erpx/server-identity_access/adapters/native-account-security',()=>({nativeAccountSecurityRead:native}));
  try{
   vi.stubEnv('ERPX_NATIVE_ACCOUNT_SESSION_CONFIG',JSON.stringify(configuration));
@@ -310,7 +310,7 @@ it('uses native Account security for the SSR seed and never falls back to the re
   native.mockRejectedValueOnce(new Error('native security unavailable'));vi.resetModules();
   security=await import('../../../packages/server-identity_access/src/adapters/account-security');
   await expect(security.currentAccountSecurity()).rejects.toThrow('native security unavailable');
- }finally{vi.unstubAllEnvs();vi.doUnmock('@erpx/server-identity_access/adapters/authorization');vi.doUnmock('@erpx/server-identity_access/adapters/iam-recovery');vi.doUnmock('@erpx/server-identity_access/adapters/native-account-security');vi.resetModules();}
+ }finally{vi.unstubAllEnvs();vi.doUnmock('@erpx/server-identity_access/adapters/authorization');vi.doUnmock('@erpx/server-identity_access/adapters/native-recovery');vi.doUnmock('@erpx/server-identity_access/adapters/native-account-security');vi.resetModules();}
 });
 
 it('reads the native Account security seed through validated private authority and fails closed',async()=>{

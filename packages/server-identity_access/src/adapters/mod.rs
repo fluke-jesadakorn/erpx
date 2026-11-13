@@ -43,6 +43,8 @@ pub(crate) mod account_mfa_crypto;
 pub(crate) mod account_mfa_postgres;
 pub(crate) mod account_security_http;
 pub(crate) mod account_security_postgres;
+pub(crate) mod recovery_http;
+pub(crate) mod recovery_postgres;
 
 pub(crate) mod assignment_http;
 pub(crate) mod assignment_postgres;

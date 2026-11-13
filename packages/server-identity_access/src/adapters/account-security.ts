@@ -2,18 +2,24 @@ import 'server-only';
 import {cache} from 'react';
 import {headers as requestHeaders} from 'next/headers';
 import {currentSession} from '@erpx/server-identity_access/adapters/authorization';
-import {listEmergencyAccess} from '@erpx/server-identity_access/adapters/iam-recovery';
 import {nativeAccountSecurityRead} from '@erpx/server-identity_access/adapters/native-account-security';
+import {nativeEmergencyAccess} from '@erpx/server-identity_access/adapters/native-recovery';
 
-/** Native Account security is the only source for the signed-in security seed.
- * A missing or failed native runtime surfaces as an error; there is no retained
- * database projection or per-request fallback. Emergency access remains its
- * own retained Identity-owned read until that workflow is migrated. */
+/** Native Account security and native temporary access are the only sources
+ * for the signed-in security seed. A missing or failed native runtime surfaces
+ * as an error; there is no retained database projection or fallback. */
 export const currentAccountSecurity=cache(async()=>{
- const {session}=await currentSession(),actor={userId:session.user.id,sessionId:session.session.id};
+ await currentSession();
+ const headers=await requestHeaders();
+ const forwarded=new Headers();
+ for(const name of ['host','cookie','origin']){
+  const value=headers.get(name);
+  if(value)forwarded.set(name,value);
+ }
+ const emergencyRequest=new Request('https://account.invalid/api/v1/account/iam/emergency/active',{headers:forwarded});
  const [security,emergency]=await Promise.all([
-  nativeAccountSecurityRead(await requestHeaders()),
-  listEmergencyAccess(actor),
+  nativeAccountSecurityRead(headers),
+  nativeEmergencyAccess.active(emergencyRequest),
  ]);
  return {security,emergency};
 });

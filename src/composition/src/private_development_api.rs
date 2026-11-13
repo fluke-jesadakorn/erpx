@@ -2543,6 +2543,49 @@ async fn assemble_checked(
         )
         .map_err(|_| "PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
         router = router.merge(account_security_router(Arc::new(security)));
+
+        use erpx_server_identity_access::public::{
+            recovery::{
+                EmergencyAccess, PgRecoveryCommands, PgRecoveryRegistry, RecoveryCommands, target,
+            },
+            recovery_http::recovery_router,
+        };
+        let commands = |pool: DatabasePool| -> Arc<dyn RecoveryCommands> {
+            Arc::new(PgRecoveryCommands::new(
+                pool,
+                config.environment.clone(),
+                keys.clone(),
+                config.holdings_registry.clone(),
+            ))
+        };
+        let holdings = config
+            .holdings
+            .iter()
+            .enumerate()
+            .map(|(index, holding)| {
+                target(
+                    commands(pools[index + 1].clone()),
+                    String::new(),
+                    Some(holding.registration.slug.clone()),
+                    holding.registration.slug.clone(),
+                )
+            })
+            .collect();
+        let registry = Arc::new(PgRecoveryRegistry::new(
+            target(
+                commands(pools[0].clone()),
+                "platform".into(),
+                None,
+                String::new(),
+            ),
+            holdings,
+        ));
+        router = router.merge(recovery_router(Arc::new(EmergencyAccess::new(
+            (*config.policy).clone(),
+            secrets.clone(),
+            registry,
+            clock.clone(),
+        ))));
     }
 
     let invitation_authority = Arc::new(PostgresInvitationCredentialAuthority::new(
