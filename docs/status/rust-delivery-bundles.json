@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1712,
+    "revision": 1723,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-m",
       "agentId": "lead",
       "startedAt": "2026-11-13T11:17:19.844Z",
-      "heartbeatAt": "2026-11-13T11:17:26.763Z",
-      "expiresAt": "2026-11-13T11:47:26.763Z",
+      "heartbeatAt": "2026-11-13T11:37:57.603Z",
+      "expiresAt": "2026-11-13T12:07:57.603Z",
       "generation": 57,
       "tokenHash": "c5910c1521e976b448c7f793731ca689a6583e9888385019ac1912b7f6c666cd"
     },
@@ -34803,29 +34803,146 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+        "lastPushedSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 226,
+            "after": 214,
+            "sourceSha": "7071652befdd8c60ef9881e548fc614fef60c9e8",
+            "sourceKind": "committed",
+            "note": "Native people grants/invitations replaced 12 TS writers; the 3 direct-invitation acceptance writes remain."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "7071652befdd8c60ef9881e548fc614fef60c9e8",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --lib",
+            "result": "passed",
+            "sourceSha": "7071652befdd8c60ef9881e548fc614fef60c9e8",
+            "sourceKind": "committed",
+            "note": "20 passed, 7 ignored."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --lib people_grants -- --include-ignored",
+            "result": "passed",
+            "sourceSha": "7071652befdd8c60ef9881e548fc614fef60c9e8",
+            "sourceKind": "committed",
+            "note": "12 passed: 8 unit/HTTP + 4 PostgreSQL proofs."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "7071652befdd8c60ef9881e548fc614fef60c9e8",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "7071652befdd8c60ef9881e548fc614fef60c9e8",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=identity_access.people-access.integration",
+            "result": "passed",
+            "sourceSha": "7071652befdd8c60ef9881e548fc614fef60c9e8",
+            "sourceKind": "committed",
+            "note": "4 passed."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=identity_access.account-invitation-delivery.integration",
+            "result": "passed",
+            "sourceSha": "7071652befdd8c60ef9881e548fc614fef60c9e8",
+            "sourceKind": "committed",
+            "note": "6 passed."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=identity_access.iam.integration",
+            "result": "passed",
+            "sourceSha": "7071652befdd8c60ef9881e548fc614fef60c9e8",
+            "sourceKind": "committed",
+            "note": "32 passed; 4 pre-existing unrelated failures recorded in the ledger."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 226,
+            "after": 214,
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/people-access.ts (activateDirectInvitation)",
+                "writes": 3,
+                "removalTaskId": "retire.identity_access.account-invitation-acceptance",
+                "removalCondition": "Switch the browser /api/v1/account-invitations route to the native Account invitation acceptance with role.direct === true."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 211,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for the remaining directory, IAM service, user-management, migrations and GPO writers."
+              }
+            ],
+            "note": "Native people grants/invitations replaced 12 TS writers; the mount is verified."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "note": "Composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --lib -- --include-ignored",
+            "result": "passed",
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "note": "28 passed, including the 4 new people-grants PostgreSQL proofs."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-identity_access/src/adapters/people-access.ts",
+            "writes": 3,
+            "removalTaskId": "retire.identity_access.account-invitation-acceptance",
+            "removalCondition": "Switch the browser /api/v1/account-invitations route from TS createAccountAccessService to the native Account invitation acceptance, which must support role.direct === true (skip person link/assignment create, activate subject + accept review + audit)."
+          }
+        ],
+        "blocker": null,
+        "nextAction": "Complete: native people grants/invitations mounted (IAM 226 -> 214). Residual 214 classified: 3 direct-invitation acceptance + 211 remaining IAM writers.",
+        "handoff": {
           "runId": "run-20261113-m",
           "agentId": "worker-iam-grants",
-          "claimedAt": "2026-11-13T11:17:19.880Z",
-          "heartbeatAt": "2026-11-13T11:17:26.763Z",
-          "expiresAt": "2026-11-13T11:47:26.763Z",
-          "generation": 57
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Audit the 15 remaining grants/invitation writes in people-access.ts; implement the native command family with preview/apply, role/assignment/invitation lifecycle, direct-invitation activation and account_invitations delivery, then switch the /iam/people-access routes and technology Accounts consumers, delete the TS writers/barrels, move oracles to native seeding, and record Identity Access 226 -> 211.",
-        "handoff": {
-          "runId": "run-20261113-l",
-          "agentId": "worker-iam-grants",
-          "at": "2026-11-13T11:17:19.843Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during inventory mount/report batch; same lead resumes; IAM worker WIP reviewed",
-          "nextAction": "Audit the 15 remaining grants/invitation writes in people-access.ts; implement the native command family with preview/apply, role/assignment/invitation lifecycle, direct-invitation activation and account_invitations delivery, then switch the /iam/people-access routes and technology Accounts consumers, delete the TS writers/barrels, move oracles to native seeding, and record Identity Access 226 -> 211."
+          "at": "2026-11-13T11:22:57.565Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native people grants/invitations are committed (IAM 226 -> 214). Lead: mount people_grants_http_router + PeopleGrantsHttpBackend and the post-commit direct-invitation staging in composition, rebuild the shared native API, then verify the technology Accounts invite/apply and role publish. The 3 remaining writers are direct-invitation acceptance, tracked by retire.identity_access.account-invitation-acceptance."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -34920,6 +35037,138 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.account-invitation-acceptance",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Native account invitation acceptance and direct-role activation",
+        "scope": "Implement the native Account invitation acceptance, including role.direct === true (skip person link/assignment create, activate the subject, accept the review and audit). Switch the browser /api/v1/account-invitations route from the TS createAccountAccessService, then delete the three direct-invitation writers and record the Identity Access KPI pair (214 -> 211).",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-account/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement native Account invitation acceptance for role.direct === true, switch the browser /api/v1/account-invitations route from createAccountAccessService, delete activateDirectInvitation/directInvitationEligible and their barrels, move the oracle to native seeding, and record Identity Access 214 -> 211.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "integrate.identity_access.people-grants",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Mount native people grants and invitation delivery",
+        "scope": "Mount people_grants_http_router and PeopleGrantsHttpBackend in composition with the current IAM authority, then stage the direct-invitation delivery rows post-commit. Verify the technology Accounts invite/apply and role publish.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-account/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "tests/integration/identity_access/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "resource:composition"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+        "lastPushedSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 226,
+            "after": 214,
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/people-access.ts (activateDirectInvitation)",
+                "writes": 3,
+                "removalTaskId": "retire.identity_access.account-invitation-acceptance",
+                "removalCondition": "Switch the browser /api/v1/account-invitations route to the native Account invitation acceptance with role.direct === true."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 211,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for the remaining directory, IAM service, user-management, migrations and GPO writers."
+              }
+            ],
+            "note": "Native people grants/invitations replaced 12 TS writers; the mount is verified."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "note": "Composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --lib -- --include-ignored",
+            "result": "passed",
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "note": "28 passed, including the 4 new people-grants PostgreSQL proofs."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "d8969427c47b83a7ea66d29ac8b3593352ee0195",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-identity_access/src/adapters/people-access.ts",
+            "writes": 3,
+            "removalTaskId": "retire.identity_access.account-invitation-acceptance",
+            "removalCondition": "Switch the browser /api/v1/account-invitations route from TS createAccountAccessService to the native Account invitation acceptance, which must support role.direct === true (skip person link/assignment create, activate subject + accept review + audit)."
+          }
+        ],
+        "blocker": null,
+        "nextAction": "Complete: people-grants routes and post-commit invitation delivery are mounted; IAM KPI 226 -> 214.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
       }
     ],
     "migrationProgress": {
@@ -34928,21 +35177,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 176,
-      "migratedPackets": 99,
+      "totalPackets": 178,
+      "migratedPackets": 101,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 1,
+        "pending": 21,
+        "in_progress": 0,
         "ready_for_integration": 17,
         "integrating": 0,
-        "migrated": 99,
+        "migrated": 101,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 57,
-    "updatedAt": "2026-11-13T11:17:26.763Z",
+    "updatedAt": "2026-11-13T11:37:57.604Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
