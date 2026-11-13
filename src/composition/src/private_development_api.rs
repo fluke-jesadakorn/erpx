@@ -2949,6 +2949,7 @@ async fn assemble_checked(
         let mut quality_targets = Vec::new();
         let mut identity_access_targets = Vec::new();
         let mut people_relationship_targets = Vec::new();
+        let mut people_grants_targets = Vec::new();
         let mut iam_roles_targets = Vec::new();
         let mut billing_targets = Vec::new();
         let mut billing_invoice_targets = Vec::new();
@@ -3942,6 +3943,31 @@ async fn assemble_checked(
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
                         backend: identity_backend.clone(),
+                    },
+                );
+                // Reviewed People access command family. The staging pools are
+                // only used after the Holding unit commits.
+                let people_grants_backend = Arc::new(
+                    crate::identity_access::IdentityAccessBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::identity_access::IdentityAccessService::new(
+                            authorizer.clone(),
+                            crate::identity_access::IdentityAccessConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )
+                    .with_delivery_databases(pools[0].clone(), pools[i + 1].clone()),
+                );
+                people_grants_targets.push(
+                    erpx_server_identity_access::public::people_grants_http::PeopleGrantsHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: people_grants_backend,
                     },
                 );
                 #[cfg(feature = "existing-business")]
@@ -5512,6 +5538,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_identity_access::public::people_access_http::people_relationships_http_router(
                     people_relationship_targets,
+                )
+                .map_err(|_| "PRIVATE_API_IDENTITY_ACCESS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !people_grants_targets.is_empty() {
+            router = router.merge(
+                erpx_server_identity_access::public::people_grants_http::people_grants_http_router(
+                    people_grants_targets,
                 )
                 .map_err(|_| "PRIVATE_API_IDENTITY_ACCESS_CONFIGURATION_INVALID")?,
             );

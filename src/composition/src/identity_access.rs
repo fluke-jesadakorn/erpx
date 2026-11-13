@@ -38,7 +38,16 @@ use erpx_server_identity_access::public::people_access_http::{
     PeopleRelationshipsHttpBackend, PeopleRelationshipsHttpCommand, PeopleRelationshipsHttpFuture,
     PeopleRelationshipsHttpRequest, PeopleRelationshipsHttpResponse,
 };
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_server_identity_access::public::people_grants::{
+    ACCESS_APPLY_PERMISSION, DirectInvitationDelivery, PgPeopleGrants, PeopleGrantActor,
+    apply_grant_change, direct_invitation_token_hash, preview_grant_change, read_direct_invitation,
+    stage_direct_invitation_delivery,
+};
+use erpx_server_identity_access::public::people_grants_http::{
+    PeopleGrantsHttpBackend, PeopleGrantsHttpCommand, PeopleGrantsHttpFuture,
+    PeopleGrantsHttpRequest, PeopleGrantsHttpResponse,
+};
+use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, UserId,
 };
@@ -188,6 +197,35 @@ fn people_actor(current: &AuthorizedWorkContext) -> PeopleAccessActor {
         platform: false,
         expires_at: current.expires_at(),
     }
+}
+
+fn grant_actor(current: &AuthorizedWorkContext) -> PeopleGrantActor {
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    PeopleGrantActor {
+        user_id: current.user_id().as_str().to_owned(),
+        session_id: current.session_id().as_str().to_owned(),
+        company_id: workspace.company_id.as_str().to_owned(),
+        assignment_id: assignment.id.as_str().to_owned(),
+        scope_kind: match assignment.scope_kind {
+            WorkScopeKind::Holding => "holding",
+            WorkScopeKind::Branch => "branch",
+            WorkScopeKind::Department => "department",
+        }
+        .to_owned(),
+        permissions: current.command_iam_metadata().permissions.clone(),
+        platform: false,
+        expires_at: current.expires_at(),
+    }
+}
+
+fn delivery_unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "NATIVE_PEOPLE_ACCESS_DELIVERY_UNAVAILABLE",
+        "The invitation delivery staging is unavailable.",
+    )
 }
 
 fn context(current: &AuthorizedWorkContext) -> Value {
@@ -454,6 +492,115 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
             .await
     }
 
+    pub fn now(&self) -> i64 {
+        self.clock.now().get()
+    }
+
+    /// Reviewed People access commands. Returns the committed owner response
+    /// plus, for an invitation, the Holding review row the composition root
+    /// stages into Control *after* this unit commits.
+    pub async fn people_grants_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: PeopleGrantsHttpCommand,
+    ) -> Result<(PeopleGrantsHttpResponse, Option<DirectInvitationDelivery>), Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: ACCESS_APPLY_PERMISSION.into(),
+                    module: Some("iam".into()),
+                    destination: "iam".into(),
+                    api: true,
+                },
+                IdentityAccessSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission(ACCESS_APPLY_PERMISSION)?;
+                        let actor = grant_actor(current);
+                        let now = clock.now().get();
+                        let mut repository = PgPeopleGrants::new(connection);
+                        let data = match command {
+                            PeopleGrantsHttpCommand::Preview { change } => {
+                                preview_grant_change(
+                                    &mut repository,
+                                    &actor,
+                                    permission_catalog()?,
+                                    change,
+                                    now,
+                                )
+                                .await?
+                            }
+                            PeopleGrantsHttpCommand::Apply {
+                                token,
+                                idempotency_key,
+                            } => {
+                                let key = CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                apply_grant_change(
+                                    &mut repository,
+                                    &actor,
+                                    permission_catalog()?,
+                                    &key,
+                                    &token,
+                                    now,
+                                )
+                                .await?
+                            }
+                        };
+                        let delivery = match data["invitationId"].as_str() {
+                            Some(invitation_id) => Some(
+                                read_direct_invitation(
+                                    connection,
+                                    holding.as_str(),
+                                    company.as_str(),
+                                    invitation_id,
+                                )
+                                .await?,
+                            ),
+                            None => None,
+                        };
+                        Ok((
+                            PeopleGrantsHttpResponse {
+                                data,
+                                context: context(current),
+                            },
+                            delivery,
+                        ))
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn iam_command<Input>(
         &self,
         host: &str,
@@ -562,6 +709,8 @@ pub struct IdentityAccessBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
     service: Arc<IdentityAccessService<C>>,
+    control: Option<DatabasePool>,
+    holding_database: Option<DatabasePool>,
 }
 
 impl<C: Clock + Send + Sync + 'static> IdentityAccessBackend<C> {
@@ -574,7 +723,54 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessBackend<C> {
             policy,
             scopes,
             service,
+            control: None,
+            holding_database: None,
         }
+    }
+
+    /// Supply the committed Control and Holding pools for the post-commit
+    /// direct-invitation delivery staging. Without them an invitation commits
+    /// the review but fails closed before any Control delivery row is written.
+    pub fn with_delivery_databases(
+        mut self,
+        control: DatabasePool,
+        holding: DatabasePool,
+    ) -> Self {
+        self.control = Some(control);
+        self.holding_database = Some(holding);
+        self
+    }
+
+    async fn stage_direct_invitation(
+        &self,
+        delivery: DirectInvitationDelivery,
+    ) -> Result<(), Error> {
+        let (Some(control), Some(holding)) = (&self.control, &self.holding_database) else {
+            return Err(PgTransactionError::Business(delivery_unavailable()));
+        };
+        let secret = std::env::var("BETTER_AUTH_SECRET")
+            .ok()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| PgTransactionError::Business(delivery_unavailable()))?;
+        let token_hash = direct_invitation_token_hash(&secret, &delivery.invitation_id);
+        let mut control = control
+            .raw()
+            .acquire()
+            .await
+            .map_err(|_| PgTransactionError::Business(delivery_unavailable()))?;
+        let mut holding = holding
+            .raw()
+            .acquire()
+            .await
+            .map_err(|_| PgTransactionError::Business(delivery_unavailable()))?;
+        stage_direct_invitation_delivery(
+            &mut control,
+            &mut holding,
+            &delivery,
+            &token_hash,
+            self.service.now(),
+        )
+        .await
     }
 
     fn context(
@@ -631,6 +827,28 @@ impl<C: Clock + Send + Sync + 'static> PeopleRelationshipsHttpBackend for Identi
                 )
                 .await
                 .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PeopleGrantsHttpBackend for IdentityAccessBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: PeopleGrantsHttpRequest<'a>,
+    ) -> PeopleGrantsHttpFuture<'a, PeopleGrantsHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            let (reply, delivery) = self
+                .service
+                .people_grants_command(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map_err(business)?;
+            // The Holding unit has committed. Staging only queues Control rows:
+            // a failure here must never roll back the assignment or invitation.
+            if let Some(delivery) = delivery {
+                self.stage_direct_invitation(delivery).await.map_err(business)?;
+            }
+            Ok(reply)
         })
     }
 }

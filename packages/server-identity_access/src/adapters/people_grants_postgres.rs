@@ -931,6 +931,28 @@ pub struct DirectInvitationDelivery {
     pub existing_user_id: Option<String>,
 }
 
+/// Reproduce the TypeScript invitation digest exactly:
+/// `hex(hmac_sha256(BETTER_AUTH_SECRET, "invitation:{id}"))`.
+pub fn direct_invitation_token_hash(secret: &str, invitation_id: &str) -> String {
+    let key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, secret.as_bytes());
+    let signature = ring::hmac::sign(&key, format!("invitation:{invitation_id}").as_bytes());
+    hex::encode(signature.as_ref())
+}
+
+#[cfg(test)]
+mod delivery_token_tests {
+    use super::direct_invitation_token_hash;
+
+    #[test]
+    fn invitation_digest_matches_the_typescript_hmac_vector() {
+        // node: createHmac("sha256", "test-secret").update("invitation:inv-1").digest("hex")
+        assert_eq!(
+            direct_invitation_token_hash("test-secret", "inv-1"),
+            "fe436c974cd3724eba0a6a4ebd4d513a96987e92558ec19a825fded45fb9ddd9"
+        );
+    }
+}
+
 /// Read the committed review row for a direct invitation.
 pub async fn read_direct_invitation(
     connection: &mut PgConnection,
@@ -994,7 +1016,8 @@ fn optional_text(value: &Value, key: &str) -> Option<String> {
 /// transaction commits. `token_hash` is the caller's HMAC of the invitation
 /// secret; this adapter never holds the secret.
 pub async fn stage_direct_invitation_delivery(
-    connection: &mut PgConnection,
+    control: &mut PgConnection,
+    holding: &mut PgConnection,
     delivery: &DirectInvitationDelivery,
     token_hash: &str,
     now: i64,
@@ -1005,7 +1028,7 @@ pub async fn stage_direct_invitation_delivery(
          FROM \"user\" u WHERE lower(u.email)=lower($1) LIMIT 1",
     )
     .bind(&delivery.email)
-    .fetch_optional(&mut *connection)
+    .fetch_optional(&mut *control)
     .await?;
     let existing_user_id = match existing {
         Some(row) => {
@@ -1017,7 +1040,7 @@ pub async fn stage_direct_invitation_delivery(
             )
             .bind(&delivery.company_id)
             .bind(row.get::<String, _>("id"))
-            .fetch_one(&mut *connection)
+            .fetch_one(&mut *holding)
             .await?;
             if linked {
                 return Err(account_already_linked().into());
@@ -1053,7 +1076,7 @@ pub async fn stage_direct_invitation_delivery(
     .bind(&delivery.parent_id)
     .bind((now + 48 * 3_600_000).min(delivery.valid_until))
     .bind(now)
-    .execute(&mut *connection)
+    .execute(&mut *control)
     .await?;
     sqlx::query(
         "INSERT INTO account_invitation_delivery_jobs(id,invitation_id,holding_id,company_id,\
@@ -1065,7 +1088,7 @@ pub async fn stage_direct_invitation_delivery(
     .bind(&delivery.holding_id)
     .bind(&delivery.company_id)
     .bind(now)
-    .execute(&mut *connection)
+    .execute(&mut *control)
     .await?;
     Ok(())
 }
