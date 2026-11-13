@@ -97063,6 +97063,50 @@
         "@erpx/server-work_projection",
         "@erpx/server-workflow"
       ]
+    },
+    {
+      "id": "manufacturing.rust-manufacturing-lots.unit",
+      "lane": "unit",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "files": [
+        "tests/unit/manufacturing/rust-manufacturing-lots.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native manufacturing lot posting preserves allocation, serial, value and genealogy invariants."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-manufacturing",
+        "targets": [
+          "manufacturing_lots"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-manufacturing/Cargo.toml",
+        "packages/server-manufacturing/src/adapters/lots.rs",
+        "packages/server-manufacturing/src/application/lots.rs",
+        "packages/server-manufacturing/src/domain/lots.rs"
+      ],
+      "apps": [
+        "manufacturing"
+      ],
+      "packages": [
+        "@erpx/server-manufacturing",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
     }
   ]
 }

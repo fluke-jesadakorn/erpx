@@ -24,6 +24,10 @@ uuid.workspace = true
 workspace = true
 
 [[test]]
+name = "manufacturing_lots"
+path = "../../tests/unit/manufacturing/rust-manufacturing-lots.test.rs"
+
+[[test]]
 name = "manufacturing_bom"
 path = "../../tests/unit/manufacturing/rust-manufacturing-bom.test.rs"
 
