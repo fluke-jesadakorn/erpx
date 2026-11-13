@@ -175,13 +175,8 @@ export async function applyPeopleAccess(db: PostgresDatabase, actor: IamActor, t
     const id = "id" in change && change.id ? change.id : `${change.operation === "role" ? "custom_" : "iam-" + change.operation + "-"}${crypto.randomUUID()}`;
     if (change.operation === "account") {
       await client.query(`INSERT INTO iam_access_subjects(id,company_id,kind,name,email) VALUES($1,$2,'internal',$3,$4)`, [id, actor.companyId, change.name, change.email]);
-    } else if (change.operation === "organization") {
-      await client.query(`INSERT INTO iam_external_organizations(id,company_id,name,kind) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET name=$3,kind=$4,version=iam_external_organizations.version+1`, [id, actor.companyId, change.name, change.kind]);
-    } else if (change.operation === "team") {
-      await client.query(`INSERT INTO iam_external_teams(id,company_id,organization_id,name,department_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET organization_id=$3,name=$4,department_id=$5,version=iam_external_teams.version+1`, [id, actor.companyId, change.organizationId, change.name, change.departmentId]);
-    } else if (change.operation === "subject") {
-      const old = data.subjects.find(s => s.id === change.id);
-      await client.query(`INSERT INTO iam_access_subjects(id,company_id,kind,name,email,organization_id,team_id,sponsor_person_id,expires_at,status,user_id,person_id) VALUES($1,$2,'external',$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO UPDATE SET kind='external',name=$3,email=$4,organization_id=$5,team_id=$6,sponsor_person_id=$7,expires_at=$8,status=$9,version=iam_access_subjects.version+1`, [id, actor.companyId, change.name, change.email, change.organizationId, change.teamId, change.sponsorPersonId, change.expiresAt, change.status, old?.userId ?? null, old?.personId ?? null]);
+    } else if (change.operation === "organization" || change.operation === "team" || change.operation === "subject") {
+      throw new ApiError(503, "RELATIONSHIP_COMMAND_NATIVE_ONLY", "People relationship changes require the native service.");
     } else if (change.operation === "role") {
       await client.query(`INSERT INTO iam_roles(company_id,id,name,built_in) VALUES($1,$2,$3,false) ON CONFLICT(company_id,id) DO UPDATE SET name=$3`, [actor.companyId, id, change.name]);
       const revision = Number((await client.query("SELECT COALESCE(max(revision),0)+1 next FROM iam_role_revisions WHERE company_id=$1 AND role_id=$2", [actor.companyId, id])).rows[0].next);
