@@ -8,8 +8,8 @@ import {
   key,
 } from "../../support/helpers/expense-fixture";
 import {saveMaster} from '@erpx/server-commerce/public/commerce';
+import {changeManufacturingOrderForTest as changeManufacturingOrder} from "../../support/manufacturing/legacy-production";
 import {
-  changeManufacturingOrder,
   createPlanningScenario,
   cancelPlanningScenario,
   productionDetail,
@@ -845,7 +845,7 @@ it('sets up Manufacturing-only Finance references and immutable posting mapping 
 // and master records below are all normal owner commands. No stock is seeded.
 it('retains the original generic Count purchase guard for Manufacturing-only first physical stock after actual normal posting and master setup',async()=>{
  const z=await zeroLedgerManufacturingCompany();await z.purchase();
- const refs=await import('@erpx/server-finance/public/manufacturing-posting-prerequisites'),setup=await import('@erpx/server-manufacturing/public/posting-setup'),inventory=await import('@erpx/server-inventory/public/inventory-counts'),{hasPermission}=await import('@erpx/feature-identity_access/lib/permissions');
+ const refs=await import('@erpx/server-finance/public/manufacturing-posting-prerequisites'),setup=await import('@erpx/server-manufacturing/public/posting-setup'),inventory=await import('../../support/manufacturing/legacy-count/inventory-counts'),{hasPermission}=await import('@erpx/feature-identity_access/lib/permissions');
  const first=await refs.manufacturingPostingPrerequisites(z.reviewer);
  expect(first).toMatchObject({available:true,configured:false,charts:[],accounts:[],periods:[],rates:[],canCreateChart:true});
  if(typeof first.contextKey!=='string')throw Error('Actual Manufacturing chart context required');
@@ -900,7 +900,7 @@ async function assertManufacturingInitialPhysicalStockFileWriterOverlap(context:
  files:FileStore;companyId:string;countId:string;journalId:string;warehouseId:string;productId:string;
  preparer:WorkContext;fileActor:WorkContext;linkId:string;expectedBytes:string;
 }){
- const database=context.database,{attachmentContent}=await import('@erpx/server-files/public/attachments/service'),inventory=await import('@erpx/server-inventory/public/inventory-counts'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
+ const database=context.database,{attachmentContent}=await import('@erpx/server-files/public/attachments/service'),inventory=await import('../../support/manufacturing/legacy-count/inventory-counts'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
  const count=await database.prepare('SELECT company_id,warehouse_id,journal_id,status FROM inventory_counts WHERE id=?').bind(context.countId).first();
  expect(count).toEqual({company_id:context.companyId,warehouse_id:context.warehouseId,journal_id:context.journalId,status:'posted'});
  expect(await database.prepare('SELECT 1 FROM inventory_mfg_initial_physical_sources WHERE count_id=? AND company_id=?').bind(context.countId,context.companyId).first()).not.toBeNull();
@@ -954,7 +954,7 @@ async function assertManufacturingInitialPhysicalStockFileWriterOverlap(context:
 // facts, normal owner commands and explicitly post-scan File fixture evidence.
 async function manufacturingInitialPhysicalFixture(){
  const z=await zeroLedgerManufacturingCompany();await z.purchase();
- const refs=await import('@erpx/server-finance/public/manufacturing-posting-prerequisites'),setup=await import('@erpx/server-manufacturing/public/posting-setup'),inventory=await import('@erpx/server-inventory/public/inventory-counts'),masters=await import('@erpx/server-commerce/public/manufacturing-initial-physical-stock-masters'),{hasPermission}=await import('@erpx/feature-identity_access/lib/permissions');
+ const refs=await import('@erpx/server-finance/public/manufacturing-posting-prerequisites'),setup=await import('@erpx/server-manufacturing/public/posting-setup'),inventory=await import('../../support/manufacturing/legacy-count/inventory-counts'),masters=await import('@erpx/server-commerce/public/manufacturing-initial-physical-stock-masters'),{hasPermission}=await import('@erpx/feature-identity_access/lib/permissions');
  const first=await refs.manufacturingPostingPrerequisites(z.reviewer);
  expect(first).toMatchObject({available:true,configured:false,charts:[],accounts:[],periods:[],rates:[],canCreateChart:true});
  if(typeof first.contextKey!=='string')throw Error('Actual Manufacturing chart context required');
@@ -1004,7 +1004,7 @@ async function manufacturingInitialPhysicalFixture(){
 }
 
 it('Manufacturing-only initial physical Count binds evidence and posts independent variance before original material issue and released output',async()=>{
- const s=await manufacturingInitialPhysicalFixture(),{z,chart,accounts,variance,period,warehouse,product,inventory,preparer,stockReviewer}=s,initial=await import('@erpx/server-inventory/public/manufacturing-initial-physical-stock-count');
+ const s=await manufacturingInitialPhysicalFixture(),{z,chart,accounts,variance,period,warehouse,product,inventory,preparer,stockReviewer}=s,initial=await import('../../support/manufacturing/legacy-count/manufacturing-initial-physical-stock-count');
  const input=inventory.countSchema.parse({warehouseId:String(warehouse.id),countDate:'2026-09-06',reason:'Actual independently verified two-unit physical stock at six THB; current-period variance only',lines:[{productId:String(product.id),countedQuantity:'2',unitCost:'6'}]}),genericKey=key();
  const commandImage=async(command:string)=>Promise.all(['command_receipts','audit_events','outbox_events'].map(async table=>(await db.prepare(`SELECT to_jsonb(r)::text image FROM ${table} r WHERE command_id=? ORDER BY image`).bind(command).all()).results));
  const genericBefore={command:await commandImage(genericKey),absent:await s.absent(),counts:(await db.prepare('SELECT to_jsonb(c)::text image FROM inventory_counts c WHERE company_id=? ORDER BY image').bind(z.company).all()).results};
@@ -1063,7 +1063,7 @@ it('Manufacturing-only initial physical Count binds evidence and posts independe
 // Source UPDATE below is an explicit deferred fault after the real owner
 // receipt, never a positive master/Stock fixture or normal lifecycle claim.
 it('Manufacturing initial Count keeps strict source and Stock authority then rolls back late product drift before an unchanged-key retry',async()=>{
- const s=await manufacturingInitialPhysicalFixture(),initial=await import('@erpx/server-inventory/public/manufacturing-initial-physical-stock-count'),selection={warehouseId:String(s.warehouse.id),productId:String(s.product.id),countDate:'2026-09-06'},workspace=await initial.manufacturingInitialPhysicalStockCountWorkspace(s.preparer,selection);
+ const s=await manufacturingInitialPhysicalFixture(),initial=await import('../../support/manufacturing/legacy-count/manufacturing-initial-physical-stock-count'),selection={warehouseId:String(s.warehouse.id),productId:String(s.product.id),countDate:'2026-09-06'},workspace=await initial.manufacturingInitialPhysicalStockCountWorkspace(s.preparer,selection);
  expect(workspace.canPrepare).toBe(true);if(typeof workspace.contextKey!=='string')throw Error('Actual selected initial Count context required');
  const envelope={expectedVersion:0 as const,contextKey:workspace.contextKey,input:s.inventory.countSchema.parse({warehouseId:selection.warehouseId,countDate:selection.countDate,reason:'Actual source-fenced current-period physical verification before first material stock',lines:[{productId:selection.productId,countedQuantity:'2',unitCost:'6'}]})};
  const tables=['commerce_products','commerce_warehouses','commerce_settings','commerce_stock','commerce_stock_moves','inventory_ledger','inventory_counts','inventory_count_lines','inventory_count_lot_lines','inventory_count_decisions','inventory_adjustment_moves','inventory_mfg_initial_physical_sources','inventory_lots','inventory_lot_balances','inventory_lot_moves','inventory_order_reservations','inventory_quality_holds','manufacturing_material_reservations','manufacturing_inventory_moves','finance_charts','finance_accounts','finance_periods','finance_journals','finance_journal_lines','finance_book_postings','finance_financial_events','money_transaction_snapshots','command_receipts','audit_events','outbox_events','command_assertions'];
@@ -1131,7 +1131,7 @@ it('1059 rejects an actual pre1059 orphan private marker and rolls back every ne
 },180000);
 
 it('1059 preserves actual named Count reciprocity against precise source and receipt mutations and retains exact original replay',async()=>{
- const s=await manufacturingInitialPhysicalFixture(),initial=await import('@erpx/server-inventory/public/manufacturing-initial-physical-stock-count'),selection={warehouseId:String(s.warehouse.id),productId:String(s.product.id),countDate:'2026-09-06'},view=await initial.manufacturingInitialPhysicalStockCountWorkspace(s.preparer,selection);expect(view.canPrepare).toBe(true);if(typeof view.contextKey!=='string')throw Error('Actual owner selected-source context required');
+ const s=await manufacturingInitialPhysicalFixture(),initial=await import('../../support/manufacturing/legacy-count/manufacturing-initial-physical-stock-count'),selection={warehouseId:String(s.warehouse.id),productId:String(s.product.id),countDate:'2026-09-06'},view=await initial.manufacturingInitialPhysicalStockCountWorkspace(s.preparer,selection);expect(view.canPrepare).toBe(true);if(typeof view.contextKey!=='string')throw Error('Actual owner selected-source context required');
  const command=key(),body={expectedVersion:0 as const,contextKey:view.contextKey,input:{warehouseId:selection.warehouseId,countDate:selection.countDate,reason:'Actual one-line physical count for reciprocal native-source boundary proof',lines:[{productId:selection.productId,countedQuantity:'2',unitCost:'6'}]}},created=await initial.prepareManufacturingInitialPhysicalStockCount(s.preparer,body,command),id=String(created.id),source=await db.prepare('SELECT count_command_id,manufacturing_setup_command_id FROM inventory_mfg_initial_physical_sources WHERE count_id=?').bind(id).first<{count_command_id:string;manufacturing_setup_command_id:string}>();if(!source)throw Error('Actual immutable source relation required');expect(source.count_command_id).toBe(command);const setupCommand=source.manufacturing_setup_command_id,orphanKey=key(),dualKey=key(),commands=[command,setupCommand,orphanKey,dualKey];
  const image=()=>Promise.all([
   db.prepare('SELECT to_jsonb(row)::text image FROM inventory_counts row WHERE id=?').bind(id).all().then(rows=>rows.results),
@@ -1185,7 +1185,7 @@ it('restores populated current1059 Manufacturing Count provenance into a fresh o
  }
  try{
   const role=(await admin.query('SELECT current_user name,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user')).rows[0];if(role?.name!=='erpx_test_admin'||role.rolsuper||!role.rolcreatedb||role.rolcreaterole)throw Error('UNSAFE_TEST_DATABASE_ROLE');
-  const s=await manufacturingInitialPhysicalFixture(),initial=await import('@erpx/server-inventory/public/manufacturing-initial-physical-stock-count'),selection={warehouseId:String(s.warehouse.id),productId:String(s.product.id),countDate:'2026-09-06'},view=await initial.manufacturingInitialPhysicalStockCountWorkspace(s.preparer,selection);if(typeof view.contextKey!=='string'||!view.readiness.schemaAvailable||!view.canPrepare)throw Error('Actual current1059 selected Count source required');
+  const s=await manufacturingInitialPhysicalFixture(),initial=await import('../../support/manufacturing/legacy-count/manufacturing-initial-physical-stock-count'),selection={warehouseId:String(s.warehouse.id),productId:String(s.product.id),countDate:'2026-09-06'},view=await initial.manufacturingInitialPhysicalStockCountWorkspace(s.preparer,selection);if(typeof view.contextKey!=='string'||!view.readiness.schemaAvailable||!view.canPrepare)throw Error('Actual current1059 selected Count source required');
   const command=key(),body={expectedVersion:0 as const,contextKey:view.contextKey,input:{warehouseId:selection.warehouseId,countDate:selection.countDate,reason:'Actual current-schema reciprocal source retained by native dump and independent fresh restore',lines:[{productId:selection.productId,countedQuantity:'2',unitCost:'6'}]}},count=await initial.prepareManufacturingInitialPhysicalStockCount(s.preparer,body,command),id=String(count.id);expect(count).toMatchObject({id:`count-${command}`,status:'draft',version:1});expect(await db.prepare('SELECT count(*)::int n FROM inventory_mfg_initial_physical_sources WHERE count_id=?').bind(id).first('n')).toBe(1);expect(await db.prepare("SELECT count(*)::int n FROM erpx_migrations WHERE name='1059_manufacturing_initial_physical_stock_count_source.sql'").first('n')).toBe(1);
   const retained=await image(db),cliEnv={...process.env,PGHOST:adminUrl.hostname,PGPORT:adminUrl.port,PGUSER:adminUrl.username,PGPASSWORD:decodeURIComponent(adminUrl.password),PGDATABASE:sourceIdentity.name};expect((await run(pgDump,['--version'],{env:cliEnv})).stdout).toContain('18.6');expect((await run(pgRestore,['--version'],{env:cliEnv})).stdout).toContain('18.6');await run(pgDump,['--format=custom','--no-owner','--file',archive],{env:cliEnv,timeout:120000});await chmod(archive,0o600);
   await admin.query(`CREATE DATABASE "${databaseName}" TEMPLATE template0`);created=true;const restoreUrl=new URL(adminUrl);restoreUrl.pathname=databaseName;restored=new PostgresDatabase({connectionString:restoreUrl.href,max:2});
@@ -1215,7 +1215,7 @@ it('restores populated current1059 Manufacturing Count provenance into a fresh o
 // Ignored one actual owner-lifecycle regression. No synthetic obligation
 // reader, status repair, receipt fixture, Stock liquidation or installed Apply.
 it('the Manufacturing Inventory owner retains its named Count draft while draining and settles the original cancellation without borrowing Supply',async()=>{
- const s=await manufacturingInitialPhysicalFixture(),initial=await import('@erpx/server-inventory/public/manufacturing-initial-physical-stock-count');
+ const s=await manufacturingInitialPhysicalFixture(),initial=await import('../../support/manufacturing/legacy-count/manufacturing-initial-physical-stock-count');
  const {withPackageSettlementSources}=await import('@erpx/server-commercial/public/package-settlement-sources'),{lockManufacturingPackageObligationSources}=await import('@erpx/server-manufacturing/public/package-obligations'),{lockManufacturingInventoryPackageObligationSources,manufacturingInventoryPackageObligations}=await import('@erpx/server-inventory/public/manufacturing-package-obligations'),{lockSupplyInventoryPackageObligationSources,supplyInventoryPackageObligations}=await import('@erpx/server-inventory/public/supply-package-obligations');
  const observe=async()=>{
   const manufacturing=await withPackageSettlementSources(db,s.z.company,[lock=>lockManufacturingPackageObligationSources(db,lock),lock=>lockManufacturingInventoryPackageObligationSources(db,lock)],transaction=>manufacturingInventoryPackageObligations(db,transaction,{companyId:s.z.company,packageId:'manufacturing',packageVersion:1,moduleId:'inventory',now:Date.now()}));
@@ -1286,7 +1286,7 @@ async function legacyConfiguredManufacturingCompany(){
 }
 
 it('retains the explicit Manufacturing confirmation requirement for an actual non-Manufacturing existing mapping',async()=>{
- const s=await legacyConfiguredManufacturingCompany(),setup=await import('@erpx/server-manufacturing/public/posting-setup'),initial=await import('@erpx/server-inventory/public/manufacturing-initial-physical-stock-count');
+ const s=await legacyConfiguredManufacturingCompany(),setup=await import('@erpx/server-manufacturing/public/posting-setup'),initial=await import('../../support/manufacturing/legacy-count/manufacturing-initial-physical-stock-count');
  const view=await setup.manufacturingPostingSetup(s.z.reviewer);expect(view).toMatchObject({available:true,configured:true,canConfigure:false,unsupportedExistingMapping:false});
  const command=key(),before=await s.image();await expect(setup.initializeManufacturingPostingSetup(s.z.reviewer,{...s.mappingBody,contextKey:view.contextKey,expectedSalesDefaults:view.expectedSalesDefaults},command)).rejects.toMatchObject({status:409,code:'COMMERCE_POSTING_ALREADY_CONFIGURED'});expect(await s.image()).toEqual(before);expect(await db.prepare('SELECT count(*)::int n FROM command_receipts WHERE command_id=?').bind(command).first('n')).toBe(0);
  // A legitimate existing mapping still needs its own explicit Manufacturing confirmation.
@@ -1295,7 +1295,7 @@ it('retains the explicit Manufacturing confirmation requirement for an actual no
 });
 
 it('confirms a real legacy mapping unchanged before normal Manufacturing-only initial Count and independent variance posting',async()=>{
- const s=await legacyConfiguredManufacturingCompany(),setup=await import('@erpx/server-manufacturing/public/posting-setup'),existing=await import('@erpx/server-commerce/public/manufacturing-existing-posting-setup'),initial=await import('@erpx/server-inventory/public/manufacturing-initial-physical-stock-count'),inventory=await import('@erpx/server-inventory/public/inventory-counts');
+ const s=await legacyConfiguredManufacturingCompany(),setup=await import('@erpx/server-manufacturing/public/posting-setup'),existing=await import('@erpx/server-commerce/public/manufacturing-existing-posting-setup'),initial=await import('../../support/manufacturing/legacy-count/manufacturing-initial-physical-stock-count'),inventory=await import('../../support/manufacturing/legacy-count/inventory-counts');
  const oldView=await setup.manufacturingPostingSetup(s.z.reviewer);expect(oldView).toMatchObject({configured:true,canConfigure:false,unsupportedExistingMapping:false});
  const originalGuardKey=key(),beforeGuard=await s.image();await expect(setup.initializeManufacturingPostingSetup(s.z.reviewer,{...s.mappingBody,contextKey:oldView.contextKey,expectedSalesDefaults:oldView.expectedSalesDefaults},originalGuardKey)).rejects.toMatchObject({status:409,code:'COMMERCE_POSTING_ALREADY_CONFIGURED'});expect(await s.image()).toEqual(beforeGuard);expect(await db.prepare('SELECT count(*)::int n FROM command_receipts WHERE command_id=?').bind(originalGuardKey).first('n')).toBe(0);
  expect(await initial.manufacturingInitialPhysicalStockCountWorkspace(s.z.owner,s.selected)).toMatchObject({available:true,canPrepare:false,readiness:{postingConfigured:false}});
@@ -1349,7 +1349,7 @@ async function populatedLegacyConfiguredManufacturingCompany(){
  expect(await db.prepare("SELECT count(*)::int n FROM command_receipts WHERE record_id=? AND operation='commerce.manufacturing-posting-setup.initialize'").bind(z.company).first('n')).toBe(0);
  // Original Supply Count owns this genuine positive physical variance. It is
  // neither a new Manufacturing private source nor acquisition/opening equity.
- const inventory=await import('@erpx/server-inventory/public/inventory-counts'),{resolveFlow,assignFlowPrimary}=await import('@erpx/server-workflow/public/flow-routing');
+ const inventory=await import('../../support/manufacturing/legacy-count/inventory-counts'),{resolveFlow,assignFlowPrimary}=await import('@erpx/server-workflow/public/flow-routing');
  const supplyCountKey=key(),countInput=inventory.countSchema.parse({warehouseId:String(warehouse.id),countDate:'2026-09-06',reason:'Original independently verified two physical units at six THB as current-period variance',lines:[{productId:String(product.id),countedQuantity:'2',unitCost:'6'}]}),supplyCount=await inventory.saveCount(z.owner,null,countInput,supplyCountKey),supplyCountId=String(supplyCount.id);
  const sheet=await seedAttachmentSet(db,z.owner,{targetType:'stock_count',targetId:supplyCountId,componentKind:'action',componentRef:'submit',purposeKey:'count_sheet',expectedTargetVersion:1});await inventory.transitionCount(z.owner,supplyCountId,'submit',{expectedVersion:1,attachmentSetIds:[sheet.setId]},key());
  for(const [step,recordVersion] of [['submitted',2],['approved',3]] as const){const flow=await resolveFlow(db,z.owner,'stock_count',supplyCountId);await assignFlowPrimary(db,z.owner,'stock_count',supplyCountId,{stepKey:step,userId:z.manager.userId,expectedVersion:flow.version,recordVersion,reason:'Original Company authority selects the different actual Stock approver',saveDefault:false},key());if(step==='submitted')await inventory.transitionCount(z.manager,supplyCountId,'approve',{expectedVersion:2,attachmentSetIds:[],reason:'Independent original review of the real physical quantity and unit cost'},key());}
@@ -1410,7 +1410,7 @@ async function populatedLegacyConfiguredManufacturingCompany(){
 }
 
 it('confirms a populated legacy Manufacturing ledger without changing prior Count, production, released Stock or financial captures',async()=>{
- const s=await populatedLegacyConfiguredManufacturingCompany(),setup=await import('@erpx/server-manufacturing/public/posting-setup'),existing=await import('@erpx/server-commerce/public/manufacturing-existing-posting-setup'),initial=await import('@erpx/server-inventory/public/manufacturing-initial-physical-stock-count'),inventory=await import('@erpx/server-inventory/public/inventory-counts');
+ const s=await populatedLegacyConfiguredManufacturingCompany(),setup=await import('@erpx/server-manufacturing/public/posting-setup'),existing=await import('@erpx/server-commerce/public/manufacturing-existing-posting-setup'),initial=await import('../../support/manufacturing/legacy-count/manufacturing-initial-physical-stock-count'),inventory=await import('../../support/manufacturing/legacy-count/inventory-counts');
  const oldView=await setup.manufacturingPostingSetup(s.z.reviewer);expect(oldView).toMatchObject({configured:true,canConfigure:false,unsupportedExistingMapping:false});
  const originalGuardKey=key(),beforeGuard=await s.image();await expect(setup.initializeManufacturingPostingSetup(s.z.reviewer,{...s.mappingBody,contextKey:oldView.contextKey,expectedSalesDefaults:oldView.expectedSalesDefaults},originalGuardKey)).rejects.toMatchObject({status:409,code:'COMMERCE_POSTING_ALREADY_CONFIGURED'});expect(await s.image()).toEqual(beforeGuard);expect(await db.prepare('SELECT count(*)::int n FROM command_receipts WHERE command_id=?').bind(originalGuardKey).first('n')).toBe(0);
  expect(await initial.manufacturingInitialPhysicalStockCountWorkspace(s.z.owner,s.selected)).toMatchObject({available:true,canPrepare:false,readiness:{postingConfigured:false}});
