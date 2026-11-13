@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1445,
+    "revision": 1446,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -31483,15 +31483,8 @@
         "resources": [
           "owner:customer_authority-merge"
         ],
-        "status": "integrating",
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T01:58:25.386Z",
-          "heartbeatAt": "2026-11-13T01:58:25.386Z",
-          "expiresAt": "2026-11-13T02:28:25.386Z",
-          "generation": 50
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e",
         "lastPushedSha": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e",
@@ -31544,15 +31537,56 @@
             "sourceSha": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e"
           },
           {
-            "command": "bunx tsc -p packages/server-people_payroll/tsconfig.json --noEmit",
-            "result": "failed",
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
             "sourceSha": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e",
-            "note": "Pre-existing peer UI style break: packages/ui/src/components/dialog.tsx cannot resolve @erpx/ui/components/dialog.css (orphaned globals.css/workspace-style batch). Not this slice; commerce/ecommerce tsc pass."
+            "before": 2374,
+            "after": 2371,
+            "note": "Global KPI moved by exactly the three deleted orphan merge writers."
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-people_payroll/src/adapters/customer-authority-merge.ts",
+            "result": "passed",
+            "sourceSha": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e",
+            "before": 1,
+            "after": 0,
+            "note": "finance_expenses merge writer deleted with its barrel/exports; no importer."
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-commerce/src/adapters/customer-authority-merge.ts",
+            "result": "passed",
+            "sourceSha": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e",
+            "before": 1,
+            "after": 0,
+            "note": "commerce_orders merge writer deleted with its barrel/exports; no importer."
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-ecommerce/src/adapters/customer-authority-merge.ts",
+            "result": "passed",
+            "sourceSha": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e",
+            "before": 1,
+            "after": 0,
+            "note": "ecommerce_carts merge writer deleted with its barrel/exports; no importer."
+          },
+          {
+            "command": "bunx tsc -p packages/server-commerce/tsconfig.json --noEmit && bunx tsc -p packages/server-ecommerce/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e"
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "0a3f27b84093b6f771016f68dc80f8a2c7b2123e"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Integrating.",
+        "nextAction": "All three orphan merge writers are deleted; customer merge is owned by the customer-authority Rust owner. Global KPI 2374 -> 2371. people_payroll tsc red only on the pre-existing peer @erpx/ui dialog.css style break.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -31565,20 +31599,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 154,
-      "migratedPackets": 84,
+      "migratedPackets": 85,
       "statusCounts": {
         "pending": 21,
         "in_progress": 4,
         "ready_for_integration": 10,
-        "integrating": 1,
-        "migrated": 84,
+        "integrating": 0,
+        "migrated": 85,
         "blocked": 34,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:59:07.410Z",
+    "updatedAt": "2026-11-13T01:59:29.543Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
