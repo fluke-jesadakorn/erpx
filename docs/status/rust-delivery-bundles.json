@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1929,
+    "revision": 1933,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-s",
       "agentId": "lead",
       "startedAt": "2026-11-13T18:23:29.035Z",
-      "heartbeatAt": "2026-11-13T18:24:13.928Z",
-      "expiresAt": "2026-11-13T18:54:13.928Z",
+      "heartbeatAt": "2026-11-13T18:26:44.224Z",
+      "expiresAt": "2026-11-13T18:56:44.224Z",
       "generation": 63,
       "tokenHash": "3479e142b09480adda880d5209347ff6c3b50cc562def46caa019fa2555ebe47"
     },
@@ -22648,18 +22648,11 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-s",
-          "agentId": "worker-pms-residual",
-          "claimedAt": "2026-11-13T18:23:29.229Z",
-          "heartbeatAt": "2026-11-13T18:24:13.928Z",
-          "expiresAt": "2026-11-13T18:54:13.928Z",
-          "generation": 63
-        },
+        "status": "ready_for_integration",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
-        "lastPushedSha": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
+        "implementedCommit": "e2b6f09c1f5ea648e623af7aef9111ede2aed3df",
+        "lastPushedSha": "e2b6f09c1f5ea648e623af7aef9111ede2aed3df",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-pms/src/**/*.ts'",
@@ -22718,6 +22711,34 @@
             "sourceSha": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
             "sourceKind": "committed",
             "note": "Repository layout passed."
+          },
+          {
+            "command": "cargo check -p erpx-server-pms --offline",
+            "result": "passed",
+            "sourceSha": "e2b6f09c1f5ea648e623af7aef9111ede2aed3df",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --offline",
+            "result": "passed",
+            "sourceSha": "e2b6f09c1f5ea648e623af7aef9111ede2aed3df",
+            "sourceKind": "committed",
+            "note": "22 binaries, 0 failed; 13 new refund behaviour tests."
+          },
+          {
+            "command": "cargo clippy -p erpx-server-pms --offline --lib",
+            "result": "passed",
+            "sourceSha": "e2b6f09c1f5ea648e623af7aef9111ede2aed3df",
+            "sourceKind": "committed",
+            "note": "No warnings in new files."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "e2b6f09c1f5ea648e623af7aef9111ede2aed3df",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
           }
         ],
         "retainedLegacy": [
@@ -22728,15 +22749,15 @@
             "removalCondition": "Mount drain_booking_mail_turn in pmsWork and the mail/link queue in the public booking route with the three composition ports (mail provider, cipher, purchase guard), then delete deliverBookingEmails and the token/email/limit unit members plus the ./adapters/pms-booking barrel export."
           }
         ],
-        "blocker": null,
-        "nextAction": "Native booking mail/token/rate-limit producer is committed (210 tests pass). Lead: implement the three composition ports (PmsBookingMailProvider, PmsBookingMailCipher, PmsBookingPurchaseGuard), call drain_booking_mail_turn from pmsWork and the public booking route, then delete the 9 covered pms-booking.ts writers (PMS 109 -> 100). The remaining 100 residual is blocked on the native quote/payment/change/refund engine.",
+        "blocker": "released with work preserved",
+        "nextAction": "Native booking-refund producer committed (PMS 109 unchanged). Lead: mount the refund route + native Finance effect port (journal postings/refund documents), switch the finance/booking/pos/jobs consumers, then delete pms-booking-refunds.ts (16) and the mail producer writers (9): PMS 109 -> 84.",
         "handoff": {
-          "runId": "run-20261113-r",
+          "runId": "run-20261113-s",
           "agentId": "worker-pms-residual",
-          "at": "2026-11-13T18:23:29.034Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Lease expired during five-worker closure batch; same lead resumes; WIP reviewed",
-          "nextAction": "Native booking mail/token/rate-limit producer is committed (210 tests pass). Lead: implement the three composition ports (PmsBookingMailProvider, PmsBookingMailCipher, PmsBookingPurchaseGuard), call drain_booking_mail_turn from pmsWork and the public booking route, then delete the 9 covered pms-booking.ts writers (PMS 109 -> 100). The remaining 100 residual is blocked on the native quote/payment/change/refund engine."
+          "at": "2026-11-13T18:26:08.896Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native booking-refund producer committed (PMS 109 unchanged). Lead: mount the refund route + native Finance effect port (journal postings/refund documents), switch the finance/booking/pos/jobs consumers, then delete pms-booking-refunds.ts (16) and the mail producer writers (9): PMS 109 -> 84."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -38521,6 +38542,50 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.pms.refunds",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "pms",
+        "workflowIds": [],
+        "workstream": "S14",
+        "kind": "migration",
+        "title": "Mount PMS refunds and the Finance effect port",
+        "scope": "Mount the native PMS refund route/provider ports and the native Finance effect port (journal postings + refund documents), wire the booking mail kind, switch finance/booking/pos/jobs consumers, then delete pms-booking-refunds.ts (16) and the mail producer writers (9): PMS 109 -> 84.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-pms/src/**",
+          "packages/feature-pms/**",
+          "packages/feature-booking/**",
+          "packages/server-pos/src/**",
+          "packages/server-runtime/src/**",
+          "packages/server-finance/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/refunds/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:pms",
+          "owner:finance",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Mount the native refund route with PmsRefundProvider/PurchaseGuard/Mail ports and the native Finance effect port (journal postings + refund documents), point the booking mail kind at the native queue, switch the finance/booking/pos/jobs consumers, then delete pms-booking-refunds.ts and the mail producer writers and record PMS 109 -> 84.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -38529,12 +38594,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 205,
+      "totalPackets": 206,
       "migratedPackets": 122,
       "statusCounts": {
-        "pending": 23,
-        "in_progress": 1,
-        "ready_for_integration": 22,
+        "pending": 24,
+        "in_progress": 0,
+        "ready_for_integration": 23,
         "integrating": 0,
         "migrated": 122,
         "blocked": 37,
@@ -38543,7 +38608,7 @@
       }
     },
     "lastCoordinatorGeneration": 63,
-    "updatedAt": "2026-11-13T18:24:13.929Z",
+    "updatedAt": "2026-11-13T18:26:44.260Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
