@@ -153,5 +153,8 @@ pub(crate) mod people_access_http;
 pub(crate) mod people_grants_postgres;
 pub(crate) mod people_grants_http;
 
+pub(crate) mod directory_operation_http;
+pub(crate) mod directory_operation_postgres;
+
 pub(crate) mod user_management_postgres;
 pub mod user_management_http;

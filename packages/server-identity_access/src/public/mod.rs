@@ -135,3 +135,5 @@ pub mod people_grants;
 pub mod people_grants_http;
 
 pub mod user_management;
+
+pub mod directory_operation;

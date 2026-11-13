@@ -105,13 +105,15 @@ function holdingFor(
   configuration: Configuration,
 ): Holding {
   const origin = headers.get('origin');
-  if (!origin) throw unavailable();
-  let host: string;
-  try {
-    host = new URL(origin).host;
-  } catch {
-    throw unavailable();
+  let host = headers.get('host')?.split(':')[0];
+  if (!host && origin) {
+    try {
+      host = new URL(origin).host.split(':')[0];
+    } catch {
+      throw unavailable();
+    }
   }
+  if (!host) throw unavailable();
   const holding = configuration.holdings.get(host);
   if (!holding || holding.holdingSlug !== holdingSlug) throw unavailable();
   return holding;
@@ -192,6 +194,14 @@ async function request(
   const config = configuration();
   const holding = holdingFor(source, holdingSlug, config);
   return requestHolding(source, holding, path, method, body, key);
+}
+
+/** Read the management workspace for a selected Holding identity. */
+export function nativeUserManagementReadForHolding(
+  headers: Headers,
+  holdingId: string,
+): Promise<unknown> {
+  return requestHolding(headers, holdingById(holdingId, configuration()), '', 'GET');
 }
 
 /** Server-side transport by the selected Holding identity (no browser slug). */

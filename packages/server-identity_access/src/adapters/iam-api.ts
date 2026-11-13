@@ -5,7 +5,6 @@ const manageerpxSources=manageerpxSnapshotSources();
 const organizationSources=organizationSnapshotSources();
 import { applyProvisioningReview } from "@erpx/server-identity_access/public/technology";
 import { applyLifecycleReview } from "@erpx/server-people_payroll/public/people-lifecycle";
-import { applyDirectoryOperationReview } from "@erpx/server-identity_access/public/directory-operations";
 import { inspectIamAccess, inspectorInput } from "@erpx/server-identity_access/public/iam-inspector";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { nativeUserManagementAvailable, nativeUserManagementDecideReview, nativeUserManagementPreview, nativeUserManagementSave } from "@erpx/server-identity_access/public/native-user-management";
@@ -552,6 +551,8 @@ export async function iamApi(
     else if (path[0] === "reviews" && path[1] && holdingSlug && nativeUserManagementAvailable() && await db.prepare("SELECT 1 FROM iam_reviews WHERE id=? AND company_id=? AND kind='policy.grant'").bind(path[1], actor.companyId).first())
       result = await nativeUserManagementDecideReview(request.headers, holdingSlug, path[1], reviewInput.parse(input), key);
     else if (path[0] === "reviews" && path[1])
+      {
+      let directoryOperation: Record<string, unknown> | undefined;
       result = await decideIamReview(
         db,
         actor,
@@ -560,7 +561,7 @@ export async function iamApi(
         key,
         async (c, kind, p) => {
           if (!actor.platform && kind === "people.provision.grant") return applyProvisioningReview(c,actor,p);
-          if (!actor.platform && kind === "directory.operation") return applyDirectoryOperationReview(c, actor, p);
+          if (!actor.platform && kind === "directory.operation") { directoryOperation = p as Record<string, unknown>; return; }
           if (!actor.platform && kind.startsWith("people.lifecycle.")) return applyLifecycleReview(c, actor, kind, p);
           if (kind === "identity.restore") {
             if (
@@ -636,11 +637,28 @@ export async function iamApi(
         },
         async (c, kind, p) => {
           if (!actor.platform && kind === "people.provision.grant") return applyProvisioningReview(c,actor,p,"reject");
-          if (!actor.platform && kind === "directory.operation") return applyDirectoryOperationReview(c, actor, p, "reject");
+          if (!actor.platform && kind === "directory.operation") { directoryOperation = p as Record<string, unknown>; return; }
           if (!actor.platform && kind.startsWith("people.lifecycle."))
             await applyLifecycleReview(c, actor, kind, p, "reject");
         },
       );
+      if (directoryOperation && holdingSlug) {
+        // The review decision committed above. Queue the reviewed Directory
+        // operation natively; a transport failure leaves it recoverable by the
+        // native worker, which sweeps approved pending reviews.
+        const { nativeDirectoryOperationsAvailable, nativeDirectoryOperationsReview } = await import("@erpx/server-identity_access/adapters/native-directory-operations");
+        const parsed = reviewInput.parse(input);
+        if (nativeDirectoryOperationsAvailable())
+          try {
+            await nativeDirectoryOperationsReview(
+              request.headers,
+              holdingSlug,
+              { ...directoryOperation, decision: parsed.decision },
+              key + ":directory",
+            );
+          } catch {}
+      }
+      }
     else if (path[0] === "users" && path[2] === "sessions") {
       const userId = path[1];
       result = await iamCommand(

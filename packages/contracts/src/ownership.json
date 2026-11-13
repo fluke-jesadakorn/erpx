@@ -385,7 +385,10 @@
             "packages/server-identity_access/src/application/directory-operations.ts",
             "packages/server-identity_access/src/adapters/iam-providers.ts",
             "packages/server-identity_access/src/adapters/directory-provider.ts",
-            "packages/server-identity_access/src/adapters/directory-operations.ts"
+            "packages/server-identity_access/src/domain/directory_operation.rs",
+            "packages/server-identity_access/src/adapters/directory_operation_postgres.rs",
+            "packages/server-identity_access/src/adapters/directory_operation_http.rs",
+            "packages/server-identity_access/src/public/directory_operation.rs"
           ],
           "regression": [
             "tests/unit/identity_access/identity-directory-services.test.ts",
@@ -472,7 +475,6 @@
             "packages/server-identity_access/src/adapters/company-acceptance-projection.ts",
             "packages/server-identity_access/src/adapters/directory-field-mapping.ts",
             "packages/server-identity_access/src/adapters/directory-operations-api.ts",
-            "packages/server-identity_access/src/adapters/directory-operations.ts",
             "packages/server-identity_access/src/adapters/directory-projection-facts.ts",
             "packages/server-identity_access/src/adapters/directory-provider.ts",
             "packages/server-identity_access/src/adapters/executive-authority-source.ts",

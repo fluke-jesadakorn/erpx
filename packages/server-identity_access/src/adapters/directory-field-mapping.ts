@@ -8,7 +8,7 @@ import {iamDb} from '@erpx/server-identity_access/adapters/iam-db';
 import {iamCommand} from '@erpx/server-identity_access/adapters/iam-transactions';
 import {requirePermission} from '@erpx/server-identity_access/adapters/iam-permissions';
 import {nativeUserManagementAvailable,nativeUserManagementPreviewForHolding,nativeUserManagementSaveForHolding} from '@erpx/server-identity_access/adapters/native-user-management';
-import {previewDirectoryChange,submitDirectoryChange} from '@erpx/server-identity_access/adapters/directory-operations';
+import {nativeDirectoryOperationsAvailable,nativeDirectoryOperationsPreviewForHolding,nativeDirectoryOperationsSubmitForHolding} from '@erpx/server-identity_access/adapters/native-directory-operations';
 import {directoryMappingPerson} from '@erpx/server-people_payroll/public/directory-mapping-person';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {BusinessRuleError} from '@erpx/server-shared/index';
@@ -24,7 +24,7 @@ let testValuesTransport:MappingValuesTransport|undefined;
 /** Test seam for the directory mapping oracle; production always uses the native transport. */
 export function setManagementValuesTransportForTest(value?:MappingValuesTransport){testValuesTransport=value;}
 
-export async function mappedFields(db:PostgresDatabase,actor:IamActor,input:FieldSyncInput,key:string,previewOnly:boolean,headers?:Headers){const database=iamDb(db),app=createDirectoryFieldMappingApplication<Awaited<ReturnType<typeof nativeUserManagementPreviewForHolding>>|Awaited<ReturnType<typeof submitDirectoryChange>>>({companyScope:assertCompanyScope,authorize:requirePermission,hash:value=>createHash('sha256').update(JSON.stringify(value)).digest('hex'),readSnapshot:async run=>{const client=await database.pool.connect();try{await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');return await run(facts(client));}finally{await client.query('ROLLBACK');client.release();}},authorizeCommand:(actor,key,input,run)=>iamCommand(database,actor,key,'directory.mapping.authorize',input,'iam.directory.manage',client=>run(facts(client))),previewValues:(actor,change,key)=>{
+export async function mappedFields(db:PostgresDatabase,actor:IamActor,input:FieldSyncInput,key:string,previewOnly:boolean,headers?:Headers){const database=iamDb(db),app=createDirectoryFieldMappingApplication<Awaited<ReturnType<typeof nativeUserManagementPreviewForHolding>>|Awaited<ReturnType<typeof nativeDirectoryOperationsSubmitForHolding>>>({companyScope:assertCompanyScope,authorize:requirePermission,hash:value=>createHash('sha256').update(JSON.stringify(value)).digest('hex'),readSnapshot:async run=>{const client=await database.pool.connect();try{await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');return await run(facts(client));}finally{await client.query('ROLLBACK');client.release();}},authorizeCommand:(actor,key,input,run)=>iamCommand(database,actor,key,'directory.mapping.authorize',input,'iam.directory.manage',client=>run(facts(client))),previewValues:(actor,change,key)=>{
       if(testValuesTransport)return testValuesTransport.preview(actor,change,key);
       if(!headers||!nativeUserManagementAvailable())throw new ApiError(503,'NATIVE_USER_MANAGEMENT_REQUIRED','Directory field mapping requires the native user-management service.');
       if(!actor.holdingId)throw new ApiError(503,'NATIVE_USER_MANAGEMENT_REQUIRED','Directory field mapping requires a Holding context.');
@@ -34,4 +34,10 @@ export async function mappedFields(db:PostgresDatabase,actor:IamActor,input:Fiel
       if(!headers||!nativeUserManagementAvailable())throw new ApiError(503,'NATIVE_USER_MANAGEMENT_REQUIRED','Directory field mapping requires the native user-management service.');
       if(!actor.holdingId)throw new ApiError(503,'NATIVE_USER_MANAGEMENT_REQUIRED','Directory field mapping requires a Holding context.');
       return nativeUserManagementSaveForHolding(headers,actor.holdingId,change,token,key);
-    },previewDirectory:(actor,change)=>previewDirectoryChange(database,actor,change),submitDirectory:(actor,change,token,key)=>submitDirectoryChange(database,actor,change,token,key)});try{return await app.mappedFields(actor,input,key,previewOnly);}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
+    },previewDirectory:(actor,change)=>{
+      if(!headers||!nativeDirectoryOperationsAvailable()||!actor.holdingId)throw new ApiError(503,'NATIVE_DIRECTORY_OPERATION_REQUIRED','Directory field mapping requires the native command service.');
+      return nativeDirectoryOperationsPreviewForHolding(headers,actor.holdingId,change) as Promise<{token:string}>;
+    },submitDirectory:(actor,change,token,key)=>{
+      if(!headers||!nativeDirectoryOperationsAvailable()||!actor.holdingId)throw new ApiError(503,'NATIVE_DIRECTORY_OPERATION_REQUIRED','Directory field mapping requires the native command service.');
+      return nativeDirectoryOperationsSubmitForHolding(headers,actor.holdingId,{...change,previewToken:token},key);
+    }});try{return await app.mappedFields(actor,input,key,previewOnly);}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}

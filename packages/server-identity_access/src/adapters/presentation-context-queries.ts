@@ -6,7 +6,7 @@ import { peopleAccessSnapshot, peopleRelationshipsSnapshot } from "@erpx/server-
 import { iamContext } from "@erpx/server-identity_access/public/iam-context";
 import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
 import { peopleLifecycleData } from "@erpx/server-people_payroll/public/people-lifecycle";
-import { directoryAutomationData } from "@erpx/server-identity_access/public/directory-operations";
+import { nativeDirectoryOperationsAvailable, nativeDirectoryOperationsRead } from "@erpx/server-identity_access/adapters/native-directory-operations";
 import { technologyData } from "@erpx/server-identity_access/public/technology";
 import { gpoRulesOverview } from "@erpx/server-identity_access/public/gpo-rules";
 import { peopleAccessData } from "@erpx/server-people_payroll/public/people-access";
@@ -90,7 +90,11 @@ export async function iamPresentationQueries(holdingSlug: string | null) {
     peopleAccessSnapshot: (...args: ReadArguments<typeof peopleAccessSnapshot>) => peopleAccessSnapshot(db, ...args),
     organizationAccessData: (...args: ReadArguments<typeof organizationAccessData>) => organizationAccessData(db, ...args),
     peopleLifecycleData: (...args: ReadArguments<typeof peopleLifecycleData>) => peopleLifecycleData(db, ...args),
-    directoryAutomationData: (...args: ReadArguments<typeof directoryAutomationData>) => directoryAutomationData(db, ...args),
+    directoryAutomationData: async (actor: IamActor) => {
+      if (!nativeDirectoryOperationsAvailable() || !holdingSlug)
+        throw new ApiError(503, "NATIVE_DIRECTORY_OPERATION_REQUIRED", "Directory automation requires the native command service.");
+      return nativeDirectoryOperationsRead(await headers(), holdingSlug);
+    },
     technologyData: (...args: ReadArguments<typeof technologyData>) => technologyData(db, ...args),
     gpoRulesOverview: (...args: ReadArguments<typeof gpoRulesOverview>) => gpoRulesOverview(db, ...args),
     peopleAccessData: (...args: ReadArguments<typeof peopleAccessData>) => peopleAccessData(db, ...args),

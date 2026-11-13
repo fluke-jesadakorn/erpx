@@ -15,7 +15,6 @@
     "./adapters/system-evidence-targets": "./src/adapters/system-evidence-targets.ts",
     "./adapters/people-access-facts": "./src/adapters/people-access-facts.ts",
     "./adapters/iam-service": "./src/adapters/iam-service.ts",
-    "./adapters/directory-operations": "./src/adapters/directory-operations.ts",
     "./adapters/iam-api": "./src/adapters/iam-api.ts",
     "./adapters/collaboration-social-authorization": "./src/adapters/collaboration-social-authorization.ts",
     "./adapters/public-surface-entry": "./src/adapters/public-surface-entry.ts",
@@ -452,7 +451,10 @@
     "./adapters/native-directory-connection": "./src/adapters/native-directory-connection.ts",
     "./public/native-directory-connection": "./src/public/native-directory-connection.ts",
     "./adapters/directory-mapping": "./src/adapters/directory-mapping.ts",
-    "./public/directory-mapping": "./src/public/directory-mapping.ts"
+    "./public/directory-mapping": "./src/public/directory-mapping.ts",
+    "./adapters/native-directory-operations": "./src/adapters/native-directory-operations.ts",
+    "./adapters/directory-operation-preview": "./src/adapters/directory-operation-preview.ts",
+    "./domain/directory-operation": "./src/domain/directory-operation.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
