@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1494,
+    "revision": 1502,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -31432,7 +31432,9 @@
           "packages/server-crm/src/**",
           "packages/server-crm/Cargo.toml",
           "packages/server-crm/package.json",
-          "packages/feature-crm/**",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/crm/**",
+          "packages/feature-sales/src/public/native-crm-command.ts",
+          "src/composition/src/**",
           "tests/unit/crm/**",
           "tests/integration/crm/**"
         ],
@@ -31478,14 +31480,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Lead: cut the feature-sales CRM route to native for covered actions, add native identity guest-link/sharing writers, then retire the remaining 29 CRM writes; regenerate UI coverage and style sources.",
+        "nextAction": "Mount the native CRM activity command router in composition, switch the feature-sales activities route native-only, delete the TS activity writers and exports, move the activity oracle to native seeding, and record the KPI pair.",
         "handoff": {
-          "runId": "run-20261113-f",
-          "agentId": "worker-crm-retire",
-          "at": "2026-11-13T01:19:19.442Z",
+          "runId": "run-20261113-g",
+          "agentId": "worker-crm-activities",
+          "at": "2026-11-13T03:07:23.579Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Lead: cut the feature-sales CRM route to native for covered actions, add native identity guest-link/sharing writers, then retire the remaining 29 CRM writes; regenerate UI coverage and style sources."
+          "nextAction": "Scope extension for the CRM activities native cutover."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -32120,22 +32122,82 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "worker-ca-portal-support",
-          "claimedAt": "2026-11-13T02:53:05.203Z",
-          "heartbeatAt": "2026-11-13T02:55:29.499Z",
-          "expiresAt": "2026-11-13T03:25:29.499Z",
-          "generation": 51
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "9b8421e8f4e452e770c93474b085333012359e09",
+        "lastPushedSha": "9b8421e8f4e452e770c93474b085333012359e09",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-customer_authority/src",
+            "result": "passed",
+            "before": 12,
+            "after": 10,
+            "sourceSha": "9b8421e8f4e452e770c93474b085333012359e09",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-support.ts",
+                "writes": 4,
+                "removalTaskId": "retire.customer_authority.portal-support-acknowledge",
+                "removalCondition": "Native portal-product-session acknowledge ingress + consumer switch, then delete the ack and purchase-boundary writes."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-access.ts",
+                "writes": 3,
+                "removalTaskId": "retire.customer_authority.portal-access",
+                "removalCondition": "Move the whole Customer 360 portal command transaction (projection read-audit + attachment evidence) native."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.customer_authority.purchase-boundary",
+                "removalCondition": "Native purchase guard owns the assertion cleanup."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.customer_authority.purchase-boundary",
+                "removalCondition": "Remove the unused TS command boundary once native owners own it."
+              }
+            ],
+            "note": "Staff respond/close retired native; acknowledge remains under its own task."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-authority",
+            "result": "passed",
+            "sourceSha": "9b8421e8f4e452e770c93474b085333012359e09",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business",
+            "result": "passed",
+            "sourceSha": "9b8421e8f4e452e770c93474b085333012359e09",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "9b8421e8f4e452e770c93474b085333012359e09",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "9b8421e8f4e452e770c93474b085333012359e09",
+            "sourceKind": "committed",
+            "note": "1222 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "9b8421e8f4e452e770c93474b085333012359e09",
+            "sourceKind": "committed"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement native portal-support (staff respond/close with commerce.approve + sales.portal; customer acknowledge via verified portal-product session with post-effect re-proof; native threads read), mount with fail-closed config, switch server-customer_360/feature-sales consumers, delete portal-support.ts + barrel, migrate the oracles, record customer_authority KPI 12->6.",
+        "nextAction": "Closed staff slice. Residual 10: acknowledge 4, portal-access 3, purchase-boundary 3.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -32185,6 +32247,55 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.records",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "records",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the residual Records TypeScript writers",
+        "scope": "Classify the retained Records owner write statements against packages/server-records/src/**/*.rs and retire every writer whose native command owns the table and whose TS caller is native-only or dead. Delete members, interface declarations and barrels; move oracles to native seeding; record the owner KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-records/src/**",
+          "packages/server-records/Cargo.toml",
+          "packages/server-records/package.json",
+          "packages/feature-records/**",
+          "tests/unit/records/**",
+          "tests/integration/records/**"
+        ],
+        "resources": [
+          "owner:records"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-records-retire",
+          "claimedAt": "2026-11-13T03:07:42.694Z",
+          "heartbeatAt": "2026-11-13T03:07:42.694Z",
+          "expiresAt": "2026-11-13T03:37:42.694Z",
+          "generation": 51
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Zero-caller/native-only analysis for Records adapters; delete the safe set and record the KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -32193,21 +32304,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 156,
-      "migratedPackets": 87,
+      "totalPackets": 157,
+      "migratedPackets": 88,
       "statusCounts": {
         "pending": 20,
         "in_progress": 5,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 87,
+        "migrated": 88,
         "blocked": 35,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:07:10.261Z",
+    "updatedAt": "2026-11-13T03:10:22.935Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
