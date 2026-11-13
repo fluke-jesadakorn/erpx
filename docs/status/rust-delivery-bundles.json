@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1570,
+    "revision": 1583,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T05:09:15.854Z",
-      "expiresAt": "2026-11-13T05:39:15.854Z",
+      "heartbeatAt": "2026-11-13T05:17:11.748Z",
+      "expiresAt": "2026-11-13T05:47:11.748Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -21635,7 +21635,7 @@
           "packages/server-finance/Cargo.toml",
           "packages/server-finance/package.json",
           "packages/feature-finance/**",
-          "fixtures/**",
+          "fixtures/finance/**",
           "tests/unit/finance/**",
           "tests/integration/finance/**"
         ],
@@ -21643,20 +21643,27 @@
           "owner:finance"
         ],
         "status": "in_progress",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-finance",
+          "claimedAt": "2026-11-13T05:16:06.136Z",
+          "heartbeatAt": "2026-11-13T05:17:11.748Z",
+          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Worker retiring the first finance writer batch (AI/due-drafts, supplier payments, tax/consolidation/accruals, instruments/asset-policies/refunds) with native-authority proof per file; KPI 382 baseline, residual must be re-classified to the new after value.",
+        "nextAction": "Step-0 audit each finance TS writer against packages/server-finance/src/**/*.rs. Retire only files with a complete native counterpart and no live TS caller: delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair. Report any file without a native counterpart as blocked with the missing producer; start with finance-ai.ts, supplier-payment-repository.ts, finance-tax-register.ts, finance-consolidation.ts, finance-accruals.ts, finance-instruments.ts, finance-asset-policies.ts and refunds.ts.",
         "handoff": {
-          "runId": "run-20261112-o",
-          "agentId": "worker-finance",
-          "at": "2026-11-12T11:24:35.752Z",
+          "runId": "run-20261113-i",
+          "agentId": "lead",
+          "at": "2026-11-13T05:15:50.703Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired after organization position-move retirement; WIP reviewed",
+          "reason": "released with work preserved",
           "nextAction": "Worker retiring the first finance writer batch (AI/due-drafts, supplier payments, tax/consolidation/accruals, instruments/asset-policies/refunds) with native-authority proof per file; KPI 382 baseline, residual must be re-classified to the new after value."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -21685,22 +21692,29 @@
           "packages/server-identity_access/Cargo.toml",
           "packages/server-identity_access/package.json",
           "packages/feature-identity_access/**",
-          "fixtures/**",
+          "fixtures/identity_access/**",
           "tests/unit/identity_access/**",
           "tests/integration/identity_access/**"
         ],
         "resources": [
           "owner:identity_access"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-iam-gpo",
+          "claimedAt": "2026-11-13T05:16:06.169Z",
+          "heartbeatAt": "2026-11-13T05:17:11.748Z",
+          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "BLOCKED ON A NATIVE OWNER PORT: grep finds no Rust writer for position_gpo_policies, position_gpo_jobs, position_gpo_revisions or a native directory GPO apply path. Implement the native GPO publish/unmap/retry/config producer plus its composition mount and feature route before attempting the 33-statement TS retirement; do not delete the TS writer first.",
+        "nextAction": "Implement the native GPO publish/update/apply writers for position_gpo_policies, position_gpo_jobs and position_gpo_revisions plus the directory GPO apply path; add Rust unit+PG tests, switch the live consumer, then delete the replaced TS writers and record the Identity Access KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -22926,22 +22940,28 @@
           "packages/server-work_projection/Cargo.toml",
           "packages/server-work_projection/package.json",
           "packages/feature-work_projection/**",
-          "fixtures/**",
           "tests/unit/work_projection/**",
           "tests/integration/work_projection/**"
         ],
         "resources": [
           "owner:work_projection"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-wp-calendar",
+          "claimedAt": "2026-11-13T05:15:07.346Z",
+          "heartbeatAt": "2026-11-13T05:17:11.748Z",
+          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for adapters/calendar-commands-facts.ts, then six-point retirement with the owner KPI pair.",
+        "nextAction": "Run the Step-0 native counterpart audit for adapters/calendar-commands-facts.ts, implement the missing native calendar writer in packages/server-work_projection, switch the consumer and complete the six-point retirement with the owner KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -25224,21 +25244,28 @@
         "allowedPaths": [
           "packages/server-inventory/src/**",
           "packages/feature-supply/src/**",
-          "tests/integration/inventory/**",
-          "fixtures/**"
+          "fixtures/inventory/**",
+          "tests/integration/inventory/**"
         ],
         "resources": [
           "owner:inventory"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-inventory-transit",
+          "claimedAt": "2026-11-13T05:16:06.203Z",
+          "heartbeatAt": "2026-11-13T05:17:11.748Z",
+          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
+        "nextAction": "Implement the native transit and stock-count producers in packages/server-inventory, switch the supply consumers, then retire the replaced TS writers with native seeding and record the Inventory KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -30621,7 +30648,6 @@
           "packages/server-collaboration/src/**",
           "packages/server-files/Cargo.toml",
           "packages/server-files/package.json",
-          "src/composition/src/**",
           "tests/unit/files/**",
           "tests/unit/collaboration/**",
           "tests/integration/files/**",
@@ -30631,8 +30657,15 @@
           "owner:files",
           "owner:collaboration"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-files-social",
+          "claimedAt": "2026-11-13T05:15:07.266Z",
+          "heartbeatAt": "2026-11-13T05:17:11.748Z",
+          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -30640,7 +30673,7 @@
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null,
-        "nextAction": "Add the native Files revoke/expire-draft-uploads port, wire it into the collaboration upload-cancel unit, then implement the four native social upload commands with Rust unit+PG tests.",
+        "nextAction": "Implement the native Files revoke/expire-draft-uploads port and the four native social upload commands in packages/server-files and packages/server-collaboration, with Rust unit+PG tests. Do not edit src/composition; report the exact mount contract to the lead for integration.",
         "scopeRefinementRequired": false
       },
       {
@@ -33037,8 +33070,8 @@
       "totalPackets": 165,
       "migratedPackets": 92,
       "statusCounts": {
-        "pending": 22,
-        "in_progress": 1,
+        "pending": 18,
+        "in_progress": 5,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 92,
@@ -33048,7 +33081,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:09:15.855Z",
+    "updatedAt": "2026-11-13T05:17:11.749Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
