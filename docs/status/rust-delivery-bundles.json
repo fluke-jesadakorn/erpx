@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1516,
+    "revision": 1522,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-g",
       "agentId": "lead",
       "startedAt": "2026-11-13T02:33:37.747Z",
-      "heartbeatAt": "2026-11-13T03:17:32.046Z",
-      "expiresAt": "2026-11-13T03:47:32.046Z",
+      "heartbeatAt": "2026-11-13T03:39:49.696Z",
+      "expiresAt": "2026-11-13T04:09:49.696Z",
       "generation": 51,
       "tokenHash": "b4636d5dac92c67424e4a78a1bf1883bb0ebe4a1220c27578bab9a4ba2ad62fd"
     },
@@ -20199,8 +20199,8 @@
           "runId": "run-20261113-g",
           "agentId": "lead",
           "claimedAt": "2026-11-13T03:33:05.525Z",
-          "heartbeatAt": "2026-11-13T03:33:05.525Z",
-          "expiresAt": "2026-11-13T04:03:05.525Z",
+          "heartbeatAt": "2026-11-13T03:39:49.696Z",
+          "expiresAt": "2026-11-13T04:09:49.696Z",
           "generation": 51
         },
         "baseSha": null,
@@ -31508,8 +31508,8 @@
           "runId": "run-20261113-g",
           "agentId": "worker-crm-activities",
           "claimedAt": "2026-11-13T03:31:45.302Z",
-          "heartbeatAt": "2026-11-13T03:31:45.302Z",
-          "expiresAt": "2026-11-13T04:01:45.302Z",
+          "heartbeatAt": "2026-11-13T03:39:49.696Z",
+          "expiresAt": "2026-11-13T04:09:49.696Z",
           "generation": 51
         },
         "baseSha": null,
@@ -32397,7 +32397,6 @@
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-access/**",
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-360/**",
           "packages/server-support/src/**",
-          "src/composition/src/**",
           "Cargo.lock",
           "fixtures/**",
           "tests/unit/customer_authority/**",
@@ -32407,15 +32406,82 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "ffc97db4554a984fa0a3be63a7001505a95c1044",
+        "lastPushedSha": "ffc97db4554a984fa0a3be63a7001505a95c1044",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-customer_authority/src",
+            "result": "passed",
+            "before": 10,
+            "after": 7,
+            "sourceSha": "ffc97db4554a984fa0a3be63a7001505a95c1044",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-support.ts",
+                "writes": 1,
+                "removalTaskId": "retire.customer_authority.portal-support-reads",
+                "removalCondition": "Move staff/customer thread reads native or switch to the read-only capability check, then delete the legacy boundary cleanup."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-access.ts",
+                "writes": 3,
+                "removalTaskId": "retire.customer_authority.portal-access",
+                "removalCondition": "Move the whole Customer 360 portal command transaction (projection read-audit + attachment evidence) native."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.customer_authority.purchase-boundary",
+                "removalCondition": "Native purchase guard owns assertion cleanup."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.customer_authority.purchase-boundary",
+                "removalCondition": "Remove the unused TS command boundary once native owners own it."
+              }
+            ],
+            "note": "Customer acknowledge native; ack writer deleted. Remaining boundary delete is on the retained thread-read path."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-authority",
+            "result": "passed",
+            "sourceSha": "ffc97db4554a984fa0a3be63a7001505a95c1044",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business",
+            "result": "passed",
+            "sourceSha": "ffc97db4554a984fa0a3be63a7001505a95c1044",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "ffc97db4554a984fa0a3be63a7001505a95c1044",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "ffc97db4554a984fa0a3be63a7001505a95c1044",
+            "sourceKind": "committed",
+            "note": "1222 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "ffc97db4554a984fa0a3be63a7001505a95c1044",
+            "sourceKind": "committed"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead serialization: composition released for the CRM activity mount; CA acknowledge WIP preserved in the tree for integration.",
+        "blocker": null,
+        "nextAction": "Closed ack. Residual 7: portal-support read boundary 1, portal-access 3, purchase-boundary 3.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "worker-ca-ack",
@@ -32436,20 +32502,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 158,
-      "migratedPackets": 88,
+      "migratedPackets": 89,
       "statusCounts": {
         "pending": 20,
         "in_progress": 3,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 88,
-        "blocked": 38,
+        "migrated": 89,
+        "blocked": 37,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:38:08.241Z",
+    "updatedAt": "2026-11-13T03:41:49.335Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
