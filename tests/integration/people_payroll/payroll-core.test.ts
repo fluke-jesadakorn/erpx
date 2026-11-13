@@ -1,7 +1,8 @@
 import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { approvePayrollRun,calculatePayrollRun,createPaymentBatch,approvePaymentBatch,preparePaymentRetry,confirmPaymentBatch,exportPaymentBatch,getPaymentFile,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema,verifyPayrollCostAssignment } from "@erpx/server-people_payroll/public/people-payroll";
+import { approvePayrollRun,calculatePayrollRun,createPaymentBatch,approvePaymentBatch,preparePaymentRetry,confirmPaymentBatch,exportPaymentBatch,getPaymentFile,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema,verifyPayrollCostAssignment } from "@erpx/server-people_payroll/public/people-payroll";
+import { createPayrollRun } from "../../support/helpers/payroll-run-seed";
 import { submitPayrollReview } from "@erpx/server-people_payroll/public/payroll-readiness";
 import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "@erpx/server-people_payroll/public/payroll-remittance";
 import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";
@@ -81,41 +82,6 @@ it("Payroll projection hides unpurchased notices before limits and preserves exa
  vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');expect(await listStaffNotifications(db,f.claimant)).toEqual([]);expect((await inboxPage(db,f.claimant,{view:'all'})).items).toEqual([]);expect(await payrollNotificationTarget(db,f.claimant,'advance',String(own.id))).toBeNull();
  await purchasePayroll();await purchasePayroll('draining');expect(await payrollNotificationTarget(db,f.claimant,'advance',String(own.id))).toBe(own.id);expect(await payrollNotificationTarget(db,f.claimant,'advance',String(other.id))).toBeNull();const notices=await listStaffNotifications(db,f.claimant);expect(notices.some(row=>row.message==='Own Payroll advance source')).toBe(true);expect(notices.some(row=>row.message==='Other employee private advance')).toBe(false);const inbox=await inboxPage(db,f.claimant,{view:'all'});expect(inbox.items.some(row=>row.message==='Own Payroll advance source')).toBe(true);expect(inbox.items.some(row=>row.message==='Other employee private advance')).toBe(false);
  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.claimant.assignmentId).run();expect(await payrollNotificationTarget(db,f.claimant,'advance',String(own.id))).toBeNull();expect((await inboxPage(db,f.claimant,{view:'all'})).items).toEqual([]);expect(await db.prepare('SELECT COUNT(*) n FROM inbox_events WHERE company_id=?').bind(f.company).first('n')).toBe(before);
-});
-
-it("Payroll purchase denies legacy money and private readers without the add-on, keeps worker directory independent and shadows the original authority",async()=>{
-  const directoryActor={...f.owner},input=await legacyPayrollGroup();vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","enforced");
-  await expect(createPayrollRun(f.owner,input,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
-  for(const read of [()=>getPayrollReviewFile(f.owner,"missing",1)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
-  expect(await db.prepare("SELECT COUNT(*) n FROM hr_payroll_runs WHERE company_id=?").bind(f.company).first("n")).toBe(0);await expect(listPeople(directoryActor)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
-  const references=packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-worker-foundation'}),obligations:async()=>{throw Error('No foundation withdrawal witness');}});await references.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Projects-only worker reference',evidence:'test:included-worker-reference'}});const workers=await peopleReferenceRows(directoryActor,'worker',db);expect(workers.length).toBeGreaterThan(0);expect(workers.every(row=>!('phone' in row)&&!('email' in row)&&!('base_amount_minor' in row)&&!('payroll' in row))).toBe(true);
-  const base=packageGrantStore(db,{authorize:async()=>({userId:"isolated-payroll-base-review"}),obligations:async()=>{throw Error("No People withdrawal witness");}});
-  await base.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.company,packageId:"people",packageVersion:1,state:"active",startsAt:0,endsAt:null,version:1,reason:"Base People preserves directory only",evidence:"test:payroll-addon-required"}});
-  await expect(createPayrollRun(f.owner,input,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
-  vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","shadow");const log=vi.spyOn(console,"info").mockImplementation(()=>{});
-  try {
-    const created=await createPayrollRun(f.owner,input,key());expect(await db.prepare("SELECT id FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(created.id,f.company).first("id")).toBe(created.id);
-    expect(log.mock.calls.some(args=>String(args[0]).includes("commercial.purchase.shadow")&&String(args[0]).includes("people.payroll"))).toBe(true);
-  } finally {log.mockRestore();}
-});
-
-it("Payroll purchase rechecks late deferred personal authority and rolls the original run, receipt, audit and outbox back before exact retry",async()=>{
-  const input=await legacyPayrollGroup();await purchasePayroll();vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","enforced");
-  const command=key(),fault=`payroll_purchase_${key().replaceAll('-','')}`,tables=["hr_payroll_runs","hr_payroll_items","command_receipts","audit_events","outbox_events","flow_events","assignments"],image=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await image();
-  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.owner.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
-  try {await expect(createPayrollRun(f.owner,input,command)).rejects.toMatchObject({code:"PAYROLL_ACCESS_CHANGED"});expect(await image()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${fault} ON audit_events;DROP FUNCTION ${fault}()`);}
-  const result=await createPayrollRun(f.owner,input,command);expect(await createPayrollRun(f.owner,input,command)).toEqual(result);
-  expect(await db.prepare("SELECT count(*) n FROM command_receipts WHERE command_id=?").bind(command).first("n")).toBe(1);
-  await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.owner.assignmentId).run();
-  await expect(createPayrollRun(f.owner,input,command)).rejects.toMatchObject({code:"PAYROLL_ACCESS_CHANGED"});
-  expect(await db.prepare("SELECT count(*) n FROM command_receipts WHERE command_id=?").bind(command).first("n")).toBe(1);
-});
-
-it("Payroll purchase samples expiry after deferred owner effects and leaves no created run or money receipt",async()=>{
-  const input=await legacyPayrollGroup();await purchasePayroll("active",Date.now()+1300);vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","enforced");
-  const command=key(),fault=`payroll_expiry_${key().replaceAll('-','')}`;
-  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(1.4);RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
-  try {await expect(createPayrollRun(f.owner,input,command)).rejects.toMatchObject({code:"PACKAGE_CAPABILITY_CHANGED"});expect(await db.prepare("SELECT 1 FROM hr_payroll_runs WHERE id=?").bind(`payrun-${command}`).first()).toBeNull();expect(await db.prepare("SELECT 1 FROM command_receipts WHERE command_id=?").bind(command).first()).toBeNull();}finally{await db.exec(`DROP TRIGGER ${fault} ON audit_events;DROP FUNCTION ${fault}()`);}
 });
 
 async function submitRun(runId:string,version:number){
@@ -411,8 +377,6 @@ it('withdraws only the Payroll addon after normal schedule disable and retained 
  const schedule=await savePayrollSchedule(f.owner,group.id,payrollScheduleSchema.parse({expectedVersion:1,enabled:true,payDelayDays:1}),key());
  await payrollAddonGrant('people-payroll','draining');const pending=await payrollAddonObservation();expect(pending.observations.find(row=>row.moduleId==='people_payroll')!.outstanding).toBe(2);expect(pending.observations.find(row=>row.moduleId==='finance')!.outstanding).toBe(1);
  const blocked=await payrollAddonWithdrawal(),before=await payrollAddonImage();await expect(payrollAddonReview(blocked)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');await expect(payrollAddonReview(blocked,true)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');expect(await payrollAddonImage()).toEqual(before);
- await expect(createPayrollRun(f.owner,{...input,periodStart:'2026-10-01',periodEnd:'2026-10-31',payDate:'2026-11-02'},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
- expect(await createPayrollRun(f.owner,input,createKey)).toEqual(run);
  await cancelPayrollRunSeed(db,{runId:String(run.id),companyId:f.company,actorId:f.owner.userId,reason:'Normal Payroll addon draft cancellation'});
  await savePayrollSchedule(f.owner,group.id,payrollScheduleSchema.parse({expectedVersion:schedule.version,enabled:false,payDelayDays:1}),key());expect((await payrollAddonObservation()).total).toBe(0);
  const retained=await db.prepare(`SELECT (SELECT to_jsonb(e) FROM finance_expenses e WHERE id=?) expense,(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM hr_compensation_revisions c JOIN hr_engagements e ON e.id=c.engagement_id WHERE e.company_id=?) compensation`).bind(expense.id,f.company).first(),request=await payrollAddonWithdrawal(),preview=await payrollAddonReview(request);expect(await payrollAddonReview(request,true)).toEqual(preview);expect(await payrollAddonReview(request,true)).toEqual(preview);
@@ -757,7 +721,7 @@ it('constructs Payroll prerequisites from zero Company Finance references under 
  const s=await zeroFinancePayrollPrerequisiteFixture(),refs=await constructPayrollPrerequisites(s),engagement=await db.prepare('SELECT id,version FROM hr_engagements WHERE company_id=? AND person_id=?').bind(f.company,`person-${f.claimant.userId}`).first<{id:string;version:number}>();if(!engagement)throw Error('ORIGINAL_IMPORTED_EMPLOYEE_REFERENCE_REQUIRED');
  await s.people.assignPayGroup(s.administrator,engagement.id,s.people.assignPayGroupSchema.parse({payGroupId:s.group.id,expectedVersion:engagement.version}),key());
  const compensation=await s.people.createCompensation(s.administrator,s.people.compensationSchema.parse({engagementId:engagement.id,effectiveFrom:'2026-09-01',payFrequency:'monthly',baseAmount:'1000',currency:'THB',components:[]}),key());if(typeof compensation.id!=='string'||typeof compensation.version!=='number')throw Error('ACTUAL_COMPENSATION_RECEIPT_REQUIRED');await s.people.transitionCompensation(s.reviewer,compensation.id,{status:'approved',expectedVersion:compensation.version},key());
- const run=await s.people.createPayrollRun(s.payroll,s.people.payrollRunSchema.parse({payGroupId:s.group.id,periodStart:'2026-09-01',periodEnd:'2026-09-30',payDate:'2026-10-01',currency:'THB'}),key());
+ const run=await createPayrollRun(s.payroll,s.people.payrollRunSchema.parse({payGroupId:s.group.id,periodStart:'2026-09-01',periodEnd:'2026-09-30',payDate:'2026-10-01',currency:'THB'}),key());
  for(const [stepKey,userId]of [['calculate',s.payroll.userId],['preview',s.payroll.userId],['in_review',s.reviewer.userId],['approved',s.financeReviewer.userId]]as const){const flow=await resolveFlow(db,s.administrator,'payroll',run.id);await assignFlowPrimary(db,s.administrator,'payroll',run.id,{stepKey,userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:'Actual eligible Payroll preparer, independent reviewer and original Finance owner',saveDefault:false},key());}
  const calculated=await s.people.calculatePayrollRun(s.payroll,run.id,key());expect(calculated).toMatchObject({status:'preview',totals:{headcount:1,gross:100000,net:100000}});const digest=await db.prepare('SELECT input_digest FROM hr_payroll_runs WHERE id=? AND company_id=?').bind(run.id,f.company).first<string>('input_digest');if(typeof digest!=='string')throw Error('ACTUAL_CALCULATED_PAYROLL_DIGEST_REQUIRED');
  const submitted=await submitPayrollReview(s.payroll,run.id,{expectedVersion:calculated.version,inputDigest:digest},key());if(typeof submitted.version!=='number')throw Error('ACTUAL_SUBMITTED_PAYROLL_VERSION_REQUIRED');

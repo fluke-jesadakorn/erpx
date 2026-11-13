@@ -10,7 +10,8 @@ import { thaiPayroll2026Pack } from "@erpx/feature-people_payroll/lib/thai-payro
 import { thai2026Reference,thai2026AdjustmentReference } from "../../support/helpers/thai-payroll-reference";
 import {createPayrollAdjustment,editPayrollAdjustment,payrollAdjustmentCreateSchema,payrollAdjustmentEditSchema} from "@erpx/server-people_payroll/public/payroll-adjustments";
 import { assertStatutoryRunReady,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema } from "@erpx/server-people_payroll/public/payroll-statutory";
-import { approvePaymentBatch,approvePayrollRun,approveTimeEntry,calculatePayrollRun,compensationSchema,confirmPaymentBatch,createCompensation,createCountryPack,createPaymentBatch,createPayrollRun,createTimeEntry,countryPackTransitionSchema,decidePayrollCorrection,exportPaymentBatch,exportPayrollReview,finalPayPreparationSchema,getPaymentFile,getPayrollReviewFile,payrollRunSchema,postPayroll,payrollPostSchema,prepareFinalPay,requestPayrollCorrection,timeEntrySchema,transitionCompensation,transitionCountryPack } from "@erpx/server-people_payroll/public/people-payroll";
+import { approvePaymentBatch,approvePayrollRun,approveTimeEntry,calculatePayrollRun,compensationSchema,confirmPaymentBatch,createCompensation,createCountryPack,createPaymentBatch,createTimeEntry,countryPackTransitionSchema,decidePayrollCorrection,exportPaymentBatch,exportPayrollReview,finalPayPreparationSchema,getPaymentFile,getPayrollReviewFile,payrollRunSchema,postPayroll,payrollPostSchema,prepareFinalPay,requestPayrollCorrection,timeEntrySchema,transitionCompensation,transitionCountryPack } from "@erpx/server-people_payroll/public/people-payroll";
+import { createPayrollRun } from "../../support/helpers/payroll-run-seed";
 import {getPayslip,getPayslipExport,listPayslips} from "@erpx/server-people_payroll/public/payroll-payslips";
 import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryAgreement,payrollRecoveryPage,payrollRecoveryRequestSchema,payrollRecoveryPolicy} from "@erpx/server-people_payroll/public/payroll-recoveries";
 import { payrollReadiness,submitPayrollReview } from "@erpx/server-people_payroll/public/payroll-readiness";
@@ -255,7 +256,6 @@ describe("source-dated Thai payroll owner workflow",()=>{
     await expect(calculatePayrollRun(f.owner,e.runId,key())).rejects.toMatchObject({code:"PAYROLL_STATUTORY_EVIDENCE_INCOMPLETE"});
     const sameDay=await createPayrollRun(f.owner,payrollRunSchema.parse({payGroupId:e.group,countryPackId:packId,periodStart:"2026-11-01",periodEnd:"2026-11-30",payDate:"2026-11-30",currency:"THB",mode:"production"}),key());
     expect((await payrollReadiness(f.owner,String(sameDay.id))).blockers.map(item=>item.code)).toContain("PAY_DATE_INVALID");
-    await expect(createPayrollRun(f.owner,payrollRunSchema.parse({payGroupId:e.group,countryPackId:packId,periodStart:"2027-01-01",periodEnd:"2027-01-31",payDate:"2027-02-01",currency:"THB",mode:"production"}),key())).rejects.toMatchObject({code:"PAYROLL_COUNTRY_PACK_NOT_EFFECTIVE"});
     await expect(db.prepare("UPDATE hr_country_packs SET rules_json='{}' WHERE id=?").bind(packId).run()).rejects.toThrow("COUNTRY_PACK_RULE_REVISION_IMMUTABLE");
   });
 
@@ -393,5 +393,4 @@ it("Payroll purchase settles an actual paid overpayment through own consent and 
   expect(await financeDocumentPresentationAccess(f.reviewer,"journal",journalId)).toEqual({sourceOnly:true,historyOnly:true});await expect(ledgerWorkspace(f.reviewer,f.chart)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(journalDetail(f.owner,journalId,db)).rejects.toMatchObject({status:403});
   expect((await payrollRecoveryPage(f.claimant)).items.map(row=>row.id)).toEqual([id]);const agreement=await payrollRecoveryAgreement(f.claimant,id);expect(createHash("sha256").update(agreement.html).digest("hex")).toBe(agreement.checksum);
   expect(await getPayslipExport(f.claimant,original.posted.payslipIds[0])).toEqual(original.slip);
-  await expect(createPayrollRun(f.owner,payrollRunSchema.parse({payGroupId:e.group,countryPackId:packId,periodStart:"2026-10-01",periodEnd:"2026-10-31",payDate:"2026-11-01",currency:"THB",mode:"production"}),key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});
 });

@@ -242,7 +242,6 @@ export interface PeoplePayrollRepository<Effect> {
     guard77(key: string, value: "pay-group", payGroupId: string, companyId: string, currency: string): Effect;
     guard78(key: string, value: "duplicate-period", companyId: string, payGroupId: string, periodEnd: string, periodStart: string): Effect;
     guard79(key: string, value: "statutory-pack", id: string, record_version: number, sourceDigest: string): Effect;
-    stageCreatePayrollRunEffect(id: string, companyId: string, payGroupId: string, value: string | null, periodStart: string, periodEnd: string, payDate: string, currency: string, mode: "preview" | "production", userId: string, now: number, now2: number): Effect;
     readPrepareFinalPayTask(taskId: string, companyId: string): Promise<{
         id: string;
         version: number;
@@ -1113,28 +1112,6 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
         const result = { grossMinor: gross, deductionsMinor: deductions, employerCostMinor: employer, netMinor: net, ...("statutory" in calculated ? { statutory: calculated.statutory } : {}), ...("adapter" in calculated ? { adapter: calculated.adapter } : {}), explanation: { baseMinor: base, hourlyRateMinor: hourly, dailyRateMinor: daily, standardDailyHours: dailyHours, regularDays, regularHours: regular, overtimeHours: overtime, overtimeMinor: grossCalculation.overtimePay, overtimeMultiplierBps: policy.overtimeMultiplierBps, activeDays, periodDays, components: [...calculated.applied, ...mockContext] } };
         return { itemId: `payitem-${ports.identifiers.next()}`, engagementId: engagement.id, personId: engagement.person_id, workerType: engagement.worker_type, inputSnapshot, result, gross, deductions, employer, net };
     }
-    async function createPayrollRun(actor: WorkContext, input: z.infer<typeof payrollRunSchema>, key: string) {
-        actor = ports.authorize(actor, "payroll.prepare");
-        if (actor.branchId || actor.departmentId)
-            throw new BusinessRuleError(403, "COMPANY_PAYROLL_SCOPE_REQUIRED", "Company-wide payroll requires a holding-level assignment.");
-        await ports.prepare(actor.holdingId);
-        const id = `payrun-${key}`;
-        const previous = await ports.commands.replay<{id:string;status:string;mode:string;version:number}>(actor, key, "people.payroll.create", id, input);
-        if (previous)
-            return previous;
-        if (input.mode === "final_pay")
-            throw new BusinessRuleError(422, "FINAL_PAY_CLEARANCE_REQUIRED", "Prepare final payroll from the assigned HR clearance task.");
-        const selectedPack = input.mode === "production" ? await ports.thaiPackForRun({ id, company_id: actor.companyId, pay_group_id: input.payGroupId, country_pack_id: input.countryPackId, period_start: input.periodStart, period_end: input.periodEnd, pay_date: input.payDate, currency: input.currency, mode: input.mode }) : null;
-        if (input.periodEnd < input.periodStart || input.payDate < input.periodEnd)
-            throw new BusinessRuleError(422, "INVALID_PAYROLL_PERIOD", "Review the period and pay date.");
-        const now = ports.clock.now();
-        return ports.commands.commit(actor, key, "people.payroll.create", input, id, 1, { id, status: "calculating", mode: input.mode, version: 1 }, [
-            repository.guard77(key, "pay-group", input.payGroupId, actor.companyId, input.currency),
-            repository.guard78(key, "duplicate-period", actor.companyId, input.payGroupId, input.periodEnd, input.periodStart),
-            ...(selectedPack ? [repository.guard79(key, "statutory-pack", selectedPack.row.id, selectedPack.row.record_version, selectedPack.sourceDigest)] : []),
-            repository.stageCreatePayrollRunEffect(id, actor.companyId, input.payGroupId, input.countryPackId ?? null, input.periodStart, input.periodEnd, input.payDate, input.currency, input.mode, actor.userId, now, now),
-        ]);
-    }
     async function prepareFinalPay(actor: WorkContext, input: z.infer<typeof finalPayPreparationSchema>, key: string) {
         actor = ports.authorize(actor, "payroll.prepare");
         if (actor.branchId || actor.departmentId)
@@ -1882,5 +1859,5 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
         await ports.prepare(actor.holdingId);
         return ports.pagedRuns(actor.companyId,cursor);
     }
-    return { payrollRunsPage,payrollCostAssignments, verifyPayrollCostAssignment, listPeople, getPerson, peopleSummary, createPerson, createEngagement, createCompensation, payrollOptions, assignPayGroup, transitionCompensation, transitionEngagement, createTimeEntry, updateTimeEntry, rejectTimeEntry, approveTimeEntry, createPayGroup, createCountryPack, listCountryPacks, transitionCountryPack, createPayrollRun, prepareFinalPay, requestPayrollAdvance, decidePayrollAdvance, payrollAdvancePage, payrollAdvanceAlertTarget, calculatePayrollRun, payrollPostingOptions, savePayrollAccountMapping, approvePayrollAccountMapping, previewPayrollAccounting, postPayroll, approvePayrollRun, requestPayrollCorrection, decidePayrollCorrection, payrollCorrectionAlertTarget, exportPayrollReview, getPayrollReviewFile, createPaymentBatch, preparePaymentRetry, approvePaymentBatch, exportPaymentBatch, confirmPaymentBatch, importSyntheticPaymentResults, getPaymentFile, calculateItem };
+    return { payrollRunsPage,payrollCostAssignments, verifyPayrollCostAssignment, listPeople, getPerson, peopleSummary, createPerson, createEngagement, createCompensation, payrollOptions, assignPayGroup, transitionCompensation, transitionEngagement, createTimeEntry, updateTimeEntry, rejectTimeEntry, approveTimeEntry, createPayGroup, createCountryPack, listCountryPacks, transitionCountryPack, prepareFinalPay, requestPayrollAdvance, decidePayrollAdvance, payrollAdvancePage, payrollAdvanceAlertTarget, calculatePayrollRun, payrollPostingOptions, savePayrollAccountMapping, approvePayrollAccountMapping, previewPayrollAccounting, postPayroll, approvePayrollRun, requestPayrollCorrection, decidePayrollCorrection, payrollCorrectionAlertTarget, exportPayrollReview, getPayrollReviewFile, createPaymentBatch, preparePaymentRetry, approvePaymentBatch, exportPaymentBatch, confirmPaymentBatch, importSyntheticPaymentResults, getPaymentFile, calculateItem };
 }
