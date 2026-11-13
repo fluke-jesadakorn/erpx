@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1446,
+    "revision": 1451,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -31313,7 +31313,6 @@
           "packages/server-agent/package.json",
           "packages/feature-agent/**",
           "packages/feature-admin/src/routes/api/v1/platform/billing/ai-gateway/**",
-          "src/composition/src/**",
           "fixtures/**",
           "tests/unit/agent/**",
           "tests/integration/agent/**",
@@ -31323,15 +31322,102 @@
         "resources": [
           "owner:agent"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+        "lastPushedSha": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-agent/src",
+            "result": "passed",
+            "before": 22,
+            "after": 16,
+            "sourceSha": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-agent/src/adapters/ai-gateway.ts",
+                "writes": 2,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Reserve/finish wrappers remain until the ai-transport consumer moves fully onto the native quota transport."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/workspace-assistant.ts",
+                "writes": 7,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Full assistant turn migration (no native ai_workspace_turns writer yet)."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/operations-guided-intake-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Guided-intake assistant migration."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/agent-governance.ts",
+                "writes": 3,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Native private-session/control and invocation-evidence inserts."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/ai-runtime.ts",
+                "writes": 1,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "A1 credential/provider transport for ai_provider_usage."
+              }
+            ],
+            "note": "Six AI-gateway writers retired; reserve/finish retained on the live transport."
+          },
+          {
+            "command": "cargo check -p erpx-server-agent",
+            "result": "passed",
+            "sourceSha": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business",
+            "result": "passed",
+            "sourceSha": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo test -p erpx-server-agent --test agent_gateway",
+            "result": "passed",
+            "sourceSha": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+            "sourceKind": "committed",
+            "note": "7/7"
+          },
+          {
+            "command": "cargo test -p erpx-server-agent --test agent_gateway_postgres",
+            "result": "passed",
+            "sourceSha": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+            "sourceKind": "committed",
+            "note": "3/3"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+            "sourceKind": "committed",
+            "note": "1218 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "8962a90b6aa67a0954480beb53f1ec864c605f9f",
+            "sourceKind": "committed"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead serialization: composition claim released with WIP preserved (server-agent gateway modules and private_development_api/lib.rs hunks compile under private-development-api). Next: lead integrates that slice, then mounts the native quality alert sweep.",
+        "blocker": null,
+        "nextAction": "Closed: gateway policy/statement/cost/reconcile native. Residual 16 bound to retire.agent.residual-writers.",
         "handoff": {
           "runId": "run-20261113-f",
           "agentId": "worker-agent-gateway",
@@ -31342,7 +31428,8 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "retireTaskId": "retire.agent.agent-governance"
       },
       {
         "id": "retire.talent.residual-writers",
@@ -31599,20 +31686,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 154,
-      "migratedPackets": 85,
+      "migratedPackets": 86,
       "statusCounts": {
         "pending": 21,
         "in_progress": 4,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 85,
-        "blocked": 34,
+        "migrated": 86,
+        "blocked": 33,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:59:29.543Z",
+    "updatedAt": "2026-11-13T01:59:34.929Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
