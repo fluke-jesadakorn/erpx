@@ -1484,3 +1484,131 @@ fn refund_approve_returns_stock_and_settles_the_cash_refund() {
         assert_eq!(stock_move, ("return".into(), 1000, 1000));
     });
 }
+
+#[test]
+fn settings_accounting_table_and_discount_commands_persist_and_reject_stale_versions() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        let mut company = actor("manager");
+        company.branch_id = None;
+        company.permissions = vec![
+            "pos.sell".into(),
+            "pos.approve".into(),
+            "pos.configure".into(),
+            "pos.accounting.approve".into(),
+        ];
+        let approved = run(
+            &pool,
+            company.clone(),
+            command(
+                PosOperation::AccountingApprove,
+                "pos-accounting-approve-1",
+                serde_json::json!({"expectedVersion":1}),
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(approved.version, Some(2));
+        let settings: (Option<String>, i64) = sqlx::query_as(
+            "SELECT accounting_approved_by,version FROM pos_settings WHERE company_id='company'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(settings, (Some("manager".into()), 2));
+
+        let stale = run(
+            &pool,
+            company.clone(),
+            command(
+                PosOperation::AccountingApprove,
+                "pos-accounting-approve-2",
+                serde_json::json!({"expectedVersion":1}),
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(business(stale).code, "POS_VERSION_CONFLICT");
+
+        let operations = run(
+            &pool,
+            company.clone(),
+            command(
+                PosOperation::SettingsOperations,
+                "pos-settings-operations-1",
+                serde_json::json!({"expectedVersion":2,"enabled":false,"cashierDiscountBps":250}),
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(operations.version, Some(3));
+        let settings: (bool, i64, i64) = sqlx::query_as(
+            "SELECT enabled,cashier_discount_bps,version FROM pos_settings WHERE company_id='company'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(settings, (false, 250, 3));
+
+        let table = run(
+            &pool,
+            actor("manager"),
+            command(
+                PosOperation::TableCreate,
+                "pos-table-create-1",
+                serde_json::json!({"registerId":"register","name":"Table 1","seats":4}),
+            ),
+        )
+        .await
+        .unwrap();
+        let saved: (String, i64) = sqlx::query_as(
+            "SELECT name,seats FROM pos_tables WHERE id=$1",
+        )
+        .bind(&table.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(saved, ("Table 1".into(), 4));
+        let duplicate = run(
+            &pool,
+            actor("manager"),
+            command(
+                PosOperation::TableCreate,
+                "pos-table-create-2",
+                serde_json::json!({"registerId":"register","name":"Table 1","seats":2}),
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(business(duplicate).code, "POS_TABLE_NAME_EXISTS");
+
+        sqlx::raw_sql(
+            "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json,service_mode,version,discount_requested_by) VALUES('sale-approve','company','branch','register','shift','POS-A','THB','2027-01-15','open','cashier',0,0,'{}','retail',1,'requester');",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let discount = run(
+            &pool,
+            actor("manager"),
+            command(
+                PosOperation::SaleApproveDiscount,
+                "pos-sale-approve-discount-1",
+                serde_json::json!({"id":"sale-approve","expectedVersion":1,"reason":"Manager approved"}),
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(discount.id, "sale-approve");
+        let sale: (Option<String>, Option<String>, i64) = sqlx::query_as(
+            "SELECT discount_approved_by,discount_reason,version FROM pos_sales WHERE id='sale-approve'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            sale,
+            (Some("manager".into()), Some("Manager approved".into()), 2)
+        );
+    });
+}

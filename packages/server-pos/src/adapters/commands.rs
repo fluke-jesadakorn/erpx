@@ -168,7 +168,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
         Box::pin(async move {
             self.ready().await?;
             let row = sqlx::query(
-                "SELECT enabled,currency,cashier_discount_bps,accounts_json,accounting_approved_by \
+                "SELECT enabled,currency,cashier_discount_bps,accounts_json,accounting_approved_by,accounting_prepared_by,version \
                  FROM pos_settings WHERE company_id=$1",
             )
             .bind(company.as_str())
@@ -181,9 +181,113 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                     cashier_discount_bps: row.try_get("cashier_discount_bps")?,
                     accounts_json: row.try_get("accounts_json")?,
                     accounting_approved_by: row.try_get("accounting_approved_by")?,
+                    accounting_prepared_by: row.try_get("accounting_prepared_by")?,
+                    version: row.try_get("version")?,
                 })
             })
             .transpose()
+        })
+    }
+    fn save_operational_settings<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        expected_version: i64,
+        enabled: bool,
+        cashier_discount_bps: i64,
+    ) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            let changed = sqlx::query(
+                "UPDATE pos_settings SET enabled=$2,cashier_discount_bps=$3,version=version+1 \
+                 WHERE company_id=$1 AND version=$4",
+            )
+            .bind(company.as_str())
+            .bind(enabled)
+            .bind(cashier_discount_bps)
+            .bind(expected_version)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+    fn approve_accounting<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        approved_by: &'a str,
+        expected_version: i64,
+    ) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            let changed = sqlx::query(
+                "UPDATE pos_settings SET accounting_approved_by=$2,version=version+1 \
+                 WHERE company_id=$1 AND version=$3",
+            )
+            .bind(company.as_str())
+            .bind(approved_by)
+            .bind(expected_version)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+    fn table_name_exists<'a>(
+        &'a mut self,
+        register_id: &'a str,
+        name: &'a str,
+    ) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM pos_tables WHERE register_id=$1 AND name=$2)",
+            )
+            .bind(register_id)
+            .bind(name)
+            .fetch_one(&mut *self.connection)
+            .await?)
+        })
+    }
+    fn insert_table<'a>(
+        &'a mut self,
+        id: &'a str,
+        register_id: &'a str,
+        name: &'a str,
+        seats: i64,
+    ) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("INSERT INTO pos_tables(id,register_id,name,seats) VALUES($1,$2,$3,$4)")
+                .bind(id)
+                .bind(register_id)
+                .bind(name)
+                .bind(seats)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn approve_discount<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        expected_version: i64,
+        approved_by: &'a str,
+        reason: &'a str,
+    ) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            let changed = sqlx::query(
+                "UPDATE pos_sales SET discount_approved_by=$2,discount_reason=$3,version=version+1 \
+                 WHERE id=$1 AND version=$4",
+            )
+            .bind(sale_id)
+            .bind(approved_by)
+            .bind(reason)
+            .bind(expected_version)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
         })
     }
     fn register<'a>(
@@ -518,7 +622,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             self.ready().await?;
             let row = sqlx::query(
                 "SELECT id,company_id,branch_id,register_id,shift_id,number,party_id,issuer_json,currency,business_date,service_mode,state,\
-                 subtotal_minor,tax_minor,discount_minor,total_minor,created_by,version,accounts_json,discount_approved_by,invoice_id \
+                 subtotal_minor,tax_minor,discount_minor,total_minor,created_by,version,accounts_json,discount_approved_by,discount_requested_by,invoice_id \
                  FROM pos_sales WHERE id=$1 AND company_id=$2 FOR UPDATE",
             )
             .bind(sale_id)
@@ -547,6 +651,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                     version: row.try_get("version")?,
                     accounts_json: row.try_get("accounts_json")?,
                     discount_approved_by: row.try_get("discount_approved_by")?,
+                    discount_requested_by: row.try_get("discount_requested_by")?,
                     invoice_id: row.try_get("invoice_id")?,
                 })
             })

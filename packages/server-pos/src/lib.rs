@@ -1,5 +1,7 @@
 //! POS owner. Native command slices record cash movements, register-session
-//! open/close/review, bills, unpaid voids and refund requests/rejections. The
+//! open/close/review, bills, unpaid voids, refund requests/rejections,
+//! operational settings/accounting approval, restaurant tables and independent
+//! discount approvals. The
 //! native workspace read serves the current setting, registers, shift sessions,
 //! cash movements and bounded recent sales/payment facts behind the caller's
 //! serializable owner unit and composition-supplied package decision.

@@ -40,6 +40,8 @@ fn settings() -> PosSettings {
             r#"{"chartId":"chart","cash":"cash","cashTransfer":"transfer","cashDifference":"difference","edc":"edc","receivable":"receivable","advance":"advance","revenue":"revenue","outputTax":"outputTax","cogs":"cogs","inventory":"inventory"}"#
                 .into(),
         accounting_approved_by: Some("finance".into()),
+        accounting_prepared_by: Some("accountant".into()),
+        version: 1,
     }
 }
 fn register() -> PosRegister {
@@ -93,6 +95,7 @@ fn sale(state: &str, version: i64) -> PosSale {
         version,
         accounts_json: settings().accounts_json,
         discount_approved_by: None,
+        discount_requested_by: None,
         invoice_id: None,
     }
 }
@@ -142,6 +145,11 @@ struct Probe {
     postings: Vec<String>,
     audits: usize,
     aliases: Vec<(String, String)>,
+    save_settings: bool,
+    approve_accounting: bool,
+    table_name: bool,
+    insert_table: bool,
+    approve_discount: bool,
 }
 impl Default for Probe {
     fn default() -> Self {
@@ -179,6 +187,11 @@ impl Default for Probe {
             postings: Vec::new(),
             audits: 0,
             aliases: Vec::new(),
+            save_settings: true,
+            approve_accounting: true,
+            table_name: false,
+            insert_table: true,
+            approve_discount: true,
         }
     }
 }
@@ -241,6 +254,60 @@ impl PosCommandRepository for Probe {
     fn settings<'a>(&'a mut self, _: &'a CompanyId) -> PosFuture<'a, Option<PosSettings>> {
         self.calls.push("settings");
         Box::pin(async move { Ok(self.settings.clone()) })
+    }
+    fn save_operational_settings<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: i64,
+        _: bool,
+        _: i64,
+    ) -> PosFuture<'a, bool> {
+        self.calls.push("save-settings");
+        Box::pin(async move { Ok(self.save_settings) })
+    }
+    fn approve_accounting<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+        _: i64,
+    ) -> PosFuture<'a, bool> {
+        self.calls.push("approve-accounting");
+        Box::pin(async move { Ok(self.approve_accounting) })
+    }
+    fn table_name_exists<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, bool> {
+        self.calls.push("table-name");
+        Box::pin(async move { Ok(self.table_name) })
+    }
+    fn insert_table<'a>(
+        &'a mut self,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: i64,
+    ) -> PosFuture<'a, ()> {
+        self.calls.push("insert-table");
+        let ok = self.insert_table;
+        Box::pin(async move {
+            if ok {
+                Ok(())
+            } else {
+                Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "POS_SOURCE_INVALID",
+                    "table",
+                ))
+            }
+        })
+    }
+    fn approve_discount<'a>(
+        &'a mut self,
+        _: &'a str,
+        _: i64,
+        _: &'a str,
+        _: &'a str,
+    ) -> PosFuture<'a, bool> {
+        self.calls.push("approve-discount");
+        Box::pin(async move { Ok(self.approve_discount) })
     }
     fn register<'a>(
         &'a mut self,
@@ -742,6 +809,36 @@ fn run(
         finance,
         &mut Inventory::default(),
         hospitality,
+        &mut Organization,
+        NOW,
+    ))
+}
+fn company_actor() -> PosActor {
+    let mut actor = actor();
+    actor.branch_id = None;
+    actor.permissions = vec![
+        "pos.sell".into(),
+        "pos.approve".into(),
+        "pos.configure".into(),
+        "pos.accounting.approve".into(),
+    ];
+    actor
+}
+fn configure_actor() -> PosActor {
+    let mut actor = actor();
+    actor.permissions = vec!["pos.sell".into(), "pos.configure".into()];
+    actor
+}
+fn run_as(actor: &PosActor, probe: &mut Probe, command: &PosCommand) -> Result<PosResult, BusinessError> {
+    sqlx::test_block_on(execute_pos_command(
+        actor,
+        command,
+        probe,
+        None,
+        None,
+        &mut Finance::default(),
+        &mut Inventory::default(),
+        &mut Hospitality::default(),
         &mut Organization,
         NOW,
     ))
@@ -1406,4 +1503,166 @@ fn refund_approve_requires_the_approver_permission_before_any_read() {
         FailureKind::Forbidden | FailureKind::Conflict
     ));
     assert!(probe.calls.is_empty());
+}
+
+#[test]
+fn settings_operations_updates_the_exact_read_version() {
+    let mut probe = Probe::default();
+    let result = run_as(
+        &company_actor(),
+        &mut probe,
+        &command(
+            PosOperation::SettingsOperations,
+            serde_json::json!({"expectedVersion":1,"enabled":false,"cashierDiscountBps":500}),
+        ),
+    )
+    .unwrap();
+    assert_eq!(result.id, "company");
+    assert_eq!(result.version, Some(2));
+    assert!(probe.calls.contains(&"save-settings"));
+    assert_eq!(probe.audits, 1);
+
+    let mut probe = Probe::default();
+    let error = run_as(
+        &company_actor(),
+        &mut probe,
+        &command(
+            PosOperation::SettingsOperations,
+            serde_json::json!({"expectedVersion":2,"enabled":true,"cashierDiscountBps":0}),
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "POS_VERSION_CONFLICT");
+
+    let mut branch = company_actor();
+    branch.branch_id = RecordId::new("branch").ok();
+    let mut probe = Probe::default();
+    let error = run_as(
+        &branch,
+        &mut probe,
+        &command(
+            PosOperation::SettingsOperations,
+            serde_json::json!({"expectedVersion":1,"enabled":true,"cashierDiscountBps":0}),
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "POS_COMPANY_SETTINGS");
+}
+
+#[test]
+fn accounting_approval_requires_a_different_preparer() {
+    let mut probe = Probe::default();
+    probe.settings.as_mut().unwrap().accounting_prepared_by = Some("accountant".into());
+    let result = run_as(
+        &company_actor(),
+        &mut probe,
+        &command(
+            PosOperation::AccountingApprove,
+            serde_json::json!({"expectedVersion":1}),
+        ),
+    )
+    .unwrap();
+    assert_eq!(result.version, Some(2));
+
+    let mut probe = Probe::default();
+    probe.settings.as_mut().unwrap().accounting_prepared_by = Some("accountant".into());
+    probe.aliases.push(("accountant".into(), "manager".into()));
+    let error = run_as(
+        &company_actor(),
+        &mut probe,
+        &command(
+            PosOperation::AccountingApprove,
+            serde_json::json!({"expectedVersion":1}),
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "POS_INDEPENDENT_REVIEW");
+
+    let mut probe = Probe::default();
+    probe.settings.as_mut().unwrap().accounting_prepared_by = None;
+    let error = run_as(
+        &company_actor(),
+        &mut probe,
+        &command(
+            PosOperation::AccountingApprove,
+            serde_json::json!({"expectedVersion":1}),
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "POS_ACCOUNTING_REVIEW_REQUIRED");
+}
+
+#[test]
+fn table_create_is_scoped_and_rejects_a_duplicate_name() {
+    let mut probe = Probe::default();
+    let result = run_as(
+        &configure_actor(),
+        &mut probe,
+        &command(
+            PosOperation::TableCreate,
+            serde_json::json!({"registerId":"register","name":"Table 1","seats":4}),
+        ),
+    )
+    .unwrap();
+    assert_eq!(result.id, ID);
+    assert!(probe.calls.contains(&"insert-table"));
+
+    let mut probe = Probe::default();
+    probe.table_name = true;
+    let error = run_as(
+        &configure_actor(),
+        &mut probe,
+        &command(
+            PosOperation::TableCreate,
+            serde_json::json!({"registerId":"register","name":"Table 1","seats":4}),
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "POS_TABLE_NAME_EXISTS");
+
+    let mut probe = Probe::default();
+    probe.register.as_mut().unwrap().branch_id = "other-branch".into();
+    let error = run_as(
+        &configure_actor(),
+        &mut probe,
+        &command(
+            PosOperation::TableCreate,
+            serde_json::json!({"registerId":"register","name":"Table 2","seats":2}),
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "POS_NOT_FOUND");
+}
+
+#[test]
+fn sale_discount_approval_requires_a_different_requester() {
+    let mut probe = Probe::default();
+    probe.sale.as_mut().unwrap().discount_requested_by = Some("cashier".into());
+    let result = run(
+        &mut probe,
+        &mut Finance::default(),
+        &mut Hospitality::default(),
+        &command(
+            PosOperation::SaleApproveDiscount,
+            serde_json::json!({"id":"sale","expectedVersion":1,"reason":"Manager approved"}),
+        ),
+    )
+    .unwrap();
+    assert_eq!(result.id, "sale");
+    assert!(probe.calls.contains(&"approve-discount"));
+
+    let mut probe = Probe::default();
+    probe.sale.as_mut().unwrap().discount_requested_by = Some("cashier".into());
+    probe.aliases.push(("cashier".into(), "manager".into()));
+    let error = run(
+        &mut probe,
+        &mut Finance::default(),
+        &mut Hospitality::default(),
+        &command(
+            PosOperation::SaleApproveDiscount,
+            serde_json::json!({"id":"sale","expectedVersion":1,"reason":"Manager approved"}),
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "POS_INDEPENDENT_REVIEW");
 }

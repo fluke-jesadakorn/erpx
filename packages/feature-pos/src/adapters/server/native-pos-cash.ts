@@ -46,8 +46,9 @@ export const NATIVE_POS_COMMANDS = new Set([
   'sale.create', 'sale.add', 'sale.update_line', 'sale.customer', 'sale.move_table', 'sale.remove',
   'sale.discount', 'sale.merge', 'sale.split', 'payment.create', 'payment.verify_transfer',
   'payment.cancel_transfer', 'sale.complete',
-  'sale.hold', 'sale.resume', 'sale.cancel',
+  'sale.hold', 'sale.resume', 'sale.cancel', 'sale.approve_discount',
   'refund.request', 'refund.approve', 'refund.reject',
+  'settings.operations', 'accounting.approve', 'table.create',
 ]);
 /** Operations in the five POS owner workflows. Once the native transport is
  * configured, an operation here without a native implementation must close
@@ -75,7 +76,7 @@ export function nativePosCommandCapability(operation: string): {
   if (operation.startsWith('shift.') || operation.startsWith('cash.'))
     return { capability: 'pos.shifts', purpose: operation === 'shift.open' ? 'new-work' : 'settle-existing' };
   if (operation.startsWith('refund.')) return { capability: 'pos.refunds', purpose: 'settle-existing' };
-  if (operation === 'sale.cancel' || operation === 'sale.complete')
+  if (operation === 'sale.cancel' || operation === 'sale.complete' || operation === 'sale.approve_discount')
     return { capability: 'pos.sales', purpose: 'settle-existing' };
   return { capability: 'pos.sales', purpose: 'new-work' };
 }
@@ -600,9 +601,11 @@ export function createNativePosCashClient(
       !keyPattern.test(key)
     )
       return failure('NATIVE_POS_CASH_REQUEST_INVALID');
-    const permission = ['shift.review', 'cash.approve', 'refund.reject'].includes(operation)
-      ? 'pos.approve'
-      : 'pos.sell';
+    const permission = ['settings.operations', 'table.create'].includes(operation)
+      ? 'pos.configure'
+      : ['shift.review', 'cash.approve', 'refund.reject', 'accounting.approve', 'sale.approve_discount'].includes(operation)
+        ? 'pos.approve'
+        : 'pos.sell';
     if (!(actor.iam.permissions ?? []).includes(permission))
       return failure(
         'POS_PERMISSION_REQUIRED',

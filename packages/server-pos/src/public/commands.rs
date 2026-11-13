@@ -14,6 +14,7 @@ pub use crate::domain::commands::{
     PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale,
     PosPaymentInsert, PosReceiptRequest, PosSettings, PosShift, PosStockRow, RefundApproveInput,
     RefundLineInput, RefundRejectInput, RefundRequestInput, SaleAddInput,
+    AccountingApproveInput, SaleApproveDiscountInput, SettingsOperationsInput, TableCreateInput,
     SaleCreateInput, SaleCustomerInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
     SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput, ShiftOpenInput, ShiftReviewInput,
     parse_receipt_result, valid_date, valid_uuid,

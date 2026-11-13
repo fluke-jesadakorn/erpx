@@ -18,7 +18,9 @@ use crate::domain::commands::{
     SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
     SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput,
     ShiftOpenInput, ShiftReviewInput,
-    accounting_review_required, conflict, day_closed, idempotency_conflict, independent_review,
+    AccountingApproveInput, SaleApproveDiscountInput, SettingsOperationsInput, TableCreateInput,
+    accounting_review_required, conflict, day_closed,
+    idempotency_conflict, independent_review,
     not_found, parse_receipt_result, period_closed, request_invalid, setup_required,
     source_invalid, valid_uuid, version_conflict,
 };
@@ -63,6 +65,42 @@ pub trait PosCommandRepository: Send {
         &'a mut self,
         company: &'a CompanyId,
     ) -> PosFuture<'a, Option<PosSettings>, Self::Error>;
+    /// Persist the operational settings policy at the exact read version.
+    fn save_operational_settings<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        expected_version: i64,
+        enabled: bool,
+        cashier_discount_bps: i64,
+    ) -> PosFuture<'a, bool, Self::Error>;
+    /// Record the independent accounting approval at the exact read version.
+    fn approve_accounting<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        approved_by: &'a str,
+        expected_version: i64,
+    ) -> PosFuture<'a, bool, Self::Error>;
+    /// A restaurant table name is unique within its register.
+    fn table_name_exists<'a>(
+        &'a mut self,
+        register_id: &'a str,
+        name: &'a str,
+    ) -> PosFuture<'a, bool, Self::Error>;
+    fn insert_table<'a>(
+        &'a mut self,
+        id: &'a str,
+        register_id: &'a str,
+        name: &'a str,
+        seats: i64,
+    ) -> PosFuture<'a, (), Self::Error>;
+    /// Record the independent discount approval on the current bill version.
+    fn approve_discount<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        expected_version: i64,
+        approved_by: &'a str,
+        reason: &'a str,
+    ) -> PosFuture<'a, bool, Self::Error>;
     fn register<'a>(
         &'a mut self,
         company: &'a CompanyId,
@@ -792,8 +830,13 @@ where
         PosOperation::ShiftReview
         | PosOperation::CashApprove
         | PosOperation::RefundApprove
-        | PosOperation::RefundReject => {
+        | PosOperation::RefundReject
+        | PosOperation::AccountingApprove
+        | PosOperation::SaleApproveDiscount => {
             actor.require_approve(now)?;
+        }
+        PosOperation::SettingsOperations | PosOperation::TableCreate => {
+            actor.require_configure(now)?;
         }
         _ => actor.require_sell(now)?,
     }
@@ -877,6 +920,16 @@ where
             refund_approve(actor, input, repository, finance, inventory, now).await?
         }
         PosCommandInput::RefundReject(input) => refund_reject(actor, input, repository).await?,
+        PosCommandInput::SettingsOperations(input) => {
+            settings_operations(actor, input, repository).await?
+        }
+        PosCommandInput::AccountingApprove(input) => {
+            accounting_approve(actor, input, repository).await?
+        }
+        PosCommandInput::TableCreate(input) => table_create(actor, input, repository).await?,
+        PosCommandInput::SaleApproveDiscount(input) => {
+            sale_approve_discount(actor, input, repository).await?
+        }
     };
     let result_json = serde_json::to_string(&result.to_wire()).map_err(|_| source_invalid())?;
     if !repository
@@ -1615,6 +1668,154 @@ where
     }
     Ok(PosResult {
         id: refund.id,
+        version: None,
+    })
+}
+
+async fn settings_operations<R>(
+    actor: &PosActor,
+    input: &SettingsOperationsInput,
+    repository: &mut R,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    actor.require_company_settings()?;
+    let settings = repository
+        .settings(&actor.company_id)
+        .await?
+        .ok_or_else(setup_required)?;
+    version_matches(settings.version, input.expected_version)?;
+    if !repository
+        .save_operational_settings(
+            &actor.company_id,
+            input.expected_version,
+            input.enabled,
+            input.cashier_discount_bps,
+        )
+        .await?
+    {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: actor.company_id.as_str().to_owned(),
+        version: Some(input.expected_version + 1),
+    })
+}
+
+async fn accounting_approve<R>(
+    actor: &PosActor,
+    input: &AccountingApproveInput,
+    repository: &mut R,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    actor.require_company_settings()?;
+    let settings = repository
+        .settings(&actor.company_id)
+        .await?
+        .ok_or_else(setup_required)?;
+    version_matches(settings.version, input.expected_version)?;
+    let prepared_by = settings
+        .accounting_prepared_by
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            accounting_review_required().into()
+        })?;
+    if repository
+        .same_person(&actor.company_id, actor.user_id.as_str(), prepared_by)
+        .await?
+    {
+        return Err(independent_review().into());
+    }
+    if !repository
+        .approve_accounting(
+            &actor.company_id,
+            actor.user_id.as_str(),
+            input.expected_version,
+        )
+        .await?
+    {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: actor.company_id.as_str().to_owned(),
+        version: Some(input.expected_version + 1),
+    })
+}
+
+async fn table_create<R>(
+    actor: &PosActor,
+    input: &TableCreateInput,
+    repository: &mut R,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let register = repository
+        .register(&actor.company_id, &input.register_id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_register(actor, &register)?;
+    if repository
+        .table_name_exists(&register.id, &input.name)
+        .await?
+    {
+        return Err(request_invalid(
+            "POS_TABLE_NAME_EXISTS",
+            "A table with this name already exists at this register.",
+        )
+        .into());
+    }
+    let id = repository.new_id().await?;
+    if !valid_uuid(&id) {
+        return Err(source_invalid().into());
+    }
+    repository
+        .insert_table(&id, &register.id, &input.name, input.seats)
+        .await?;
+    Ok(PosResult { id, version: None })
+}
+
+async fn sale_approve_discount<R>(
+    actor: &PosActor,
+    input: &SaleApproveDiscountInput,
+    repository: &mut R,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    let requester = sale
+        .discount_requested_by
+        .as_deref()
+        .unwrap_or(&sale.created_by);
+    if repository
+        .same_person(&actor.company_id, actor.user_id.as_str(), requester)
+        .await?
+    {
+        return Err(independent_review().into());
+    }
+    if !repository
+        .approve_discount(
+            &sale.id,
+            input.expected_version,
+            actor.user_id.as_str(),
+            &input.reason,
+        )
+        .await?
+    {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: sale.id,
         version: None,
     })
 }

@@ -31,6 +31,10 @@ pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
 pub const OPERATION_REFUND_APPROVE: &str = "refund.approve";
 pub const OPERATION_REFUND_REJECT: &str = "refund.reject";
+pub const OPERATION_SETTINGS_OPERATIONS: &str = "settings.operations";
+pub const OPERATION_ACCOUNTING_APPROVE: &str = "accounting.approve";
+pub const OPERATION_TABLE_CREATE: &str = "table.create";
+pub const OPERATION_SALE_APPROVE_DISCOUNT: &str = "sale.approve_discount";
 
 const AMOUNT_LIMIT: i64 = 99_999_999_999;
 const REASON_MIN: usize = 3;
@@ -96,6 +100,15 @@ impl PosActor {
     pub fn require_approve(&self, now: TimestampMillis) -> Result<(), BusinessError> {
         self.require_scope(now, "pos.approve")
     }
+    pub fn require_configure(&self, now: TimestampMillis) -> Result<(), BusinessError> {
+        self.require_scope(now, "pos.configure")
+    }
+    pub fn require_company_settings(&self) -> Result<(), BusinessError> {
+        if self.branch_id.is_some() {
+            return Err(company_settings_required());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -123,6 +136,10 @@ pub enum PosOperation {
     RefundRequest,
     RefundApprove,
     RefundReject,
+    SettingsOperations,
+    AccountingApprove,
+    TableCreate,
+    SaleApproveDiscount,
 }
 
 impl PosOperation {
@@ -151,6 +168,10 @@ impl PosOperation {
             OPERATION_REFUND_REQUEST => Self::RefundRequest,
             OPERATION_REFUND_APPROVE => Self::RefundApprove,
             OPERATION_REFUND_REJECT => Self::RefundReject,
+            OPERATION_SETTINGS_OPERATIONS => Self::SettingsOperations,
+            OPERATION_ACCOUNTING_APPROVE => Self::AccountingApprove,
+            OPERATION_TABLE_CREATE => Self::TableCreate,
+            OPERATION_SALE_APPROVE_DISCOUNT => Self::SaleApproveDiscount,
             _ => return None,
         })
     }
@@ -179,6 +200,10 @@ impl PosOperation {
             Self::RefundRequest => OPERATION_REFUND_REQUEST,
             Self::RefundApprove => OPERATION_REFUND_APPROVE,
             Self::RefundReject => OPERATION_REFUND_REJECT,
+            Self::SettingsOperations => OPERATION_SETTINGS_OPERATIONS,
+            Self::AccountingApprove => OPERATION_ACCOUNTING_APPROVE,
+            Self::TableCreate => OPERATION_TABLE_CREATE,
+            Self::SaleApproveDiscount => OPERATION_SALE_APPROVE_DISCOUNT,
         }
     }
 }
@@ -328,6 +353,28 @@ pub struct RefundRejectInput {
     pub expected_version: i64,
     pub reason: String,
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SettingsOperationsInput {
+    pub expected_version: i64,
+    pub enabled: bool,
+    pub cashier_discount_bps: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AccountingApproveInput {
+    pub expected_version: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TableCreateInput {
+    pub register_id: String,
+    pub name: String,
+    pub seats: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaleApproveDiscountInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub reason: String,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PosCommandInput {
@@ -352,6 +399,10 @@ pub enum PosCommandInput {
     RefundRequest(RefundRequestInput),
     RefundApprove(RefundApproveInput),
     RefundReject(RefundRejectInput),
+    SettingsOperations(SettingsOperationsInput),
+    AccountingApprove(AccountingApproveInput),
+    TableCreate(TableCreateInput),
+    SaleApproveDiscount(SaleApproveDiscountInput),
 }
 
 #[derive(Clone, Debug)]
@@ -378,6 +429,8 @@ pub struct PosSettings {
     pub cashier_discount_bps: i64,
     pub accounts_json: String,
     pub accounting_approved_by: Option<String>,
+    pub accounting_prepared_by: Option<String>,
+    pub version: i64,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PosRegister {
@@ -436,6 +489,7 @@ pub struct PosSale {
     pub version: i64,
     pub accounts_json: String,
     pub discount_approved_by: Option<String>,
+    pub discount_requested_by: Option<String>,
     pub invoice_id: Option<String>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -790,6 +844,13 @@ pub(crate) fn independent_review() -> BusinessError {
     conflict(
         "POS_INDEPENDENT_REVIEW",
         "A different manager must review this POS record.",
+    )
+}
+pub(crate) fn company_settings_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "POS_COMPANY_SETTINGS",
+        "Review POS settings at Company scope.",
     )
 }
 pub(crate) fn accounting_review_required() -> BusinessError {
@@ -1754,6 +1815,100 @@ impl PosCommand {
                 let reason = reason(&text(value, "reason")?)?;
                 (
                     PosCommandInput::RefundReject(RefundRejectInput {
+                        id: id.clone(),
+                        expected_version,
+                        reason: reason.clone(),
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("reason", json_string(&reason)),
+                    ]),
+                )
+            }
+            PosOperation::SettingsOperations => {
+                object(
+                    value,
+                    &["expectedVersion", "enabled", "cashierDiscountBps"],
+                    &["expectedVersion", "enabled", "cashierDiscountBps"],
+                )?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let enabled = boolean(value, "enabled")?;
+                let cashier_discount_bps = integer(value, "cashierDiscountBps")?;
+                if !(0..=10_000).contains(&cashier_discount_bps) {
+                    return Err(request_invalid(
+                        "POS_COMMAND_INVALID",
+                        "Review the cashier discount limit.",
+                    ));
+                }
+                (
+                    PosCommandInput::SettingsOperations(SettingsOperationsInput {
+                        expected_version,
+                        enabled,
+                        cashier_discount_bps,
+                    }),
+                    canonical(&[
+                        ("expectedVersion", expected_version.to_string()),
+                        ("enabled", enabled.to_string()),
+                        ("cashierDiscountBps", cashier_discount_bps.to_string()),
+                    ]),
+                )
+            }
+            PosOperation::AccountingApprove => {
+                object(value, &["expectedVersion"], &["expectedVersion"])?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                (
+                    PosCommandInput::AccountingApprove(AccountingApproveInput {
+                        expected_version,
+                    }),
+                    canonical(&[("expectedVersion", expected_version.to_string())]),
+                )
+            }
+            PosOperation::TableCreate => {
+                object(
+                    value,
+                    &["registerId", "name", "seats"],
+                    &["registerId", "name", "seats"],
+                )?;
+                let register_id = text(value, "registerId")?;
+                let name = js_trim(&text(value, "name")?).to_owned();
+                if !(1..=40).contains(&name.chars().count()) {
+                    return Err(request_invalid(
+                        "POS_TABLE_INVALID",
+                        "Enter a table name between 1 and 40 characters.",
+                    ));
+                }
+                let seats = integer(value, "seats")?;
+                if !(1..=100).contains(&seats) {
+                    return Err(request_invalid(
+                        "POS_TABLE_INVALID",
+                        "Enter between 1 and 100 seats.",
+                    ));
+                }
+                (
+                    PosCommandInput::TableCreate(TableCreateInput {
+                        register_id: register_id.clone(),
+                        name: name.clone(),
+                        seats,
+                    }),
+                    canonical(&[
+                        ("registerId", json_string(&register_id)),
+                        ("name", json_string(&name)),
+                        ("seats", seats.to_string()),
+                    ]),
+                )
+            }
+            PosOperation::SaleApproveDiscount => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "reason"],
+                    &["id", "expectedVersion", "reason"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let reason = reason(&text(value, "reason")?)?;
+                (
+                    PosCommandInput::SaleApproveDiscount(SaleApproveDiscountInput {
                         id: id.clone(),
                         expected_version,
                         reason: reason.clone(),
