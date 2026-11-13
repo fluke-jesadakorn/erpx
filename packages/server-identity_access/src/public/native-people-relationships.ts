@@ -235,6 +235,10 @@ async function boundedJson(response: Response): Promise<unknown> {
   }
 }
 
+/** Normalized, validated transport configuration for owner clients. */
+export type NativePeopleRelationshipsNormalized = ReturnType<typeof configuration>;
+export const nativePeopleRelationshipsNormalized = configuration;
+
 export function nativePeopleRelationshipsAvailable(): boolean {
   return process.env.ERPX_NATIVE_IDENTITY_ACCESS_CONFIG !== undefined;
 }

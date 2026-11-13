@@ -122,3 +122,5 @@ pub mod position_gpo;
 
 pub mod people_access;
 pub mod people_access_http;
+pub mod people_grants;
+pub mod people_grants_http;

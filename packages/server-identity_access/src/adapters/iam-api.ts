@@ -17,7 +17,7 @@ import {
   revokeEmergency,
 } from "@erpx/server-identity_access/public/iam-recovery";
 import "server-only";
-import { peopleRelationshipsSnapshot, peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
+import { peopleRelationshipsSnapshot, peopleAccessSnapshot } from "@erpx/server-identity_access/public/people-access";
 import {
   createNativePeopleRelationshipsClient,
   nativePeopleRelationshipsAvailable,
@@ -25,6 +25,11 @@ import {
   nativePeopleRelationshipsFailure,
   type NativePeopleRelationshipsContext,
 } from "../public/native-people-relationships";
+import {
+  createNativePeopleAccessClient,
+  nativePeopleAccessAvailable,
+  nativePeopleAccessFailure,
+} from "../public/native-people-grants";
 import { z } from "zod";
 import { currentSession,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {bindIamReviewEvidence,bindIamMigrationEvidence} from "@erpx/server-platform_administration/public/system-evidence";
@@ -308,6 +313,37 @@ async function nativePeopleRelationshipsCommand(
     throw error;
   }
 }
+async function nativePeopleAccessCommand(
+  actor: Parameters<typeof nativePeopleRelationshipsContext>[0],
+  holdingSlug: string | null,
+  request: Request,
+  command: { kind: "preview"; change: unknown } | { kind: "apply"; token: string; key: string },
+) {
+  const raw = process.env.ERPX_NATIVE_IDENTITY_ACCESS_CONFIG;
+  if (!nativePeopleAccessAvailable() || !raw || !holdingSlug)
+    throw new ApiError(
+      503,
+      "NATIVE_PEOPLE_ACCESS_REQUIRED",
+      "This People access command requires the native owner service.",
+    );
+  if (actor.platform || !actor.authority || !actor.iam || !actor.holdingId)
+    throw new ApiError(403, "COMPANY_SCOPE_REQUIRED", "Select a Company workspace for People access.");
+  if (command.kind === "apply" && !/^[A-Za-z0-9:_.-]{8,180}$/.test(command.key))
+    throw new ApiError(422, "COMMAND_KEY_REQUIRED", "A valid Idempotency-Key is required.");
+  try {
+    const client = createNativePeopleAccessClient(
+      nativePeopleRelationshipsConfiguration(raw),
+    );
+    const context = nativePeopleRelationshipsContext(actor, holdingSlug);
+    return command.kind === "preview"
+      ? await client.preview(request.headers, context, command.change)
+      : await client.apply(request.headers, context, command.token, command.key);
+  } catch (error) {
+    const failure = nativePeopleAccessFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
 export async function iamApi(
   request: Request,
   holdingSlug: string | null,
@@ -424,8 +460,8 @@ export async function iamApi(
     let result: unknown;
     if (route === "people-relationships/preview") result = await nativePeopleRelationshipsCommand(actor, holdingSlug, request, { kind: "preview", change: input.change });
     else if (route === "people-relationships/apply") result = await nativePeopleRelationshipsCommand(actor, holdingSlug, request, { kind: "apply", token: z.string().uuid().parse(input.previewToken), key });
-    else if (route === "people-access/preview") result = await previewPeopleAccess(db, actor, input.change);
-    else if (route === "people-access/apply") result = await applyPeopleAccess(db, actor, z.string().uuid().parse(input.previewToken), key);
+    else if (route === "people-access/preview") result = await nativePeopleAccessCommand(actor, holdingSlug, request, { kind: "preview", change: input.change });
+    else if (route === "people-access/apply") result = await nativePeopleAccessCommand(actor, holdingSlug, request, { kind: "apply", token: z.string().uuid().parse(input.previewToken), key });
     else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='reviews')
       result=await bindIamReviewEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
     else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='migrations')

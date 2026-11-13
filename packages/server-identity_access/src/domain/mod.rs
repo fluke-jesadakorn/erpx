@@ -42,3 +42,4 @@ pub(crate) mod directory_runtime;
 pub(crate) mod position_gpo;
 
 pub(crate) mod people_access;
+pub(crate) mod people_grants;
