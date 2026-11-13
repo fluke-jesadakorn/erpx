@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1512,
+    "revision": 1516,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -20194,11 +20194,18 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T03:33:05.525Z",
+          "heartbeatAt": "2026-11-13T03:33:05.525Z",
+          "expiresAt": "2026-11-13T04:03:05.525Z",
+          "generation": 51
+        },
         "baseSha": null,
-        "implementedCommit": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
-        "lastPushedSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+        "implementedCommit": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+        "lastPushedSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
         "checks": [
           {
             "command": "cargo test -p erpx-server-people-payroll --test payroll_run_postgres -- --test-threads=1",
@@ -20251,11 +20258,63 @@
             "before": 2362,
             "after": 2360,
             "note": "Global owner KPI drops by exactly the two deleted cancellation writers."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.core.integration",
+            "result": "passed",
+            "sourceSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+            "note": "Passed with the direct payroll-run seed; the three TS create purchase-wrapper tests were removed and the remaining create calls use the helper."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.statutory.integration",
+            "result": "passed",
+            "sourceSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+            "note": "Passed with the direct seed; the removed country-pack/draining create assertions no longer reference the retired TS wrapper."
+          },
+          {
+            "command": "bun run test:integration tests/integration/shared.attachments/sensitive-attachment-access.test.ts",
+            "result": "passed",
+            "sourceSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+            "note": "Passed; the payroll-run private-file source is seeded directly."
+          },
+          {
+            "command": "bun run test:integration -- --suite=identity_access.iam.integration",
+            "result": "blocked",
+            "sourceSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+            "note": "The payroll withdrawal/create block passes. Four unrelated pre-existing account-grant/reviewer tests still fail in this checkout."
+          },
+          {
+            "command": "bun run test:integration tests/integration/people_payroll/self-service-journeys.test.ts",
+            "result": "blocked",
+            "sourceSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+            "note": "The payroll creation paths pass; one notification test fails because the native Field Inbox config is absent in this environment ('The native Field Inbox is unavailable'), unrelated to the create retirement."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+            "note": "No payroll/people_payroll type errors; the repository interface no longer requires stageCreatePayrollRunEffect and all test imports point at the seed helper."
+          },
+          {
+            "command": "retirement:ts-writes: people_payroll",
+            "result": "passed",
+            "sourceSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+            "before": 327,
+            "after": 326,
+            "note": "Deleted the createPayrollRun export, the application create method, the stageCreatePayrollRunEffect INSERT and the public/index exports. Remaining in this task: calculatePayrollRun, postPayroll and the payroll readers."
+          },
+          {
+            "command": "retirement:ts-writes: global",
+            "result": "passed",
+            "sourceSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+            "before": 2354,
+            "after": 2353,
+            "note": "Global owner KPI drops by exactly the one deleted payroll-run create writer."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Cancellation writer is retired and verified (people_payroll KPI 329->327; native cancel PG 3/3; core/statutory integration green). Remaining: createPayrollRun/calculatePayrollRun/postPayroll and payrollSummary/listPayrollRuns/getPayrollRun/workPayrollRows. These need direct owner-table run seeding plus native HTTP purchase/authority oracle coverage (the three payroll-core create purchase-wrapper tests currently assert TS PACKAGE_*/PAYROLL_ACCESS_CHANGED behavior); do not delete them without that replacement.",
+        "blocker": null,
+        "nextAction": "Payroll-run create is retired (people_payroll 327->326, global 2354->2353; payroll-core/statutory/sensitive integration green). Remaining: calculatePayrollRun, postPayroll and payrollSummary/listPayrollRuns/getPayrollRun/workPayrollRows. The statutory/calculation/post oracles still assert the TS engine math and need native observation/seeding before those writers can be deleted.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "lead",
@@ -31444,8 +31503,15 @@
         "resources": [
           "owner:crm"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-crm-activities",
+          "claimedAt": "2026-11-13T03:31:45.302Z",
+          "heartbeatAt": "2026-11-13T03:31:45.302Z",
+          "expiresAt": "2026-11-13T04:01:45.302Z",
+          "generation": 51
+        },
         "baseSha": null,
         "implementedCommit": "843b365fff6379a1ce0dbb6c6f002a161c493e5d",
         "lastPushedSha": "843b365fff6379a1ce0dbb6c6f002a161c493e5d",
@@ -31482,7 +31548,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Mount the native CRM activity command router in composition, switch the feature-sales activities route native-only, delete the TS activity writers and exports, move the activity oracle to native seeding, and record the KPI pair.",
         "handoff": {
           "runId": "run-20261113-g",
@@ -32341,23 +32407,23 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "worker-ca-ack",
-          "claimedAt": "2026-11-13T03:11:25.628Z",
-          "heartbeatAt": "2026-11-13T03:17:32.046Z",
-          "expiresAt": "2026-11-13T03:47:32.046Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the native portal-product-session acknowledge command/HTTP ingress (verified session proof, request_key replay, ack/audit/outbox, post-deferred re-proof), switch server-customer_360 portal-command-request + feature consumers native-only, delete the remaining portal-support writers + barrel, migrate the ack oracles, record customer_authority KPI 10->6.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead serialization: composition released for the CRM activity mount; CA acknowledge WIP preserved in the tree for integration.",
+        "handoff": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-ca-ack",
+          "at": "2026-11-13T03:31:45.268Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead serialization: composition released for the CRM activity mount; CA acknowledge WIP preserved in the tree for integration."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -32373,17 +32439,17 @@
       "migratedPackets": 88,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 2,
+        "in_progress": 3,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 88,
-        "blocked": 39,
+        "blocked": 38,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:31:16.254Z",
+    "updatedAt": "2026-11-13T03:38:08.241Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
