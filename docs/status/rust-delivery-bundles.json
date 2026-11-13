@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1880,
+    "revision": 1884,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-q",
       "agentId": "lead",
       "startedAt": "2026-11-13T16:24:08.855Z",
-      "heartbeatAt": "2026-11-13T16:35:15.163Z",
-      "expiresAt": "2026-11-13T17:05:15.163Z",
+      "heartbeatAt": "2026-11-13T17:00:34.327Z",
+      "expiresAt": "2026-11-13T17:30:34.327Z",
       "generation": 61,
       "tokenHash": "35462438ad1c1d80cc706a6083159260aad2c4c08dcaff3c53cd62f2c0c9b0b2"
     },
@@ -37574,8 +37574,8 @@
           "runId": "run-20261113-q",
           "agentId": "worker-manufacturing-order",
           "claimedAt": "2026-11-13T16:26:06.670Z",
-          "heartbeatAt": "2026-11-13T16:35:15.163Z",
-          "expiresAt": "2026-11-13T17:05:15.163Z",
+          "heartbeatAt": "2026-11-13T17:00:34.327Z",
+          "expiresAt": "2026-11-13T17:30:34.327Z",
           "generation": 61
         },
         "baseSha": null,
@@ -37883,22 +37883,107 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
+        "lastPushedSha": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 133,
+            "after": 118,
+            "sourceSha": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
+            "sourceKind": "committed",
+            "note": "Removed the 15 directory-operations writers."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test directory_runtime",
+            "result": "passed",
+            "sourceSha": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
+            "sourceKind": "committed",
+            "note": "8/8 passed, including the folded domain/impact cases."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed for identity_access (unrelated WIP remains in planning)."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "nextAction": "Native directory operations and consumer switches are committed (IAM 133 -> 118). Lead: mount DirectoryOperationHttpBackend/router, add the connector action mapping for account/group/OU/object.move/update/disable/enable, add the directory-operation-worker CLI, and reclassify the catalogue entry. Then verify the admin directory pages end to end.",
+        "handoff": {
           "runId": "run-20261113-q",
           "agentId": "worker-iam-directory-ops",
-          "claimedAt": "2026-11-13T16:26:06.809Z",
-          "heartbeatAt": "2026-11-13T16:35:15.163Z",
-          "expiresAt": "2026-11-13T17:05:15.163Z",
-          "generation": 61
+          "at": "2026-11-13T17:00:12.977Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native directory operations and consumer switches are committed (IAM 133 -> 118). Lead: mount DirectoryOperationHttpBackend/router, add the connector action mapping for account/group/OU/object.move/update/disable/enable, add the directory-operation-worker CLI, and reclassify the catalogue entry. Then verify the admin directory pages end to end."
         },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.identity_access.directory-operations",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Mount native directory operations and connector actions",
+        "scope": "Mount DirectoryOperationHttpBackend/router, add the connector action mapping for account/group/OU/object.move/update/disable/enable, add the directory-operation-worker CLI, and verify the admin directory pages. The 15 TS writers are already retired.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-admin/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "packages/server-runtime/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**",
+          "tests/catalogue/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the native directory-operations command surface (objects/work/mappings) with the installed connector/apply port, switch the feature-admin directory pages and workplace consumers, delete directory-operations.ts (15 writes) and record Identity Access 133 -> 118. Report any composition mount contract.",
+        "nextAction": "Implement directory_operation_command + DirectoryOperationHttpBackend and mount directory_operation_http_router per Holding; supply DirectoryOperationConnector (reuse the GPO runner/UDM profile and map account/group/OU/object.move/account.update/OU.update/disable/enable) and DirectoryDirectFreshness; add the directory-operation-worker CLI and switch the jobs runtime; reclassify the catalogue suite; verify the admin directory pages.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -37910,12 +37995,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 199,
+      "totalPackets": 200,
       "migratedPackets": 120,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 2,
-        "ready_for_integration": 18,
+        "pending": 21,
+        "in_progress": 1,
+        "ready_for_integration": 19,
         "integrating": 0,
         "migrated": 120,
         "blocked": 39,
@@ -37924,7 +38009,7 @@
       }
     },
     "lastCoordinatorGeneration": 61,
-    "updatedAt": "2026-11-13T16:35:15.163Z",
+    "updatedAt": "2026-11-13T17:00:34.328Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
