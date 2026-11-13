@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1682,
+    "revision": 1693,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-k",
+      "runId": "run-20261113-l",
       "agentId": "lead",
-      "startedAt": "2026-11-13T09:13:52.607Z",
-      "heartbeatAt": "2026-11-13T09:14:27.316Z",
-      "expiresAt": "2026-11-13T09:44:27.316Z",
-      "generation": 55,
-      "tokenHash": "c7f6645eceb95411d7de3e557fdec2997289f141e117ef49c766841d0eb75beb"
+      "startedAt": "2026-11-13T09:48:56.055Z",
+      "heartbeatAt": "2026-11-13T10:10:34.975Z",
+      "expiresAt": "2026-11-13T10:40:34.975Z",
+      "generation": 56,
+      "tokenHash": "eef7dc6029068a20afe93aded0ad39b8746ef9f44c054adc9240abf2c97997ee"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -34149,11 +34149,11 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
-        "lastPushedSha": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
+        "implementedCommit": "e4110070838f67327898d67ac9c629ff1a103977",
+        "lastPushedSha": "e4110070838f67327898d67ac9c629ff1a103977",
         "checks": [
           {
             "command": "cargo check -p erpx-server-finance --offline",
@@ -34196,24 +34196,131 @@
             "sourceSha": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
             "sourceKind": "committed",
             "note": "Repository layout passed."
-          }
-        ],
-        "retainedLegacy": [
-          {
-            "path": "packages/server-finance/src/adapters/supplier-payment-repository.ts",
-            "writes": 17,
-            "removalTaskId": "retire.finance.finance",
-            "removalCondition": "Extend the retirement claim to packages/server-procurement supplier-payments application/adapter/public, the feature-procurement supplier-batch commands and presenter, and tests/integration/procurement/supplier-payments.test.ts; switch the route/TS fallback, then delete the 17 writers and the public barrel."
           },
           {
-            "path": "packages/server-finance/src/adapters/supplier-payment-corrections.ts",
-            "writes": 1,
-            "removalTaskId": "retire.finance.finance",
-            "removalCondition": "Replace the final DELETE FROM command_assertions guard cleanup with the native planning port."
+            "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "before": 370,
+            "after": 353,
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-finance/src/adapters/{finance-ai,supplier-payment-corrections,finance-tax-register,finance-consolidation,finance-accruals,finance-instruments,finance-asset-policies,refunds}.ts and adapters/finance.ts",
+                "writes": 137,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Native producers land for finance AI, supplier corrections, VAT, consolidation, accruals, instruments, asset policies, refunds and the remaining adapters/finance.ts branches."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/*-guards.ts (14 command_assertions-only modules)",
+                "writes": 17,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Remove the guard-only writers after the owning purchase commands become fully native."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/*-facts.ts / *-sources.ts / *-evidence.ts (cross-owner published facts)",
+                "writes": 199,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "The originating owner publishes a native fact source that Finance consumes."
+              }
+            ],
+            "note": "Retired the 17 supplier-payment-repository writers plus the procurement TS command/fallback; native supplier-batch command is mounted and tested."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --offline",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cd packages/server-finance && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Finance package typecheck passed."
+          },
+          {
+            "command": "cd packages/server-procurement && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Procurement package typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed after the three consumer updates."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.rust-payment-correction-postgres.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "8/8."
+          },
+          {
+            "command": "bun run test:integration -- --suite=procurement.purchase-to-payment.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "21/21."
+          },
+          {
+            "command": "bun run test:integration -- --suite=procurement.supplier-payments.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "2/2 native-seeded read assertions."
+          },
+          {
+            "command": "bun run test:unit -- --suite=procurement.services.unit",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "67/67."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.payment-obligations.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.statutory.business-statutory-payment-owners.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "3/3."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.money-people-journeys.engineering-finance-people-attachments.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "46/46."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
           }
         ],
-        "blocker": "released with work preserved",
-        "nextAction": "Native supplier batch/instruction producer and native-first route are committed. Lead: mount the composition transaction (PurchaseCommandBoundary, source locks, SERIALIZABLE, Files evidence, Collaboration notifications) and extend the retirement claim to the procurement consumers, then delete the 17 finance writers + barrel and record Finance after < 370 (expected ~353).",
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: native supplier-batch producer, composition mount and 17-writer cutover landed (Finance 370->353).",
         "handoff": {
           "runId": "run-20261113-j",
           "agentId": "worker-finance-supplier",
@@ -34222,7 +34329,8 @@
           "reason": "released with work preserved",
           "nextAction": "Native supplier batch/instruction producer and native-first route are committed. Lead: mount the composition transaction (PurchaseCommandBoundary, source locks, SERIALIZABLE, Files evidence, Collaboration notifications) and extend the retirement claim to the procurement consumers, then delete the 17 finance writers + barrel and record Finance after < 370 (expected ~353)."
         },
-        "procedureRef": "executionPlan.sliceProcedure"
+        "procedureRef": "executionPlan.sliceProcedure",
+        "retireTaskId": "retire.finance.period-close-ts"
       },
       {
         "id": "retire.finance.supplier-batches",
@@ -34247,34 +34355,151 @@
           "tests/unit/finance/**",
           "tests/integration/finance/**",
           "tests/unit/procurement/**",
-          "tests/integration/procurement/**"
+          "tests/integration/procurement/**",
+          "tests/integration/sales/**",
+          "tests/integration/shared.statutory/**",
+          "tests/support/helpers/**"
         ],
         "resources": [
           "owner:finance",
           "owner:procurement"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-k",
-          "agentId": "worker-finance-supplier-retire",
-          "claimedAt": "2026-11-13T09:14:02.078Z",
-          "heartbeatAt": "2026-11-13T09:14:27.316Z",
-          "expiresAt": "2026-11-13T09:44:27.316Z",
-          "generation": 55
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "e4110070838f67327898d67ac9c629ff1a103977",
+        "lastPushedSha": "e4110070838f67327898d67ac9c629ff1a103977",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "before": 370,
+            "after": 353,
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-finance/src/adapters/{finance-ai,supplier-payment-corrections,finance-tax-register,finance-consolidation,finance-accruals,finance-instruments,finance-asset-policies,refunds}.ts and adapters/finance.ts",
+                "writes": 137,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Native producers land for finance AI, supplier corrections, VAT, consolidation, accruals, instruments, asset policies, refunds and the remaining adapters/finance.ts branches."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/*-guards.ts (14 command_assertions-only modules)",
+                "writes": 17,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Remove the guard-only writers after the owning purchase commands become fully native."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/*-facts.ts / *-sources.ts / *-evidence.ts (cross-owner published facts)",
+                "writes": 199,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "The originating owner publishes a native fact source that Finance consumes."
+              }
+            ],
+            "note": "Retired the 17 supplier-payment-repository writers plus the procurement TS command/fallback; native supplier-batch command is mounted and tested."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --offline",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cd packages/server-finance && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Finance package typecheck passed."
+          },
+          {
+            "command": "cd packages/server-procurement && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Procurement package typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed after the three consumer updates."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.rust-payment-correction-postgres.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "8/8."
+          },
+          {
+            "command": "bun run test:integration -- --suite=procurement.purchase-to-payment.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "21/21."
+          },
+          {
+            "command": "bun run test:integration -- --suite=procurement.supplier-payments.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "2/2 native-seeded read assertions."
+          },
+          {
+            "command": "bun run test:unit -- --suite=procurement.services.unit",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "67/67."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.payment-obligations.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.statutory.business-statutory-payment-owners.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "3/3."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.money-people-journeys.engineering-finance-people-attachments.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "46/46."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Audit the server-procurement supplier-payments application/adapter/public and the feature-procurement batch commands; remove the TS fallback, switch any remaining consumers to the native supplier-batch route, migrate tests/integration/procurement/supplier-payments.test.ts to native seeding, then delete the 17 finance writers and the public barrel and record Finance 370 -> ~353.",
+        "nextAction": "Complete: retired the 17 supplier-payment-repository writers, procurement TS commands/fallback and public barrel (Finance 370->353, global 2304->2287). Follow-ups: native Thai statutory withholding guard and the classified 353 residual under retire.finance.finance.",
         "handoff": {
-          "runId": "run-20261113-j",
-          "agentId": "lead",
-          "at": "2026-11-13T08:42:13.393Z",
+          "runId": "run-20261113-k",
+          "agentId": "worker-finance-supplier-retire",
+          "at": "2026-11-13T09:48:56.054Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during finance retirement batch; same lead resumes; WIP reviewed",
           "nextAction": "Audit the server-procurement supplier-payments application/adapter/public and the feature-procurement batch commands; remove the TS fallback, switch any remaining consumers to the native supplier-batch route, migrate tests/integration/procurement/supplier-payments.test.ts to native seeding, then delete the 17 finance writers and the public barrel and record Finance 370 -> ~353."
         },
         "procedureRef": "executionPlan.sliceProcedure"
@@ -34308,11 +34533,11 @@
           "owner:procurement",
           "resource:composition"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "2a900ebfd4903db488fe1c3abb4fe5b82c144ba4",
-        "lastPushedSha": "2a900ebfd4903db488fe1c3abb4fe5b82c144ba4",
+        "implementedCommit": "e4110070838f67327898d67ac9c629ff1a103977",
+        "lastPushedSha": "e4110070838f67327898d67ac9c629ff1a103977",
         "checks": [
           {
             "command": "cargo check -p erpx-service --features private-development-api --offline",
@@ -34327,11 +34552,131 @@
             "sourceSha": "2a900ebfd4903db488fe1c3abb4fe5b82c144ba4",
             "sourceKind": "committed",
             "note": "8/8, including the new supplier_batch_http_route_creates_approves_and_replays transport case."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "before": 370,
+            "after": 353,
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-finance/src/adapters/{finance-ai,supplier-payment-corrections,finance-tax-register,finance-consolidation,finance-accruals,finance-instruments,finance-asset-policies,refunds}.ts and adapters/finance.ts",
+                "writes": 137,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Native producers land for finance AI, supplier corrections, VAT, consolidation, accruals, instruments, asset policies, refunds and the remaining adapters/finance.ts branches."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/*-guards.ts (14 command_assertions-only modules)",
+                "writes": 17,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Remove the guard-only writers after the owning purchase commands become fully native."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/*-facts.ts / *-sources.ts / *-evidence.ts (cross-owner published facts)",
+                "writes": 199,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "The originating owner publishes a native fact source that Finance consumes."
+              }
+            ],
+            "note": "Retired the 17 supplier-payment-repository writers plus the procurement TS command/fallback; native supplier-batch command is mounted and tested."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --offline",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cd packages/server-finance && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Finance package typecheck passed."
+          },
+          {
+            "command": "cd packages/server-procurement && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Procurement package typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed after the three consumer updates."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.rust-payment-correction-postgres.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "8/8."
+          },
+          {
+            "command": "bun run test:integration -- --suite=procurement.purchase-to-payment.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "21/21."
+          },
+          {
+            "command": "bun run test:integration -- --suite=procurement.supplier-payments.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "2/2 native-seeded read assertions."
+          },
+          {
+            "command": "bun run test:unit -- --suite=procurement.services.unit",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "67/67."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.payment-obligations.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.statutory.business-statutory-payment-owners.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "3/3."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.money-people-journeys.engineering-finance-people-attachments.integration",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "46/46."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "e4110070838f67327898d67ac9c629ff1a103977",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Mount complete: routes registered and 8/8 finance transport tests pass. The retirement task now removes the TS fallback/writers and migrates the procurement oracles to native seeding.",
+        "blocker": null,
+        "nextAction": "Complete: native supplier-batch routes mounted and the 17-writer TS cutover landed (Finance 370->353). Follow-ups: native statutory withholding guard and the classified 353 residual under retire.finance.finance.",
         "handoff": {
           "runId": "run-20261113-k",
           "agentId": "lead",
@@ -34341,7 +34686,8 @@
           "nextAction": "Mount complete: routes registered and 8/8 finance transport tests pass. The retirement task now removes the TS fallback/writers and migrates the procurement oracles to native seeding."
         },
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.finance.period-close-ts"
       }
     ],
     "migrationProgress": {
@@ -34351,20 +34697,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 173,
-      "migratedPackets": 96,
+      "migratedPackets": 99,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 1,
-        "ready_for_integration": 17,
+        "in_progress": 0,
+        "ready_for_integration": 15,
         "integrating": 0,
-        "migrated": 96,
+        "migrated": 99,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 55,
-    "updatedAt": "2026-11-13T09:14:27.317Z",
+    "lastCoordinatorGeneration": 56,
+    "updatedAt": "2026-11-13T10:10:34.975Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -34407,10 +34753,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-j",
-      "runId": "run-20261113-k",
-      "at": "2026-11-13T09:13:52.609Z",
-      "reason": "Lease expired during long finance mount/test batch; same lead resumes; WIP reviewed",
+      "previousRunId": "run-20261113-k",
+      "runId": "run-20261113-l",
+      "at": "2026-11-13T09:48:56.056Z",
+      "reason": "Lease expired during finance retirement batch; same lead resumes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
