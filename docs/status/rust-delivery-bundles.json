@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1658,
+    "revision": 1663,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-j",
       "agentId": "lead",
       "startedAt": "2026-11-13T08:01:06.178Z",
-      "heartbeatAt": "2026-11-13T08:01:27.810Z",
-      "expiresAt": "2026-11-13T08:31:27.810Z",
+      "heartbeatAt": "2026-11-13T08:10:41.302Z",
+      "expiresAt": "2026-11-13T08:40:41.302Z",
       "generation": 54,
       "tokenHash": "ce5fa52d8a7699eb63bf471e2e0f5260b9740763f65f28788a2783dbb4bae986"
     },
@@ -22629,11 +22629,11 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
-        "lastPushedSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
+        "implementedCommit": "f5e840e9df40b731e5a30ac337ae9f3a514ba73d",
+        "lastPushedSha": "f5e840e9df40b731e5a30ac337ae9f3a514ba73d",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-pos/src/**/*.ts'",
@@ -22784,24 +22784,124 @@
             "sourceSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
             "sourceKind": "committed",
             "note": "350 passed; 4 failures are the pre-existing receipt-route harness (headers is not defined) and reproduce from the untouched snapshot."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "before": 87,
+            "after": 83,
+            "sourceSha": "f5e840e9df40b731e5a30ac337ae9f3a514ba73d",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-pos/src/adapters/pos-core.ts",
+                "writes": 49,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Native producers land for settings/register/catalog/kitchen/payment/settlement/exception/day/room-charge/connection/customer families and the consumers switch."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-stripe.ts",
+                "writes": 27,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Native Stripe provider/worker exists; live credentials and verification stay deferred."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-daily.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Native day-close/receipt-capture producer lands."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/purchase-boundary.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "In-transaction purchase admission is mounted for native POS commands."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-images.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Native image intake producer lands."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/attachment-migration-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Files-owned attachment backfill consumer switches to the native port."
+              }
+            ],
+            "note": "Retired settings.operations, accounting.approve, table.create and sale.approve_discount from pos-core; the four TS writers and repo methods were deleted."
+          },
+          {
+            "command": "cargo check -p erpx-server-pos --offline",
+            "result": "passed",
+            "sourceSha": "f5e840e9df40b731e5a30ac337ae9f3a514ba73d",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo check -p erpx-service --offline",
+            "result": "passed",
+            "sourceSha": "f5e840e9df40b731e5a30ac337ae9f3a514ba73d",
+            "sourceKind": "committed",
+            "note": "Composition compiles with operation-aware POS permission."
+          },
+          {
+            "command": "cd packages/server-pos && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "f5e840e9df40b731e5a30ac337ae9f3a514ba73d",
+            "sourceKind": "committed",
+            "note": "POS package typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "f5e840e9df40b731e5a30ac337ae9f3a514ba73d",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed, including the seed helper."
+          },
+          {
+            "command": "bunx vitest run tests/unit/pos/native-pos-cash-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "f5e840e9df40b731e5a30ac337ae9f3a514ba73d",
+            "sourceKind": "committed",
+            "note": "20/20 native transport cases."
           }
         ],
         "retainedLegacy": [
           {
-            "path": "packages/server-pos/src/adapters/pos-core.ts (settings.operations, accounting.approve, table.create, sale.approve_discount)",
-            "writes": 4,
-            "removalTaskId": "retire.pos.pos-core",
-            "removalCondition": "Extend tests/support/helpers/pos-native-seed.ts retiredPosCommandNames and seed oracle (plus the seed-script calls) for the four operations, then delete the branches and PosUnit members; expected POS 87 -> 83."
+            "path": "packages/server-pos/src/adapters/pos-core.ts",
+            "removalTaskId": "retire.pos.residual",
+            "removalCondition": "Native producers land for the remaining operation families and the live consumers switch."
           },
           {
-            "path": "packages/server-pos/src/adapters/*.ts (remaining 83 writers)",
-            "writes": 83,
-            "removalTaskId": "retire.pos.pos-core",
-            "removalCondition": "Each operation family gets a native producer (and composition port where required) and its live TS caller switches."
+            "path": "packages/server-pos/src/adapters/pos-stripe.ts",
+            "removalTaskId": "retire.pos.residual",
+            "removalCondition": "Native Stripe provider/worker exists; live verification deferred."
+          },
+          {
+            "path": "packages/server-pos/src/adapters/pos-daily.ts",
+            "removalTaskId": "retire.pos.residual",
+            "removalCondition": "Native day-close/receipt-capture producer lands."
+          },
+          {
+            "path": "packages/server-pos/src/adapters/purchase-boundary.ts",
+            "removalTaskId": "retire.pos.residual",
+            "removalCondition": "In-transaction purchase admission is mounted."
+          },
+          {
+            "path": "packages/server-pos/src/adapters/pos-images.ts",
+            "removalTaskId": "retire.pos.residual",
+            "removalCondition": "Native image intake producer lands."
+          },
+          {
+            "path": "packages/server-pos/src/adapters/attachment-migration-facts.ts",
+            "removalTaskId": "retire.pos.residual",
+            "removalCondition": "Files-owned attachment backfill switches to the native port."
           }
         ],
-        "blocker": "released with work preserved",
-        "nextAction": "Four native POS command families are committed. Lead: extend allowedPaths with tests/support/helpers/pos-native-seed.ts (or open a helper task), add settings.operations/accounting.approve/table.create/sale.approve_discount to retiredPosCommandNames with owner-local seed oracles, then delete the four TS branches (POS 87 -> 83). Also add operation-aware permission and purchase-admission ports in src/composition/src/pos.rs.",
+        "blocker": null,
+        "nextAction": "Complete: retired settings.operations, accounting.approve, table.create and sale.approve_discount (POS 87 -> 83). Residual 83 classified under retire.pos.residual; operation-aware permission mounted in composition.",
         "handoff": {
           "runId": "run-20261113-j",
           "agentId": "lead",
@@ -33983,6 +34083,46 @@
         "nextAction": "Complete: deleted the dead TS calculatePayrollRun/postPayroll six writers (326->320). Residual 320 classified under retire.people_payroll.people-payroll; approvePayrollRun remains TS until a native approve command exists.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "retire.pos.residual",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "pos",
+        "workflowIds": [],
+        "workstream": "S07",
+        "kind": "migration",
+        "title": "Retire the remaining POS owner TS writers",
+        "scope": "Classify and retire the remaining POS owner TS writers (pos-core 49, pos-stripe 27, pos-daily 3, purchase-boundary 2, pos-images 1, attachment-migration-facts 1) as each native producer lands. Delete the TS branches/barrels, move oracles to native seeding, and record the POS KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "packages/server-pos/Cargo.toml",
+          "packages/server-pos/package.json",
+          "packages/feature-pos/**",
+          "scripts/seed/seed-pos-local.ts",
+          "scripts/seed/seed-hospitality-local.ts",
+          "scripts/testing/workflows/verify-pos-development.ts",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**",
+          "tests/provider/pos/**",
+          "tests/journeys/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 audit the residual POS writers against packages/server-pos/src/**/*.rs. Implement the missing native provider/command producers (Stripe payment/refund, day close, purchase admission, image intake, PMS/Finance room-charge effects), switch the consumers, then delete each TS branch and record the POS KPI pair. Report composition mounts to the lead.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure"
       }
     ],
     "migrationProgress": {
@@ -33991,21 +34131,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 169,
-      "migratedPackets": 95,
+      "totalPackets": 170,
+      "migratedPackets": 96,
       "statusCounts": {
-        "pending": 19,
+        "pending": 20,
         "in_progress": 0,
-        "ready_for_integration": 16,
+        "ready_for_integration": 15,
         "integrating": 0,
-        "migrated": 95,
+        "migrated": 96,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 54,
-    "updatedAt": "2026-11-13T08:01:27.810Z",
+    "updatedAt": "2026-11-13T08:10:41.303Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
