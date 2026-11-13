@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod record_origin;
 pub mod job_projector;
+pub mod routing_attention;
 
 pub mod approval_oversight;
 pub mod approval_oversight_http;

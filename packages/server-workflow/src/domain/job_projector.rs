@@ -87,6 +87,61 @@ pub fn event_work(message: &EventMessage) -> EventWork {
     }
 }
 
+/// One owner side effect the durable projector runs before projecting.
+///
+/// These are the retained `JobProjectorPorts` effects from
+/// `packages/server-workflow/src/application/job-projector.ts`. The native
+/// orchestrator runs them in the exact retained order and only then projects;
+/// each effect is executed by the owning crate through composition ports.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectionSideEffect {
+    CustomerNotificationQueue,
+    CustomerNotificationRetry,
+    LegalAiQueue,
+    ExecutiveGenerationQueue,
+    SocialAgent,
+    ExpenseAiPrepare,
+    FinanceAiPrepare,
+    RequestAiPrepare,
+}
+
+/// Exact retained side-effect routing for one durable event.
+///
+/// Development-only drains (`legal.ai.queue`, `executive.generation.queue` and
+/// the social families) never run in production, matching the retained
+/// `!ports.production` guards. The order matches the retained `project` body.
+pub fn projection_side_effects(event_type: &str, production: bool) -> Vec<ProjectionSideEffect> {
+    let mut effects = Vec::new();
+    match event_type {
+        "commerce.customer-notification.queue" => {
+            effects.push(ProjectionSideEffect::CustomerNotificationQueue);
+        }
+        "commerce.customer-notification.retry" => {
+            effects.push(ProjectionSideEffect::CustomerNotificationRetry);
+        }
+        _ => {}
+    }
+    if !production {
+        match event_type {
+            "legal.ai.queue" => effects.push(ProjectionSideEffect::LegalAiQueue),
+            "executive.generation.queue" => {
+                effects.push(ProjectionSideEffect::ExecutiveGenerationQueue);
+            }
+            "social.post.publish" | "social.post.comment" | "social.agent.retry" => {
+                effects.push(ProjectionSideEffect::SocialAgent);
+            }
+            _ => {}
+        }
+    }
+    match event_type {
+        "expense.ai.prepare" => effects.push(ProjectionSideEffect::ExpenseAiPrepare),
+        "finance.ai.prepare" => effects.push(ProjectionSideEffect::FinanceAiPrepare),
+        "request.ai.prepare" => effects.push(ProjectionSideEffect::RequestAiPrepare),
+        _ => {}
+    }
+    effects
+}
+
 /// Exact `projectionWork` port. A non-projection family yields no work row.
 pub fn projection_work(flags: EventWork, state: Option<&str>) -> Option<ProjectionWork> {
     if !flags.any() {

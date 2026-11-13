@@ -451,3 +451,205 @@ async fn leaves_unhandled_families_unacknowledged_and_rejects_missing_sources() 
     })
     .await;
 }
+
+#[derive(Default)]
+struct RecordingEffects {
+    calls: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    fail: bool,
+}
+
+impl RecordingEffects {
+    fn record(&self, name: &str) -> Result<(), BusinessError> {
+        self.calls.lock().unwrap().push(name.to_owned());
+        if self.fail {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "TEST_EFFECT_FAILED",
+                "The owner drain failed.",
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl erpx_server_workflow::public::job_projector::ProjectionSideEffects for RecordingEffects {
+    fn customer_notification_queue<'a>(
+        &'a mut self,
+        _fulfillment_id: &'a str,
+    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+        Box::pin(async move { self.record("customer.queue") })
+    }
+
+    fn customer_notification_retry<'a>(
+        &'a mut self,
+        _notification_id: &'a str,
+    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+        Box::pin(async move { self.record("customer.retry") })
+    }
+
+    fn legal_ai<'a>(
+        &'a mut self,
+    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+        Box::pin(async move { self.record("legal.ai") })
+    }
+
+    fn executive_generation<'a>(
+        &'a mut self,
+    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+        Box::pin(async move { self.record("executive.generation") })
+    }
+
+    fn social_agent<'a>(
+        &'a mut self,
+        _post_id: &'a str,
+    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+        Box::pin(async move { self.record("social.agent") })
+    }
+
+    fn expense_ai<'a>(
+        &'a mut self,
+        _claim_id: &'a str,
+    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+        Box::pin(async move { self.record("expense.ai") })
+    }
+
+    fn finance_ai<'a>(
+        &'a mut self,
+    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+        Box::pin(async move { self.record("finance.ai") })
+    }
+
+    fn request_ai<'a>(
+        &'a mut self,
+        _request_id: &'a str,
+    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+        Box::pin(async move { self.record("request.ai") })
+    }
+}
+
+#[tokio::test]
+async fn full_projector_rejects_unknown_holdings_and_runs_effects_before_projection() {
+    use erpx_server_workflow::public::job_projector::project_message;
+
+    fixture::with_database(2, |write| async move {
+        migrate(&write, MigrationTrack::HoldingWrite).await;
+        seed_task(&write).await;
+        fixture::with_database(2, |read| async move {
+            migrate(&read, MigrationTrack::HoldingRead).await;
+            let now = 1_790_000_000_000_i64;
+            let mut write_connection = write.raw().acquire().await.unwrap();
+            let mut sources = WriterSources {
+                connection: &mut write_connection,
+                calls: 0,
+            };
+            let mut effects = RecordingEffects::default();
+            let mut tx = read.raw().begin().await.unwrap();
+
+            // An unknown Holding is refused before any owner drain or write.
+            let unknown = message("event-task", "task.start", "task-1", 2, Some("ready"), "c");
+            let error = project_message(
+                &mut tx,
+                &mut sources,
+                &mut effects,
+                &unknown,
+                false,
+                true,
+                now,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(error.code, "INVALID_HOLDING");
+            assert!(effects.calls.lock().unwrap().is_empty());
+            assert_eq!(sources.calls, 0);
+            assert_eq!(counts(&mut tx).await, (0, 0, 0));
+
+            // A task event runs no owner drain, then projects on the caller unit.
+            assert_eq!(
+                project_message(
+                    &mut tx,
+                    &mut sources,
+                    &mut effects,
+                    &unknown,
+                    true,
+                    true,
+                    now,
+                )
+                .await
+                .unwrap(),
+                ProjectionResult::Projected
+            );
+            assert!(effects.calls.lock().unwrap().is_empty());
+            assert_eq!(sources.calls, 1);
+            assert_eq!(counts(&mut tx).await, (1, 1, 1));
+
+            // An AI event runs its owner drain in the same unit before the
+            // projection checkpoints. It is not a projection family, so the
+            // caller would leave it to the retained supervisor.
+            let ai = message(
+                "event-ai",
+                "expense.ai.prepare",
+                "claim-1",
+                1,
+                Some("draft"),
+                "company",
+            );
+            assert_eq!(
+                project_message(
+                    &mut tx,
+                    &mut sources,
+                    &mut effects,
+                    &ai,
+                    true,
+                    true,
+                    now,
+                )
+                .await
+                .unwrap(),
+                ProjectionResult::Unhandled
+            );
+            assert_eq!(
+                *effects.calls.lock().unwrap(),
+                ["expense.ai".to_owned()]
+            );
+            // Unhandled families write no receipt.
+            assert_eq!(counts(&mut tx).await, (1, 1, 1));
+
+            // A failing drain aborts before projection writes.
+            let mut failing = RecordingEffects {
+                calls: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+                fail: true,
+            };
+            let queue = message(
+                "event-queue",
+                "commerce.customer-notification.queue",
+                "fulfillment-1",
+                1,
+                None,
+                "company",
+            );
+            let error = project_message(
+                &mut tx,
+                &mut sources,
+                &mut failing,
+                &queue,
+                true,
+                true,
+                now,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(error.code, "TEST_EFFECT_FAILED");
+            assert_eq!(
+                *failing.calls.lock().unwrap(),
+                ["customer.queue".to_owned()]
+            );
+            assert_eq!(counts(&mut tx).await, (1, 1, 1));
+
+            tx.rollback().await.unwrap();
+            let mut read_connection = read.raw().acquire().await.unwrap();
+            assert_eq!(counts(&mut read_connection).await, (0, 0, 0));
+        })
+        .await;
+    })
+    .await;
+}

@@ -14,7 +14,8 @@
 //! composition handler can leave them to the retained TypeScript supervisor
 //! instead of acknowledging them.
 use crate::domain::job_projector::{
-    EventMessage, ProjectionWork, event_work, projection_work,
+    EventMessage, ProjectionSideEffect, ProjectionWork, event_work, projection_side_effects,
+    projection_work,
 };
 use erpx_server_runtime::public::postgres::PersistenceError;
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -75,6 +76,109 @@ pub enum ProjectionResult {
     /// Another family (or an excluded policy/eligibility event) owns the event.
     /// No receipt is written and the caller must not acknowledge it natively.
     Unhandled,
+}
+
+pub type SideEffectFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<(), BusinessError>> + Send + 'a>>;
+
+/// Owner side-effect drains required before projection.
+///
+/// Composition implements this trait by forwarding each call to the owning
+/// crate's public drain on the same Holding writer. The native orchestrator
+/// owns only the routing/order; every owner keeps its own authority,
+/// transaction and retry policy. A missing implementation must keep the event
+/// with the retained supervisor instead of silently acknowledging it.
+pub trait ProjectionSideEffects: Send {
+    /// Resolve the notice id for a queued fulfillment, then deliver it.
+    fn customer_notification_queue<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+    ) -> SideEffectFuture<'a>;
+
+    /// Deliver one retried customer notice by its durable id.
+    fn customer_notification_retry<'a>(
+        &'a mut self,
+        notification_id: &'a str,
+    ) -> SideEffectFuture<'a>;
+
+    fn legal_ai<'a>(&'a mut self) -> SideEffectFuture<'a>;
+
+    fn executive_generation<'a>(&'a mut self) -> SideEffectFuture<'a>;
+
+    fn social_agent<'a>(&'a mut self, post_id: &'a str) -> SideEffectFuture<'a>;
+
+    fn expense_ai<'a>(&'a mut self, claim_id: &'a str) -> SideEffectFuture<'a>;
+
+    fn finance_ai<'a>(&'a mut self) -> SideEffectFuture<'a>;
+
+    fn request_ai<'a>(&'a mut self, request_id: &'a str) -> SideEffectFuture<'a>;
+}
+
+/// Run the retained owner side effects for one event in the retained order.
+///
+/// This performs no projection write and opens no transaction; each effect is
+/// the owner's own bounded drain. A failure stops before projection so the
+/// durable event is retried instead of being acknowledged without its effect.
+pub async fn run_side_effects(
+    effects: &mut impl ProjectionSideEffects,
+    message: &EventMessage,
+    production: bool,
+) -> Result<(), BusinessError> {
+    for effect in projection_side_effects(&message.event_type, production) {
+        match effect {
+            ProjectionSideEffect::CustomerNotificationQueue => {
+                effects
+                    .customer_notification_queue(&message.aggregate_id)
+                    .await?;
+            }
+            ProjectionSideEffect::CustomerNotificationRetry => {
+                effects
+                    .customer_notification_retry(&message.aggregate_id)
+                    .await?;
+            }
+            ProjectionSideEffect::LegalAiQueue => effects.legal_ai().await?,
+            ProjectionSideEffect::ExecutiveGenerationQueue => {
+                effects.executive_generation().await?;
+            }
+            ProjectionSideEffect::SocialAgent => {
+                effects.social_agent(&message.aggregate_id).await?;
+            }
+            ProjectionSideEffect::ExpenseAiPrepare => {
+                effects.expense_ai(&message.aggregate_id).await?;
+            }
+            ProjectionSideEffect::FinanceAiPrepare => effects.finance_ai().await?,
+            ProjectionSideEffect::RequestAiPrepare => {
+                effects.request_ai(&message.aggregate_id).await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Full native projector entry: Holding check, owner side effects, then the
+/// incremental projection on the caller's transaction.
+///
+/// `known_holding` is resolved by composition from the registered Holding
+/// slots; an unknown Holding is never projected. The caller owns the single
+/// commit/rollback of the projection unit exactly like the retained flow.
+pub async fn project_message(
+    connection: &mut PgConnection,
+    sources: &mut impl ProjectionOwnerSources,
+    effects: &mut impl ProjectionSideEffects,
+    message: &EventMessage,
+    known_holding: bool,
+    production: bool,
+    now: i64,
+) -> Result<ProjectionResult, BusinessError> {
+    if !known_holding {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "INVALID_HOLDING",
+            "The Holding is not registered for Workflow projection.",
+        ));
+    }
+    run_side_effects(effects, message, production).await?;
+    project_event(connection, sources, message, now).await
 }
 
 /// Project one durable event on the caller's transaction.
