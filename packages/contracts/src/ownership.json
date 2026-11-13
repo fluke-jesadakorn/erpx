@@ -2086,7 +2086,6 @@
           "migration": "clean",
           "source": [
             "packages/server-pos/src/adapters/clock.ts",
-            "packages/server-pos/src/adapters/customer-authority-merge.ts",
             "packages/server-pos/src/adapters/pms-booking-change-facts.ts",
             "packages/server-pos/src/adapters/pms-booking-facts.ts",
             "packages/server-pos/src/adapters/pms-command-facts.ts",
