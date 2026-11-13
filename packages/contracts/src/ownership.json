@@ -1191,7 +1191,6 @@
         "packages/server-finance/src/public/finance-intercompany-pairs.ts",
         "packages/server-finance/src/public/finance-intercompany.ts",
         "packages/server-finance/src/public/finance-invoice-lines.ts",
-        "packages/server-finance/src/public/finance-manual-drafts.ts",
         "packages/server-finance/src/public/finance-money-policy.ts",
         "packages/server-finance/src/public/finance-owned-reversal.ts",
         "packages/server-finance/src/public/finance-planning.ts",
@@ -1467,11 +1466,11 @@
           "source": [
             "packages/server-finance/src/domain/manual-drafts.ts",
             "packages/server-finance/src/application/manual-drafts.ts",
-            "packages/server-finance/src/adapters/finance-manual-drafts.ts"
+            "packages/server-finance/src/adapters/postgres_manual_draft_edit.rs"
           ],
           "regression": [
             "tests/unit/finance/finance-manual-draft-services.test.ts",
-            "tests/integration/finance/finance-manual-drafts.test.ts"
+            "tests/integration/finance/rust-manual-draft-edit-postgres.test.rs"
           ]
         },
         {
@@ -1853,7 +1852,6 @@
             "packages/server-finance/src/adapters/finance-intercompany-pairs.ts",
             "packages/server-finance/src/adapters/finance-intercompany.ts",
             "packages/server-finance/src/adapters/finance-invoice-lines.ts",
-            "packages/server-finance/src/adapters/finance-manual-drafts.ts",
             "packages/server-finance/src/adapters/finance-money-policy.ts",
             "packages/server-finance/src/adapters/finance-owned-reversal.ts",
             "packages/server-finance/src/adapters/finance-planning.ts",
