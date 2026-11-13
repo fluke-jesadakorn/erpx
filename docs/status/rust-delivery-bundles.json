@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1428,
+    "revision": 1429,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -30950,7 +30950,7 @@
         "workstream": "S05",
         "kind": "integration",
         "title": "Mount the native Support Files attachment producer",
-        "scope": "Apply the prepared composition mount for the native Support attachment intake: implement SupportFilesService/SupportFilesBackend (current Account authority + Support ticket/version guard + same-connection support.evidence purchase + LocalFieldQuarantineWriter + NativeFilesScanWorker), expose the field_files quarantine writer map, mount the router for every support_evidence_writes holding, and document ERPX_NATIVE_SUPPORT_ATTACHMENT_CONFIG client alignment. Availability only; the producer and TS-writer deletion are migrate.files.generic-attachment-command at 6d69edfde.",
+        "scope": "Apply the prepared composition mount for the native Support attachment intake: SupportFilesService/SupportFilesBackend (current Account authority + Support ticket/version guard + same-connection support.evidence purchase + LocalFieldQuarantineWriter + shared scan workers), expose the field_files quarantine writer map, mount the router for every support_evidence_writes holding, and document ERPX_NATIVE_SUPPORT_ATTACHMENT_CONFIG client alignment. Availability only; the producer and TS-writer deletion are migrate.files.generic-attachment-command at 6d69edfde. Known correction: NativeFilesScanWorker is not Clone and close(self) consumes it, so share Arc<tokio::sync::Mutex<Vec<..>>> and drain on close.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -30967,7 +30967,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Mount is ready: apply .scratch/dev/rust-migration/files-support-mount.patch.md (new src/composition/src/support_files.rs plus lib.rs, private_development_api/field_files.rs write-map, private_development_api.rs assembly/mount, ERPX_NATIVE_SUPPORT_ATTACHMENT_CONFIG note). Blocked only by worker-agent-gateway (migrate.agent.ai-gateway-commands) holding src/composition/src/** plus fixtures/** under run-20261113-f; do not overlap. When released: claim under the live run, apply, run cargo check -p erpx-service --features private-development-api and cargo test -p erpx-server-files --test attachment_command_postgres -- --test-threads=1, commit/push non-force, verify the remote SHA, then record.",
+        "nextAction": "Mount is ready: apply .scratch/dev/rust-migration/support_files.rs (already corrected for the non-Clone NativeFilesScanWorker: Arc<tokio::sync::Mutex<Vec<..>>> shared with CheckedAssembly/DevelopmentApiRuntime, drained on close) plus the lib.rs module, field_files write-map and private_development_api.rs assembly/mount hunks in files-support-mount.patch.md. Blocked only by worker-agent-gateway holding src/composition/src/** + fixtures/** under run-20261113-f (its agent_ai_gateway composition is wired and it is finishing). When released: claim, apply, cargo check -p erpx-service --features private-development-api, cargo test -p erpx-server-files --test attachment_command_postgres -- --test-threads=1, commit/push non-force, verify remote SHA, record.",
         "handoff": null
       },
       {
@@ -31421,7 +31421,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:46:51.174Z",
+    "updatedAt": "2026-11-13T01:47:22.111Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
