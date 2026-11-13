@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createDirectoryOperations, type DirectoryOperationPorts, type OperationTransaction } from "@erpx/server-identity_access/application/directory-operations";
 import { createAutomationProvider, type AutomationProviderPorts } from "@erpx/server-identity_access/application/automation-provider";
-import { createDirectories, createRunDirectoryJob, type DirectoryPorts, type DirectoryTransaction } from "@erpx/server-identity_access/application/directories";
+import { createDirectories, createRunDirectoryJob, type DirectoryPorts, type DirectoryTransaction } from "../../support/legacy-directory/directories";
 import { createPasswordResetCompleted } from "@erpx/server-identity_access/application/auth-hooks";
 import { createDirectorySignIn } from "@erpx/server-identity_access/application/directory-auth";
 import { createIamServiceCommands, type IamServiceCommandPorts, type IamServiceTransaction } from "@erpx/server-identity_access/application/iam-service-commands";

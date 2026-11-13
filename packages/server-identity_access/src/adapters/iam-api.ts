@@ -8,7 +8,7 @@ import { applyLifecycleReview } from "@erpx/server-people_payroll/public/people-
 import { applyDirectoryOperationReview } from "@erpx/server-identity_access/public/directory-operations";
 import { inspectIamAccess, inspectorInput } from "@erpx/server-identity_access/public/iam-inspector";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import { applyManagementReview, managementCommand } from "@erpx/server-identity_access/public/user-management";
+import { nativeUserManagementAvailable, nativeUserManagementDecideReview, nativeUserManagementPreview, nativeUserManagementSave } from "@erpx/server-identity_access/public/native-user-management";
 import {
   activateEmergency,
   emergencyRevocationInput,
@@ -464,8 +464,20 @@ export async function iamApi(
       result=await bindIamReviewEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
     else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='migrations')
       result=await bindIamMigrationEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
-    else if (path[0] === "user-management" && ["preview", "save"].includes(path[1]))
-      result = await managementCommand(db, actor, input.change, key, path[1] === "preview", input.previewToken);
+    else if (holdingSlug && path[0] === "user-management" && ["preview", "save"].includes(path[1])) {
+      if (!nativeUserManagementAvailable())
+        throw new ApiError(503, "NATIVE_USER_MANAGEMENT_REQUIRED", "The native user-management service is unavailable.");
+      result =
+        path[1] === "preview"
+          ? await nativeUserManagementPreview(request.headers, holdingSlug, input.change)
+          : await nativeUserManagementSave(
+              request.headers,
+              holdingSlug,
+              input.change,
+              z.string().parse(input.previewToken),
+              key,
+            );
+    }
     else if (route === "assignments")
       result = await grantIamAccess(db, actor, grantInput.parse(input), key);
     else if (path[0] === "assignments" && path[2] === "revoke") {
@@ -537,6 +549,8 @@ export async function iamApi(
         z.object({ userId: z.string() }).parse(input).userId,
         key,
       );
+    else if (path[0] === "reviews" && path[1] && holdingSlug && nativeUserManagementAvailable() && await db.prepare("SELECT 1 FROM iam_reviews WHERE id=? AND company_id=? AND kind='policy.grant'").bind(path[1], actor.companyId).first())
+      result = await nativeUserManagementDecideReview(request.headers, holdingSlug, path[1], reviewInput.parse(input), key);
     else if (path[0] === "reviews" && path[1])
       result = await decideIamReview(
         db,
@@ -548,7 +562,6 @@ export async function iamApi(
           if (!actor.platform && kind === "people.provision.grant") return applyProvisioningReview(c,actor,p);
           if (!actor.platform && kind === "directory.operation") return applyDirectoryOperationReview(c, actor, p);
           if (!actor.platform && kind.startsWith("people.lifecycle.")) return applyLifecycleReview(c, actor, kind, p);
-          if (kind === "policy.grant") return applyManagementReview(c, actor, p);
           if (kind === "identity.restore") {
             if (
               p.userId === actor.userId ||

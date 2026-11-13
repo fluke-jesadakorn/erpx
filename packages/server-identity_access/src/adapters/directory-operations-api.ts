@@ -22,6 +22,7 @@ export async function directoryOperationsApi(
   path: string[],
   raw?: unknown,
   key?: string,
+  headers?: Headers,
 ) {
   const actor = iamActorFromWork(context);
   if (raw === undefined) return directoryAutomationData(db, actor);
@@ -33,6 +34,7 @@ export async function directoryOperationsApi(
       fieldSyncInput.parse(input),
       key!,
       path[1] === "preview",
+      headers,
     );
   if (path[0] === "refresh") {
     const v = z

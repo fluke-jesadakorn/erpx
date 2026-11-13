@@ -10,7 +10,7 @@ import { directoryAutomationData } from "@erpx/server-identity_access/public/dir
 import { technologyData } from "@erpx/server-identity_access/public/technology";
 import { gpoRulesOverview } from "@erpx/server-identity_access/public/gpo-rules";
 import { peopleAccessData } from "@erpx/server-people_payroll/public/people-access";
-import { readManagement } from "@erpx/server-identity_access/public/user-management";
+import { nativeUserManagementAvailable, nativeUserManagementRead } from "@erpx/server-identity_access/public/native-user-management";
 
 import {iamOverview} from '@erpx/server-identity_access/public/iam-service-reads';
 import { peopleTemplatesData } from "@erpx/server-people_payroll/public/people-templates";
@@ -94,7 +94,15 @@ export async function iamPresentationQueries(holdingSlug: string | null) {
     technologyData: (...args: ReadArguments<typeof technologyData>) => technologyData(db, ...args),
     gpoRulesOverview: (...args: ReadArguments<typeof gpoRulesOverview>) => gpoRulesOverview(db, ...args),
     peopleAccessData: (...args: ReadArguments<typeof peopleAccessData>) => peopleAccessData(db, ...args),
-    readManagement: (...args: ReadArguments<typeof readManagement>) => readManagement(db, ...args),
+    readManagement: async (_actor: IamActor) => {
+      if (!holdingSlug || !nativeUserManagementAvailable())
+        throw new ApiError(
+          503,
+          "NATIVE_USER_MANAGEMENT_REQUIRED",
+          "The native user-management service is unavailable.",
+        );
+      return nativeUserManagementRead(await headers(), holdingSlug);
+    },
     iamOverview: async (actor: IamActor, self = false) => {
       const data = await iamOverview(db, actor, self);
       if (self) return data;

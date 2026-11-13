@@ -75,6 +75,7 @@ export async function POST(request: Request, context: Context) {
           path.slice(1),
           raw,
           key,
+          request.headers,
         ),
       }));
     if (path[0] === "gpo-rules") {

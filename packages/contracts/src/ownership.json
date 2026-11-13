@@ -255,13 +255,12 @@
           "id": "user-management",
           "migration": "clean",
           "source": [
-            "packages/server-identity_access/src/domain/user-management.ts",
-            "packages/server-identity_access/src/application/user-management.ts",
-            "packages/server-identity_access/src/adapters/user-management.ts"
+            "packages/server-identity_access/src/domain/user_management.rs",
+            "packages/server-identity_access/src/adapters/user_management_postgres.rs",
+            "packages/server-identity_access/src/adapters/user_management_http.rs",
+            "packages/server-identity_access/src/public/user_management.rs"
           ],
           "regression": [
-            "tests/unit/identity_access/iam-user-management.test.ts",
-            "tests/integration/identity_access/user-management.test.ts",
             "tests/integration/identity_access/directory-operations.test.ts",
             "tests/integration/people_payroll/people-lifecycle.test.ts"
           ]
@@ -275,8 +274,6 @@
             "packages/server-identity_access/src/adapters/directory-field-mapping.ts"
           ],
           "regression": [
-            "tests/unit/identity_access/iam-user-management.test.ts",
-            "tests/integration/identity_access/user-management.test.ts",
             "tests/integration/identity_access/directory-operations.test.ts",
             "tests/integration/people_payroll/people-lifecycle.test.ts"
           ]
@@ -559,7 +556,6 @@
             "packages/server-identity_access/src/adapters/technology-provisioning-projection.ts",
             "packages/server-identity_access/src/adapters/technology.ts",
             "packages/server-identity_access/src/adapters/throttle.ts",
-            "packages/server-identity_access/src/adapters/user-management.ts",
             "packages/server-identity_access/src/adapters/work-cache-deadlines.ts",
             "packages/server-identity_access/src/adapters/work-cache-management-deadlines.ts",
             "packages/server-identity_access/src/adapters/account_work_roles.rs",
@@ -602,7 +598,6 @@
             "packages/server-identity_access/src/application/recovery.ts",
             "packages/server-identity_access/src/application/technology.ts",
             "packages/server-identity_access/src/application/throttle.ts",
-            "packages/server-identity_access/src/application/user-management.ts",
             "packages/server-identity_access/src/domain/access-problem.ts",
             "packages/server-identity_access/src/domain/account-access.ts",
             "packages/server-identity_access/src/domain/account-quick-access.ts",
@@ -629,7 +624,6 @@
             "packages/server-identity_access/src/domain/recovery.ts",
             "packages/server-identity_access/src/domain/technology.ts",
             "packages/server-identity_access/src/domain/throttle.ts",
-            "packages/server-identity_access/src/domain/user-management.ts",
             "packages/server-identity_access/src/domain/workspace-access.ts"
           ],
           "regression": [
@@ -641,8 +635,6 @@
             "tests/unit/shared.architecture/member-directory-throttle.test.ts",
             "tests/integration/organization/position-gpo.test.ts",
             "tests/unit/identity_access/gpo-services.test.ts",
-            "tests/unit/identity_access/iam-user-management.test.ts",
-            "tests/integration/identity_access/user-management.test.ts",
             "tests/integration/identity_access/directory-operations.test.ts",
             "tests/integration/people_payroll/people-lifecycle.test.ts",
             "tests/unit/identity_access/identity-access-services.test.ts",

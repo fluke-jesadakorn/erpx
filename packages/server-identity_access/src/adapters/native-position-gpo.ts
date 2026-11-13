@@ -152,17 +152,17 @@ export async function nativePositionGpoOverview(
   request: Request,
   holdingSlug: string,
 ): Promise<unknown> {
-  const configuration = configuration();
-  const holding = holdingFor(request, holdingSlug, configuration);
+  const config = configuration();
+  const holding = holdingFor(request, holdingSlug, config);
   let response: Response;
   try {
     response = await fetch(
-      `${configuration.base.origin}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/technology/position-gpo`,
+      `${config.base.origin}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/technology/position-gpo`,
       {
         method: 'GET',
         headers: headers(request, holding),
         cache: 'no-store',
-        signal: AbortSignal.timeout(configuration.timeout),
+        signal: AbortSignal.timeout(config.timeout),
       },
     );
   } catch {
@@ -181,18 +181,18 @@ export async function nativePositionGpoCommand(
 ): Promise<unknown> {
   if (!COMMANDS.has(operation))
     throw new ApiError(404, 'NOT_FOUND', 'Position GPO operation not found.');
-  const configuration = configuration();
-  const holding = holdingFor(request, holdingSlug, configuration);
+  const config = configuration();
+  const holding = holdingFor(request, holdingSlug, config);
   let response: Response;
   try {
     response = await fetch(
-      `${configuration.base.origin}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/technology/position-gpo/${operation}`,
+      `${config.base.origin}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/technology/position-gpo/${operation}`,
       {
         method: 'POST',
         headers: headers(request, holding, key),
         body: JSON.stringify(body),
         cache: 'no-store',
-        signal: AbortSignal.timeout(configuration.timeout),
+        signal: AbortSignal.timeout(config.timeout),
       },
     );
   } catch {

@@ -133,3 +133,5 @@ pub mod people_access;
 pub mod people_access_http;
 pub mod people_grants;
 pub mod people_grants_http;
+
+pub mod user_management;
