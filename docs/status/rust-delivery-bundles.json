@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1586,
+    "revision": 1587,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21911,8 +21911,15 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T05:20:44.420Z",
+          "heartbeatAt": "2026-11-13T05:20:44.420Z",
+          "expiresAt": "2026-11-13T05:50:44.420Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -22056,7 +22063,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
+        "blocker": null,
         "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0.",
         "handoff": {
           "runId": "run-20261113-b",
@@ -33093,17 +33100,17 @@
       "migratedPackets": 92,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 5,
+        "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 92,
-        "blocked": 41,
+        "blocked": 40,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:20:25.504Z",
+    "updatedAt": "2026-11-13T05:20:44.421Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
