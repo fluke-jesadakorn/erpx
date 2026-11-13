@@ -29,6 +29,14 @@ use crate::{
     inventory_availability_read::InventoryAvailabilityReadService,
     inventory_count_commands::InventoryCountCommand,
     inventory_count_http::{InventoryCountHttpTarget, inventory_count_http_router},
+    inventory_landed_cost_commands::InventoryLandedCostCommand,
+    inventory_owner_commands_http::{
+        InventoryLandedCostHttpTarget, InventoryReorderHttpTarget, InventoryTransferHttpTarget,
+        inventory_landed_cost_http_router, inventory_reorder_http_router,
+        inventory_transfer_http_router,
+    },
+    inventory_reorder_commands::InventoryReorderCommand,
+    inventory_transfer_commands::InventoryTransferCommand,
     inventory_transit_commands::InventoryTransitCommand,
     inventory_transit_http::{InventoryTransitHttpTarget, inventory_transit_http_router},
     support_evidence_command::SupportEvidenceCommand,
@@ -6945,6 +6953,9 @@ async fn assemble_checked(
             let mut stock_targets = Vec::new();
             let mut transit_targets = Vec::new();
             let mut count_targets = Vec::new();
+            let mut transfer_targets = Vec::new();
+            let mut landed_cost_targets = Vec::new();
+            let mut reorder_targets = Vec::new();
             for (holding_id, companies) in &config.inventory_availability_reads {
                 let index = config
                     .holdings
@@ -7010,6 +7021,38 @@ async fn assemble_checked(
                             clock: Arc::new(SharedClock(clock.clone())),
                         }),
                     });
+                    transfer_targets.push(InventoryTransferHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        command: Arc::new(InventoryTransferCommand {
+                            authorizer: authorizer.clone(),
+                            holding: holding_id.clone(),
+                            company: company.clone(),
+                            catalogue: catalogue.clone(),
+                            clock: Arc::new(SharedClock(clock.clone())),
+                        }),
+                    });
+                    landed_cost_targets.push(InventoryLandedCostHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        command: Arc::new(InventoryLandedCostCommand {
+                            authorizer: authorizer.clone(),
+                            holding: holding_id.clone(),
+                            company: company.clone(),
+                            catalogue: catalogue.clone(),
+                            clock: Arc::new(SharedClock(clock.clone())),
+                        }),
+                    });
+                    reorder_targets.push(InventoryReorderHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        command: Arc::new(InventoryReorderCommand {
+                            authorizer: authorizer.clone(),
+                            holding: holding_id.clone(),
+                            company: company.clone(),
+                            clock: Arc::new(SharedClock(clock.clone())),
+                        }),
+                    });
                 }
             }
             router = router.merge(
@@ -7048,6 +7091,36 @@ async fn assemble_checked(
                         count_targets,
                     )
                     .map_err(|_| "PRIVATE_API_INVENTORY_COUNT_CONFIGURATION_INVALID")?,
+                );
+            }
+            if !transfer_targets.is_empty() {
+                router = router.merge(
+                    inventory_transfer_http_router(
+                        config.policy.clone(),
+                        Arc::new(FieldServiceReadScopeHeaders),
+                        transfer_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_INVENTORY_TRANSFER_CONFIGURATION_INVALID")?,
+                );
+            }
+            if !landed_cost_targets.is_empty() {
+                router = router.merge(
+                    inventory_landed_cost_http_router(
+                        config.policy.clone(),
+                        Arc::new(FieldServiceReadScopeHeaders),
+                        landed_cost_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_INVENTORY_LANDED_COST_CONFIGURATION_INVALID")?,
+                );
+            }
+            if !reorder_targets.is_empty() {
+                router = router.merge(
+                    inventory_reorder_http_router(
+                        config.policy.clone(),
+                        Arc::new(FieldServiceReadScopeHeaders),
+                        reorder_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_INVENTORY_REORDER_CONFIGURATION_INVALID")?,
                 );
             }
         }

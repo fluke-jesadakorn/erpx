@@ -408,6 +408,14 @@ pub mod inventory_transit_commands;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_transit_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_transfer_commands;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_landed_cost_commands;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_reorder_commands;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_owner_commands_http;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_stock_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_stock_read;

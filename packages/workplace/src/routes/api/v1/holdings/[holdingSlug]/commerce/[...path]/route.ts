@@ -17,7 +17,8 @@ import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {pricingWorkspace} from "@erpx/server-sales/public/sales-pricing";
 import {nativeQueueDeliveryNotification,nativeRetryCustomerNotification,nativeUpdateCustomerNotificationSettings} from "@erpx/feature-sales/public/native-sales-notification-commands";
 import {nativeSalesNotificationReconcile,salesNotificationReconciliationInput} from "@erpx/feature-sales/public/native-sales-notification-reconciliation";
-import { inventoryReorderPolicyActionSchema, inventoryReorderPolicySchema, listInventoryReorderPolicies, saveInventoryReorderPolicy, transitionInventoryReorderPolicy } from "@erpx/server-inventory/public/inventory-reorder-policies";
+import { inventoryReorderPolicyActionSchema, inventoryReorderPolicySchema, listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";
+import {nativeReorderCommand} from "@erpx/feature-inventory/lib/native-inventory-command";
 import {commercePostingSetup,initializeCommercePostingSetup,commercePostingSetupSchema} from "@erpx/server-commerce/public/posting-setup";
 import {supplyPostingPrerequisites,createSupplyPostingChart,createSupplyPostingAccount,createSupplyPostingPeriod,confirmSupplyPostingRate,supplyPostingChartSchema,supplyPostingAccountSchema,supplyPostingPeriodSchema,supplyPostingRateSchema} from "@erpx/server-finance/public/supply-posting-prerequisites";
 import {salesPostingSetup,createSalesPostingChart,createSalesPostingAccount,createSalesPostingPeriod,confirmSalesPostingRate,prepareSalesPostingDefaults,decideSalesPostingDefaults,salesPostingChartSchema,salesPostingAccountSchema,salesPostingPeriodSchema,salesPostingRateSchema,salesPostingDefaultsSchema,salesPostingDecisionSchema} from "@erpx/server-finance/public/sales-posting-setup";
@@ -79,8 +80,8 @@ export async function POST(request:Request,context:Context) {
     else if(p[0]==='sales-posting-setup'&&p.length===2&&p[1]==='rates')data=await confirmSalesPostingRate(actor,salesPostingRateSchema.parse(input),key);
     else if(p[0]==='sales-posting-setup'&&p.length===2&&p[1]==='defaults')data=await prepareSalesPostingDefaults(actor,salesPostingDefaultsSchema.parse(input),key);
     else if(p[0]==='sales-posting-setup'&&p.length===4&&p[1]==='defaults'&&p[3]==='decide')data=await decideSalesPostingDefaults(actor,p[2],salesPostingDecisionSchema.parse(input),key);
-    else if(p[0]==='reorder-policies'&&p.length===1)data=await saveInventoryReorderPolicy(actor,inventoryReorderPolicySchema.parse(input),key);
-    else if(p[0]==='reorder-policies'&&p.length===3&&["approve","reject","withdraw","retire"].includes(p[2]))data=await transitionInventoryReorderPolicy(actor,p[1],inventoryReorderPolicyActionSchema.parse({...input,action:p[2]}),key);
+    else if(p[0]==='reorder-policies'&&p.length===1){const native=await nativeReorderCommand(request,holdingSlug,undefined,undefined,inventoryReorderPolicySchema.parse(input));if(!native)throw new ApiError(503,'NATIVE_INVENTORY_REORDER_UNAVAILABLE','The native reorder command is unavailable.');return native;}
+    else if(p[0]==='reorder-policies'&&p.length===3&&["approve","reject","withdraw","retire"].includes(p[2])){const native=await nativeReorderCommand(request,holdingSlug,p[1],p[2],inventoryReorderPolicyActionSchema.parse({...input,action:p[2]}));if(!native)throw new ApiError(503,'NATIVE_INVENTORY_REORDER_UNAVAILABLE','The native reorder command is unavailable.');return native;}
     else if(p[0]==='pricing'&&p.length===1)data=await nativePricing(actor,'create',null,input,key,request.headers);
     else if(p[0]==='pricing'&&p.length===3&&p[2]==='edit')data=await nativePricing(actor,'update',p[1],input,key,request.headers);
     else if(p[0]==='pricing'&&p.length===2)data=await nativePricing(actor,'decide',p[1],input,key,request.headers);

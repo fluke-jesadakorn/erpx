@@ -86,7 +86,8 @@
     "./routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]/route": "./src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/landed-costs/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/landed-costs/[[...path]]/route.ts",
-    "./lib/native-stock-transit": "./src/lib/native-stock-transit.ts"
+    "./lib/native-stock-transit": "./src/lib/native-stock-transit.ts",
+    "./lib/native-inventory-command": "./src/lib/native-inventory-command.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

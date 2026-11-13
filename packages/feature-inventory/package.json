@@ -35,7 +35,8 @@
     "./lib/landed-cost-command-attempt": "./src/lib/landed-cost-command-attempt.ts",
     "./adapters/server/native-availability": "./src/adapters/server/native-availability.ts",
     "./lib/native-availability": "./src/lib/native-availability.ts",
-    "./routes/holdings/[holdingSlug]/inventory-quality/stock/register/page": "./src/routes/holdings/[holdingSlug]/inventory-quality/stock/register/page.tsx"
+    "./routes/holdings/[holdingSlug]/inventory-quality/stock/register/page": "./src/routes/holdings/[holdingSlug]/inventory-quality/stock/register/page.tsx",
+    "./lib/native-inventory-command": "./src/lib/native-inventory-command.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
