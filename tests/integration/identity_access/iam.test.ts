@@ -1527,11 +1527,12 @@ it('discards stale account grants and rereads after directory refresh while fail
 // Included Expense/Payroll pages reuse real independent IAM publication and
 // grants; the financial assignment receives no People module or Directory right.
 // Imported Organization/worker references follow fixtures/expenses/company.ts.
-// All new compensation, references, mapping, calculate, independent review and
-// economic posting below use their original owner commands. This is a financial
-// entry/read parity fixture, not complete Company/Directory startup evidence.
+// New compensation, references and mapping use their original owner commands;
+// calculate/post use the test-only native-effect seed because those TS commands
+// are retired. This is a financial entry/read parity fixture, not complete
+// Company/Directory startup evidence.
 async function postFinancialEntryPayrollSource(original:WorkContext,reviewer:WorkContext,employee:IamActor,payrollPreparer:WorkContext,payrollApprover:WorkContext,payGroupId:string,runId:string){
- const people=await import('@erpx/server-people_payroll/public/people-payroll'),finance=await import('@erpx/server-finance/public/finance'),money=await import('@erpx/server-finance/public/company-money'),{resolveFlow,assignFlowPrimary}=await import('@erpx/server-workflow/public/flow-routing'),{submitPayrollReview}=await import('@erpx/server-people_payroll/public/payroll-readiness');
+ const people=await import('@erpx/server-people_payroll/public/people-payroll'),finance=await import('@erpx/server-finance/public/finance'),money=await import('@erpx/server-finance/public/company-money'),{resolveFlow,assignFlowPrimary}=await import('@erpx/server-workflow/public/flow-routing'),{submitPayrollReview}=await import('@erpx/server-people_payroll/public/payroll-readiness'),{calculatePayrollRun:seedCalculatePayrollRun,postPayroll:seedPostPayroll}=await import('../../support/helpers/payroll-run-seed');
  const branch=key(),level=key(),engagementId=`eng-${employee.userId}`;
  // Existing imported worker/reference fixture only. Never insert a Payroll
  // item, compensation approval, journal, balance or posted run/status by SQL.
@@ -1562,12 +1563,12 @@ async function postFinancialEntryPayrollSource(original:WorkContext,reviewer:Wor
  const compensation=versionedReceipt(await people.createCompensation(original,people.compensationSchema.parse({engagementId,effectiveFrom:'2026-09-01',payFrequency:'monthly',baseAmount:'1000',currency:'THB',components:[]}),key()));
  await people.transitionCompensation(reviewer,compensation.id,{status:'approved',expectedVersion:compensation.version},key());
  for(const [stepKey,userId]of [['calculate',payrollPreparer.userId],['preview',payrollPreparer.userId],['in_review',payrollApprover.userId],['approved',reviewer.userId]]as const){const flow=await resolveFlow(db,original,'payroll',runId);await assignFlowPrimary(db,original,'payroll',runId,{stepKey,userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:'Explicit original Company Payroll flow with independent review',saveDefault:false},key());}
- const calculated=versionedReceipt(await people.calculatePayrollRun(payrollPreparer,runId,key())),digest=await db.prepare("SELECT input_digest FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,original.companyId).first<string>("input_digest");
+ const calculated=versionedReceipt(await seedCalculatePayrollRun(payrollPreparer,runId,key())),digest=await db.prepare("SELECT input_digest FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,original.companyId).first<string>("input_digest");
  if(typeof digest!=='string')throw Error('ACTUAL_CALCULATED_PAYROLL_DIGEST_REQUIRED');
  const submitted=versionedReceipt(await submitPayrollReview(payrollPreparer,runId,{expectedVersion:calculated.version,inputDigest:digest},key())),approved=versionedReceipt(await people.approvePayrollRun(payrollApprover,runId,submitted.version,key()));
  const mapping=versionedReceipt(await people.savePayrollAccountMapping(original,payGroupId,people.payrollAccountMappingSchema.parse({chartId,expenseAccountId,netPayableAccountId:payableAccountId}),key()));
  await people.approvePayrollAccountMapping(reviewer,mapping.id,mapping.version,key());
- const posted=await people.postPayroll(reviewer,runId,people.payrollPostSchema.parse({accountMappingId:mapping.id,periodId,entryDate:'2026-09-30',expectedVersion:approved.version}),key());
+ const posted=await seedPostPayroll(reviewer,runId,people.payrollPostSchema.parse({accountMappingId:mapping.id,periodId,entryDate:'2026-09-30',expectedVersion:approved.version}),key());
  expect(posted).toMatchObject({id:runId,status:'posted',netPayableMinor:100000});
  expect((await db.prepare("SELECT status FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,original.companyId).first("status"))).toBe('posted');
 }
