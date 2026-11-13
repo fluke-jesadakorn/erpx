@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1723,
+    "revision": 1741,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-m",
       "agentId": "lead",
       "startedAt": "2026-11-13T11:17:19.844Z",
-      "heartbeatAt": "2026-11-13T11:37:57.603Z",
-      "expiresAt": "2026-11-13T12:07:57.603Z",
+      "heartbeatAt": "2026-11-13T12:00:00.184Z",
+      "expiresAt": "2026-11-13T12:30:00.184Z",
       "generation": 57,
       "tokenHash": "c5910c1521e976b448c7f793731ca689a6583e9888385019ac1912b7f6c666cd"
     },
@@ -34975,11 +34975,11 @@
           "owner:inventory",
           "resource:composition"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "66b9cb3487bd26632318426297d4866ddf80104c",
-        "lastPushedSha": "66b9cb3487bd26632318426297d4866ddf80104c",
+        "implementedCommit": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+        "lastPushedSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
         "checks": [
           {
             "command": "cargo check -p erpx-service --features private-development-api --offline",
@@ -35022,11 +35022,89 @@
             "sourceSha": "66b9cb3487bd26632318426297d4866ddf80104c",
             "sourceKind": "committed",
             "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 132,
+            "after": 116,
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-inventory/src/adapters/inventory-counts.ts",
+                "writes": 15,
+                "removalTaskId": "retire.inventory.counts",
+                "removalCondition": "Native count transition/seeding effects land and the initial/manufacturing/pos/service adapters and workplace transition route switch."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/commerce-stock-owner-effects.ts",
+                "writes": 21,
+                "removalTaskId": "retire.inventory.commerce-stock-owner-effects",
+                "removalCondition": "Native Commerce stock-owner effects land and their consumers switch."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/*.ts (remaining Inventory writers)",
+                "writes": 80,
+                "removalTaskId": "retire.inventory.residual",
+                "removalCondition": "Each remaining Inventory capability gets a native producer and its consumer switches."
+              }
+            ],
+            "note": "Retired the five transit command writers; transit integration suites now use the test-only oracle."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --test stock_receipt_postgres --offline transit_count_writers",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "2/2."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=inventory.transit.integration",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "22/22."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=inventory.lot-serial.integration",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "16/16."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Native transit/count commands are mounted and the supply/stock-count POST routes are native-only. Remaining: rebind the transit/count integration suites and initial-count seeding adapters to native seeding, update the catalogue entries, then delete inventory-transit.ts/inventory-counts.ts and record Inventory 132 -> lower. This needs an extended test/catalogue path claim.",
+        "blocker": null,
+        "nextAction": "Complete: native transit/count mount and transit-writer cutover landed (Inventory 132 -> 116).",
         "handoff": {
           "runId": "run-20261113-m",
           "agentId": "lead",
@@ -35036,7 +35114,8 @@
           "nextAction": "Native transit/count commands are mounted and the supply/stock-count POST routes are native-only. Remaining: rebind the transit/count integration suites and initial-count seeding adapters to native seeding, update the catalogue entries, then delete inventory-transit.ts/inventory-counts.ts and record Inventory 132 -> lower. This needs an extended test/catalogue path claim."
         },
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.inventory.commerce-stock-owner-effects"
       },
       {
         "id": "retire.identity_access.account-invitation-acceptance",
@@ -35054,22 +35133,106 @@
           "packages/server-identity_access/src/**",
           "packages/feature-identity_access/**",
           "packages/feature-account/**",
+          "packages/feature-runtime/**",
+          "apps/account/src/app/api/v1/account-invitations/**",
+          "apps/compat/src/app/api/v1/account-invitations/**",
           "tests/unit/identity_access/**",
           "tests/integration/identity_access/**"
         ],
         "resources": [
           "owner:identity_access"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+        "lastPushedSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 214,
+            "after": 211,
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 211,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for the remaining directory, IAM service, user-management, migrations and GPO writers."
+              }
+            ],
+            "note": "Removed the three direct-invitation acceptance writers; the route now uses the native Account acceptance."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --lib -- --include-ignored",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "28 passed, 0 failed."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test account_invitation_activation_postgres",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "10 passed: 7 staff + 3 new direct proofs."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=identity_access.account-invitation-delivery.integration",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "6 passed."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=identity_access.people-access.integration",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "4 passed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement native Account invitation acceptance for role.direct === true, switch the browser /api/v1/account-invitations route from createAccountAccessService, delete activateDirectInvitation/directInvitationEligible and their barrels, move the oracle to native seeding, and record Identity Access 214 -> 211.",
-        "handoff": null,
+        "nextAction": "Complete: native direct-invitation acceptance and the account-invitations route switch landed (IAM 214 -> 211). Residual 211 classified under retire.identity_access.residual-writers.",
+        "handoff": {
+          "runId": "run-20261113-m",
+          "agentId": "worker-iam-acceptance",
+          "at": "2026-11-13T11:40:01.543Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Implement native Account invitation acceptance for role.direct === true, switch the browser /api/v1/account-invitations route from createAccountAccessService, delete activateDirectInvitation/directInvitationEligible and their barrels, move the oracle to native seeding, and record Identity Access 214 -> 211."
+        },
         "procedureRef": "executionPlan.sliceProcedure"
       },
       {
@@ -35169,6 +35332,207 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "retireTaskId": "retire.identity_access.sso-device-adoption"
+      },
+      {
+        "id": "retire.inventory.transit-count",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Retire the TS inventory transit and generic count writers",
+        "scope": "The native transit/count commands are mounted and the supply/stock-count POST routes are native-only. Rebind the transit/count integration suites and the initial-count seeding adapters to native seeding, update the catalogue and capability registry, then delete inventory-transit.ts/inventory-counts.ts and their barrels and record the Inventory KPI pair (132 -> lower).",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "packages/server-inventory/Cargo.toml",
+          "packages/server-inventory/package.json",
+          "packages/feature-supply/**",
+          "packages/feature-inventory/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/**",
+          "fixtures/inventory/**",
+          "tests/unit/inventory/**",
+          "tests/unit/manage_erpx/**",
+          "tests/integration/inventory/**",
+          "tests/integration/sales/**",
+          "tests/integration/manufacturing/**",
+          "tests/integration/service/**",
+          "tests/integration/pos/**",
+          "tests/support/**",
+          "tests/catalogue/**",
+          "packages/catalogue/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+        "lastPushedSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 132,
+            "after": 116,
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-inventory/src/adapters/inventory-counts.ts",
+                "writes": 15,
+                "removalTaskId": "retire.inventory.counts",
+                "removalCondition": "Native count transition/seeding effects land and the initial/manufacturing/pos/service adapters and workplace transition route switch."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/commerce-stock-owner-effects.ts",
+                "writes": 21,
+                "removalTaskId": "retire.inventory.commerce-stock-owner-effects",
+                "removalCondition": "Native Commerce stock-owner effects land and their consumers switch."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/*.ts (remaining Inventory writers)",
+                "writes": 80,
+                "removalTaskId": "retire.inventory.residual",
+                "removalCondition": "Each remaining Inventory capability gets a native producer and its consumer switches."
+              }
+            ],
+            "note": "Retired the five transit command writers; transit integration suites now use the test-only oracle."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --test stock_receipt_postgres --offline transit_count_writers",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "2/2."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=inventory.transit.integration",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "22/22."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=inventory.lot-serial.integration",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "16/16."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a516c784e7702746a40d3cbfa8773ac4efd328ac",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: retired the five TS transit writers (Inventory 132 -> 116). Residual 116 classified: counts 15, commerce stock effects 21, remaining 80.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "retire.inventory.counts",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Native stock-count transition and seeding port, then retire the count writer",
+        "scope": "Add the native generic stock-count transition/seeding effects (read + transition + journal + Files evidence), rebind the initial/manufacturing/pos/service seeding adapters and the workplace generic transition route, then delete inventory-counts.ts, its barrel and the legacy count oracle and record the Inventory KPI pair (116 -> 101).",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "packages/server-inventory/Cargo.toml",
+          "packages/server-inventory/package.json",
+          "packages/feature-inventory/**",
+          "packages/feature-supply/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/**",
+          "fixtures/inventory/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native count transition/seeding effects, rebind the initial/manufacturing/pos/service count adapters and the workplace generic transition route, delete inventory-counts.ts and its barrel, move the legacy count oracle to native seeding, and record Inventory 116 -> 101.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "retire.inventory.residual",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Retire the remaining Inventory owner TS writers",
+        "scope": "Classify and retire the remaining Inventory owner TS writers (commerce facts, transfers, landed costs, reorder policies, manufacturing lots, consumption, transfer purchases) as their native producers land. Delete the TS writers/barrels, move oracles to native seeding, and record the Inventory KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "packages/server-inventory/Cargo.toml",
+          "packages/server-inventory/package.json",
+          "packages/feature-inventory/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 audit each remaining Inventory TS writer against packages/server-inventory/src/**/*.rs; implement the missing native producer, switch the live consumer, then delete the TS writer and record the Inventory KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure"
       }
     ],
     "migrationProgress": {
@@ -35177,21 +35541,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 178,
-      "migratedPackets": 101,
+      "totalPackets": 181,
+      "migratedPackets": 104,
       "statusCounts": {
-        "pending": 21,
+        "pending": 22,
         "in_progress": 0,
-        "ready_for_integration": 17,
+        "ready_for_integration": 16,
         "integrating": 0,
-        "migrated": 101,
+        "migrated": 104,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 57,
-    "updatedAt": "2026-11-13T11:37:57.604Z",
+    "updatedAt": "2026-11-13T12:00:00.184Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
