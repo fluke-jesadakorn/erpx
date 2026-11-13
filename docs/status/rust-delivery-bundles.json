@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1597,
+    "revision": 1599,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T05:41:46.631Z",
-      "expiresAt": "2026-11-13T06:11:46.631Z",
+      "heartbeatAt": "2026-11-13T05:45:41.356Z",
+      "expiresAt": "2026-11-13T06:15:41.356Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -15397,14 +15397,7 @@
           "owner:runtime"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T05:20:13.484Z",
-          "heartbeatAt": "2026-11-13T05:41:46.631Z",
-          "expiresAt": "2026-11-13T06:11:46.631Z",
-          "generation": 53
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -15425,15 +15418,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "Native supervisor and family-scoped handler are mounted in src/composition; unit 7/7 and PostgreSQL 8/8 pass. Remaining TS runOne families are tracked by audit.runtime; retirement requires their native owners.",
         "handoff": {
-          "runId": "run-20261112-i",
+          "runId": "run-20261113-i",
           "agentId": "lead",
-          "at": "2026-11-12T07:22:45.170Z",
+          "at": "2026-11-13T05:45:49.517Z",
           "previousStatus": "ready_for_integration",
-          "reason": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
-          "nextAction": "Supervisor + family-scoped handler (PMS social included)."
+          "reason": "released with work preserved",
+          "nextAction": "Native supervisor and family-scoped handler are mounted in src/composition; unit 7/7 and PostgreSQL 8/8 pass. Remaining TS runOne families are tracked by audit.runtime; retirement requires their native owners."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-runtime",
@@ -21778,8 +21771,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-iam-gpo",
           "claimedAt": "2026-11-13T05:16:06.169Z",
-          "heartbeatAt": "2026-11-13T05:41:46.631Z",
-          "expiresAt": "2026-11-13T06:11:46.631Z",
+          "heartbeatAt": "2026-11-13T05:45:41.356Z",
+          "expiresAt": "2026-11-13T06:15:41.356Z",
           "generation": 53
         },
         "baseSha": null,
@@ -25362,8 +25355,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-inventory-transit",
           "claimedAt": "2026-11-13T05:16:06.203Z",
-          "heartbeatAt": "2026-11-13T05:41:46.631Z",
-          "expiresAt": "2026-11-13T06:11:46.631Z",
+          "heartbeatAt": "2026-11-13T05:45:41.356Z",
+          "expiresAt": "2026-11-13T06:15:41.356Z",
           "generation": 53
         },
         "baseSha": null,
@@ -33224,7 +33217,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:43:59.426Z",
+    "updatedAt": "2026-11-13T05:45:49.518Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
