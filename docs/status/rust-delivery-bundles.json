@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1595,
+    "revision": 1597,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21664,29 +21664,81 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-finance",
-          "claimedAt": "2026-11-13T05:16:06.136Z",
-          "heartbeatAt": "2026-11-13T05:41:46.631Z",
-          "expiresAt": "2026-11-13T06:11:46.631Z",
-          "generation": 53
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 audit each finance TS writer against packages/server-finance/src/**/*.rs. Retire only files with a complete native counterpart and no live TS caller: delete the writer plus barrels, move oracles to native seeding, and record the owner KPI pair. Report any file without a native counterpart as blocked with the missing producer; start with finance-ai.ts, supplier-payment-repository.ts, finance-tax-register.ts, finance-consolidation.ts, finance-accruals.ts, finance-instruments.ts, finance-asset-policies.ts and refunds.ts.",
+        "implementedCommit": "5d50d70763d63a86d2ec2beb0342342095a38f07",
+        "lastPushedSha": "5d50d70763d63a86d2ec2beb0342342095a38f07",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "before": 375,
+            "after": 370,
+            "sourceSha": "5d50d70763d63a86d2ec2beb0342342095a38f07",
+            "sourceKind": "committed",
+            "note": "Retired adapters/public finance-manual-drafts (5 write statements)."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --offline",
+            "result": "passed",
+            "sourceSha": "5d50d70763d63a86d2ec2beb0342342095a38f07",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles; only pre-existing warnings."
+          },
+          {
+            "command": "cd packages/server-finance && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "5d50d70763d63a86d2ec2beb0342342095a38f07",
+            "sourceKind": "committed",
+            "note": "Finance package typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "5d50d70763d63a86d2ec2beb0342342095a38f07",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx vitest run tests/unit/finance/finance-manual-draft-services.test.ts",
+            "result": "passed",
+            "sourceSha": "5d50d70763d63a86d2ec2beb0342342095a38f07",
+            "sourceKind": "committed",
+            "note": "20 retained application-layer tests passed."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-finance/src/application/manual-drafts.ts",
+            "removalTaskId": "retire.finance.finance",
+            "removalCondition": "Delete when the native manual-draft application replacement is complete and the retained unit test moves to Rust seeding."
+          },
+          {
+            "path": "packages/server-finance/src/domain/manual-drafts.ts",
+            "removalTaskId": "retire.finance.finance",
+            "removalCondition": "Delete with the retained manual-draft application layer once the native domain owns the same invariants."
+          },
+          {
+            "path": "packages/server-finance/package.json",
+            "removalTaskId": "retire.finance.finance",
+            "removalCondition": "Remove the remaining ./application/manual-drafts and ./domain/manual-drafts exports when those files are deleted."
+          },
+          {
+            "path": "tests/unit/finance/finance-manual-draft-services.test.ts",
+            "removalTaskId": "retire.finance.finance",
+            "removalCondition": "Move the retained application-layer cases to native Rust seeding, then delete this test and its catalogue entry."
+          }
+        ],
+        "blocker": "released with work preserved",
+        "nextAction": "Residual 370 after retiring finance-manual-drafts (375->370). Classified: 154 in nine blocked producer files (finance-ai 18, supplier batches/instructions 17, VAT 13, consolidation 13, accruals 12, instruments 11, asset policies 11, refunds 10, adapters/finance.ts 49); 17 in 14 command_assertions-only guards; 199 cross-owner published facts/capability modules whose native producer lives in the originating owner. Highest leverage: make the workplace finance [...path] route native-only for chart/account/import/status/period and bank import/reconcile (needs lead path extension), then split the remaining producers by capability.",
         "handoff": {
           "runId": "run-20261113-i",
-          "agentId": "lead",
-          "at": "2026-11-13T05:15:50.703Z",
-          "previousStatus": "in_progress",
+          "agentId": "worker-finance",
+          "at": "2026-11-13T05:43:59.426Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Worker retiring the first finance writer batch (AI/due-drafts, supplier payments, tax/consolidation/accruals, instruments/asset-policies/refunds) with native-authority proof per file; KPI 382 baseline, residual must be re-classified to the new after value."
+          "nextAction": "Residual 370 after retiring finance-manual-drafts (375->370). Classified: 154 in nine blocked producer files (finance-ai 18, supplier batches/instructions 17, VAT 13, consolidation 13, accruals 12, instruments 11, asset policies 11, refunds 10, adapters/finance.ts 49); 17 in 14 command_assertions-only guards; 199 cross-owner published facts/capability modules whose native producer lives in the originating owner. Highest leverage: make the workplace finance [...path] route native-only for chart/account/import/status/period and bank import/reconcile (needs lead path extension), then split the remaining producers by capability."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -33162,17 +33214,17 @@
       "migratedPackets": 92,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 3,
+        "in_progress": 2,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 92,
-        "blocked": 42,
+        "blocked": 43,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:41:46.632Z",
+    "updatedAt": "2026-11-13T05:43:59.426Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
