@@ -49,6 +49,118 @@ pub struct DirectoryConnectionConfig {
     pub tenant_id: Option<String>,
     pub client_id: Option<String>,
 }
+/// Reviewed Directory connection configuration edit. Strict like the retained
+/// B0 Zod schema: unknown fields and out-of-range values are rejected before
+/// any owner transaction is opened.
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DirectoryConnectionInput {
+    pub id: Option<String>,
+    pub expected_version: i64,
+    pub name: String,
+    pub provider: DirectoryProvider,
+    pub config: DirectoryConnectionConfig,
+}
+pub fn connection_invalid(code: &'static str, message: &'static str) -> BusinessError {
+    BusinessError::invalid(code, message)
+}
+pub fn connection_changed(code: &'static str, message: &'static str) -> BusinessError {
+    BusinessError::new(FailureKind::Conflict, code, message)
+}
+impl DirectoryConnectionInput {
+    pub fn validate(mut self) -> Result<Self, BusinessError> {
+        self.name = self.name.trim().to_owned();
+        if !(2..=100).contains(&self.name.chars().count()) {
+            return Err(connection_invalid(
+                "CONNECTION_NAME_INVALID",
+                "Use a connection name between 2 and 100 characters.",
+            ));
+        }
+        if self.expected_version < 0 || self.expected_version > i64::from(i32::MAX) {
+            return Err(connection_invalid(
+                "CONNECTION_VERSION_INVALID",
+                "Refresh the connection before saving.",
+            ));
+        }
+        if let Some(id) = &self.id {
+            if id.is_empty() || id.len() > 200 {
+                return Err(connection_invalid(
+                    "CONNECTION_ID_INVALID",
+                    "Choose an approved Directory connection.",
+                ));
+            }
+        }
+        let profile = &self.config.secret_profile;
+        if profile.is_empty()
+            || profile.len() > 80
+            || !profile
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+        {
+            return Err(connection_invalid(
+                "DIRECTORY_PROFILE_INVALID",
+                "Choose an approved private credential profile.",
+            ));
+        }
+        if self.config.authority.trim().len() < 3 || self.config.authority.len() > 200 {
+            return Err(connection_invalid(
+                "DIRECTORY_AUTHORITY_INVALID",
+                "Enter the Directory authority.",
+            ));
+        }
+        match self.provider {
+            DirectoryProvider::ActiveDirectory | DirectoryProvider::Univention => {
+                if self.config.mode != DirectoryMode::Ldaps {
+                    return Err(connection_invalid(
+                        "PROVIDER_MODE_INVALID",
+                        "Select a supported authentication method.",
+                    ));
+                }
+                let ldaps = self.config.ldap_url.as_deref().unwrap_or_default();
+                if !ldaps.starts_with("ldaps://") || ldaps.len() > 2048 {
+                    return Err(connection_invalid(
+                        "LDAP_CONFIGURATION_REQUIRED",
+                        "LDAPS URL and base DN are required.",
+                    ));
+                }
+                let base = self.config.base_dn.as_deref().unwrap_or_default();
+                if base.trim().is_empty() || base.len() > 2048 {
+                    return Err(connection_invalid(
+                        "LDAP_CONFIGURATION_REQUIRED",
+                        "LDAPS URL and base DN are required.",
+                    ));
+                }
+            }
+            DirectoryProvider::EntraId => {
+                if self.config.mode != DirectoryMode::Oidc {
+                    return Err(connection_invalid(
+                        "PROVIDER_MODE_INVALID",
+                        "Select a supported authentication method.",
+                    ));
+                }
+                let tenant = self.config.tenant_id.as_deref().ok_or_else(|| {
+                    connection_invalid("TENANT_REQUIRED", "Choose a concrete Entra tenant.")
+                })?;
+                if tenant.is_empty()
+                    || tenant.len() > 200
+                    || !tenant
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-'))
+                {
+                    return Err(connection_invalid(
+                        "TENANT_REQUIRED",
+                        "Choose a concrete Entra tenant.",
+                    ));
+                }
+                self.config.issuer = Some(format!(
+                    "https://login.microsoftonline.com/{tenant}/v2.0"
+                ));
+            }
+        }
+        Ok(self)
+    }
+}
+
 #[derive(Clone)]
 pub struct DirectoryConnectionDescriptor {
     /// None is permitted only for standalone provider facts; native DB commands require an approved source.

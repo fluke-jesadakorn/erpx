@@ -258,6 +258,7 @@ impl PostgresDirectory {
         run: F,
     ) -> Result<T, PgTransactionError<BusinessError>>
     where
+        T: Send + 'static,
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
         F: for<'c> Fn(
                 &'c mut PgConnection,
@@ -287,6 +288,227 @@ impl PostgresDirectory {
                 WorkAuthorizationRequest {
                     permission: action.permission().into(),
                     module: None,
+                    destination: "iam/connections".into(),
+                    api: true,
+                },
+                IdentityWorkSourcePreparation {
+                    holding: DirectorySourceReviewPreparation,
+                    control,
+                },
+                run,
+            )
+            .await
+    }
+}
+
+struct ConnectionSources {
+    directory: Arc<PostgresDirectory>,
+    connection: Option<String>,
+    allow_missing_route: bool,
+    fresh: bool,
+    proof: DeviceProof,
+    keys: Arc<AccountMfaKeyring>,
+}
+struct RetainedConnectionControl {
+    mfa: Option<FreshMfaProof>,
+    route: Option<Arc<DirectoryRoute>>,
+    deadline: i64,
+}
+struct RetainedConnectionHolding {
+    route: Option<Arc<DirectoryRoute>>,
+    deadline: i64,
+}
+impl WorkControlSources for ConnectionSources {
+    fn prepare_control<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            sqlx::query("LOCK TABLE iam_mfa,iam_mfa_sessions IN SHARE MODE")
+                .execute(&mut *c)
+                .await?;
+            PostgresDirectory::lock_routes(c).await?;
+            Ok(())
+        })
+    }
+    fn retain_control<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+        session: &'c AccountSession,
+        input: &'c HoldingWorkspaceRequest,
+        now: i64,
+    ) -> PgWorkFuture<'c, Arc<dyn RetainedWorkControlSources>, BusinessError> {
+        Box::pin(async move {
+            let route = match &self.connection {
+                Some(id) => {
+                    let exists: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM iam_connection_routes WHERE connection_id=$1)",
+                    )
+                    .bind(id)
+                    .fetch_one(&mut *c)
+                    .await?;
+                    if exists {
+                        Some(Arc::new(self.directory.route(c, id).await?))
+                    } else if self.allow_missing_route {
+                        None
+                    } else {
+                        return Err(review_error("DIRECTORY_SOURCE_PLATFORM_UNAVAILABLE").into());
+                    }
+                }
+                None => None,
+            };
+            if let Some(route) = &route
+                && route.company_id != input.company_id.as_str()
+            {
+                return Err(review_error("DIRECTORY_CONNECTION_SCOPE_REQUIRED").into());
+            }
+            let mfa = if self.fresh {
+                let holding = route
+                    .as_ref()
+                    .and_then(|r| r.holding_id.as_ref())
+                    .ok_or_else(|| review_error("DIRECTORY_CONNECTION_SCOPE_REQUIRED"))?;
+                let audience = self.directory.registry.audience_for_holding(holding)?;
+                let proof = require_fresh_mfa_in_transaction(
+                    c,
+                    &self.proof,
+                    &audience,
+                    &self.directory.environment,
+                    self.keys.clone(),
+                    now,
+                    &self.directory.registry,
+                )
+                .await?;
+                if proof.session_id() != session.id || proof.user_id() != session.user.id {
+                    return Err(review_error("DIRECTORY_CONNECTION_SCOPE_REQUIRED").into());
+                }
+                Some(proof)
+            } else {
+                None
+            };
+            let deadline = mfa.as_ref().map(|p| p.expires_at()).unwrap_or(now + 300_000);
+            Ok(Arc::new(RetainedConnectionControl {
+                mfa,
+                route,
+                deadline,
+            }) as Arc<dyn RetainedWorkControlSources>)
+        })
+    }
+}
+impl RetainedWorkControlSources for RetainedConnectionControl {
+    fn prepare_holding<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move { DirectorySourceReviewPreparation::locks(c).await })
+    }
+    fn retain_holding<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+        _request: &'c WorkContextRequest,
+        _now: i64,
+    ) -> PgWorkFuture<'c, Box<dyn RetainedWorkHoldingSources>, BusinessError> {
+        Box::pin(async move {
+            if let Some(route) = &self.route {
+                route.require_current(c).await?;
+            }
+            Ok(Box::new(RetainedConnectionHolding {
+                route: self.route.clone(),
+                deadline: self.deadline,
+            }) as Box<dyn RetainedWorkHoldingSources>)
+        })
+    }
+    fn require_current<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+        now: i64,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            if now >= self.deadline {
+                return Err(review_error("FRESH_MFA_REQUIRED").into());
+            }
+            if let Some(mfa) = &self.mfa {
+                mfa.require_current(c, now).await?;
+            }
+            if let Some(route) = &self.route {
+                route.require_current(c).await?;
+            }
+            Ok(())
+        })
+    }
+}
+impl RetainedWorkHoldingSources for RetainedConnectionHolding {
+    fn deadline(&self) -> i64 {
+        self.deadline
+    }
+    fn require_current<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+        now: i64,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            if now >= self.deadline {
+                return Err(review_error("FRESH_MFA_REQUIRED").into());
+            }
+            if let Some(route) = &self.route {
+                route.require_current(c).await?;
+            }
+            Ok(())
+        })
+    }
+}
+impl PostgresDirectory {
+    /// One Directory connection command. Selectors are resolved once after live
+    /// session verification; the canonical coordinator retains current Work
+    /// authority, then this adapter executes only in a Holding transaction.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn execute_connection_administration_deferred<T, F, Input>(
+        self: &Arc<Self>,
+        authorizer: &HoldingWorkAuthorizer,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        connection: Option<String>,
+        allow_missing_route: bool,
+        fresh: bool,
+        keys: Arc<AccountMfaKeyring>,
+        run: F,
+    ) -> Result<T, PgTransactionError<BusinessError>>
+    where
+        T: Send + 'static,
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        F: for<'c> Fn(
+                &'c mut PgConnection,
+                &'c AuthorizedWorkContext,
+            ) -> PgWorkFuture<'c, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let workspace = move || {
+            let mut workspace = workspace()?;
+            workspace.mutation = true;
+            Ok(workspace)
+        };
+        let control = Arc::new(ConnectionSources {
+            directory: self.clone(),
+            connection,
+            allow_missing_route,
+            fresh,
+            proof: proof.clone(),
+            keys,
+        });
+        authorizer
+            .execute_with_control_sources_deferred(
+                host,
+                proof,
+                workspace,
+                WorkAuthorizationRequest {
+                    permission:
+                        crate::domain::effective_authority::WorkPermissionRequirement::Exact(
+                            "iam.directory.manage".into(),
+                        ),
+                    module: Some("iam".into()),
                     destination: "iam/connections".into(),
                     api: true,
                 },

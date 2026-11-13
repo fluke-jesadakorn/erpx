@@ -1135,6 +1135,44 @@ impl IamRolesReviewRepository for PgIamRolesReviews<'_> {
         })
     }
 
+    fn activate_connection<'a>(
+        &'a mut self,
+        actor: &'a IamRoleActor,
+        payload: &'a Value,
+        _now: i64,
+    ) -> IamRolesFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let id = payload["id"]
+                .as_str()
+                .ok_or_else(crate::domain::iam_roles::review_unsupported)?;
+            let version = payload["version"]
+                .as_i64()
+                .ok_or_else(crate::domain::iam_roles::review_unsupported)?;
+            let changed = sqlx::query(
+                "UPDATE iam_connections SET status='active',health='awaiting_sync' \
+                 WHERE id=$1 AND company_id=$2 AND version=$3 AND tested_version=version AND status='tested'",
+            )
+            .bind(id)
+            .bind(actor.company_id.as_str())
+            .bind(version)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            if changed != 1 {
+                return Err(review_changed().into());
+            }
+            sqlx::query(
+                "INSERT INTO iam_sync_jobs(connection_id,next_run_at) VALUES($1,0) \
+                 ON CONFLICT(connection_id) DO UPDATE SET next_run_at=0",
+            )
+            .bind(id)
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+
     fn active_review_assignments<'a>(
         &'a mut self,
         actor: &'a IamRoleActor,

@@ -100,6 +100,12 @@ pub(crate) mod directory_admin_sources;
 #[cfg(feature = "directory-ldaps")]
 pub(crate) mod directory_source_review;
 
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_connection_postgres;
+
+#[cfg(feature = "directory-ldaps")]
+pub mod directory_connection_http;
+
 pub(crate) mod oidc_url_values;
 
 pub(crate) mod field_service_assignment;

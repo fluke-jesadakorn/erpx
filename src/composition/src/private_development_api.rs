@@ -2211,6 +2211,7 @@ fn finance_composition_environment(
 struct DirectoryRouters {
     sign_in: Router,
     source: Option<Router>,
+    connection: Option<Router>,
 }
 /// Optional native Directory routers. They are built only when the
 /// configuration supplies both an absolute profile file and its explicit
@@ -2280,12 +2281,14 @@ async fn directory_routers(
         )
         .map_err(|_| "PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?,
     );
-    let provider = Arc::new(LdapDirectoryProvider::new(profiles, clock.clone()));
+    let provider: Arc<
+        dyn erpx_server_identity_access::public::directory::DirectoryProviderRead,
+    > = Arc::new(LdapDirectoryProvider::new(profiles, clock.clone()));
     let sign_in = directory_account_router(
         account,
         Arc::new(DirectoryAuthentication::new(
             store.clone(),
-            provider,
+            provider.clone(),
             store.clone(),
             store.clone(),
             store.clone(),
@@ -2316,7 +2319,7 @@ async fn directory_routers(
                             store.clone(),
                             authorizer,
                             keys.clone(),
-                            clock.clone(),
+                            Arc::new(SharedClock(clock.clone())),
                         ),
                     ),
                 });
@@ -2332,7 +2335,68 @@ async fn directory_routers(
             )
         }
     };
-    Ok(Some(DirectoryRouters { sign_in, source }))
+    let connection = match &config.account_security_keys {
+        None => None,
+        Some(keys) => {
+            let mut targets = Vec::new();
+            for (index, holding) in config.holdings.iter().enumerate() {
+                let Some(company) = config
+                    .finance_journal_reads
+                    .get(&holding.registration.holding_id)
+                    .and_then(|companies| companies.iter().next())
+                else {
+                    continue;
+                };
+                let authorizer = Arc::new(
+                    HoldingWorkAuthorizer::new(
+                        pools[0].clone(),
+                        pools[index + 1].clone(),
+                        holding.registration.holding_id.clone(),
+                        (*config.policy).clone(),
+                        clock.clone(),
+                        config.holdings_registry.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?,
+                );
+                targets.push(
+                    erpx_server_identity_access::public::directory_connection::DirectoryConnectionHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::directory_connection_administration::DirectoryConnectionBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                store.clone(),
+                                authorizer,
+                                provider.clone(),
+                                keys.clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                                pools[0].clone(),
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                        ),
+                    },
+                );
+            }
+            if targets.is_empty() {
+                None
+            } else {
+                Some(
+                    erpx_server_identity_access::public::directory_connection::directory_connection_http_router(
+                        targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?,
+                )
+            }
+        }
+    };
+    Ok(Some(DirectoryRouters {
+        sign_in,
+        source,
+        connection,
+    }))
 }
 
 async fn assemble_checked(
@@ -2421,14 +2485,19 @@ async fn assemble_checked(
     )
     .await?;
     #[cfg(feature = "directory-ldaps")]
-    let (directory_sign_in, directory_source) = match directory_routers {
-        Some(routers) => (Some(routers.sign_in), routers.source),
-        None => (None, None),
+    let (directory_sign_in, directory_source, directory_connection) = match directory_routers {
+        Some(routers) => (Some(routers.sign_in), routers.source, routers.connection),
+        None => (None, None, None),
     };
     #[cfg(not(feature = "directory-ldaps"))]
-    let (directory_sign_in, directory_source): (Option<Router>, Option<Router>) = (None, None);
+    let (directory_sign_in, directory_source, directory_connection): (
+        Option<Router>,
+        Option<Router>,
+        Option<Router>,
+    ) = (None, None, None);
     let directory_sign_in_mounted = directory_sign_in.is_some();
     let directory_source_mounted = directory_source.is_some();
+    let directory_connection_mounted = directory_connection.is_some();
     let mut router = foundation_router();
     if config.profile == Profile::Test {
         router = router.merge(test_account_password_hash_router());
@@ -2575,6 +2644,9 @@ async fn assemble_checked(
         router = router.merge(directory);
     }
     if let Some(directory) = directory_source {
+        router = router.merge(directory);
+    }
+    if let Some(directory) = directory_connection {
         router = router.merge(directory);
     }
     let mut finance_targets = BTreeSet::new();
@@ -7816,6 +7888,7 @@ async fn assemble_checked(
         account_bootstrap: config.account_bootstrap,
         directory_sign_in: directory_sign_in_mounted,
         directory_source: directory_source_mounted,
+        directory_connection: directory_connection_mounted,
     });
     Ok(CheckedAssembly {
         router: router.layer(middleware::from_fn_with_state(state, boundary)),
@@ -7891,6 +7964,7 @@ struct Boundary {
     account_bootstrap: bool,
     directory_sign_in: bool,
     directory_source: bool,
+    directory_connection: bool,
 }
 enum BoundaryDenial {
     InvalidAuthority,
@@ -10556,6 +10630,35 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             }
             _ => false,
         };
+    let directory_connection = state.directory_connection
+        && request.method() == axum::http::Method::POST
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", slug, "iam", "connections"]
+                if !slug.is_empty() =>
+            {
+                state.policy.audience(host).is_some()
+            }
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "iam",
+                "connections",
+                connection,
+                "test" | "activate" | "disable",
+            ] if !slug.is_empty() && !connection.is_empty() => {
+                state.policy.audience(host).is_some()
+            }
+            _ => false,
+        };
     let ecommerce = request.method() == axum::http::Method::GET
         && match request
             .uri()
@@ -10822,11 +10925,13 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || test_password_hash
         || bootstrap
         || directory_sign_in
-        || directory_source)
+        || directory_source
+        || directory_connection)
         || !(test_password_hash
             || bootstrap
             || directory_sign_in
             || directory_source
+            || directory_connection
             || account_mfa
             || service_packages
             || field_work_roles

@@ -209,6 +209,8 @@ pub mod finance_journal_detail_http;
 pub mod maintenance_parts;
 
 #[cfg(feature = "directory-ldaps")]
+pub mod directory_connection_administration;
+#[cfg(feature = "directory-ldaps")]
 pub mod directory_source_administration;
 #[cfg(feature = "field-service")]
 pub mod files_system_scan;

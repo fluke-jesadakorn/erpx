@@ -107,6 +107,19 @@ pub trait IamRolesReviewRepository {
         plan: &'a ReviewDecisionPlan,
         request_hash: &'a str,
     ) -> IamRolesFuture<'a, Value, Self::Error>;
+    /// Apply an approved `connection.activate` review to the tested connection.
+    /// Implementations without the Directory store keep rejecting the kind.
+    fn activate_connection<'a>(
+        &'a mut self,
+        actor: &'a IamRoleActor,
+        payload: &'a Value,
+        now: i64,
+    ) -> IamRolesFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            let _ = (actor, payload, now);
+            Err(crate::domain::iam_roles::review_unsupported().into())
+        })
+    }
     fn active_review_assignments<'a>(
         &'a mut self,
         actor: &'a IamRoleActor,
@@ -440,6 +453,11 @@ pub async fn decide_review<R: IamRolesReviewRepository>(
                 permissions: payload.permissions,
                 grantable_permissions: payload.grantable_permissions,
             })
+        } else if review.kind == "connection.activate" {
+            repository
+                .activate_connection(actor, &review.payload, now)
+                .await?;
+            None
         } else {
             return Err(review_unsupported().into());
         }

@@ -78,6 +78,8 @@ pub mod account_holding_bindings;
 pub mod account_inbound_http;
 
 pub mod directory;
+#[cfg(feature = "directory-ldaps")]
+pub mod directory_connection;
 
 pub use crate::adapters::account_http::account_session_router;
 pub mod operational_worker;
