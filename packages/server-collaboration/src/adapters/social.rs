@@ -595,9 +595,10 @@ pub async fn apply_plan(
             tags,
             mentions: mention_rows,
             parent_comment_id,
+            comment_upload_id,
         } => {
             sqlx::query(
-                "INSERT INTO social_comments(id,post_id,author_id,author_name,body,state,last_command_id,created_at,updated_at,version,mentions_json,parent_comment_id) VALUES($1,$2,$3,$4,$5,'published',$6,$7,$7,1,$8,$9)",
+                "INSERT INTO social_comments(id,post_id,author_id,author_name,body,state,last_command_id,created_at,updated_at,version,mentions_json,parent_comment_id,comment_upload_draft_id) VALUES($1,$2,$3,$4,$5,'published',$6,$7,$7,1,$8,$9,$10)",
             )
             .bind(id)
             .bind(post_id)
@@ -608,8 +609,22 @@ pub async fn apply_plan(
             .bind(now)
             .bind(serde_json::to_string(mention_rows).map_err(|_| changed())?)
             .bind(parent_comment_id)
+            .bind(comment_upload_id)
             .execute(&mut *c)
             .await?;
+            if let Some(upload_id) = comment_upload_id {
+                let bound = sqlx::query(
+                    "UPDATE social_post_drafts SET published_comment_id=$1,version=version+1,updated_at=$2 WHERE id=$3 AND published_comment_id IS NULL",
+                )
+                .bind(id)
+                .bind(now)
+                .bind(upload_id)
+                .execute(&mut *c)
+                .await?;
+                if bound.rows_affected() != 1 {
+                    return Err(changed());
+                }
+            }
             comment_topics(c, id, tags, &actor.user_id, now).await?;
             mentions(c, "comment", id, mention_rows, &actor.user_id, &actor.company_id, now).await?;
             Ok(expected.clone())
@@ -792,6 +807,7 @@ pub async fn apply_plan(
             rich_content_json,
             mentions_json,
             mentions: mention_rows,
+            edit_upload_id,
         } => {
             let prior = sqlx::query(
                 "SELECT body,content_json,rich_content_json,mentions_json FROM social_posts WHERE id=$1 AND company_id=$2",
@@ -843,6 +859,19 @@ pub async fn apply_plan(
             let tags = normalize_tags(&hashtags(body))?;
             post_topics(c, id, &tags, &actor.user_id, now).await?;
             mentions(c, "post", id, mention_rows, &actor.user_id, &actor.company_id, now).await?;
+            if let Some(upload_id) = edit_upload_id {
+                let bound = sqlx::query(
+                    "UPDATE social_post_drafts SET edit_saved_version=$1,version=version+1,updated_at=$2 WHERE id=$3 AND edit_saved_version IS NULL AND cancelled_at IS NULL",
+                )
+                .bind(expected_version + 1)
+                .bind(now)
+                .bind(upload_id)
+                .execute(&mut *c)
+                .await?;
+                if bound.rows_affected() != 1 {
+                    return Err(changed());
+                }
+            }
             Ok(expected.clone())
         }
         OwnerPlan::RetractPost {

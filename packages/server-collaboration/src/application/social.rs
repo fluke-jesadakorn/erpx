@@ -193,9 +193,26 @@ pub async fn execute<P: SocialUnit>(
                 body,
                 parent_comment_id,
                 mentions: mention_inputs,
+                comment_upload_id,
             } => {
                 let post = p.post(&post_id).await?;
                 require_published_post(&actor, &post)?;
+                if let Some(upload_id) = comment_upload_id.as_deref() {
+                    let draft = p
+                        .draft(upload_id)
+                        .await?
+                        .ok_or_else(draft_not_found)?;
+                    if draft.author_id != actor.user_id
+                        || draft.company_id != actor.company_id
+                        || draft.comment_parent_post_id.as_deref() != Some(post_id.as_str())
+                        || draft.published_comment_id.is_some()
+                        || draft.published_post_id.is_some()
+                        || draft.edit_post_id.is_some()
+                        || draft.cancelled_at.is_some()
+                    {
+                        return Err(draft_not_found().into());
+                    }
+                }
                 let body = text(&body, 1, MAX_COMMENT_BODY)?;
                 if let Some(parent) = parent_comment_id.as_deref() {
                     let parent = p.comment(parent, &post_id).await?;
@@ -214,6 +231,7 @@ pub async fn execute<P: SocialUnit>(
                     tags,
                     mentions,
                     parent_comment_id,
+                    comment_upload_id,
                 });
             }
             Change::EditComment {
@@ -312,6 +330,7 @@ pub async fn execute<P: SocialUnit>(
                 mentions: mention_inputs,
                 content_json,
                 rich_content_json,
+                edit_upload_id,
             } => {
                 validate_expected_version(expected_version)?;
                 let post = p.post(&id).await?;
@@ -327,6 +346,24 @@ pub async fn execute<P: SocialUnit>(
                 if post.version != expected_version {
                     return Err(conflict().into());
                 }
+                if let Some(upload_id) = edit_upload_id.as_deref() {
+                    let draft = p
+                        .draft(upload_id)
+                        .await?
+                        .ok_or_else(draft_not_found)?;
+                    if draft.author_id != actor.user_id
+                        || draft.company_id != actor.company_id
+                        || draft.edit_post_id.as_deref() != Some(id.as_str())
+                        || draft.edit_post_version != Some(expected_version)
+                        || draft.edit_saved_version.is_some()
+                        || draft.published_post_id.is_some()
+                        || draft.published_comment_id.is_some()
+                        || draft.comment_parent_post_id.is_some()
+                        || draft.cancelled_at.is_some()
+                    {
+                        return Err(draft_not_found().into());
+                    }
+                }
                 let body = text(&body, 0, MAX_DRAFT_BODY)?;
                 if body.trim().is_empty() && content_json.is_none() {
                     return Err(invalid().into());
@@ -340,6 +377,7 @@ pub async fn execute<P: SocialUnit>(
                     rich_content_json,
                     mentions_json: serde_json::to_string(&resolved).map_err(|_| invalid())?,
                     mentions: resolved,
+                    edit_upload_id,
                 });
             }
             Change::RetractPost {

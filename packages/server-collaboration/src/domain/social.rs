@@ -215,6 +215,8 @@ pub enum Change {
         body: String,
         parent_comment_id: Option<String>,
         mentions: Vec<MentionInput>,
+        /// Retained comment upload draft consumed by this comment.
+        comment_upload_id: Option<String>,
     },
     EditComment {
         post_id: String,
@@ -252,6 +254,8 @@ pub enum Change {
         mentions: Vec<MentionInput>,
         content_json: Option<String>,
         rich_content_json: Option<String>,
+        /// Retained post-edit upload draft consumed by this update.
+        edit_upload_id: Option<String>,
     },
     RetractPost {
         id: String,
@@ -326,6 +330,7 @@ pub enum OwnerPlan {
         tags: Vec<String>,
         mentions: Vec<Mention>,
         parent_comment_id: Option<String>,
+        comment_upload_id: Option<String>,
     },
     UpdateComment {
         id: String,
@@ -365,6 +370,7 @@ pub enum OwnerPlan {
         rich_content_json: Option<String>,
         mentions_json: String,
         mentions: Vec<Mention>,
+        edit_upload_id: Option<String>,
     },
     RetractPost {
         id: String,

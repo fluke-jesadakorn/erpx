@@ -570,6 +570,7 @@ async fn post_publish_topics_mentions_replay_feed_and_company_isolation() {
                 post_id: receipt.id.clone(),
                 body: "Hello".into(),
                 parent_comment_id: None,
+                comment_upload_id: None,
                 mentions: vec![MentionInput {
                     kind: MentionKind::Person,
                     target_id: "other-author".into(),
@@ -610,6 +611,7 @@ async fn comments_edit_tombstone_moderation_cas_and_readback() {
                 post_id: post.id.clone(),
                 body: "  Reply #Ops  ".into(),
                 parent_comment_id: None,
+                comment_upload_id: None,
                 mentions: vec![MentionInput {
                     kind: MentionKind::Person,
                     target_id: "person-1".into(),
@@ -1182,6 +1184,7 @@ async fn edits_and_retracts_the_authors_post_with_immutable_revisions() {
                 mentions: vec![],
                 content_json: None,
                 rich_content_json: None,
+                edit_upload_id: None,
             },
         )
         .await
@@ -1214,6 +1217,7 @@ async fn edits_and_retracts_the_authors_post_with_immutable_revisions() {
                 mentions: vec![],
                 content_json: None,
                 rich_content_json: None,
+                edit_upload_id: None,
             },
         )
         .await
@@ -1231,6 +1235,7 @@ async fn edits_and_retracts_the_authors_post_with_immutable_revisions() {
                 mentions: vec![],
                 content_json: None,
                 rich_content_json: None,
+                edit_upload_id: None,
             },
         )
         .await
@@ -1591,6 +1596,136 @@ async fn story_publish_and_archive_round_trip_with_replay_and_author_guard() {
         .await
         .unwrap_err();
         assert!(matches!(denied, PgTransactionError::Business(e) if e.code == "STORY_CONFLICT"));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn upload_drafts_bind_comment_and_edit_consumption() {
+    fixture::with_database(11, |pool| async move {
+        setup(&pool).await;
+        let post = run(
+            &pool,
+            "author",
+            "company",
+            "social-upload-bind-1101",
+            Change::PublishPost {
+                body: "Upload consumption".into(),
+                audience: Audience::Holding,
+                tags: vec![],
+                mentions: vec![],
+                linked_record: None,
+            },
+        )
+        .await
+        .unwrap();
+        let comment_upload = run(
+            &pool,
+            "author",
+            "company",
+            "social-upload-bind-1102",
+            Change::CommentUploadCreate {
+                post_id: post.id.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        let published = run(
+            &pool,
+            "author",
+            "company",
+            "social-upload-bind-1104",
+            Change::PublishComment {
+                post_id: post.id.clone(),
+                body: "Published with upload".into(),
+                parent_comment_id: None,
+                mentions: vec![],
+                comment_upload_id: Some(comment_upload.id.clone()),
+            },
+        )
+        .await
+        .unwrap();
+        let comment_row: (Option<String>, String) = sqlx::query_as(
+            "SELECT comment_upload_draft_id,body FROM social_comments WHERE id=$1",
+        )
+        .bind(&published.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            comment_row,
+            (Some(comment_upload.id.clone()), "Published with upload".into())
+        );
+        let bound: (Option<String>, i64) = sqlx::query_as(
+            "SELECT published_comment_id,version FROM social_post_drafts WHERE id=$1",
+        )
+        .bind(&comment_upload.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(bound, (Some(published.id.clone()), 2));
+        let reused = run(
+            &pool,
+            "author",
+            "company",
+            "social-upload-bind-1105",
+            Change::PublishComment {
+                post_id: post.id.clone(),
+                body: "Second use".into(),
+                parent_comment_id: None,
+                mentions: vec![],
+                comment_upload_id: Some(comment_upload.id),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(reused, PgTransactionError::Business(e) if e.code == "DRAFT_NOT_FOUND"));
+
+        let edit_upload = run(
+            &pool,
+            "author",
+            "company",
+            "social-upload-bind-1106",
+            Change::PostEditUploadCreate {
+                post_id: post.id.clone(),
+                expected_version: 2,
+            },
+        )
+        .await
+        .unwrap();
+        let edited = run(
+            &pool,
+            "author",
+            "company",
+            "social-upload-bind-1107",
+            Change::EditPost {
+                id: post.id.clone(),
+                expected_version: 2,
+                body: "Edited with upload".into(),
+                mentions: vec![],
+                content_json: None,
+                rich_content_json: None,
+                edit_upload_id: Some(edit_upload.id.clone()),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!((edited.version, edited.status), (3, "published"));
+        let edit_bound: (Option<i64>, i64) = sqlx::query_as(
+            "SELECT edit_saved_version,version FROM social_post_drafts WHERE id=$1",
+        )
+        .bind(&edit_upload.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(edit_bound, (Some(3), 2));
+        let edited_row: (String, i64) =
+            sqlx::query_as("SELECT body,version FROM social_posts WHERE id=$1")
+                .bind(&post.id)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(edited_row, ("Edited with upload".into(), 3));
     })
     .await;
 }

@@ -30,6 +30,7 @@ async function workSocialPost(request: Request, context: Context) {
                 body: body.body,
                 parentCommentId: body.parentCommentId,
                 mentions: body.mentions,
+                commentDraftId: body.commentDraftId,
               },
               key,
             ),

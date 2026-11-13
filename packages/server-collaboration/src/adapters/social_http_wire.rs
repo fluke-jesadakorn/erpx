@@ -122,6 +122,7 @@ pub fn decode_social_command(
             body: text(raw, "body")?.to_owned(),
             parent_comment_id: optional_text(raw, "parentCommentId")?.map(str::to_owned),
             mentions: mentions(raw)?,
+            comment_upload_id: optional_text(raw, "commentDraftId")?.map(str::to_owned),
         },
         "social.comment.edit" => Change::EditComment {
             post_id: post(post_id)?,
@@ -174,6 +175,7 @@ pub fn decode_social_command(
                 .map(serde_json::to_string)
                 .transpose()
                 .map_err(|_| invalid())?,
+            edit_upload_id: optional_text(raw, "editDraftId")?.map(str::to_owned),
         },
         "social.handover.publish" => {
             let recipient_ids = strings(raw, "recipientIds")?;
@@ -371,6 +373,47 @@ mod tests {
                 expected_version: 2,
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn upload_draft_identifiers_are_normalized_on_comment_and_post_edit() {
+        let decoded = decode_social_command(
+            "social.comment.publish",
+            Some("post-1"),
+            None,
+            &json!({
+                "body":"Reply",
+                "commentDraftId":"comment-upload-1",
+                "mentions":[]
+            }),
+        )
+        .unwrap();
+        assert!(matches!(
+            decoded.change,
+            Change::PublishComment {
+                comment_upload_id: Some(id),
+                ..
+            } if id == "comment-upload-1"
+        ));
+        let decoded = decode_social_command(
+            "social.post.edit",
+            Some("post-1"),
+            None,
+            &json!({
+                "body":"Edited",
+                "expectedVersion":2,
+                "editDraftId":"post-edit-upload-1",
+                "mentions":[]
+            }),
+        )
+        .unwrap();
+        assert!(matches!(
+            decoded.change,
+            Change::EditPost {
+                edit_upload_id: Some(id),
+                ..
+            } if id == "post-edit-upload-1"
         ));
     }
 

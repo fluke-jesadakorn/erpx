@@ -325,6 +325,7 @@ async fn comment_publish_edit_and_moderation_keep_cas_and_authority() {
             post_id: "post-1".into(),
             body: "  Reply #Ops  ".into(),
             parent_comment_id: None,
+            comment_upload_id: None,
             mentions: vec![],
         },
     )
@@ -649,6 +650,112 @@ async fn publishes_a_draft_by_binding_the_retained_author_version() {
 }
 
 #[tokio::test]
+async fn upload_drafts_bind_the_retained_comment_and_post_edit_target() {
+    let mut unit = Unit::new();
+    let mut comment = draft_snapshot("comment-upload-1");
+    comment.comment_parent_post_id = Some("post-1".into());
+    unit.drafts.insert(comment.id.clone(), comment);
+    let receipt = execute(
+        &mut unit,
+        &key(),
+        Change::PublishComment {
+            post_id: "post-1".into(),
+            body: "Reply".into(),
+            parent_comment_id: None,
+            mentions: vec![],
+            comment_upload_id: Some("comment-upload-1".into()),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!((receipt.version, receipt.status), (1, "published"));
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::CreateComment {
+            comment_upload_id, ..
+        } => assert_eq!(comment_upload_id.as_deref(), Some("comment-upload-1")),
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let mut foreign = draft_snapshot("comment-upload-2");
+    foreign.comment_parent_post_id = Some("post-1".into());
+    foreign.author_id = "other".into();
+    unit.drafts.insert(foreign.id.clone(), foreign);
+    let denied = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0002").unwrap(),
+        Change::PublishComment {
+            post_id: "post-1".into(),
+            body: "Reply".into(),
+            parent_comment_id: None,
+            mentions: vec![],
+            comment_upload_id: Some("comment-upload-2".into()),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(denied.code, "DRAFT_NOT_FOUND");
+
+    let mut edit = draft_snapshot("post-edit-upload-1");
+    edit.edit_post_id = Some("post-1".into());
+    edit.edit_post_version = Some(2);
+    unit.drafts.insert(edit.id.clone(), edit);
+    let edited = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0003").unwrap(),
+        Change::EditPost {
+            id: "post-1".into(),
+            expected_version: 2,
+            body: "Edited".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+            edit_upload_id: Some("post-edit-upload-1".into()),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!((edited.version, edited.status), (3, "published"));
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::EditPost { edit_upload_id, .. } => {
+            assert_eq!(edit_upload_id.as_deref(), Some("post-edit-upload-1"))
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let stale = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0004").unwrap(),
+        Change::EditPost {
+            id: "post-1".into(),
+            expected_version: 1,
+            body: "Stale".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+            edit_upload_id: Some("post-edit-upload-1".into()),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(stale.code, "VERSION_CONFLICT");
+    unit.drafts.get_mut("post-edit-upload-1").unwrap().edit_post_version = Some(1);
+    let unavailable = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0005").unwrap(),
+        Change::EditPost {
+            id: "post-1".into(),
+            expected_version: 2,
+            body: "Edited".into(),
+            mentions: vec![],
+            content_json: None,
+            rich_content_json: None,
+            edit_upload_id: Some("post-edit-upload-1".into()),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(unavailable.code, "DRAFT_NOT_FOUND");
+}
+
+#[tokio::test]
 async fn edits_and_retracts_only_the_authors_current_post_with_a_revision_plan() {
     let mut unit = Unit::new();
     let edited = execute(
@@ -661,6 +768,7 @@ async fn edits_and_retracts_only_the_authors_current_post_with_a_revision_plan()
             mentions: vec![],
             content_json: None,
             rich_content_json: None,
+            edit_upload_id: None,
         },
     )
     .await
@@ -689,6 +797,7 @@ async fn edits_and_retracts_only_the_authors_current_post_with_a_revision_plan()
             mentions: vec![],
             content_json: None,
             rich_content_json: None,
+            edit_upload_id: None,
         },
     )
     .await
@@ -935,6 +1044,7 @@ async fn unreadable_mention_target_fails_before_apply() {
             post_id: "post-1".into(),
             body: "Hello".into(),
             parent_comment_id: None,
+            comment_upload_id: None,
             mentions: vec![MentionInput {
                 kind: MentionKind::Person,
                 target_id: "absent".into(),
