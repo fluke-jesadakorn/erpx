@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1869,
+    "revision": 1877,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-q",
       "agentId": "lead",
       "startedAt": "2026-11-13T16:24:08.855Z",
-      "heartbeatAt": "2026-11-13T16:24:29.235Z",
-      "expiresAt": "2026-11-13T16:54:29.235Z",
+      "heartbeatAt": "2026-11-13T16:26:31.117Z",
+      "expiresAt": "2026-11-13T16:56:31.117Z",
       "generation": 61,
       "tokenHash": "35462438ad1c1d80cc706a6083159260aad2c4c08dcaff3c53cd62f2c0c9b0b2"
     },
@@ -37560,7 +37560,7 @@
           "packages/server-manufacturing/Cargo.toml",
           "packages/feature-manufacturing/**",
           "packages/server-inventory/src/**",
-          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/manufacturing/**",
           "tests/unit/manufacturing/**",
           "tests/integration/manufacturing/**",
           "tests/integration/inventory/**"
@@ -37569,15 +37569,22 @@
           "owner:manufacturing",
           "resource:composition"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-q",
+          "agentId": "worker-manufacturing-order",
+          "claimedAt": "2026-11-13T16:26:06.670Z",
+          "heartbeatAt": "2026-11-13T16:26:31.117Z",
+          "expiresAt": "2026-11-13T16:56:31.117Z",
+          "generation": 61
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the native order issue/pass-QC command consuming public::lots::{post_material_lots,post_output_lots} with the existing Finance posting/QC guards and one serializable transaction, mount the native HTTP ingress, switch changeManufacturingOrder, then delete manufacturing-lot-sources.ts (6 writes) + 3 manufacturing lots.ts writers and record inventory 85 -> 79, manufacturing 26 -> 23.",
+        "nextAction": "Implement the native order issue/pass-QC command consuming public::lots::{post_material_lots,post_output_lots} with the existing Finance posting/QC guards and one serializable transaction, mount the native HTTP ingress, switch changeManufacturingOrder, then delete manufacturing-lot-sources.ts (6 writes) + 3 manufacturing lots.ts writers and record inventory 54 -> 48, manufacturing 26 -> 23.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -37789,6 +37796,90 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.inventory.executive-reorder-oracle",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Move the executive reorder oracle to native seeding",
+        "scope": "Move tests/integration/shared.executive/executive-canvas.test.ts reorder-policy setup off the fail-closed TS writer to native seeding so the compatibility exports can be dropped.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "tests/integration/shared.executive/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-q",
+          "agentId": "worker-executive-oracle",
+          "claimedAt": "2026-11-13T16:26:06.740Z",
+          "heartbeatAt": "2026-11-13T16:26:31.117Z",
+          "expiresAt": "2026-11-13T16:56:31.117Z",
+          "generation": 61
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Replace the executive-canvas saveInventoryReorderPolicy/transitionInventoryReorderPolicy setup with native-row seeding (inventory_reorder_policy/current/proposed/version/events), keep the executive assertions, and report the file + evidence so the lead can drop the fail-closed exports.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.identity_access.directory-operations",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Native directory operations",
+        "scope": "Implement the native directory-operations command surface (objects/work/mappings), switch the feature-admin directory pages and workplace consumers, then delete directory-operations.ts (15 writes) and record Identity Access 133 -> 118.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/server-identity_access/Cargo.toml",
+          "packages/server-identity_access/package.json",
+          "packages/feature-identity_access/**",
+          "packages/feature-admin/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/{people,technology}/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-q",
+          "agentId": "worker-iam-directory-ops",
+          "claimedAt": "2026-11-13T16:26:06.809Z",
+          "heartbeatAt": "2026-11-13T16:26:31.117Z",
+          "expiresAt": "2026-11-13T16:56:31.117Z",
+          "generation": 61
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native directory-operations command surface (objects/work/mappings) with the installed connector/apply port, switch the feature-admin directory pages and workplace consumers, delete directory-operations.ts (15 writes) and record Identity Access 133 -> 118. Report any composition mount contract.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -37797,11 +37888,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 197,
+      "totalPackets": 199,
       "migratedPackets": 120,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 0,
+        "pending": 20,
+        "in_progress": 3,
         "ready_for_integration": 17,
         "integrating": 0,
         "migrated": 120,
@@ -37811,7 +37902,7 @@
       }
     },
     "lastCoordinatorGeneration": 61,
-    "updatedAt": "2026-11-13T16:24:29.236Z",
+    "updatedAt": "2026-11-13T16:26:31.118Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
