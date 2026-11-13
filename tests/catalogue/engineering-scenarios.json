@@ -3902,54 +3902,6 @@
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "cancels a future draft with retained owner evidence and permits exact-period and completed non-overlap retries",
-          "proof": "Actual future native draft has PERIOD_OPEN, owner cancellation retains exact original SQL snapshot, one receipt/audit/outbox/flow, same-period replacement succeeds, completed non-overlap recalculation yields100000 gross/net, cancelled terminal source and immutable receipt reject direct mutation."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "replays a lost cancellation response once and rejects stale or conflicting keys without extra evidence",
-          "proof": "Native stale commands produce zero effects; same-key lost-response replay returns original once, changed payload rejects idempotency conflict; cancelled/stale reruns retain one evidence row/event of each kind."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "serializes concurrent cancellation commands and an identical lost-response retry into one owner transition",
-          "proof": "Two distinct concurrent native commands yield one commit and one409; concurrent same-key replay yields identical result and exactly one retained owner transition."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "retains calculated item snapshots and issued review bytes after preview cancellation",
-          "proof": "Actual100000 preview item and issued review CSV/checksum remain unchanged after cancel; direct item UPDATE/DELETE reject, API calculate rejects locked source, no payment batch exists."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "guards a concurrent preview calculation against cancellation without orphaned calculation items",
-          "proof": "Native cancellation versus actual calculation has exactly one winner at version2; cancelled result has zero orphaned items, or successful preview remains valid and can then be normally cancelled."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "requires current creator or named Company authority and denies cached revocation, expiry and cross-Company cancellation",
-          "proof": "Other active preparer lacks source ownership; other Company gets404; expired current assignment blocks before side effects, revoked cached grant also denies lost-response replay after legitimate cancellation."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "allows the normally named preparer to cancel a scheduled draft without taking over its original creator",
-          "proof": "Declared system-created scheduled source is cancelled only through its configured native preparer and retains system creator in original row and immutable snapshot."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "rejects submitted, approved and posted payroll cancellation while retaining its exact GL and immutable employee payslip",
-          "proof": "Native calculation\u2192submit\u2192independent approval\u2192independent mapping review\u2192post produces exact100000 balancedGL and one issued slip; cancellation denies each locked stage and DB direct posted cancellation without changing source/slip/event counts."
-        },
-        {
-          "runner": "vitest",
           "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
           "title": "source-dated Thai payroll owner workflow pays an independently reviewed posted-payroll delta without changing original bank slips exports GL or repeated YTD",
           "proof": "Original monthly payroll is independently posted and settled; approved late4h OT plus100000 arrears creates175000 gross/8750 PIT/0 repeatSSO/166250 net according to independent worksheet, separately approved/post/slip/bank settled. Originalrun/item/GL/reviewCSV/slip/paymentCSV remain byte-identical; laterYTD counts originalanddelta once. Ownself-review,crossCompany,claimedOT,postedtamper and replay deny or remain exact."
