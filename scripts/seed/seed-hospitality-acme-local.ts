@@ -15,8 +15,7 @@ const { pmsCommand, loadPms, drainPms }=await import("../../packages/server-pms/
 const {posCommand}=await import("@erpx/server-pos/public/pos-core");
 const {one}=await import("@erpx/server-runtime/public/runtime/sql");
 const { saveMaster }=await import("@erpx/server-commerce/public/commerce");
-const { countSchema, saveCount, transitionCount }=await import("@erpx/server-inventory/public/inventory-counts");
-const {resolveFlow,assignFlowPrimary}=await import("@erpx/server-workflow/public/flow-routing");
+const { seedOpeningStock }=await import("../../tests/support/helpers/inventory-opening-stock-seed");
 
 const manifestPath=process.env.ERPX_DATABASE_MANIFEST;
 if(!manifestPath)throw new Error('ERPX_DATABASE_MANIFEST_REQUIRED');
@@ -123,17 +122,7 @@ try { await db.withSession(async lock=>{
  products[stock.sku]=(await step(`product:${stock.sku}`,{sku:`ACME-HOSP-${stock.sku}`,name:menu?.name??`Acme practice ${stock.sku}`,unit:stock.unit,price:((menu?.priceMinor??100)/100/divisor).toFixed(2),taxBps:menu?700:0},(input,key)=>saveMaster(admin,'products',null,input,key))).id;}
  for(const menu of fixture.restaurant.menu)if(!menu.stockSku)products[menu.sku]=(await step(`menu:${menu.sku}`,{sku:`ACME-HOSP-${menu.sku}`,name:`Acme practice ${menu.name}`,unit:'each',price:(menu.priceMinor/100/divisor).toFixed(2),taxBps:700},(input,key)=>saveMaster(admin,'products',null,input,key))).id;
  const warehouse=(await step('kitchen-warehouse',{code:'ACME-HOSP',name:'Acme hospitality practice kitchen',branchId:'bangkok'},(input,key)=>saveMaster(admin,'warehouses',null,input,key))).id;
- const count=(await step('opening-count',countSchema.parse({warehouseId:warehouse,countDate:date,reason:'Fictional Acme independently counted kitchen opening stock',lines:fixture.restaurant.openingStock.map(s=>({productId:products[s.sku],countedQuantity:String(s.quantityMilli/1000),unitCost:(s.valueMinor/s.quantityMilli*10/divisor).toFixed(2)}))}),(input,key)=>saveCount(admin,null,countSchema.parse(input),key))).id;
- for(const [action,version] of [['submit',1],['approve',2],['post',3]] as const){
-  if(state.steps[`stock:${action}`]?.result)continue;
-  const who=action==='submit'?admin:finance;
-  const flow=await resolveFlow(db,who,'stock_count',count);
-  if(!flow.canAct){
-   if(!flow.current)throw new Error('ACME_COUNT_ROUTING_REQUIRED');
-   await step(`route:${action}`,{stepKey:flow.current.key,userId:who.userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:'Assign fictional Acme stock count to its independent rehearsal reviewer',saveDefault:false},(input,key)=>assignFlowPrimary(db,admin,'stock_count',count,input as Parameters<typeof assignFlowPrimary>[4],key));
-  }
-  await step(`stock:${action}`,{expectedVersion:version,attachmentSetIds:[],reason:'Independent fictional Acme opening stock review'},(input,key)=>transitionCount(who,count,action,input as {expectedVersion:number;attachmentSetIds:string[];reason:string},key));
- }
+ const openingLines=fixture.restaurant.openingStock.map(s=>({productId:products[s.sku],countedQuantity:String(s.quantityMilli/1000),unitCost:(s.valueMinor/s.quantityMilli*10/divisor).toFixed(2)})),count=(await step('opening-count',{warehouseId:warehouse,lines:openingLines},()=>seedOpeningStock(db,warehouse,openingLines))).id;
  const pos=async(label:string,op:string,input:unknown)=>step(label,input,(body,key)=>posCommand(db,admin,op,body,key));
  const register=(await pos('restaurant-register','register.save',{name:'Acme Practice Restaurant',warehouseId:warehouse,mode:'restaurant'})).id;
  for(const name of fixture.restaurant.tables)await pos(`table:${name}`,'table.create',{registerId:register,name,seats:4});

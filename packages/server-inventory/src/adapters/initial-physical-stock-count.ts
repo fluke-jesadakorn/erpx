@@ -19,7 +19,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {resolveFlow,assignFlowPrimary} from '@erpx/server-workflow/public/flow-routing';
 import {requireFlowAccess} from '@erpx/server-workflow/public/flow-access';
 import {replayCommand} from '@erpx/server-workflow/public/commands';
-import {readCountDetail,readScopedCount,saveCount,transitionCount} from '@erpx/server-inventory/adapters/inventory-counts';
+import {readCountDetail,readScopedCount,transitionCount} from '@erpx/server-inventory/adapters/inventory-counts';
 import {initialPhysicalStockCapabilities,initialPhysicalStockCountSource,withInitialPhysicalStockCountUnit,type InitialPhysicalStockProof} from '@erpx/server-inventory/adapters/initial-physical-stock-count-source';
 import {canPrepareCounts,canEditCount,canReviewCount} from '@erpx/server-inventory/domain/counts';
 import {initialPhysicalStockCountSchema,initialPhysicalStockCountActionSchema,initialPhysicalStockCountSelectionSchema,initialPhysicalStockCountFlowSchema,type InitialPhysicalStockCountView,type InitialPhysicalStockCountRecord} from '@erpx/server-inventory/domain/initial-physical-stock-count';
@@ -78,11 +78,10 @@ export async function prepareInitialPhysicalStockCount(actor:WorkContext,raw:unk
   const source=await selectionSource(database,current,input.input.warehouseId,productId,input.input.countDate);assertSelection(source);
   if(input.contextKey!==context(current,input.input.warehouseId,productId,input.input.countDate,source.image))throw new ApiError(409,'INITIAL_PHYSICAL_STOCK_CONTEXT_CHANGED','The original selected item, warehouse, posting references or Stock assignment changed.');
   const config=source.finance.config!,proof:InitialPhysicalStockProof={kind:'initial-physical-stock-count',countId:id,companyId:actor.companyId,warehouseId:input.input.warehouseId,branchId:String(source.masters!.warehouse.branch_id),productId,countCommandId:key,goodsSetupCommandId:String(source.goods!.goods_setup_command_id),goodsSetupRequestHash:String(source.goods!.goods_setup_request_hash),chartId:String(config.chart_id),inventoryAccountId:String(config.inventory_account_id),varianceAccountId:String(config.variance_account_id),currency:String(config.currency)};
-  const result=await saveCount();
-  await database.prepare('INSERT INTO inventory_initial_physical_stock_sources(count_id,company_id,branch_id,warehouse_id,product_id,count_command_id,goods_setup_command_id,chart_id,inventory_account_id,variance_account_id,currency,proof_json,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?)').bind(id,actor.companyId,proof.branchId,proof.warehouseId,proof.productId,key,proof.goodsSetupCommandId,proof.chartId,proof.inventoryAccountId,proof.varianceAccountId,proof.currency,JSON.stringify(proof),actor.userId,Date.now()).run();
-  finalGuard(async()=>{const final=await selectionSource(database,current,input.input.warehouseId,productId,input.input.countDate);
-   if(final.image!==source.image||await history(database,proof.warehouseId,productId,id))throw new ApiError(409,'INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED','The original first-count source changed before completion.');});
-  return result;
+  // The draft, receipt and immutable source row are owned by the native
+  // create/seed command; this retained adapter no longer writes.
+  void proof;void finalGuard;void database;void source;void history;
+  throw new ApiError(503,'NATIVE_INVENTORY_COUNT_REQUIRED','The native stock Count seed command is required.');
  });
 }
 /** Capture the exact first-count source proof for the native create/seed

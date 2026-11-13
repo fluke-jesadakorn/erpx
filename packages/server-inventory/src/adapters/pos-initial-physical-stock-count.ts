@@ -19,8 +19,8 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {resolveFlow,assignFlowPrimary} from '@erpx/server-workflow/public/flow-routing';
 import {requireFlowAccess} from '@erpx/server-workflow/public/flow-access';
 import {replayCommand} from '@erpx/server-workflow/public/commands';
-import {readCountDetail,readScopedCount,saveCount,transitionCount} from '@erpx/server-inventory/adapters/inventory-counts';
-import {posInitialPhysicalStockCapabilities,posInitialPhysicalStockCountSource,posInitialPhysicalStockCountImage,withPosInitialPhysicalStockCountUnit,type PosInitialPhysicalStockProof} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source';
+import {readCountDetail,readScopedCount,transitionCount} from '@erpx/server-inventory/adapters/inventory-counts';
+import {posInitialPhysicalStockCapabilities,posInitialPhysicalStockCountSource,withPosInitialPhysicalStockCountUnit,type PosInitialPhysicalStockProof} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source';
 import {canPrepareCounts,canEditCount,canReviewCount} from '@erpx/server-inventory/domain/counts';
 import {posInitialPhysicalStockCountSchema,posInitialPhysicalStockCountActionSchema,posInitialPhysicalStockCountSelectionSchema,posInitialPhysicalStockCountFlowSchema,type PosInitialPhysicalStockCountView,type PosInitialPhysicalStockCountRecord} from '@erpx/server-inventory/domain/pos-initial-physical-stock-count';
 const quality=inventoryQualitySnapshotSources();
@@ -81,13 +81,20 @@ export async function preparePosInitialPhysicalStockCount(actor:WorkContext,raw:
   const source=await selectionSource(database,current,input.input.warehouseId,productId,input.input.countDate);assertSelection(source);
   if(input.contextKey!==context(current,input.input.warehouseId,productId,input.input.countDate,source.image))throw new ApiError(409,'POS_INITIAL_PHYSICAL_STOCK_CONTEXT_CHANGED','The original selected item, warehouse, posting references or Stock assignment changed.');
   const config=source.finance.config!,proof:PosInitialPhysicalStockProof={kind:'pos-initial-physical-stock-count',countId:id,companyId:actor.companyId,warehouseId:input.input.warehouseId,branchId:String(source.masters!.warehouse.branch_id),productId,countCommandId:key,posSetupCommandId:String(source.goods!.pos_setup_command_id),posSetupRequestHash:String(source.goods!.pos_setup_request_hash),posBootstrapReceiptId:String(source.goods!.bootstrap_receipt_id),posBootstrapRequestHash:String(source.goods!.bootstrap_request_hash),posBootstrapAuditId:String(source.goods!.bootstrap_audit_id),posApprovalReceiptId:String(source.goods!.approval_receipt_id),posApprovalRequestHash:String(source.goods!.approval_request_hash),posApprovalAuditId:String(source.goods!.approval_audit_id),posAccountingImageHash:String(source.goods!.accounting_image_hash),chartId:String(config.chart_id),inventoryAccountId:String(config.inventory_account_id),varianceAccountId:String(config.variance_account_id),currency:String(config.currency)};
-  const result=await saveCount();
-  await database.prepare('INSERT INTO inventory_pos_initial_physical_sources(count_id,company_id,branch_id,warehouse_id,product_id,count_command_id,pos_setup_command_id,pos_bootstrap_receipt_id,pos_approval_receipt_id,chart_id,inventory_account_id,variance_account_id,currency,proof_json,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?)').bind(id,actor.companyId,proof.branchId,proof.warehouseId,proof.productId,key,proof.posSetupCommandId,proof.posBootstrapReceiptId,proof.posApprovalReceiptId,proof.chartId,proof.inventoryAccountId,proof.varianceAccountId,proof.currency,JSON.stringify(proof),actor.userId,Date.now()).run();
-  const createdImage=await posInitialPhysicalStockCountImage(database,actor,id);
-  finalGuard(async()=>{const final=await selectionSource(database,current,input.input.warehouseId,productId,input.input.countDate);
-   if(!createdImage||createdImage!==await posInitialPhysicalStockCountImage(database,actor,id)||final.image!==source.image||await history(database,actor.companyId,proof.warehouseId,productId,id))throw new ApiError(409,'POS_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED','The original first-count source changed before completion.');});
-  return result;
+  // The draft, receipt and immutable source row are owned by the native
+  // create/seed command; this retained adapter no longer writes.
+  void proof;void finalGuard;void database;void source;void history;
+  throw new ApiError(503,'NATIVE_INVENTORY_COUNT_REQUIRED','The native stock Count seed command is required.');
  });
+}
+/** Capture the exact POS first-count source proof for the native create/seed
+ * command. It performs no write. */
+export async function posInitialPhysicalStockSeed(actor:WorkContext,raw:unknown,key:string){
+ const input=posInitialPhysicalStockCountSchema.parse(raw),id=`count-${key}`,productId=input.input.lines[0].productId,database=await owner(actor);
+ const source=await selectionSource(database,actor,input.input.warehouseId,productId,input.input.countDate);assertSelection(source);
+ if(input.contextKey!==context(actor,input.input.warehouseId,productId,input.input.countDate,source.image))throw new ApiError(409,'POS_INITIAL_PHYSICAL_STOCK_CONTEXT_CHANGED','The original selected item, warehouse, posting references or Stock assignment changed.');
+ const config=source.finance.config!,proof:PosInitialPhysicalStockProof={kind:'pos-initial-physical-stock-count',countId:id,companyId:actor.companyId,warehouseId:input.input.warehouseId,branchId:String(source.masters!.warehouse.branch_id),productId,countCommandId:key,posSetupCommandId:String(source.goods!.pos_setup_command_id),posSetupRequestHash:String(source.goods!.pos_setup_request_hash),posBootstrapReceiptId:String(source.goods!.bootstrap_receipt_id),posBootstrapRequestHash:String(source.goods!.bootstrap_request_hash),posBootstrapAuditId:String(source.goods!.bootstrap_audit_id),posApprovalReceiptId:String(source.goods!.approval_receipt_id),posApprovalRequestHash:String(source.goods!.approval_request_hash),posApprovalAuditId:String(source.goods!.approval_audit_id),posAccountingImageHash:String(source.goods!.accounting_image_hash),chartId:String(config.chart_id),inventoryAccountId:String(config.inventory_account_id),varianceAccountId:String(config.variance_account_id),currency:String(config.currency)};
+ return {input:input.input,seed:{kind:'pos' as const,proof}};
 }
 export async function transitionPosInitialPhysicalStockCount(actor:WorkContext,id:string,action:import("@erpx/server-inventory/domain/pos-initial-physical-stock-count").PosInitialPhysicalStockCountAction,raw:unknown,key:string){
  const input=posInitialPhysicalStockCountActionSchema.parse(raw);if(!['submit','approve','post','reject','cancel'].includes(action))throw new ApiError(404,'COUNT_ACTION_NOT_FOUND','Unknown Count action.');
