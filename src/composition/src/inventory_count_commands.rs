@@ -26,8 +26,9 @@ use erpx_server_finance::public::{
     PgJournalPreparation, PgJournalStore, embedded_currency_rules, prepare_journal,
 };
 use erpx_server_inventory::public::counts::{
-    CountRecord, CountSaveInput, CountSavePlan, CountTransitionEffects, CountTransitionPlan,
-    apply_count_save, apply_count_transition, lock_count_sources, plan_count_save,
+    CountRecord, CountSaveInput, CountSavePlan, CountSeedKind, CountSeedPlan, CountSeedSource,
+    CountTransitionEffects, CountTransitionPlan, apply_count_save, apply_count_transition,
+    insert_count_seed_source, lock_count_sources, plan_count_save, plan_count_seed,
     plan_count_transition, plan_count_transition_effects, read_count_save_source,
     read_count_transition_source,
 };
@@ -77,6 +78,27 @@ struct CountSaveResult {
     version: i64,
 }
 
+/// Immutable first-Count provenance forwarded with an initial/manufacturing/
+/// POS/service draft create. `kind` selects one closed owner table; `proof` is
+/// the retained captured source proof, rechecked against the saved draft.
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CountSeedInput {
+    pub kind: String,
+    pub proof: serde_json::Value,
+}
+
+/// The command receipt keeps the private source marker that the immutable
+/// PostgreSQL triggers require; the HTTP client only sees the public draft.
+fn strip_seed_marker(result: CommandJson) -> Result<CommandJson, Error> {
+    let mut value: serde_json::Value = serde_json::from_str(result.as_str())
+        .map_err(|_| PgTransactionError::Persistence(erpx_server_runtime::public::postgres::PersistenceError::new("COUNT_RESULT_INVALID")))?;
+    if let Some(object) = value.as_object_mut() {
+        object.retain(|key, _| !key.starts_with('_'));
+    }
+    CommandJson::from_serializable(&value).map_err(Into::into)
+}
+
 impl<C: Clock + Send + Sync + 'static> InventoryCountCommand<C> {
     #[allow(clippy::too_many_arguments)]
     pub async fn save<Input>(
@@ -86,12 +108,29 @@ impl<C: Clock + Send + Sync + 'static> InventoryCountCommand<C> {
         workspace: Input,
         id: Option<String>,
         input: CountSaveInput,
+        seed: Option<CountSeedInput>,
         wire: CommandJson,
         key: CommandKey,
     ) -> Result<CommandJson, Error>
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
+        if seed.is_some() && id.is_some() {
+            return Err(BusinessError::invalid(
+                "COUNT_SEED_REVISION_NOT_ALLOWED",
+                "A first physical count is immutable; create a separate count.",
+            )
+            .into());
+        }
+        if let Some(seed) = &seed
+            && CountSeedKind::parse(&seed.kind).is_none()
+        {
+            return Err(BusinessError::invalid(
+                "COUNT_SEED_PROOF_INVALID",
+                "Use a current first-Count source.",
+            )
+            .into());
+        }
         let record_id = id
             .clone()
             .unwrap_or_else(|| format!("count-{}", key.as_str()));
@@ -135,6 +174,7 @@ impl<C: Clock + Send + Sync + 'static> InventoryCountCommand<C> {
                     let clock = clock.clone();
                     let request = request.clone();
                     let input = input.clone();
+                    let seed = seed.clone();
                     let record_id = record_id.clone();
                     Box::pin(async move {
                         if current.selection().workspace().company_id != expected_company {
@@ -161,7 +201,9 @@ impl<C: Clock + Send + Sync + 'static> InventoryCountCommand<C> {
                             request: &request,
                             input: &input,
                             record_id: &record_id,
+                            seed,
                             plan: None,
+                            seed_plan: None,
                         };
                         let mut ids = Ids;
                         let outcome = PgCommandLedger::new(
@@ -173,7 +215,7 @@ impl<C: Clock + Send + Sync + 'static> InventoryCountCommand<C> {
                         )
                         .execute(&request, &mut effects)
                         .await?;
-                        Ok(outcome.result)
+                        strip_seed_marker(outcome.result)
                     })
                 },
             )
@@ -579,7 +621,9 @@ struct Effects<'a, C> {
     request: &'a WorkflowRequest,
     input: &'a CountSaveInput,
     record_id: &'a str,
+    seed: Option<CountSeedInput>,
     plan: Option<CountSavePlan>,
+    seed_plan: Option<CountSeedPlan>,
 }
 
 impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
@@ -619,12 +663,53 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         .await?;
         let plan = plan_count_save(&source, self.input, self.record_id, self.company.as_str())?;
         let version = plan.version;
-        let result = CommandJson::from_serializable(&CountSaveResult {
-            id: self.record_id.to_owned(),
-            status: "draft".into(),
-            version,
-        })?;
+        let seed_plan = match (&self.seed, plan.lines.first()) {
+            (Some(seed), Some(line)) => {
+                let kind = CountSeedKind::parse(&seed.kind)
+                    .ok_or_else(|| BusinessError::invalid("COUNT_SEED_PROOF_INVALID", "Use a current first-Count source."))?;
+                Some(plan_count_seed(
+                    kind,
+                    &seed.proof,
+                    &plan.record_id,
+                    &plan.company_id,
+                    &plan.warehouse_id,
+                    &plan.branch_id,
+                    &line.product_id,
+                    &self.request.key,
+                )?)
+            }
+            (Some(_), None) => {
+                return Err(BusinessError::invalid(
+                    "COUNT_SEED_PROOF_INVALID",
+                    "Use a current first-Count source.",
+                )
+                .into())
+            }
+            (None, _) => None,
+        };
+        let result = if let Some(seed_plan) = &seed_plan {
+            let mut value = serde_json::to_value(CountSaveResult {
+                id: self.record_id.to_owned(),
+                status: "draft".into(),
+                version,
+            })
+            .map_err(|_| changed())?;
+            if let Some(object) = value.as_object_mut() {
+                object.insert(
+                    seed_plan.kind.marker().to_owned(),
+                    seed_plan.proof.clone(),
+                );
+            }
+            CommandJson::from_serializable(&value)?
+        } else {
+            CommandJson::from_serializable(&CountSaveResult {
+                id: self.record_id.to_owned(),
+                status: "draft".into(),
+                version,
+            })?
+        };
         self.plan = Some(plan);
+        self.seed_plan = seed_plan;
         Ok(WorkflowOutput {
             version,
             result,
@@ -639,14 +724,36 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
         let plan = self.plan.take().ok_or_else(changed)?;
-        apply_count_save(
-            c,
-            &plan,
-            self.input.expected_version,
-            self.current.user_id().as_str(),
-            self.clock.now().get(),
-        )
-        .await
+        let now = self.clock.now().get();
+        let actor = self.current.user_id().as_str();
+        apply_count_save(c, &plan, self.input.expected_version, actor, now).await?;
+        if let Some(seed) = self.seed_plan.take() {
+            let proof_json = serde_json::to_string(&seed.proof).map_err(|_| changed())?;
+            insert_count_seed_source(
+                c,
+                &CountSeedSource {
+                    kind: seed.kind,
+                    count_id: &plan.record_id,
+                    company_id: &plan.company_id,
+                    branch_id: &seed.branch_id,
+                    warehouse_id: &plan.warehouse_id,
+                    product_id: &seed.product_id,
+                    count_command_id: &self.request.key,
+                    setup_command_id: &seed.setup_command_id,
+                    chart_id: &seed.chart_id,
+                    inventory_account_id: &seed.inventory_account_id,
+                    variance_account_id: &seed.variance_account_id,
+                    currency: &seed.currency,
+                    proof_json: &proof_json,
+                    created_by: actor,
+                    created_at: now,
+                    pos_bootstrap_receipt_id: seed.pos_bootstrap_receipt_id.as_deref(),
+                    pos_approval_receipt_id: seed.pos_approval_receipt_id.as_deref(),
+                },
+            )
+            .await?;
+        }
+        Ok(())
     }
 
     async fn retain(

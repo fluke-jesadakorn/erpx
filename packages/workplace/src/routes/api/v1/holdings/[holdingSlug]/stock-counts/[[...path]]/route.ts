@@ -8,7 +8,7 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
 import { listCounts,countOptions,countDetail,countSchema,countActionSchema } from "@erpx/server-inventory/public/inventory-counts";
 import { nativeStockCountSave, nativeStockCountTransition } from "@erpx/feature-inventory/lib/native-stock-count-command";
-import {initialPhysicalStockCountWorkspace,prepareInitialPhysicalStockCount,transitionInitialPhysicalStockCount,initialPhysicalStockCountSchema,initialPhysicalStockCountActionSchema,initialPhysicalStockCountFlow,assignInitialPhysicalStockCountFlow,initialPhysicalStockCountFlowSchema} from "@erpx/server-inventory/public/initial-physical-stock-count";
+import {initialPhysicalStockCountWorkspace,initialPhysicalStockSeed,transitionInitialPhysicalStockCount,initialPhysicalStockCountSchema,initialPhysicalStockCountActionSchema,initialPhysicalStockCountFlow,assignInitialPhysicalStockCountFlow,initialPhysicalStockCountFlowSchema} from "@erpx/server-inventory/public/initial-physical-stock-count";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 export async function GET(_request:Request,context:Context){try{const {holdingSlug,path:p=[]}=await context.params,actor=await requireWorkContext(holdingSlug);if(p[0]==="initial-physical"){
  if(p.length===3&&p[2]==="flow"){
@@ -36,7 +36,7 @@ export async function POST(request:Request,context:Context){try{
  }
  const input=await request.json();let data;
  if(p[0]==="initial-physical"){
- if(p.length===1)data=await prepareInitialPhysicalStockCount(actor,initialPhysicalStockCountSchema.parse(input),key);
+ if(p.length===1){const seed=await initialPhysicalStockSeed(actor,initialPhysicalStockCountSchema.parse(input),key),native=await nativeStockCountSave(request,holdingSlug,null,seed.input,seed.seed);if(!native)throw new ApiError(503,"NATIVE_INVENTORY_COUNT_UNAVAILABLE","The native stock Count command is unavailable.");return native;}
  else if(p.length===3&&p[2]==="flow")data=await assignInitialPhysicalStockCountFlow(actor,p[1],initialPhysicalStockCountFlowSchema.parse(input),key);
  else if(p.length===3&&["submit","reject","cancel","approve","post"].includes(p[2]))data=await transitionInitialPhysicalStockCount(actor,p[1],p[2] as "submit"|"reject"|"cancel"|"approve"|"post",initialPhysicalStockCountActionSchema.parse(input),key);
  else throw new ApiError(404,"NOT_FOUND","Initial physical stock count action not found.");

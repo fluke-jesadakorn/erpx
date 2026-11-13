@@ -243,6 +243,7 @@ export async function nativeStockCountSave(
   holdingSlug: string,
   id: string | null,
   input: unknown,
+  seed?: {kind: 'initial' | 'manufacturing' | 'pos' | 'service'; proof: unknown},
 ): Promise<Response | undefined> {
   const choice = selected(request_, holdingSlug);
   if (!choice) return undefined;
@@ -266,9 +267,10 @@ export async function nativeStockCountSave(
     `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/stock-counts${suffix}`,
     choice.config.privateBaseUrl,
   );
+  const body: unknown = seed ? {...(input as Record<string, unknown>), seed} : input;
   let reply: {status: number; body: unknown};
   try {
-    reply = await post(url, copied, JSON.stringify(input), choice.config.timeoutMs, request_.signal);
+    reply = await post(url, copied, JSON.stringify(body), choice.config.timeoutMs, request_.signal);
   } catch {
     return closed(503, 'NATIVE_INVENTORY_COUNT_UNAVAILABLE', 'The stock Count command is unavailable.');
   }

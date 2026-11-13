@@ -85,6 +85,16 @@ export async function prepareInitialPhysicalStockCount(actor:WorkContext,raw:unk
   return result;
  });
 }
+/** Capture the exact first-count source proof for the native create/seed
+ * command. It performs no write: the native command owns the draft, receipt and
+ * immutable `inventory_initial_physical_stock_sources` row. */
+export async function initialPhysicalStockSeed(actor:WorkContext,raw:unknown,key:string){
+ const input=initialPhysicalStockCountSchema.parse(raw),id=`count-${key}`,productId=input.input.lines[0].productId,database=await owner(actor);
+ const source=await selectionSource(database,actor,input.input.warehouseId,productId,input.input.countDate);assertSelection(source);
+ if(input.contextKey!==context(actor,input.input.warehouseId,productId,input.input.countDate,source.image))throw new ApiError(409,'INITIAL_PHYSICAL_STOCK_CONTEXT_CHANGED','The original selected item, warehouse, posting references or Stock assignment changed.');
+ const config=source.finance.config!,proof:InitialPhysicalStockProof={kind:'initial-physical-stock-count',countId:id,companyId:actor.companyId,warehouseId:input.input.warehouseId,branchId:String(source.masters!.warehouse.branch_id),productId,countCommandId:key,goodsSetupCommandId:String(source.goods!.goods_setup_command_id),goodsSetupRequestHash:String(source.goods!.goods_setup_request_hash),chartId:String(config.chart_id),inventoryAccountId:String(config.inventory_account_id),varianceAccountId:String(config.variance_account_id),currency:String(config.currency)};
+ return {input:input.input,seed:{kind:'initial' as const,proof}};
+}
 export async function transitionInitialPhysicalStockCount(actor:WorkContext,id:string,action:import("@erpx/server-inventory/domain/initial-physical-stock-count").InitialPhysicalStockCountAction,raw:unknown,key:string){
  const input=initialPhysicalStockCountActionSchema.parse(raw);if(!['submit','approve','post','reject','cancel'].includes(action))throw new ApiError(404,'COUNT_ACTION_NOT_FOUND','Unknown Count action.');
  return withInitialPhysicalStockCountUnit(await owner(actor),actor,{key,operation:`inventory.count.${action}`,id,purpose:action==='submit'?'new-work':'settle-existing',permission:['approve','post','reject'].includes(action)?'inventory.approve':'inventory.prepare'},async(database,source,replay,_current,finalGuard)=>{

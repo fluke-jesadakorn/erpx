@@ -1,6 +1,8 @@
 //! Private HTTP ingress for the native generic stock-count save command.
 use crate::http_scope::{BusinessScopeSlugs, selected_company_target};
-use crate::inventory_count_commands::{CountTransitionInput, InventoryCountCommand};
+use crate::inventory_count_commands::{
+    CountSeedInput, CountTransitionInput, InventoryCountCommand,
+};
 use axum::{
     Json, Router,
     body::Bytes,
@@ -241,6 +243,17 @@ async fn run<C: Clock + Send + Sync + 'static>(
         let (branch, department) = state.scopes.slugs(&headers)?;
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let facts = request_facts(&headers, &body)?;
+        let seed = match facts.value.get("seed") {
+            None => None,
+            Some(value) => Some(
+                serde_json::from_value::<CountSeedInput>(value.clone()).map_err(|_| {
+                    BusinessError::invalid(
+                        "COUNT_SEED_PROOF_INVALID",
+                        "Use a current first-Count source.",
+                    )
+                })?,
+            ),
+        };
         let input: CountSaveInput = serde_json::from_value(facts.value).map_err(|_| {
             BusinessError::invalid(
                 "INVENTORY_COUNT_INPUT_INVALID",
@@ -254,6 +267,7 @@ async fn run<C: Clock + Send + Sync + 'static>(
                 move || captured.resolve(),
                 id,
                 input,
+                seed,
                 facts.wire,
                 facts.key,
             )

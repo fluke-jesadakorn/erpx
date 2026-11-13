@@ -631,6 +631,50 @@ pub enum CountSeedKind {
     Service,
 }
 
+impl CountSeedKind {
+    /// Closed wire name; never inferred from caller text beyond this table.
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "initial" => Some(Self::Initial),
+            "manufacturing" => Some(Self::Manufacturing),
+            "pos" => Some(Self::Pos),
+            "service" => Some(Self::Service),
+            _ => None,
+        }
+    }
+
+    /// Private receipt marker retained by the immutable source triggers.
+    pub fn marker(self) -> &'static str {
+        match self {
+            Self::Initial => "_initialPhysicalStockCount",
+            Self::Manufacturing => "_manufacturingInitialPhysicalStockCount",
+            Self::Pos => "_posInitialPhysicalStockCount",
+            Self::Service => "_serviceInitialPhysicalStockCount",
+        }
+    }
+
+    pub fn proof_kind(self) -> &'static str {
+        match self {
+            Self::Initial => "initial-physical-stock-count",
+            Self::Manufacturing => "manufacturing-initial-physical-stock-count",
+            Self::Pos => "pos-initial-physical-stock-count",
+            Self::Service => "service-initial-physical-stock-count",
+        }
+    }
+
+    fn setup_keys(self) -> (&'static str, Option<&'static str>) {
+        match self {
+            Self::Initial => ("goodsSetupCommandId", Some("goodsSetupRequestHash")),
+            Self::Manufacturing => (
+                "manufacturingSetupCommandId",
+                Some("manufacturingSetupRequestHash"),
+            ),
+            Self::Pos => ("posSetupCommandId", Some("posSetupRequestHash")),
+            Self::Service => ("serviceSetupCommandId", Some("serviceSetupRequestHash")),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CountSeedSource<'a> {
     pub kind: CountSeedKind,
@@ -648,6 +692,113 @@ pub struct CountSeedSource<'a> {
     pub proof_json: &'a str,
     pub created_by: &'a str,
     pub created_at: i64,
+    pub pos_bootstrap_receipt_id: Option<&'a str>,
+    pub pos_approval_receipt_id: Option<&'a str>,
+}
+
+/// Validated immutable first-Count provenance. The proof keeps the retained
+/// camelCase wire shape so the deferred source triggers can compare it with the
+/// command receipt marker; identity fields are rechecked against the saved plan.
+#[derive(Clone, Debug)]
+pub struct CountSeedPlan {
+    pub kind: CountSeedKind,
+    pub proof: serde_json::Value,
+    pub branch_id: String,
+    pub product_id: String,
+    pub setup_command_id: String,
+    pub chart_id: String,
+    pub inventory_account_id: String,
+    pub variance_account_id: String,
+    pub currency: String,
+    pub pos_bootstrap_receipt_id: Option<String>,
+    pub pos_approval_receipt_id: Option<String>,
+}
+
+fn seed_text<'a>(proof: &'a serde_json::Value, key: &'static str) -> Result<&'a str, Error> {
+    proof
+        .get(key)
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            invalid(
+                "COUNT_SEED_PROOF_INVALID",
+                "Use the captured first-Count source proof.",
+            )
+        })
+}
+
+/// Admit a first-Count seed envelope against the draft that will be written.
+/// The caller passes the command-derived identity; the proof is never trusted as
+/// a label. Source reciprocity stays with the immutable PostgreSQL triggers.
+pub fn plan_count_seed(
+    kind: CountSeedKind,
+    proof: &serde_json::Value,
+    count_id: &str,
+    company_id: &str,
+    warehouse_id: &str,
+    branch_id: &str,
+    product_id: &str,
+    count_command_id: &str,
+) -> Result<CountSeedPlan, Error> {
+    if proof.as_object().is_none() {
+        return Err(invalid(
+            "COUNT_SEED_PROOF_INVALID",
+            "Use the captured first-Count source proof.",
+        ));
+    }
+    if seed_text(proof, "kind")? != kind.proof_kind()
+        || seed_text(proof, "countId")? != count_id
+        || seed_text(proof, "companyId")? != company_id
+        || seed_text(proof, "warehouseId")? != warehouse_id
+        || seed_text(proof, "branchId")? != branch_id
+        || seed_text(proof, "productId")? != product_id
+        || seed_text(proof, "countCommandId")? != count_command_id
+    {
+        return Err(BusinessError::new(
+            FailureKind::Conflict,
+            "COUNT_SEED_SOURCE_CHANGED",
+            "The original first-Count source changed.",
+        )
+        .into());
+    }
+    let (setup_key, request_key) = kind.setup_keys();
+    let setup_command_id = seed_text(proof, setup_key)?.to_owned();
+    if let Some(key) = request_key {
+        seed_text(proof, key)?;
+    }
+    let currency = seed_text(proof, "currency")?;
+    if currency.len() != 3 || !currency.bytes().all(|byte| byte.is_ascii_uppercase()) {
+        return Err(invalid(
+            "COUNT_SEED_PROOF_INVALID",
+            "Use the captured first-Count source proof.",
+        ));
+    }
+    let (pos_bootstrap_receipt_id, pos_approval_receipt_id) = if kind == CountSeedKind::Pos {
+        seed_text(proof, "posBootstrapRequestHash")?;
+        seed_text(proof, "posBootstrapAuditId")?;
+        seed_text(proof, "posApprovalRequestHash")?;
+        seed_text(proof, "posApprovalAuditId")?;
+        seed_text(proof, "posAccountingImageHash")?;
+        (
+            Some(seed_text(proof, "posBootstrapReceiptId")?.to_owned()),
+            Some(seed_text(proof, "posApprovalReceiptId")?.to_owned()),
+        )
+    } else {
+        (None, None)
+    };
+    Ok(CountSeedPlan {
+        kind,
+        proof: proof.clone(),
+        branch_id: branch_id.to_owned(),
+        product_id: product_id.to_owned(),
+        setup_command_id,
+        chart_id: seed_text(proof, "chartId")?.to_owned(),
+        inventory_account_id: seed_text(proof, "inventoryAccountId")?.to_owned(),
+        variance_account_id: seed_text(proof, "varianceAccountId")?.to_owned(),
+        currency: currency.to_owned(),
+        pos_bootstrap_receipt_id,
+        pos_approval_receipt_id,
+    })
 }
 
 /// Insert the immutable first-Count provenance row that the seeding adapters
@@ -668,9 +819,10 @@ pub async fn insert_count_seed_source(
          currency,proof_json,created_by,created_at) \
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14)";
     const POS: &str = "INSERT INTO inventory_pos_initial_physical_sources(count_id,company_id,\
-         branch_id,warehouse_id,product_id,count_command_id,pos_setup_command_id,chart_id,\
+         branch_id,warehouse_id,product_id,count_command_id,pos_setup_command_id,\
+         pos_bootstrap_receipt_id,pos_approval_receipt_id,chart_id,\
          inventory_account_id,variance_account_id,currency,proof_json,created_by,created_at) \
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14)";
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16)";
     const SERVICE: &str = "INSERT INTO inventory_service_initial_physical_sources(count_id,\
          company_id,branch_id,warehouse_id,product_id,count_command_id,service_setup_command_id,\
          chart_id,inventory_account_id,variance_account_id,currency,proof_json,created_by,created_at) \
@@ -681,14 +833,30 @@ pub async fn insert_count_seed_source(
         CountSeedKind::Pos => POS,
         CountSeedKind::Service => SERVICE,
     };
-    sqlx::query(sql)
+    let mut query = sqlx::query(sql)
         .bind(seed.count_id)
         .bind(seed.company_id)
         .bind(seed.branch_id)
         .bind(seed.warehouse_id)
         .bind(seed.product_id)
         .bind(seed.count_command_id)
-        .bind(seed.setup_command_id)
+        .bind(seed.setup_command_id);
+    if seed.kind == CountSeedKind::Pos {
+        query = query
+            .bind(seed.pos_bootstrap_receipt_id.ok_or_else(|| {
+                invalid(
+                    "COUNT_SEED_PROOF_INVALID",
+                    "Use the captured POS first-Count source proof.",
+                )
+            })?)
+            .bind(seed.pos_approval_receipt_id.ok_or_else(|| {
+                invalid(
+                    "COUNT_SEED_PROOF_INVALID",
+                    "Use the captured POS first-Count source proof.",
+                )
+            })?);
+    }
+    query
         .bind(seed.chart_id)
         .bind(seed.inventory_account_id)
         .bind(seed.variance_account_id)

@@ -10,7 +10,7 @@ pub use crate::domain::counts::{
 };
 
 pub use crate::adapters::counts::{
-    CountSeedKind, CountSeedSource, apply_count_save, apply_count_transition,
-    insert_count_seed_source, lock_count_sources, read_count_save_source,
+    CountSeedKind, CountSeedPlan, CountSeedSource, apply_count_save, apply_count_transition,
+    insert_count_seed_source, lock_count_sources, plan_count_seed, read_count_save_source,
     read_count_transition_source,
 };
