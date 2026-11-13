@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1841,
+    "revision": 1845,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-p",
       "agentId": "lead",
       "startedAt": "2026-11-13T14:52:09.221Z",
-      "heartbeatAt": "2026-11-13T15:03:59.809Z",
-      "expiresAt": "2026-11-13T15:33:59.809Z",
+      "heartbeatAt": "2026-11-13T15:19:01.662Z",
+      "expiresAt": "2026-11-13T15:49:01.662Z",
       "generation": 60,
       "tokenHash": "ae9e5c26494d13ca262682ced9df88bc8132818fa3fb7106039d0bf805963d98"
     },
@@ -37117,8 +37117,8 @@
           "runId": "run-20261113-p",
           "agentId": "worker-inventory-transfer",
           "claimedAt": "2026-11-13T15:03:20.172Z",
-          "heartbeatAt": "2026-11-13T15:03:59.809Z",
-          "expiresAt": "2026-11-13T15:33:59.809Z",
+          "heartbeatAt": "2026-11-13T15:19:01.662Z",
+          "expiresAt": "2026-11-13T15:49:01.662Z",
           "generation": 60
         },
         "baseSha": null,
@@ -37155,23 +37155,59 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
+        "lastPushedSha": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-manufacturing --offline",
+            "result": "passed",
+            "sourceSha": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --offline",
+            "result": "passed",
+            "sourceSha": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
+            "sourceKind": "committed",
+            "note": "51/51, including 13 new lot parity cases."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
+            "sourceKind": "committed",
+            "note": "Repository layout passed after registering the lots suite."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "nextAction": "Native lot posting producer is committed (13 parity cases, 51/51 manufacturing tests). Deletion is blocked until the native order command consumes public::lots; bind to migrate.manufacturing.order-material-lifecycle, then delete manufacturing-lot-sources.ts (6 inventory writes) + 3 manufacturing lots.ts writers and record inventory 85 -> 79, manufacturing 26 -> 23.",
+        "handoff": {
           "runId": "run-20261113-p",
           "agentId": "worker-manufacturing-lots",
-          "claimedAt": "2026-11-13T15:03:20.239Z",
-          "heartbeatAt": "2026-11-13T15:03:59.809Z",
-          "expiresAt": "2026-11-13T15:33:59.809Z",
-          "generation": 60
+          "at": "2026-11-13T15:18:38.379Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native lot posting producer is committed (13 parity cases, 51/51 manufacturing tests). Deletion is blocked until the native order command consumes public::lots; bind to migrate.manufacturing.order-material-lifecycle, then delete manufacturing-lot-sources.ts (6 inventory writes) + 3 manufacturing lots.ts writers and record inventory 85 -> 79, manufacturing 26 -> 23."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the native manufacturing lot posting in server-manufacturing, switch server-manufacturing/adapters/lots.ts and the production consumers, delete manufacturing-lot-sources.ts (6 writes), and record the Manufacturing/Inventory KPI pair. Report any composition mount contract.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -37205,8 +37241,8 @@
           "runId": "run-20261113-p",
           "agentId": "worker-iam-user-management",
           "claimedAt": "2026-11-13T15:03:20.306Z",
-          "heartbeatAt": "2026-11-13T15:03:59.809Z",
-          "expiresAt": "2026-11-13T15:33:59.809Z",
+          "heartbeatAt": "2026-11-13T15:19:01.662Z",
+          "expiresAt": "2026-11-13T15:49:01.662Z",
           "generation": 60
         },
         "baseSha": null,
@@ -37254,8 +37290,8 @@
           "runId": "run-20261113-p",
           "agentId": "worker-files-callers",
           "claimedAt": "2026-11-13T15:03:20.372Z",
-          "heartbeatAt": "2026-11-13T15:03:59.809Z",
-          "expiresAt": "2026-11-13T15:33:59.809Z",
+          "heartbeatAt": "2026-11-13T15:19:01.662Z",
+          "expiresAt": "2026-11-13T15:49:01.662Z",
           "generation": 60
         },
         "baseSha": null,
@@ -37268,6 +37304,46 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.manufacturing.order-material-lifecycle",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "manufacturing",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Native manufacturing order material/output lifecycle",
+        "scope": "Implement the native manufacturing order issue/pass-QC command that consumes public::lots, mount the native HTTP ingress, switch changeManufacturingOrder, then delete manufacturing-lot-sources.ts (6 inventory writes) and the 3 manufacturing lots.ts writers and record inventory 85 -> 79, manufacturing 26 -> 23.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-manufacturing/src/**",
+          "packages/server-manufacturing/Cargo.toml",
+          "packages/feature-manufacturing/**",
+          "packages/server-inventory/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:manufacturing",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native order issue/pass-QC command consuming public::lots::{post_material_lots,post_output_lots} with the existing Finance posting/QC guards and one serializable transaction, mount the native HTTP ingress, switch changeManufacturingOrder, then delete manufacturing-lot-sources.ts (6 writes) + 3 manufacturing lots.ts writers and record inventory 85 -> 79, manufacturing 26 -> 23.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -37276,12 +37352,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 194,
+      "totalPackets": 195,
       "migratedPackets": 116,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 4,
-        "ready_for_integration": 15,
+        "pending": 21,
+        "in_progress": 3,
+        "ready_for_integration": 16,
         "integrating": 0,
         "migrated": 116,
         "blocked": 39,
@@ -37290,7 +37366,7 @@
       }
     },
     "lastCoordinatorGeneration": 60,
-    "updatedAt": "2026-11-13T15:03:59.810Z",
+    "updatedAt": "2026-11-13T15:19:01.663Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
