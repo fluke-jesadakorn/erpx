@@ -15,6 +15,8 @@ pub(crate) mod sla_drain;
 
 pub(crate) mod support_ticket_read;
 
+pub(crate) mod support_attachment_pg;
+
 pub(crate) mod record_source;
 
 pub(crate) mod ticket_portal;

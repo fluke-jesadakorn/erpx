@@ -49,37 +49,40 @@ const upload=(id:string,data=bytes)=>put(new Request(`http://localhost:3100/api/
 const get=(id:string)=>download(new Request(`http://localhost:3100/api/v1/holdings/test/attachments/${id}/content`),ctx(id));
 it('stages private evidence through the retained upload routes, safely replays, and leaves the case binding to the native Support command',async()=>{
  const previous=process.env.ERPX_ATTACHMENTS_V2;process.env.ERPX_ATTACHMENTS_V2='false';delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
- const k=key(),r=await intent(1,k);expect(r.status).toBe(201);const reserved=(await r.json()).data;expect(reserved).toMatchObject({attachmentSetId:expect.any(String),attachmentLinkId:expect.any(String)});expect((await (await intent(1,k)).json()).data.id).toBe(reserved.id);
- const response=await upload(reserved.id);expect(response.status).toBe(202);const result=(await response.json()).data;expect((await (await upload(reserved.id)).json()).data).toEqual(result);
- expect(await db.prepare('SELECT source_state FROM attachments WHERE id=?').bind(result.id).first('source_state')).toBe('available');expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(reserved.attachmentLinkId).first('state')).toBe('draft');
+ const k=key(),blocked=await intent(1,k);expect(blocked.status).toBe(503);expect((await blocked.json()).error.code).toBe('SUPPORT_ATTACHMENT_NATIVE_REQUIRED');
+ // The native Rust PG/HTTP suites own create/reserve/complete/scan. This
+ // retained read/bind oracle seeds the exact owner rows the native command
+ // persists, then proves the Support command remains the only binder.
+ const staged=await seedAttachmentSet(db,f.owner,{targetType:'support_ticket',targetId:ticket,purposeKey:'internal_evidence',componentKind:'action',componentRef:'support-evidence:internal_evidence',expectedTargetVersion:1,compatibilityAdapter:true});
+ const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(staged.sourceId).first('object_key'));
+ await env.H001_FILES.put(objectKey,new TextDecoder().decode(bytes),{httpMetadata:{contentType:'application/pdf'}});
  expect(await getSupportTicket(f.head,ticket)).toMatchObject({version:1,status:'open'});expect(await db.prepare("SELECT COUNT(*) n FROM support_ticket_events WHERE ticket_id=? AND action='attachment-add'").bind(ticket).first()).toEqual({n:0});
  // Files must never bind Support evidence or emit the case event itself.
- const rejected=await bindRecord(new Request(`http://localhost:3100/api/v1/holdings/test/attachment-sets/${reserved.attachmentSetId}/bind`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key()},body:JSON.stringify({expectedTargetVersion:1})}),{params:Promise.resolve({holdingSlug:'test',setId:reserved.attachmentSetId})});
+ const rejected=await bindRecord(new Request(`http://localhost:3100/api/v1/holdings/test/attachment-sets/${staged.setId}/bind`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key()},body:JSON.stringify({expectedTargetVersion:1})}),{params:Promise.resolve({holdingSlug:'test',setId:staged.setId})});
  expect(rejected.status).toBe(503);expect((await rejected.json()).error.code).toBe('SUPPORT_FILES_NATIVE_REQUIRED');
- expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(reserved.attachmentLinkId).first('state')).toBe('draft');
+ expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(staged.linkId).first('state')).toBe('draft');
  // The native Support evidence command owns the ticket version step and audit
  // event; the retained seed persists exactly those owner rows for the reader.
- await bindSupportEvidenceSeed(db,f.head,{ticketId:ticket,setId:reserved.attachmentSetId,expectedVersion:1,reason:'Attached private support evidence'});
- expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(reserved.attachmentLinkId).first('state')).toBe('bound');
+ await bindSupportEvidenceSeed(db,f.head,{ticketId:ticket,setId:staged.setId,expectedVersion:1,reason:'Attached private support evidence'});
+ expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(staged.linkId).first('state')).toBe('bound');
  expect(await getSupportTicket(f.head,ticket)).toMatchObject({version:2,status:'open'});expect((await supportDetail(f.head,ticket)).history[0]).toMatchObject({action:'attachment-bind',version:2});
- const content=await get(result.id);expect(content.status).toBe(200);expect(content.headers.get('Cache-Control')).toBe('private, no-store');expect(content.headers.get('Content-Disposition')).toContain('attachment');expect(new Uint8Array(await content.arrayBuffer())).toEqual(bytes);
+ const content=await get(staged.sourceId);expect(content.status).toBe(200);expect(content.headers.get('Cache-Control')).toBe('private, no-store');expect(content.headers.get('Content-Disposition')).toContain('attachment');expect(new Uint8Array(await content.arrayBuffer())).toEqual(bytes);
  if(previous===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previous;
- session.actor={...f.head,companyId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,branchId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,role:'employee'};expect((await get(result.id)).status).toBe(404);session.actor=f.head;
- await revokeSupportEvidenceSeed(db,f.head,{ticketId:ticket,attachmentId:result.id,expectedVersion:2,reason:'Wrong simulated screenshot replaced by corrected evidence'});
- expect((await get(result.id)).status).toBe(200);expect((await supportEvidence(f.head,ticket)).items).toHaveLength(1);expect((await supportEvidence(f.head,ticket)).items[0].revoked_at).not.toBeNull();
+ session.actor={...f.head,companyId:'other'};expect((await get(staged.sourceId)).status).toBe(404);session.actor={...f.head,branchId:'other'};expect((await get(staged.sourceId)).status).toBe(404);session.actor={...f.head,role:'employee'};expect((await get(staged.sourceId)).status).toBe(404);session.actor=f.head;
+ await revokeSupportEvidenceSeed(db,f.head,{ticketId:ticket,attachmentId:staged.sourceId,expectedVersion:2,reason:'Wrong simulated screenshot replaced by corrected evidence'});
+ expect((await get(staged.sourceId)).status).toBe(200);expect((await supportEvidence(f.head,ticket)).items).toHaveLength(1);expect((await supportEvidence(f.head,ticket)).items[0].revoked_at).not.toBeNull();
  expect((await supportDetail(f.head,ticket)).history[0]).toMatchObject({action:'attachment-revoke',version:3});
 });
 it('blocks every support-evidence mutation and hides write capabilities in explicit read-only rollback mode',async()=>{
  const previousGate=process.env.ERPX_ATTACHMENTS_V2,previousReadOnly=process.env.ERPX_ATTACHMENTS_READ_ONLY;process.env.ERPX_ATTACHMENTS_V2='false';delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
  try{
-  const reservation=(await (await intent()).json()).data,uploaded=(await (await upload(reservation.id)).json()).data;
   const staged=await seedAttachmentSet(db,f.owner,{targetType:'support_ticket',targetId:ticket,purposeKey:'internal_evidence',componentKind:'action',componentRef:'support-evidence:internal_evidence',expectedTargetVersion:1,compatibilityAdapter:true});
   expect((await supportEvidence(f.owner,ticket))).toMatchObject({canChange:true,canShare:true});
   process.env.ERPX_ATTACHMENTS_READ_ONLY='true';
   const intake=await intent(2);expect(intake.status).toBe(503);expect((await intake.json()).error.code).toBe('ATTACHMENTS_READ_ONLY');
   expect((await supportEvidence(f.owner,ticket))).toMatchObject({canChange:false,canShare:false});
   expect(await db.prepare('SELECT version FROM support_tickets WHERE id=?').bind(ticket).first()).toEqual({version:1});
-  expect(await db.prepare('SELECT revoked_at FROM attachments WHERE id=?').bind(uploaded.id).first()).toEqual({revoked_at:null});
+  expect(await db.prepare('SELECT revoked_at FROM attachments WHERE id=?').bind(staged.sourceId).first()).toEqual({revoked_at:null});
   expect(await attachmentBindingState(db,staged.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
  }
  finally{if(previousGate===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previousGate;if(previousReadOnly===undefined)delete process.env.ERPX_ATTACHMENTS_READ_ONLY;else process.env.ERPX_ATTACHMENTS_READ_ONLY=previousReadOnly;}
@@ -91,28 +94,29 @@ it('fails closed before allocating storage for an unknown legacy purpose',async(
  expect(Number(await db.prepare('SELECT count(*) FROM attachment_sets WHERE target_type=? AND target_id=?').bind('support_ticket',ticket).first('count'))).toBe(before);
 });
 it('rechecks source version and current assignment when completing a reserved upload',async()=>{
- const reserved=(await (await intent()).json()).data;
- await db.prepare("UPDATE support_tickets SET status='in_progress',owner_id=?,due_date=?,version=2,updated_at=? WHERE id=?").bind(f.head.userId,'2026-09-24',Date.now(),ticket).run();
- expect((await upload(reserved.id)).status).toBe(409);expect((await supportEvidence(f.head,ticket)).items).toEqual([]);
- const next=(await (await intent(2)).json()).data;
- await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.head.assignmentId).run();
- expect((await upload(next.id)).status).toBe(404);expect((await supportEvidence(f.owner,ticket)).items).toEqual([]);
+ // The native Rust PG suite owns completion/version/assignment re-checks. The
+ // retained route must fail closed until that writer is mounted, and it must
+ // never allocate a reservation or mutate the case on the fallback path.
+ const before=Number(await db.prepare('SELECT count(*) FROM upload_intents WHERE owner_type=? AND owner_id=?').bind('support_ticket',ticket).first('count'));
+ const blocked=await intent();expect(blocked.status).toBe(503);expect((await blocked.json()).error.code).toBe('SUPPORT_ATTACHMENT_NATIVE_REQUIRED');
+ expect(Number(await db.prepare('SELECT count(*) FROM upload_intents WHERE owner_type=? AND owner_id=?').bind('support_ticket',ticket).first('count'))).toBe(before);
+ expect((await supportEvidence(f.head,ticket)).items).toEqual([]);
 });
 it('freezes evidence after proposed resolution and refuses signature mismatch or legal-hold revocation',async()=>{
- const reserved=(await (await intent()).json()).data;
- expect((await upload(reserved.id,new Uint8Array(bytes.length).fill(65))).status).toBe(422);
- const response=await upload(reserved.id);expect(response.status).toBe(202);const attachment=(await response.json()).data;
- await bindSupportEvidenceSeed(db,f.head,{ticketId:ticket,setId:reserved.attachmentSetId,expectedVersion:1,reason:'Simulated evidence before proposed resolution'});
- await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(attachment.id).run();
+ const staged=await seedAttachmentSet(db,f.owner,{targetType:'support_ticket',targetId:ticket,purposeKey:'internal_evidence',componentKind:'action',componentRef:'support-evidence:internal_evidence',expectedTargetVersion:1,sourceState:'available',compatibilityAdapter:true});
+ const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(staged.sourceId).first('object_key'));
+ await env.H001_FILES.put(objectKey,new TextDecoder().decode(bytes),{httpMetadata:{contentType:'application/pdf'}});
+ await bindSupportEvidenceSeed(db,f.head,{ticketId:ticket,setId:staged.setId,expectedVersion:1,reason:'Simulated evidence before proposed resolution'});
+ await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(staged.sourceId).run();
  await db.prepare("UPDATE support_tickets SET status='resolved',resolution='Simulated proposed resolution',resolved_by=?,resolved_at=?,version=4,updated_at=? WHERE id=?").bind(f.head.userId,Date.now(),Date.now(),ticket).run();
- expect((await intent(4)).status).toBe(409);expect((await supportEvidence(f.head,ticket)).canChange).toBe(false);expect((await get(attachment.id)).status).toBe(200);
+ expect((await intent(4)).status).toBe(503);expect((await supportEvidence(f.head,ticket)).canChange).toBe(false);expect((await get(staged.sourceId)).status).toBe(200);
 });
-it('recovers the last reservation response at capacity without allocating an eleventh intent',async()=>{
- const keys=Array.from({length:10},()=>key());let lastId='';
- for(const k of keys){const r=await intent(1,k);expect(r.status).toBe(201);lastId=(await r.json()).data.id;}
- expect((await intent()).status).toBe(422);
- const replay=await intent(1,keys[9]);expect(replay.status).toBe(201);expect((await replay.json()).data.id).toBe(lastId);
- expect(await db.prepare("SELECT COUNT(*) n FROM upload_intents WHERE owner_type='support_ticket' AND owner_id=?").bind(ticket).first()).toEqual({n:10});
+it('fails closed without allocating a reservation before the native Support writer is mounted',async()=>{
+ const sets=Number(await db.prepare('SELECT count(*) FROM attachment_sets WHERE target_type=? AND target_id=?').bind('support_ticket',ticket).first('count'));
+ const intents=Number(await db.prepare('SELECT count(*) FROM upload_intents WHERE owner_type=? AND owner_id=?').bind('support_ticket',ticket).first('count'));
+ const r=await intent(1,key());expect(r.status).toBe(503);expect((await r.json()).error.code).toBe('SUPPORT_ATTACHMENT_NATIVE_REQUIRED');
+ expect(Number(await db.prepare('SELECT count(*) FROM attachment_sets WHERE target_type=? AND target_id=?').bind('support_ticket',ticket).first('count'))).toBe(sets);
+ expect(Number(await db.prepare('SELECT count(*) FROM upload_intents WHERE owner_type=? AND owner_id=?').bind('support_ticket',ticket).first('count'))).toBe(intents);
 });
 it('stages expense evidence for the domain bind instead of mutating the claim during upload',async()=>{
  const expense=await f.claim();session.actor=f.claimant;
@@ -147,7 +151,7 @@ it('hides mutation controls for a manager whose current employment no longer per
  expect((await supportEvidence(f.owner,ticket)).canChange).toBe(true);
  await db.prepare("UPDATE hr_engagements SET status='ended' WHERE company_id=? AND person_id IN (SELECT id FROM hr_people WHERE user_id=?)").bind(f.company,f.owner.userId).run();
  expect((await supportEvidence(f.owner,ticket)).canChange).toBe(false);
- session.actor=f.owner;expect((await intent()).status).toBe(409);
+ session.actor=f.owner;expect((await intent()).status).toBe(503);
 });
 it('keeps internal files out of the portal and exposes only sanitized customer-shareable metadata',async()=>{
  const previous=process.env.ERPX_ATTACHMENTS_V2;process.env.ERPX_ATTACHMENTS_V2='true';

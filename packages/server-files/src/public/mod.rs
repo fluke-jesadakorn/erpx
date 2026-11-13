@@ -7,6 +7,8 @@ pub mod media_signature;
 pub mod preview;
 
 pub mod attachment_command;
+pub mod support_attachment_intake;
+pub mod support_attachment_http;
 pub mod attachment_http;
 pub mod portal_attachment_http;
 pub mod attachment_read;

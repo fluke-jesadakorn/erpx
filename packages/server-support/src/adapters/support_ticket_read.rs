@@ -127,7 +127,7 @@ pub(crate) fn read_predicate(assignment: &str, user: &str, role: &str) -> String
 }
 
 /// Exact `supportRecipientEligibility()` predicate for a ticket owner.
-fn recipient_eligibility() -> &'static str {
+pub(crate) fn recipient_eligibility() -> &'static str {
     "EXISTS(SELECT 1 FROM assignments a JOIN hr_people p ON p.user_id=a.user_id AND p.company_id=a.company_id JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE a.company_id=t.company_id AND a.user_id=t.owner_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'support.work') AND iam_role_allows(a.role,a.company_id,'support.read') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=t.branch_id) OR (a.scope_kind='department' AND a.scope_node_id=t.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))"
 }
 

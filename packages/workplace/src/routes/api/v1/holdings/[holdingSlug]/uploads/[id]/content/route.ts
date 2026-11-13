@@ -15,6 +15,7 @@ import {
 import { attachmentsV2ReadOnly } from "@erpx/server-files/public/attachments/feature";
 import { readBoundedUploadBody } from "@erpx/server-files/public/attachments/upload";
 import { legacyAttachmentPolicy } from "@erpx/server-files/public/attachments/legacy-policy";
+import { withNativeSupportAttachment } from "@erpx/server-files/public/native-support-attachments";
 
 export async function PUT(
   request: Request,
@@ -61,6 +62,41 @@ export async function PUT(
         "UPLOAD_TYPE",
         "Content-Type must match the reserved file type.",
       );
+    if (universal.owner_type === "support_ticket") {
+      operation = "read_body";
+      const buffer = await readBoundedUploadBody(
+        request,
+        Number(universal.declared_bytes),
+      );
+      operation = "complete_upload";
+      const completed = await withNativeSupportAttachment((client) =>
+        client.complete(request.headers, actor, id, {
+          contentType: universal.media_type,
+          bytes: new Uint8Array(buffer),
+        }),
+      );
+      operation = "scan";
+      const scanned = await withNativeSupportAttachment((client) =>
+        client.scan(request.headers, actor, id, `support-scan-${id}`),
+      );
+      if (scanned.state !== "available")
+        throw new ApiError(
+          423,
+          "ATTACHMENT_NOT_AVAILABLE",
+          "The file did not pass security scanning.",
+        );
+      return Response.json(
+        canonicalDestinationLinks({
+          data: {
+            ...completed,
+            id: completed.sourceId,
+            state: scanned.state,
+            attachmentSetId: universal.attachment_set_id,
+          },
+        }),
+        { status: 202 },
+      );
+    }
     operation = "read_body";
     const buffer = await readBoundedUploadBody(
       request,

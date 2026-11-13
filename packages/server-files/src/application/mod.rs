@@ -4,6 +4,7 @@ pub mod preview;
 
 pub mod attachment_command;
 pub mod attachment_scan;
+pub mod support_attachment;
 
 pub mod field_visit_link;
 
