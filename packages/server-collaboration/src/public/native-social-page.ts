@@ -243,3 +243,12 @@ export function nativeCreateComment(
     { body, key },
   );
 }
+
+export function nativePublishHandover(
+  request: Request,
+  holdingSlug: string,
+  body: unknown,
+  key: string,
+) {
+  return call(request, holdingSlug, '/feed/handovers', { body, key });
+}

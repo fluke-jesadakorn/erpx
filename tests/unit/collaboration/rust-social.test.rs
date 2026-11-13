@@ -2,8 +2,9 @@
 //! persistence, Company isolation and readback live in the integration target.
 use erpx_server_collaboration::public::social::{
     Access, Audience, Change, CommentSnapshot, CommentState, DraftSnapshot, FollowTarget,
-    MentionInput, MentionKind, OwnerPlan, PostSnapshot, PostState, Receipt, SocialActor,
-    SocialUnit, execute, hashtags, normalize_tag, normalize_tags, post_not_found, post_tags, text,
+    MentionInput, MentionKind, OwnerPlan, PostSnapshot, PostSource, PostState, Receipt,
+    SocialActor, SocialUnit, execute, hashtags, normalize_tag, normalize_tags, post_not_found,
+    post_tags, text,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use std::collections::BTreeMap;
@@ -771,6 +772,54 @@ async fn only_a_company_moderator_may_hide_a_post() {
         (hidden.id.as_str(), hidden.version, hidden.status),
         ("post-1", 3, "moderated")
     );
+}
+
+#[tokio::test]
+async fn publishes_a_handover_post_with_sorted_unique_participants() {
+    let mut unit = Unit::new();
+    let receipt = execute(
+        &mut unit,
+        &key(),
+        Change::PublishHandoverPost {
+            body: "Handover".into(),
+            recipient_ids: vec!["person-1".into(), "user".into(), "person-1".into()],
+            sources: vec![PostSource {
+                kind: "staff_task".into(),
+                id: "task-1".into(),
+            }],
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        (receipt.id.as_str(), receipt.version, receipt.status),
+        ("post-post-draft-social-command-0001", 1, "published")
+    );
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::PublishHandoverPost {
+            body,
+            participants,
+            sources,
+            ..
+        } => {
+            assert_eq!(body, "Handover");
+            assert_eq!(participants, &vec!["person-1".to_owned(), "user".to_owned()]);
+            assert_eq!(sources.len(), 1);
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let empty = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0002").unwrap(),
+        Change::PublishHandoverPost {
+            body: "Handover".into(),
+            recipient_ids: vec![],
+            sources: vec![],
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(empty.code, "SOCIAL_INPUT_INVALID");
 }
 
 #[tokio::test]

@@ -207,6 +207,10 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
             post(post_action),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/feed/handovers",
+            post(publish_handover),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/feed/drafts",
             post(save_draft),
         )
@@ -572,6 +576,24 @@ pub async fn save_draft(
 ) -> Response {
     let headers = request.headers().clone();
     let prepared = prepare_command(state, slug, request, "social.draft.save", None, None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn publish_handover(
+    State(state): State<Arc<SocialHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.handover.publish",
+        None,
+        None,
+    )
+    .await;
     command_response(prepared, headers).await
 }
 

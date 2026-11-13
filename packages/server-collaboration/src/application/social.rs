@@ -422,6 +422,30 @@ pub async fn execute<P: SocialUnit>(
                     edit_post_version: Some(expected_version),
                 });
             }
+            Change::PublishHandoverPost {
+                body,
+                recipient_ids,
+                sources,
+            } => {
+                let body = text(&body, 1, MAX_DRAFT_BODY)?;
+                let mut recipients = recipient_ids;
+                recipients.sort();
+                recipients.dedup();
+                if recipients.is_empty() || recipients.len() > MAX_DRAFT_PARTICIPANTS || sources.len() > 5 {
+                    return Err(invalid().into());
+                }
+                plan = Some(OwnerPlan::PublishHandoverPost {
+                    post_id: format!("post-post-draft-{}", key.as_str()),
+                    author_id: actor.user_id.clone(),
+                    author_name: actor.display_name.clone(),
+                    company_id: actor.company_id.clone(),
+                    branch_id: actor.branch_id.clone(),
+                    department_id: actor.department_id.clone(),
+                    body,
+                    participants: recipients,
+                    sources,
+                });
+            }
             Change::ModeratePost { id } => {
                 let post = p.post(&id).await?;
                 require_published_post(&actor, &post)?;

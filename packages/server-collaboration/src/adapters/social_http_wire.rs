@@ -165,6 +165,26 @@ pub fn decode_social_command(
                 .transpose()
                 .map_err(|_| invalid())?,
         },
+        "social.handover.publish" => {
+            let recipient_ids = strings(raw, "recipientIds")?;
+            let sources = match raw.get("sources") {
+                Some(Value::Array(items)) if items.len() <= 5 => items
+                    .iter()
+                    .map(|item| {
+                        Ok(crate::domain::social::PostSource {
+                            kind: text(item, "kind")?.to_owned(),
+                            id: text(item, "id")?.to_owned(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, BusinessError>>()?,
+                _ => return Err(invalid()),
+            };
+            Change::PublishHandoverPost {
+                body: text(raw, "body")?.to_owned(),
+                recipient_ids,
+                sources,
+            }
+        }
         "social.post.hide" => Change::ModeratePost {
             id: post(post_id)?,
         },

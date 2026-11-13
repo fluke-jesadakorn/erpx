@@ -830,6 +830,65 @@ pub async fn apply_plan(
             }
             Ok(expected.clone())
         }
+        OwnerPlan::PublishHandoverPost {
+            post_id,
+            author_id,
+            author_name,
+            company_id,
+            branch_id,
+            department_id,
+            body,
+            participants,
+            sources,
+        } => {
+            sqlx::query(
+                "INSERT INTO social_posts(id,kind,author_id,author_name,company_id,branch_id,department_id,body,state,version,last_command_id,created_at,updated_at,audience_kind,audience_id,purpose,mentions_json,content_json,rich_content_json) VALUES($1,'team',$2,$3,$4,$5,$6,$7,'published',1,$8,$9,$9,'participants',NULL,'handover','[]',NULL,NULL)",
+            )
+            .bind(post_id)
+            .bind(author_id)
+            .bind(author_name)
+            .bind(company_id)
+            .bind(branch_id)
+            .bind(department_id)
+            .bind(body)
+            .bind(key.as_str())
+            .bind(now)
+            .execute(&mut *c)
+            .await?;
+            let mut members = participants.clone();
+            members.push(author_id.clone());
+            members.sort();
+            members.dedup();
+            for user_id in members {
+                sqlx::query(
+                    "INSERT INTO social_post_participants(post_id,user_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
+                )
+                .bind(post_id)
+                .bind(user_id)
+                .execute(&mut *c)
+                .await?;
+            }
+            for (ordinal, source) in sources.iter().enumerate() {
+                sqlx::query(
+                    "INSERT INTO social_post_sources(post_id,ordinal,source_kind,source_id) VALUES($1,$2,$3,$4)",
+                )
+                .bind(post_id)
+                .bind(ordinal as i64)
+                .bind(&source.kind)
+                .bind(&source.id)
+                .execute(&mut *c)
+                .await?;
+            }
+            sqlx::query(
+                "INSERT INTO social_follows(principal_id,target_type,target_id,created_at) VALUES($1,'post',$2,$3) ON CONFLICT DO NOTHING",
+            )
+            .bind(author_id)
+            .bind(post_id)
+            .bind(now)
+            .execute(&mut *c)
+            .await?;
+            Ok(expected.clone())
+        }
         OwnerPlan::ModeratePost { id, version } => {
             let updated = sqlx::query(
                 "UPDATE social_posts SET state='moderated',version=version+1,updated_at=$1 WHERE id=$2 AND company_id=$3 AND version=$4",
@@ -1146,6 +1205,12 @@ pub async fn retain_effects(
                 return Err(changed());
             }
             capture(c, &mut images, format!("post:{id}")).await?;
+        }
+        OwnerPlan::PublishHandoverPost { post_id, .. } => {
+            if receipt.id != *post_id {
+                return Err(changed());
+            }
+            capture(c, &mut images, format!("post:{post_id}")).await?;
         }
         OwnerPlan::UploadDraftCreate { id, .. } | OwnerPlan::UploadDraftCancel { id, .. } => {
             if receipt.id != *id {

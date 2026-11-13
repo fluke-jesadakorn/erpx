@@ -273,6 +273,11 @@ pub enum Change {
     ModeratePost {
         id: String,
     },
+    PublishHandoverPost {
+        body: String,
+        recipient_ids: Vec<String>,
+        sources: Vec<PostSource>,
+    },
     SavePostDraft {
         id: Option<String>,
         body: String,
@@ -371,6 +376,17 @@ pub enum OwnerPlan {
     ModeratePost {
         id: String,
         version: i64,
+    },
+    PublishHandoverPost {
+        post_id: String,
+        author_id: String,
+        author_name: String,
+        company_id: String,
+        branch_id: Option<String>,
+        department_id: Option<String>,
+        body: String,
+        participants: Vec<String>,
+        sources: Vec<PostSource>,
     },
     PublishDraftPost {
         draft_id: String,
@@ -764,6 +780,11 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             id: id.clone(),
             version: *version,
             status: "moderated",
+        },
+        OwnerPlan::PublishHandoverPost { post_id, .. } => Receipt {
+            id: post_id.clone(),
+            version: 1,
+            status: "published",
         },
     })
 }

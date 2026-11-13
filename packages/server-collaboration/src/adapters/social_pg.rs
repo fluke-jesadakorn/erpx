@@ -277,6 +277,7 @@ impl<'c> PgSocialUnit<'c> {
             Change::PostEditUploadCreate { .. } => "social.post.edit-upload.create",
             Change::PostEditUploadCancel { .. } => "social.post.edit-upload.cancel",
             Change::ModeratePost { .. } => "social.post.hide",
+            Change::PublishHandoverPost { .. } => "social.handover.publish",
         }
     }
 
@@ -306,6 +307,7 @@ impl<'c> PgSocialUnit<'c> {
             Change::CommentUploadCancel { id } | Change::PostEditUploadCancel { id } => id.clone(),
             Change::PostEditUploadCreate { .. } => format!("post-edit-upload-{}", key.as_str()),
             Change::ModeratePost { id } => id.clone(),
+            Change::PublishHandoverPost { .. } => format!("post-post-draft-{}", key.as_str()),
         })
     }
 
@@ -625,6 +627,11 @@ impl SocialUnit for PgSocialUnit<'_> {
                 "social_post",
                 "Moderate workplace update",
                 "social.post.moderated",
+            ),
+            OwnerPlan::PublishHandoverPost { .. } => (
+                "social_post",
+                "Publish workplace handover",
+                "social.handover.published",
             ),
         };
         let value = serde_json::to_value(&receipt).map_err(|_| {

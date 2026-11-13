@@ -40,6 +40,7 @@ fn operation(change: &Change) -> &'static str {
         Change::PostEditUploadCreate { .. } => "social.post.edit-upload.create",
         Change::PostEditUploadCancel { .. } => "social.post.edit-upload.cancel",
         Change::ModeratePost { .. } => "social.post.hide",
+        Change::PublishHandoverPost { .. } => "social.handover.publish",
     }
 }
 
@@ -58,6 +59,7 @@ fn record_id(key: &str, change: &Change) -> String {
         Change::CommentUploadCancel { id } | Change::PostEditUploadCancel { id } => id.clone(),
         Change::PostEditUploadCreate { .. } => format!("post-edit-upload-{key}"),
         Change::ModeratePost { id } => id.clone(),
+        Change::PublishHandoverPost { .. } => format!("post-post-draft-{key}"),
     }
 }
 
@@ -1362,6 +1364,71 @@ async fn moderators_hide_posts_but_other_roles_cannot() {
                 .await
                 .unwrap();
         assert_eq!(state, ("moderated".into(), 2));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn handover_publish_creates_the_participant_post_and_sources() {
+    fixture::with_database(10, |pool| async move {
+        setup(&pool).await;
+        let handover = Change::PublishHandoverPost {
+            body: "Night handover".into(),
+            recipient_ids: vec!["person-1".into()],
+            sources: vec![PostSource {
+                kind: "staff_task".into(),
+                id: "task-1".into(),
+            }],
+        };
+        let published = run(
+            &pool,
+            "author",
+            "company",
+            "social-handover-0901",
+            handover.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            (published.id.as_str(), published.version, published.status),
+            ("post-post-draft-social-handover-0901", 1, "published")
+        );
+        let post: (String, String, String) = sqlx::query_as(
+            "SELECT purpose,audience_kind,body FROM social_posts WHERE id=$1",
+        )
+        .bind(&published.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            post,
+            ("handover".into(), "participants".into(), "Night handover".into())
+        );
+        let participants: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM social_post_participants WHERE post_id=$1")
+                .bind(&published.id)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(participants, 2);
+        let source: (String, String) = sqlx::query_as(
+            "SELECT source_kind,source_id FROM social_post_sources WHERE post_id=$1",
+        )
+        .bind(&published.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(source, ("staff_task".into(), "task-1".into()));
+        let replay = run(
+            &pool,
+            "author",
+            "company",
+            "social-handover-0901",
+            handover,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, published);
     })
     .await;
 }
