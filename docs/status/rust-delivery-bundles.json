@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1502,
+    "revision": 1505,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -14213,8 +14213,8 @@
           "generation": 51
         },
         "baseSha": "0517689d6ee4b7217e1646de7789ecc0285acf54",
-        "implementedCommit": "599374bcb109d3c12d5b326ab56ef0e8537dc286",
-        "lastPushedSha": "599374bcb109d3c12d5b326ab56ef0e8537dc286",
+        "implementedCommit": "761c248958d7ebe1539004d7caa7163890c4dfd4",
+        "lastPushedSha": "761c248958d7ebe1539004d7caa7163890c4dfd4",
         "checks": [
           {
             "command": "cargo check -p erpx-server-pms",
@@ -14492,11 +14492,23 @@
             "result": "blocked",
             "sourceSha": "599374bcb109d3c12d5b326ab56ef0e8537dc286",
             "note": "The old PMS client sends {operation, propertyId, expectedVersion, input} and uses guest.save/charge.add/cashier operations. The native pms_guest_account_router expects flat operation-specific bodies and guest_account.create/update (guest.save is a guest contact, not a guest account). Wiring the routes directly would regress charge.add and mis-handle guest.save, so the route switch was reverted; the tested native client/helper remains as the building block. Need an explicit payload/operation adapter before switching routes."
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.native-pms-transport.unit",
+            "result": "passed",
+            "sourceSha": "761c248958d7ebe1539004d7caa7163890c4dfd4",
+            "note": "13/13. Adds nativePmsGuestAccountBody flattening for charge.add and guest_account.transfer (id->entryId), plus the existing POST/idempotency transport case."
+          },
+          {
+            "command": "environment: ERPX_NATIVE_PMS_CONFIG",
+            "result": "blocked",
+            "sourceSha": "761c248958d7ebe1539004d7caa7163890c4dfd4",
+            "note": "The running dev gateway (pid 92992) has many native configs but NOT ERPX_NATIVE_PMS_CONFIG; the container start script sets it, but the macOS gateway does not. Re-wiring the six guest-account operations fail-closed would make charge.add return 503 in the current dev UI. The payload adapter is code-ready; the route switch needs the native PMS config + private service enabled in the target environment first."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Native guest-account client/helper is implemented and transport-tested (12/12), but route wiring was reverted: the old UI sends {operation,propertyId,expectedVersion,input} and guest.save/charge.add, while the native router expects flat guest_account.create/update/charge/adjustment/transfer bodies; guest.save is a guest contact, not a guest account. Next: write an explicit operation/payload adapter mapping the six native commands to the old cashier/stay inputs (or switch the UI client to the native shapes), then re-wire both routes, delete the TS engine branches/writers and record the PMS KPI pair.",
+        "nextAction": "Legacy-to-native guest-account body adapter is implemented/tested (13/13: flatten input, charge.add, transfer id->entryId). Route re-wire is blocked on the target environment: the running dev gateway lacks ERPX_NATIVE_PMS_CONFIG (the container script sets it, the macOS gateway does not), so native-only charge.add would 503 the current dev UI. Enable the native PMS config/private service in the target env, then re-wire both routes, split the monolithic pmsCommand guest-account branches, delete the TS branches/writers and record the PMS KPI pair. Handover purchase boundary remains blocked by retire.customer_authority.portal-support on src/composition/src/**.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "lead",
@@ -32296,6 +32308,68 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.customer_authority.portal-support-acknowledge",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "customer_authority",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Retire the customer portal-support acknowledgement writer",
+        "scope": "4 residual writes: customer acknowledge (ack row + audit + outbox) and the purchase-boundary assertion cleanup in adapters/portal-support.ts. Native portal-product-session ingress with post-effect re-proof, server-customer_360 consumer switch, then delete the remaining writes.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "packages/server-customer_authority/Cargo.toml",
+          "packages/server-customer_authority/package.json",
+          "packages/server-customer_360/src/**",
+          "packages/server-customer_360/Cargo.toml",
+          "packages/server-customer_360/package.json",
+          "packages/feature-customer_authority/**",
+          "packages/feature-customer_360/**",
+          "packages/feature-portal/**",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-access/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-360/**",
+          "packages/server-support/src/**",
+          "src/composition/src/**",
+          "Cargo.lock",
+          "fixtures/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-ca-ack",
+          "claimedAt": "2026-11-13T03:11:25.628Z",
+          "heartbeatAt": "2026-11-13T03:11:25.628Z",
+          "expiresAt": "2026-11-13T03:41:25.628Z",
+          "generation": 51
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the native portal-product-session acknowledge command/HTTP ingress (verified session proof, request_key replay, ack/audit/outbox, post-deferred re-proof), switch server-customer_360 portal-command-request + feature consumers native-only, delete the remaining portal-support writers + barrel, migrate the ack oracles, record customer_authority KPI 10->6.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -32304,11 +32378,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 157,
+      "totalPackets": 158,
       "migratedPackets": 88,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 5,
+        "in_progress": 6,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 88,
@@ -32318,7 +32392,7 @@
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:10:22.935Z",
+    "updatedAt": "2026-11-13T03:12:24.510Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
