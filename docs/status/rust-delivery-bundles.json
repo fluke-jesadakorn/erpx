@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1884,
+    "revision": 1900,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-q",
+      "runId": "run-20261113-r",
       "agentId": "lead",
-      "startedAt": "2026-11-13T16:24:08.855Z",
-      "heartbeatAt": "2026-11-13T17:00:34.327Z",
-      "expiresAt": "2026-11-13T17:30:34.327Z",
-      "generation": 61,
-      "tokenHash": "35462438ad1c1d80cc706a6083159260aad2c4c08dcaff3c53cd62f2c0c9b0b2"
+      "startedAt": "2026-11-13T17:35:31.335Z",
+      "heartbeatAt": "2026-11-13T17:35:47.755Z",
+      "expiresAt": "2026-11-13T18:05:47.755Z",
+      "generation": 62,
+      "tokenHash": "58ab7b868337adde184eb9a528bfe5bc726c47796c02644a2db5ced8bebaf6d5"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -37569,25 +37569,84 @@
           "owner:manufacturing",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-q",
-          "agentId": "worker-manufacturing-order",
-          "claimedAt": "2026-11-13T16:26:06.670Z",
-          "heartbeatAt": "2026-11-13T17:00:34.327Z",
-          "expiresAt": "2026-11-13T17:30:34.327Z",
-          "generation": 61
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
+        "implementedCommit": "3627d7986a0d41486911b2db18d8f2dba55d6c26",
+        "lastPushedSha": "3627d7986a0d41486911b2db18d8f2dba55d6c26",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 54,
+            "after": 48,
+            "sourceSha": "3627d7986a0d41486911b2db18d8f2dba55d6c26",
+            "sourceKind": "committed",
+            "note": "Deleted manufacturing-lot-sources.ts (6 writes)."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "before": 26,
+            "after": 23,
+            "sourceSha": "3627d7986a0d41486911b2db18d8f2dba55d6c26",
+            "sourceKind": "committed",
+            "note": "Deleted adapters/lots.ts (3 writes)."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "3627d7986a0d41486911b2db18d8f2dba55d6c26",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the manufacturing order ingress."
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --offline",
+            "result": "passed",
+            "sourceSha": "3627d7986a0d41486911b2db18d8f2dba55d6c26",
+            "sourceKind": "committed",
+            "note": "47 tests across targets."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "3627d7986a0d41486911b2db18d8f2dba55d6c26",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "3627d7986a0d41486911b2db18d8f2dba55d6c26",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "3627d7986a0d41486911b2db18d8f2dba55d6c26",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-manufacturing/src/application/production.ts",
+            "removalTaskId": "retire.manufacturing",
+            "removalCondition": "Move manufacturing.production.integration to the native command harness and delete the fail-closed TS issue/pass-qc branch."
+          },
+          {
+            "path": "packages/server-manufacturing/src/application/lots.ts",
+            "removalTaskId": "retire.manufacturing",
+            "removalCondition": "Move the retained planning-lane lot oracle to native seeding, then delete the application/domain lots modules."
+          }
+        ],
         "blocker": null,
-        "nextAction": "Implement the native order issue/pass-QC command consuming public::lots::{post_material_lots,post_output_lots} with the existing Finance posting/QC guards and one serializable transaction, mount the native HTTP ingress, switch changeManufacturingOrder, then delete manufacturing-lot-sources.ts (6 writes) + 3 manufacturing lots.ts writers and record inventory 54 -> 48, manufacturing 26 -> 23.",
+        "nextAction": "Complete: native order issue/pass-QC, mount and 9-writer retirement (inventory 54 -> 48, manufacturing 26 -> 23). Follow-up: migrate manufacturing.production.integration to the native harness.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.manufacturing"
       },
       {
         "id": "integrate.identity_access.user-management",
@@ -37975,6 +38034,96 @@
           "owner:identity_access",
           "resource:composition"
         ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+        "lastPushedSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 133,
+            "after": 118,
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "15 directory-operations writers retired."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api,directory-ldaps --offline",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the directory-operations mount."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test directory_runtime",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "9/9 passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: directory-operations mount and 15-writer retirement (IAM 133 -> 118).",
+        "handoff": {
+          "runId": "run-20261113-q",
+          "agentId": "integrator-iam-directory-ops-2",
+          "at": "2026-11-13T17:35:31.334Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during directory-operations integration closure; same lead resumes; WIP reviewed",
+          "nextAction": "Implement directory_operation_command + DirectoryOperationHttpBackend and mount directory_operation_http_router per Holding; supply DirectoryOperationConnector (reuse the GPO runner/UDM profile and map account/group/OU/object.move/account.update/OU.update/disable/enable) and DirectoryDirectFreshness; add the directory-operation-worker CLI and switch the jobs runtime; reclassify the catalogue suite; verify the admin directory pages."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
+      },
+      {
+        "id": "retire.manufacturing",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "manufacturing",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire the remaining Manufacturing owner TS writers",
+        "scope": "Classify and retire the remaining Manufacturing owner TS writers (production posting/costing, quality/labor/output, planning lanes) as native producers land. Delete the TS writers/barrels, move oracles to native seeding, and record the Manufacturing KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "packages/server-manufacturing/Cargo.toml",
+          "packages/server-manufacturing/package.json",
+          "packages/feature-manufacturing/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**",
+          "tests/unit/planning/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
         "status": "pending",
         "claim": null,
         "baseSha": null,
@@ -37983,8 +38132,86 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement directory_operation_command + DirectoryOperationHttpBackend and mount directory_operation_http_router per Holding; supply DirectoryOperationConnector (reuse the GPO runner/UDM profile and map account/group/OU/object.move/account.update/OU.update/disable/enable) and DirectoryDirectFreshness; add the directory-operation-worker CLI and switch the jobs runtime; reclassify the catalogue suite; verify the admin directory pages.",
+        "nextAction": "Step-0 audit the remaining 23 Manufacturing TS writers against packages/server-manufacturing/src/**/*.rs; implement the missing native producers, switch consumers, delete the TS writers and record the Manufacturing KPI pair.",
         "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.manufacturing.production-oracles",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "manufacturing",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Move the manufacturing production oracles to the native ingress",
+        "scope": "Rewrite the remaining manufacturing.production.integration cases to drive native issue/pass-QC (or re-scope them), keep the purchase/supply coverage, and green the registered suite.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "tests/integration/manufacturing/**",
+          "tests/unit/planning/**",
+          "tests/support/**",
+          "packages/feature-manufacturing/**",
+          "packages/server-manufacturing/src/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+        "lastPushedSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+        "checks": [
+          {
+            "command": "ERPX_TEST_PG_BIN=/opt/homebrew/opt/postgresql@18/bin bun run test:integration -- --suite=manufacturing.production.integration",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "40/40 test cases passed with the test-only legacy oracle."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "bunx vitest run tests/unit/planning/production-services.test.ts tests/unit/manufacturing/native-manufacturing-bom-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "d5318121503beef1a515acf009f60a6fe40f3e0b",
+            "sourceKind": "committed",
+            "note": "164/164 passed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "nextAction": "Production suite green (40/40) with the test-only legacy oracle. No production writer change in this slice; close with the next manufacturing retirement.",
+        "handoff": {
+          "runId": "run-20261113-r",
+          "agentId": "lead",
+          "at": "2026-11-13T17:35:40.706Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Production suite green (40/40) with the test-only legacy oracle. No production writer change in this slice; close with the next manufacturing retirement."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -37995,21 +38222,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 200,
-      "migratedPackets": 120,
+      "totalPackets": 202,
+      "migratedPackets": 122,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 1,
-        "ready_for_integration": 19,
+        "in_progress": 0,
+        "ready_for_integration": 20,
         "integrating": 0,
-        "migrated": 120,
+        "migrated": 122,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 61,
-    "updatedAt": "2026-11-13T17:00:34.328Z",
+    "lastCoordinatorGeneration": 62,
+    "updatedAt": "2026-11-13T17:35:47.757Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -38052,10 +38279,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-p",
-      "runId": "run-20261113-q",
-      "at": "2026-11-13T16:24:08.856Z",
-      "reason": "Lease expired during inventory transfer retirement closure; same lead resumes; WIP reviewed",
+      "previousRunId": "run-20261113-q",
+      "runId": "run-20261113-r",
+      "at": "2026-11-13T17:35:31.338Z",
+      "reason": "Lease expired during directory-operations integration closure; same lead resumes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
