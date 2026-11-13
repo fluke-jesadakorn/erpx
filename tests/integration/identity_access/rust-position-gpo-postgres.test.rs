@@ -8,19 +8,19 @@
 mod fixture;
 
 use erpx_server_identity_access::public::position_gpo::{
-    drain_position_gpo_locked, preview_position_gpo, preview_unmap_position_gpo,
-    publish_position_gpo, reconcile_position_gpo, retry_position_gpo, retry_position_gpo_config,
-    unmap_position_gpo, ConfigRetryInput, ConnectionRow, FreshMfa, GpoAction, GpoFuture,
-    IamRoleActor, Inventory, InventoryObject, JobRetryInput, PgPositionGpo, PositionGpoDirectory,
-    PositionGpoInput, PublishInput, UnmapInput, UnmapPublishInput,
+    ConfigRetryInput, ConnectionRow, FreshMfa, GpoAction, GpoFuture, IamRoleActor, Inventory,
+    InventoryObject, JobRetryInput, PgPositionGpo, PositionGpoDirectory, PositionGpoInput,
+    PublishInput, UnmapInput, UnmapPublishInput, drain_position_gpo_locked, preview_position_gpo,
+    preview_unmap_position_gpo, publish_position_gpo, reconcile_position_gpo, retry_position_gpo,
+    retry_position_gpo_config, unmap_position_gpo,
 };
 use erpx_server_runtime::public::postgres::{
-    load_migrations, migrate_database, DatabasePool, MigrationTrack, PgTransactionError,
+    DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, CompanyId, HoldingId, RecordId, UserId,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sqlx::AssertSqlSafe;
 use sqlx::Row;
 
@@ -853,6 +853,72 @@ async fn an_unconfirmed_directory_write_blocks_the_configuration() {
                 .as_deref(),
             Some("DIRECTORY_READBACK_REQUIRED")
         );
+    })
+    .await;
+}
+
+/// The retained Organization oracle only checked that departure queues one
+/// native removal job. That producer is now native, so the same fact is proven
+/// here instead of through the deleted TypeScript adapter.
+#[tokio::test]
+async fn departure_queues_the_native_removal_job() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let (_, token) = preview(&pool, 0).await;
+        publish(&pool, token, KEY, &it_actor()).await.unwrap();
+        let mut directory = FakeDirectory::new();
+        let mut tx = pool
+            .raw()
+            .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await
+            .unwrap();
+        {
+            let mut repository = PgPositionGpo::new(&mut tx);
+            reconcile_position_gpo(&mut repository, NOW).await.unwrap();
+            drain_position_gpo_locked(&mut repository, &mut directory, 10, NOW)
+                .await
+                .unwrap();
+        }
+        tx.commit().await.unwrap();
+
+        let claimed: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM people_directory_membership_sources \
+             WHERE connection_id='connection-1' AND member_id='CN=Ada'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(claimed, 1);
+
+        sqlx::query(
+            "UPDATE hr_engagements SET status='ended',version=version+1 WHERE id='engagement-1'",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let mut tx = pool
+            .raw()
+            .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await
+            .unwrap();
+        {
+            let mut repository = PgPositionGpo::new(&mut tx);
+            let desired = reconcile_position_gpo(&mut repository, NOW + 1)
+                .await
+                .unwrap();
+            assert!(desired.is_empty());
+        }
+        tx.commit().await.unwrap();
+
+        let removal: (String, String) = sqlx::query_as(
+            "SELECT desired_action,status FROM position_gpo_jobs \
+             WHERE company_id='company' AND account_id='CN=Ada' \
+             ORDER BY created_at DESC LIMIT 1",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(removal, ("remove".to_owned(), "queued".to_owned()));
     })
     .await;
 }
