@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1653,
+    "revision": 1658,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-i",
+      "runId": "run-20261113-j",
       "agentId": "lead",
-      "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T07:25:42.411Z",
-      "expiresAt": "2026-11-13T07:55:42.411Z",
-      "generation": 53,
-      "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
+      "startedAt": "2026-11-13T08:01:06.178Z",
+      "heartbeatAt": "2026-11-13T08:01:27.810Z",
+      "expiresAt": "2026-11-13T08:31:27.810Z",
+      "generation": 54,
+      "tokenHash": "ce5fa52d8a7699eb63bf471e2e0f5260b9740763f65f28788a2783dbb4bae986"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -22629,18 +22629,11 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-pos-core",
-          "claimedAt": "2026-11-13T07:25:17.248Z",
-          "heartbeatAt": "2026-11-13T07:25:42.411Z",
-          "expiresAt": "2026-11-13T07:55:42.411Z",
-          "generation": 53
-        },
+        "status": "ready_for_integration",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
-        "lastPushedSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
+        "implementedCommit": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
+        "lastPushedSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-pos/src/**/*.ts'",
@@ -22742,18 +22735,80 @@
             "result": "failed",
             "sourceSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
             "note": "Pre-existing peer CSS WIP: apps/account/src/app/globals.css references packages/server-assets/src/adapters/maintenance-transaction.ts and WORKSPACE_STYLE_SOURCE_UNRESOLVED aborts the workspace graph before ownership checks. Not this slice; structure:check and catalogue pass."
+          },
+          {
+            "command": "cargo check -p erpx-server-pos --offline",
+            "result": "passed",
+            "sourceSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo check -p erpx-service --offline",
+            "result": "passed",
+            "sourceSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the new enum/settings fields and generic mount."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --offline --test pos_commands",
+            "result": "passed",
+            "sourceSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
+            "sourceKind": "committed",
+            "note": "17/17 (4 new command cases)."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --offline --test cash_movement --test cash_movement_http --test pos_command_http --test pos_workspace --test pos_workspace_http",
+            "result": "passed",
+            "sourceSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
+            "sourceKind": "committed",
+            "note": "11 + 5 + 4 + 12 + 5 passed."
+          },
+          {
+            "command": "cd packages/server-pos && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
+            "sourceKind": "committed",
+            "note": "POS package typecheck passed."
+          },
+          {
+            "command": "bunx vitest run tests/unit/pos/native-pos-cash-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
+            "sourceKind": "committed",
+            "note": "20/20 transport cases."
+          },
+          {
+            "command": "bunx vitest run tests/unit/pos/pos-application.test.ts",
+            "result": "passed",
+            "sourceSha": "1a775178ac52bbe3f41cac600dae6b40fdd601a8",
+            "sourceKind": "committed",
+            "note": "350 passed; 4 failures are the pre-existing receipt-route harness (headers is not defined) and reproduce from the untouched snapshot."
           }
         ],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Continue the POS residual retirement: pos-core 53, pos-stripe 27, pos-daily 3, purchase-boundary 2, pos-images 1 and attachment-migration facts. Implement the missing native provider/command producers, switch the live consumers, delete each retired TS branch and record the POS KPI pair. Report composition mounts and shared register edits to the lead.",
+        "retainedLegacy": [
+          {
+            "path": "packages/server-pos/src/adapters/pos-core.ts (settings.operations, accounting.approve, table.create, sale.approve_discount)",
+            "writes": 4,
+            "removalTaskId": "retire.pos.pos-core",
+            "removalCondition": "Extend tests/support/helpers/pos-native-seed.ts retiredPosCommandNames and seed oracle (plus the seed-script calls) for the four operations, then delete the branches and PosUnit members; expected POS 87 -> 83."
+          },
+          {
+            "path": "packages/server-pos/src/adapters/*.ts (remaining 83 writers)",
+            "writes": 83,
+            "removalTaskId": "retire.pos.pos-core",
+            "removalCondition": "Each operation family gets a native producer (and composition port where required) and its live TS caller switches."
+          }
+        ],
+        "blocker": "released with work preserved",
+        "nextAction": "Four native POS command families are committed. Lead: extend allowedPaths with tests/support/helpers/pos-native-seed.ts (or open a helper task), add settings.operations/accounting.approve/table.create/sale.approve_discount to retiredPosCommandNames with owner-local seed oracles, then delete the four TS branches (POS 87 -> 83). Also add operation-aware permission and purchase-admission ports in src/composition/src/pos.rs.",
         "handoff": {
-          "runId": "run-20261113-f",
+          "runId": "run-20261113-j",
           "agentId": "lead",
-          "at": "2026-11-13T01:57:30.081Z",
-          "previousStatus": "in_progress",
+          "at": "2026-11-13T08:01:14.556Z",
+          "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Interim orphan retirement pushed at 1a64ea801: POS KPI 88 -> 87 (global 2375 -> 2374). Residual 87: pos-core.ts 53, pos-stripe.ts 27, pos-daily.ts 3, purchase-boundary.ts 2, pos-images.ts 1, attachment-migration-facts.ts 1; each needs its native command family/provider job port plus the live caller switch before deletion. Next: port the POS provider job helpers and the remaining no-native command families, then retire each with its live caller."
+          "nextAction": "Four native POS command families are committed. Lead: extend allowedPaths with tests/support/helpers/pos-native-seed.ts (or open a helper task), add settings.operations/accounting.approve/table.create/sale.approve_discount to retiredPosCommandNames with owner-local seed oracles, then delete the four TS branches (POS 87 -> 83). Also add operation-aware permission and purchase-admission ports in src/composition/src/pos.rs."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -33940,8 +33995,8 @@
       "migratedPackets": 95,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 1,
-        "ready_for_integration": 15,
+        "in_progress": 0,
+        "ready_for_integration": 16,
         "integrating": 0,
         "migrated": 95,
         "blocked": 39,
@@ -33949,8 +34004,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T07:25:42.412Z",
+    "lastCoordinatorGeneration": 54,
+    "updatedAt": "2026-11-13T08:01:27.810Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -33993,10 +34048,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-h",
-      "runId": "run-20261113-i",
-      "at": "2026-11-13T05:09:02.765Z",
-      "reason": "Previous run-20261113-h process stopped by operator; no active claims; WIP reviewed",
+      "previousRunId": "run-20261113-i",
+      "runId": "run-20261113-j",
+      "at": "2026-11-13T08:01:06.179Z",
+      "reason": "Lease expired during long POS integration batch; same lead resumes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
