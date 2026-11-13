@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1638,
+    "revision": 1641,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T06:36:22.475Z",
-      "expiresAt": "2026-11-13T07:06:22.475Z",
+      "heartbeatAt": "2026-11-13T06:48:50.396Z",
+      "expiresAt": "2026-11-13T07:18:50.396Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -22514,8 +22514,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-pms-booking",
           "claimedAt": "2026-11-13T06:36:02.840Z",
-          "heartbeatAt": "2026-11-13T06:36:22.475Z",
-          "expiresAt": "2026-11-13T07:06:22.475Z",
+          "heartbeatAt": "2026-11-13T06:48:50.396Z",
+          "expiresAt": "2026-11-13T07:18:50.396Z",
           "generation": 53
         },
         "baseSha": null,
@@ -23377,22 +23377,15 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "in_progress",
-        "nextAction": "BLOCKED ON A NATIVE OWNER PORT: native code only reads iam_access_subjects/iam_access_invitations; there are no Rust writers for iam_access_previews, iam_external_organizations, iam_external_teams or the access-preview/apply transaction. Implement that native people-access producer and mount it before retiring the 18 TS statements.",
+        "status": "ready_for_integration",
+        "nextAction": "Native people-access relationship preview/apply producer is committed with 12 lib tests and 3 PostgreSQL proofs. Lead: mount PeopleRelationshipsHttpBackend in src/composition, register the Holding route, add the TS transport client and switch the people-access snapshot/preview/apply consumers, then delete the 18 statements (KPI 229 -> 211). Optionally relocate the 3 ignored PG proofs to a registered test target.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-iam-residual",
-          "claimedAt": "2026-11-13T06:20:18.578Z",
-          "heartbeatAt": "2026-11-13T06:36:22.475Z",
-          "expiresAt": "2026-11-13T07:06:22.475Z",
-          "generation": 53
-        },
+        "claim": null,
         "baseSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
+        "lastPushedSha": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
         "checks": [
           {
             "command": "npx tsc --noEmit",
@@ -23429,17 +23422,59 @@
             "result": "failed",
             "sourceSha": "9eff55d99bfc467b899da7e5cf35188c28568279",
             "note": "4/36 fail outside this slice: native field-inbox notification reads call next/headers() outside a request scope (three notification/role cases) and account-grant read expectation differs; this lane's changed cases pass and the retired required case now maps to the native PostgreSQL scenario."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles; only a pre-existing warning."
+          },
+          {
+            "command": "cargo clippy -p erpx-server-identity-access --offline --all-targets",
+            "result": "passed",
+            "sourceSha": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
+            "sourceKind": "committed",
+            "note": "Zero findings in the new files."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --lib --offline",
+            "result": "passed",
+            "sourceSha": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
+            "sourceKind": "committed",
+            "note": "12 passed, 3 ignored; 7 new domain + 2 HTTP tests."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --lib --offline -- --ignored",
+            "result": "passed",
+            "sourceSha": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
+            "sourceKind": "committed",
+            "note": "3/3 PostgreSQL scenarios: write/receipt/audit/outbox/single-use replay, stale-preview/version/revoked authority, subject team scope/sponsor/self-change."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
           }
         ],
-        "retainedLegacy": [],
-        "blocker": null,
+        "retainedLegacy": [
+          {
+            "path": "packages/server-identity_access/src/adapters/people-access.ts",
+            "writes": 18,
+            "removalTaskId": "retire.identity_access.residual-writers",
+            "removalCondition": "Mount the native PeopleRelationshipsHttpBackend in composition, register the Holding route, add the TS transport client and switch peopleRelationshipsSnapshot/previewPeopleRelationships/applyPeopleRelationships, then delete the 18 TS statements and exports."
+          }
+        ],
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261112-s",
-          "agentId": "lead",
-          "at": "2026-11-12T16:55:44.056Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Batch 1 landed at 9eff55d99/2bf57134f as retire.identity_access.access-review-commands (KPI 240->231). Remaining 231 statements in 36 adapters: position-gpo 33, people-access 18, directory-transaction 17, iam-service 7, directory-operations 15, account-access 13, user-management 12 and the rest; each needs a native owner port before deletion."
+          "runId": "run-20261113-i",
+          "agentId": "worker-iam-residual",
+          "at": "2026-11-13T06:48:40.189Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native people-access relationship preview/apply producer is committed with 12 lib tests and 3 PostgreSQL proofs. Lead: mount PeopleRelationshipsHttpBackend in src/composition, register the Holding route, add the TS transport client and switch the people-access snapshot/preview/apply consumers, then delete the 18 statements (KPI 229 -> 211). Optionally relocate the 3 ignored PG proofs to a registered test target."
         }
       },
       {
@@ -33770,8 +33805,8 @@
       "migratedPackets": 94,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 2,
-        "ready_for_integration": 13,
+        "in_progress": 1,
+        "ready_for_integration": 14,
         "integrating": 0,
         "migrated": 94,
         "blocked": 40,
@@ -33780,7 +33815,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T06:36:22.475Z",
+    "updatedAt": "2026-11-13T06:48:50.397Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
