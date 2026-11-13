@@ -4,6 +4,7 @@ import {
   createNativePmsClient,
   nativePmsConfiguration,
   nativePmsFailure,
+  nativePmsGuestAccountBody,
   NativePmsError,
   type NativePmsPageContext,
 } from '../../../packages/feature-pms/src/adapters/server/native-pms';
@@ -239,5 +240,15 @@ describe('native PMS room-board transport',()=>{
   expect(headers.get('content-type')).toBe('application/json');
   expect(headers.get('x-erpx-context-company')).toBe('company');
   expect(JSON.parse(String(body))).toMatchObject({operation:'guest_account.create',propertyId:'property-1'});
+ });
+ it('flattens the retained workspace body into the native guest-account shape',()=>{
+  expect(nativePmsGuestAccountBody({operation:'charge.add',propertyId:'property-1',expectedVersion:3,input:{guestAccountId:'account-1',price:120,description:'Minibar',stayId:'stay-1',sourceKey:'minibar-1'}})).toEqual({
+    guestAccountId:'account-1',price:120,description:'Minibar',stayId:'stay-1',sourceKey:'minibar-1',
+    operation:'charge.add',propertyId:'property-1',expectedVersion:3,
+  });
+  expect(nativePmsGuestAccountBody({operation:'guest_account.transfer',propertyId:'property-1',expectedVersion:2,input:{id:'entry-1',toGuestAccountId:'account-2',reason:'Moved to the correct bill'}})).toEqual({
+    id:'entry-1',entryId:'entry-1',toGuestAccountId:'account-2',reason:'Moved to the correct bill',
+    operation:'guest_account.transfer',propertyId:'property-1',expectedVersion:2,
+  });
  });
 });

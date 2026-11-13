@@ -107,6 +107,33 @@ export type NativePmsGuestAccountCommandInput = Readonly<{
   }>;
 }>;
 
+/** Flatten the retained workspace command body ({operation,propertyId,
+ * expectedVersion,input}) into the native guest-account body. The guest-save
+ * contact command is intentionally not mapped; it is not a guest account. */
+export function nativePmsGuestAccountBody(body: {
+  operation: string;
+  propertyId?: string;
+  expectedVersion?: number;
+  input?: unknown;
+}): Record<string, unknown> {
+  const input =
+    body.input && typeof body.input === 'object' && !Array.isArray(body.input)
+      ? { ...(body.input as Record<string, unknown>) }
+      : {};
+  if (
+    body.operation === 'guest_account.transfer' &&
+    typeof input.entryId !== 'string' &&
+    typeof input.id === 'string'
+  )
+    input.entryId = input.id;
+  return {
+    ...input,
+    operation: body.operation,
+    ...(body.propertyId !== undefined ? { propertyId: body.propertyId } : {}),
+    ...(body.expectedVersion !== undefined ? { expectedVersion: body.expectedVersion } : {}),
+  };
+}
+
 export class NativePmsError extends Error {
   readonly code: string;
   readonly status?: number;

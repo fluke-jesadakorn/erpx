@@ -3,6 +3,7 @@ import type { WorkContext } from '@erpx/server-identity_access/public/authorizat
 import {
   createNativePmsClient,
   nativePmsConfiguration,
+  nativePmsGuestAccountBody,
   NativePmsError,
   type NativePmsPageContext,
 } from './native-pms';
@@ -76,7 +77,7 @@ export async function nativePmsGuestAccountCommand(
   const client = createNativePmsClient(nativePmsConfiguration(raw));
   return client.guestAccountCommand(request.headers, context, {
     holdingSlug,
-    body,
+    body: nativePmsGuestAccountBody(body as { operation: string }),
     key,
     ...scopeInput(context),
     expected: {
