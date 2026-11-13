@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1589,
+    "revision": 1592,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T05:20:25.503Z",
-      "expiresAt": "2026-11-13T05:50:25.503Z",
+      "heartbeatAt": "2026-11-13T05:26:54.675Z",
+      "expiresAt": "2026-11-13T05:56:54.675Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -15401,8 +15401,8 @@
           "runId": "run-20261113-i",
           "agentId": "lead",
           "claimedAt": "2026-11-13T05:20:13.484Z",
-          "heartbeatAt": "2026-11-13T05:20:25.503Z",
-          "expiresAt": "2026-11-13T05:50:25.503Z",
+          "heartbeatAt": "2026-11-13T05:26:54.675Z",
+          "expiresAt": "2026-11-13T05:56:54.675Z",
           "generation": 53
         },
         "baseSha": null,
@@ -21669,8 +21669,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-13T05:16:06.136Z",
-          "heartbeatAt": "2026-11-13T05:20:25.503Z",
-          "expiresAt": "2026-11-13T05:50:25.503Z",
+          "heartbeatAt": "2026-11-13T05:26:54.675Z",
+          "expiresAt": "2026-11-13T05:56:54.675Z",
           "generation": 53
         },
         "baseSha": null,
@@ -21726,8 +21726,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-iam-gpo",
           "claimedAt": "2026-11-13T05:16:06.169Z",
-          "heartbeatAt": "2026-11-13T05:20:25.503Z",
-          "expiresAt": "2026-11-13T05:50:25.503Z",
+          "heartbeatAt": "2026-11-13T05:26:54.675Z",
+          "expiresAt": "2026-11-13T05:56:54.675Z",
           "generation": 53
         },
         "baseSha": null,
@@ -21911,15 +21911,8 @@
         "resources": [
           "owner:operations"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T05:20:44.420Z",
-          "heartbeatAt": "2026-11-13T05:20:44.420Z",
-          "expiresAt": "2026-11-13T05:50:44.420Z",
-          "generation": 53
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -22060,18 +22053,34 @@
             "sourceSha": "766dfbfc8dfa4531b599c716cb88d256084ba90e",
             "sourceKind": "committed",
             "note": "TEST_CATALOGUE_VALID:33 modules,1187 suites."
+          },
+          {
+            "command": "cargo check -p erpx-server-operations --offline",
+            "result": "passed",
+            "sourceSha": "9cd1f857afd98aa2d7e76745ce697c0669cdfb10",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles at current source."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "before": 9,
+            "after": 9,
+            "sourceSha": "9cd1f857afd98aa2d7e76745ce697c0669cdfb10",
+            "sourceKind": "committed",
+            "note": "Step-0 audit: 9 residual writes are the purchase/assertion guards behind two live cross-owner callers; no deletion performed."
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0.",
+        "blocker": "released with work preserved",
+        "nextAction": "BLOCKED ON TWO CROSS-OWNER CALLERS. Residual 9 writes: work-task-purchases 2, task-attachment-purchases 2, staff-tasks 2, workflow-approval-effects 1, work-task-alert-purchases 1, task-attachment-read 1. Required split: (a) migrate.operations.save-task-beta-source — switch packages/server-manage_erpx/src/adapters/beta-api.ts saveTask to the native staff-task command, then delete staff-tasks.ts and its purchase guards; (b) migrate.operations.task-alert-escalation — switch packages/server-workflow/src/adapters/approval-planning.ts stageTaskApprovalRevision to a native operations effect, then delete workflow-approval-effects.ts. After both, delete the remaining purchase/guard files and the projects purchase helpers (projects KPI 4->0).",
         "handoff": {
-          "runId": "run-20261113-b",
-          "agentId": "worker-operations",
-          "at": "2026-11-12T21:18:48.017Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired after the native Social report increment was reviewed and pushed at d268a4ed3 (collaboration crate compiles; unit 8/8, PG 4/4). Other worker WIP reviewed and preserved; claims are handed off for re-claim.",
-          "nextAction": "runTemplate + generateOccurrences are native (operations KPI 16->9 at 766dfbfc8); withWorkRoutineOccurrence/withProjectPurchasedCommand removed from the routine path. Remaining operations TS writers: saveTask beta post->task source flow (task-purchases) and task-alert escalation (scheduled-tasks); those are the last consumers of the projects purchase helpers. Then delete projects purchases/task-purchases/scheduled-tasks guards for projects KPI 4->0."
+          "runId": "run-20261113-i",
+          "agentId": "lead",
+          "at": "2026-11-13T05:26:42.813Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED ON TWO CROSS-OWNER CALLERS. Residual 9 writes: work-task-purchases 2, task-attachment-purchases 2, staff-tasks 2, workflow-approval-effects 1, work-task-alert-purchases 1, task-attachment-read 1. Required split: (a) migrate.operations.save-task-beta-source — switch packages/server-manage_erpx/src/adapters/beta-api.ts saveTask to the native staff-task command, then delete staff-tasks.ts and its purchase guards; (b) migrate.operations.task-alert-escalation — switch packages/server-workflow/src/adapters/approval-planning.ts stageTaskApprovalRevision to a native operations effect, then delete workflow-approval-effects.ts. After both, delete the remaining purchase/guard files and the projects purchase helpers (projects KPI 4->0)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -25301,8 +25310,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-inventory-transit",
           "claimedAt": "2026-11-13T05:16:06.203Z",
-          "heartbeatAt": "2026-11-13T05:20:25.503Z",
-          "expiresAt": "2026-11-13T05:50:25.503Z",
+          "heartbeatAt": "2026-11-13T05:26:54.675Z",
+          "expiresAt": "2026-11-13T05:56:54.675Z",
           "generation": 53
         },
         "baseSha": null,
@@ -30708,8 +30717,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-files-social",
           "claimedAt": "2026-11-13T05:15:07.266Z",
-          "heartbeatAt": "2026-11-13T05:20:25.503Z",
-          "expiresAt": "2026-11-13T05:50:25.503Z",
+          "heartbeatAt": "2026-11-13T05:26:54.675Z",
+          "expiresAt": "2026-11-13T05:56:54.675Z",
           "generation": 53
         },
         "baseSha": null,
@@ -33117,17 +33126,17 @@
       "migratedPackets": 92,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 92,
-        "blocked": 41,
+        "blocked": 42,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:25:35.180Z",
+    "updatedAt": "2026-11-13T05:26:54.675Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
