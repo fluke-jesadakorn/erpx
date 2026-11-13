@@ -119,3 +119,6 @@ pub mod pms_social_event_recipients;
 pub mod routine_owner;
 
 pub mod position_gpo;
+
+pub mod people_access;
+pub mod people_access_http;
