@@ -1,36 +1,16 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {createCRMActivityApplication,type CRMActivityPorts} from '../../../packages/server-crm/src/application/activities';
-import {createRequirePermission} from '../../../packages/server-identity_access/src/application/permissions';
-import {ApiError,errorResponse} from '../../../packages/server-runtime/src/adapters/http';
-vi.mock('server-only',()=>({}));
-
-it('retains CRM activity schema, permission and record-gate order',async()=>{
- const permissions:string[]=[];const actor={userId:'owner',role:'custom',scope:{kind:'holding'},permissions};
- const requirePermission=createRequirePermission({forbidden:()=>{throw new Error('page only');},error:(status,code,message)=>new ApiError(status,code,message)});
- const read=vi.fn(async()=>({id:'activity',owner_id:'other',status:'completed',version:2}));
- const lead=vi.fn(async()=>({id:'lead',status:'disqualified',stage:null,version:2}));
- const replay=vi.fn(async(_key:string,_operation:string,_id:string,_input:unknown)=>null);
- const ports={actorId:'owner',hasRead:true,sales:true,manager:false,clock:{now:()=>0},isSamePerson:(id:string)=>id==='owner',authorize:(permission:string)=>{requirePermission(actor,permission);},replay,lead,activities:async()=>[],history:async()=>[],recipients:async()=>[],activity:read,workRows:async()=>[],commit:async()=>{throw new Error('unexpected write');}} as unknown as CRMActivityPorts;
- const application=createCRMActivityApplication(ports);
- const change={action:'complete',expectedVersion:1,reason:'Done'};
- let error=await application.change('activity',{...change,reason:'no'},'activity-key').then(()=>null,e=>e);expect(errorResponse(error).status).toBe(422);expect((await errorResponse(error).json()).error.code).toBe('VALIDATION_FAILED');expect(read).not.toHaveBeenCalled();
- error=await application.change('activity',change,'activity-key').then(()=>null,e=>e);expect(error).toMatchObject({status:403,code:'PERMISSION_REQUIRED'});expect(read).not.toHaveBeenCalled();
- permissions.push('commerce.sales','commerce.read');
- error=await application.change('activity',change,'activity-key').then(()=>null,e=>e);expect(error).toMatchObject({status:403,code:'CRM_ACTIVITY_OWNER_REQUIRED'});
- read.mockResolvedValueOnce({id:'activity',owner_id:'owner',status:'completed',version:2});
- error=await application.change('activity',change,'activity-key').then(()=>null,e=>e);expect(error).toMatchObject({status:409,code:'CRM_ACTIVITY_STATE_CHANGED'});
- const create={leadId:'lead',expectedVersion:1.0,activityType:'call',subject:' Call ',details:' Discuss ',ownerId:'owner',dueDate:'2026-11-20',ignored:true};
- error=await application.create(create,'create-key').then(()=>null,e=>e);expect(error).toMatchObject({status:409,code:'CRM_ACTIVITY_SOURCE_CLOSED'});
- expect(replay.mock.calls.at(-1)?.[3]).toEqual({leadId:'lead',expectedVersion:1,activityType:'call',subject:'Call',details:'Discuss',ownerId:'owner',dueDate:'2026-11-20'});
-});
 import {
+  NATIVE_CRM_ACTIVITY_ACTIONS,
   NATIVE_CRM_LEAD_ACTIONS,
   NATIVE_CRM_OPPORTUNITY_ACTIONS,
+  nativeCrmActivityCommand,
+  nativeCrmActivityCommandAvailable,
   nativeCrmCommand,
   nativeCrmCommandAvailable,
   nativeCrmCommandFailure,
   NativeCrmCommandError,
 } from '../../../packages/feature-sales/src/public/native-crm-command';
+vi.mock('server-only',()=>({}));
 import type {WorkContext} from '../../../packages/server-identity_access/src/public/authorization';
 
 const config=()=>JSON.stringify({
@@ -67,6 +47,92 @@ describe('native CRM command transport',()=>{
     'win',
   ]);
   expect(nativeCrmCommandAvailable()).toBe(false);
+  expect([...NATIVE_CRM_ACTIVITY_ACTIONS]).toEqual(['complete','cancel','reassign']);
+  expect(nativeCrmActivityCommandAvailable()).toBe(false);
+ });
+
+ it('forwards a native activity create with origin, idempotency and context headers',async()=>{
+  process.env.ERPX_NATIVE_CRM_COMMAND_CONFIG=config();
+  const transport=vi.fn().mockResolvedValue(ok({
+    data:{id:'crm-activity-key-1',version:1,status:'open'},
+    context:{userId:'user',companyId:'company',holdingId:'h001'},
+  }));
+  const result=await nativeCrmActivityCommand(actor,'acme',{
+    leadId:'lead-1',expectedVersion:1,activityType:'call',
+    subject:'Call the customer',details:'Discuss the delivery window',
+    ownerId:'owner-1',dueDate:'2026-11-20',
+  },'key-1',incoming(),transport);
+  expect(result).toEqual({id:'crm-activity-key-1',version:1,status:'open'});
+  const [method,url,headers,body]=transport.mock.calls[0]!;
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44995/api/v1/holdings/acme/crm/activities');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('idempotency-key')).toBe('key-1');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(headers.get('x-erpx-context-revision')).toBe('7');
+  expect(JSON.parse(body as string)).toEqual({
+    leadId:'lead-1',expectedVersion:1,activityType:'call',
+    subject:'Call the customer',details:'Discuss the delivery window',
+    ownerId:'owner-1',dueDate:'2026-11-20',
+  });
+ });
+
+ it('forwards native activity complete and reassign with their exact owner fields',async()=>{
+  process.env.ERPX_NATIVE_CRM_COMMAND_CONFIG=config();
+  const transport=vi.fn()
+    .mockResolvedValueOnce(ok({
+      data:{id:'activity-1',version:2,status:'completed'},
+      context:{userId:'user',companyId:'company',holdingId:'h001'},
+    }))
+    .mockResolvedValueOnce(ok({
+      data:{id:'activity-1',version:2,status:'open'},
+      context:{userId:'user',companyId:'company',holdingId:'h001'},
+    }));
+  await nativeCrmActivityCommand(actor,'acme',{
+    id:'activity-1',action:'complete',expectedVersion:1,reason:'Customer confirmed',
+  },'key-2',incoming(),transport);
+  await nativeCrmActivityCommand(actor,'acme',{
+    id:'activity-1',action:'reassign',expectedVersion:1,ownerId:'owner-2',
+    dueDate:'2026-12-01',reason:'Territory change',
+  },'key-3',incoming(),transport);
+  const [,completeUrl,,completeBody]=transport.mock.calls[0]!;
+  expect(completeUrl.toString()).toBe(
+    'http://127.0.0.1:44995/api/v1/holdings/acme/crm/activities/activity-1/changes',
+  );
+  expect(JSON.parse(completeBody as string)).toEqual({
+    action:'complete',expectedVersion:1,reason:'Customer confirmed',
+  });
+  const [,reassignUrl,,reassignBody]=transport.mock.calls[1]!;
+  expect(reassignUrl.toString()).toBe(
+    'http://127.0.0.1:44995/api/v1/holdings/acme/crm/activities/activity-1/changes',
+  );
+  expect(JSON.parse(reassignBody as string)).toEqual({
+    action:'reassign',expectedVersion:1,ownerId:'owner-2',dueDate:'2026-12-01',
+    reason:'Territory change',
+  });
+ });
+
+ it('fails closed when the native activity configuration is absent',async()=>{
+  const transport=vi.fn();
+  await expect(nativeCrmActivityCommand(actor,'acme',{
+    leadId:'lead-1',expectedVersion:1,activityType:'call',
+    subject:'Call the customer',details:'Discuss the delivery window',
+    ownerId:'owner-1',dueDate:'2026-11-20',
+  },'key-1',incoming(),transport)).rejects.toMatchObject({
+    code:'NATIVE_CRM_COMMAND_UNAVAILABLE',status:503,
+  });
+  expect(transport).not.toHaveBeenCalled();
+ });
+
+ it('rejects an out-of-slice activity action without transport',async()=>{
+  process.env.ERPX_NATIVE_CRM_COMMAND_CONFIG=config();
+  const transport=vi.fn();
+  await expect(nativeCrmActivityCommand(actor,'acme',{
+    id:'activity-1',action:'outcome',expectedVersion:1,reason:'Unsupported',
+  },'key-1',incoming(),transport)).rejects.toMatchObject({
+    code:'NATIVE_CRM_COMMAND_REQUEST_INVALID',status:422,
+  });
+  expect(transport).not.toHaveBeenCalled();
  });
 
  it('forwards a lead disqualify with exact path, body, CAS and idempotency headers',async()=>{

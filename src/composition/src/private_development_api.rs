@@ -2976,6 +2976,8 @@ async fn assemble_checked(
         let mut crm_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut crm_command_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut crm_activity_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut manage_erpx_command_targets = Vec::new();
         let onboarding_holdings: BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool> = config
@@ -3280,6 +3282,25 @@ async fn assemble_checked(
                             config.policy.clone(),
                             Arc::new(FinanceJournalReadScopeHeaders),
                             Arc::new(crate::crm::CrmCommandService::new(
+                                authorizer.clone(),
+                                crate::crm::CrmConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                crm_activity_targets.push(
+                    erpx_server_crm::public::activities_http::CrmActivityCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::crm::CrmActivityCommandBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::crm::CrmActivityCommandService::new(
                                 authorizer.clone(),
                                 crate::crm::CrmConfiguration::new(
                                     holding.registration.holding_id.clone(),
@@ -4737,7 +4758,7 @@ async fn assemble_checked(
                     product.holding_id == holding.registration.holding_id
                         && product.audience == "portal"
                 }) {
-                    if !portal_support_customer_targets.iter().any(|target| target.host == portal.host) {
+                    if !portal_support_customer_targets.iter().any(|target: &erpx_server_customer_authority::public::portal_support_commands::CustomerTarget| target.host == portal.host) {
                     portal_support_customer_targets.push(crate::portal_support_commands::customer_target(
                         portal.host.clone(),
                         holding.registration.slug.clone(),
@@ -5786,6 +5807,15 @@ async fn assemble_checked(
                     crm_command_targets,
                 )
                 .map_err(|_| "PRIVATE_API_CRM_COMMAND_ROUTER_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !crm_activity_targets.is_empty() {
+            router = router.merge(
+                erpx_server_crm::public::activities_http::crm_activity_command_http_router(
+                    crm_activity_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CRM_ACTIVITY_ROUTER_INVALID")?,
             );
         }
         if !manage_erpx_targets.is_empty() {
@@ -7325,6 +7355,17 @@ async fn assemble_checked(
                     .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        crm_activity_command_targets: config
+            .crm_companies
+            .keys()
+            .filter_map(|holding_id| {
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         marketing_command_targets: config
             .crm_companies
             .keys()
@@ -7544,6 +7585,7 @@ struct Boundary {
     platform_targets: BTreeSet<(String, String)>,
     crm_targets: BTreeSet<(String, String)>,
     crm_command_targets: BTreeSet<(String, String)>,
+    crm_activity_command_targets: BTreeSet<(String, String)>,
     marketing_command_targets: BTreeSet<(String, String)>,
     brand_targets: BTreeSet<(String, String)>,
     branding_targets: BTreeSet<(String, String)>,
@@ -9909,6 +9951,32 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let crm_activity_command = request.method() == axum::http::Method::POST
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", slug, "crm", "activities"] => state
+                .crm_activity_command_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "crm",
+                "activities",
+                id,
+                "changes",
+            ] if !id.is_empty() => state
+                .crm_activity_command_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     let marketing_command = request.method() == axum::http::Method::POST
         && match request
             .uri()
@@ -10369,6 +10437,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || platform_operations
         || crm
         || crm_command
+        || crm_activity_command
         || marketing_command
         || maintenance
         || assets

@@ -84,7 +84,6 @@ describe("Inventory and Procurement exact quantities", () => {
   });
 });
 import { createCRMApplication, type CRMRepository, type CRMMutation } from "@erpx/server-crm/application/leads";
-import { createCRMActivityApplication, type CRMActivityPorts, type CRMActivityMutation } from "@erpx/server-crm/application/activities";
 import { createCRMIdentityApplication, type CRMIdentityPorts, type CRMIdentityMutation } from "@erpx/server-crm/application/identities";
 import { analyticsRange, parseAnalyticsFilters } from "@erpx/server-crm/domain/analytics";
 import type { CRMActivity } from "@erpx/server-crm/domain/activities";
@@ -127,16 +126,8 @@ describe("CRM owner application",()=>{
  });
 });
 describe("CRM activity and identity ports",()=>{
- test("activity creation replays before reading a now-closed lead",async()=>{
-  const ports:CRMActivityPorts={actorId:"owner",hasRead:true,sales:true,manager:false,clock:{now:()=>42},isSamePerson:()=>false,authorize(){},async replay(){return {id:"saved"};},async lead(){throw new Error("must not read");},async activities(){return [];},async history(){return [];},async recipients(){return [];},async activity(){return null;},async workRows(){return [];},async commit(){throw new Error("must not commit");}};
-  expect(await createCRMActivityApplication(ports).create({leadId:"lead",expectedVersion:1,activityType:"call",subject:"Call customer",details:"Discuss delivery",ownerId:"owner",dueDate:"2026-10-06"},"key")).toEqual({id:"saved"});
- });
- test("activity completion requires the assigned owner even when the creator is the same person",async()=>{
-  const mutations:CRMActivityMutation[]=[];
-  const ports:CRMActivityPorts={actorId:"creator",hasRead:true,sales:true,manager:false,clock:{now:()=>42},isSamePerson:id=>id==="creator",authorize(){},async replay(){return null;},async lead(){return null;},async activities(){return [];},async history(){return [];},async recipients(){return [];},async activity(){return {owner_id:"assigned-owner",created_by:"creator",status:"open"} as CRMActivity;},async workRows(){return [];},async commit(m,result){mutations.push(m);return result;}};
-  await expect(createCRMActivityApplication(ports).change("activity",{action:"complete",expectedVersion:1,reason:"Customer answered the call"},"key")).rejects.toMatchObject({code:"CRM_ACTIVITY_OWNER_REQUIRED"});
-  expect(mutations).toEqual([]);
- });
+ // Activity create/change moved to the native CRM activity command; its oracle is
+ // tests/integration/crm/crm-activities.test.ts + the Rust activities suites.
  test("identity linking preserves independent review requirements as a commit contract and validates access after replay",async()=>{
   const mutations:CRMIdentityMutation[]=[],calls:string[]=[];
   const ports:CRMIdentityPorts={canReview:true,canCreate:true,clock:{now:()=>42},authorize(permission){calls.push(permission);},async replay(){calls.push("replay");return null;},async identities(){return {accounts:[],contacts:[],customers:[]};},async contact(){return null;},async stays(){return [];},async commit(m,result){mutations.push(m);return result;}};

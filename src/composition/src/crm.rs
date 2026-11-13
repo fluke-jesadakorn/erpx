@@ -3,8 +3,10 @@
 //! staff and customer labels and package entitlement facts.
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::crm_activity_notification::{
-    CrmLeadNotificationFacts, PgCrmLeadNotificationSource, RetainedCrmLeadNotification,
-    lock_crm_activity_notifications, prepare_crm_lead_notification,
+    CrmActivityNotificationFacts, CrmLeadNotificationFacts, PgCrmActivityNotificationSource,
+    PgCrmLeadNotificationSource, RetainedCrmActivityNotification, RetainedCrmLeadNotification,
+    lock_crm_activity_notifications, prepare_crm_activity_notification,
+    prepare_crm_lead_notification,
 };
 use erpx_server_commerce::public::order::{
     CommerceOrderActor, CommerceOrderReadRepository, PgCommerceOrders, SalesOrderRow,
@@ -13,10 +15,21 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
 };
+use erpx_server_crm::public::activities_http::{
+    CrmActivityCommandHttpBackend, CrmActivityCommandHttpRequest,
+    CrmActivityCommandHttpTarget,
+};
+use erpx_server_crm::public::activities_native::{
+    ActivityActor, ActivityChangeInput, ActivityChangePlan, ActivityCreateInput,
+    ActivityCreatePlan, ActivityFacts, PgCrmActivityCommands, PreparedCrmActivityReassign,
+    RetainedCrmActivityReassign, create_record_id, require_lead_open, validate_change,
+    validate_create,
+};
 use erpx_server_crm::public::activity_source::{
     CrmReviewedAccountLinkRequest, inspect_crm_reviewed_account_link,
-    lock_crm_reviewed_account_link_sources,
+    lock_crm_activity_sources, lock_crm_reviewed_account_link_sources,
 };
+use erpx_server_crm::public::commands_http::{CommandHttpFuture, CrmCommandHttpReply};
 use erpx_server_crm::public::leads_http::{
     CrmLeadCommandHttpBackend, CrmLeadCommandHttpFuture, CrmLeadCommandHttpRequest,
     CrmLeadCommandHttpTarget, crm_lead_command_http_router,
@@ -1394,71 +1407,85 @@ impl<C: Clock + Send + Sync + 'static> CrmCommandBackend<C> {
         &self,
         headers: &HeaderMap,
     ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
-        let inbound = parse_inbound_account_request(&self.policy, headers)?;
-        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
-            return Err(not_found());
-        }
-        let (branch, department) = self.scopes.slugs(headers)?;
-        let field = |name: &'static str| -> Result<&str, BusinessError> {
-            let mut values = headers.get_all(name).iter();
-            let first = values.next();
-            if values.next().is_some() {
-                return Err(BusinessError::invalid(
-                    "CRM_CONTEXT_REQUIRED",
-                    "Use one current work context.",
-                ));
-            }
-            first
-                .and_then(|value| value.to_str().ok())
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| {
-                    BusinessError::invalid(
-                        "CRM_CONTEXT_REQUIRED",
-                        "Use the current work revision and assignment.",
-                    )
-                })
-        };
-        let revision = field("x-erpx-context-revision")?
-            .parse::<i64>()
-            .map_err(|_| {
-                BusinessError::invalid("CRM_CONTEXT_REQUIRED", "Use the current work revision.")
-            })?;
-        if revision < 0 {
+        command_context(
+            self.policy.as_ref(),
+            self.scopes.as_ref(),
+            self.service.company(),
+            headers,
+        )
+    }
+}
+
+fn command_context(
+    policy: &AccountPolicy,
+    scopes: &dyn BusinessScopeSlugs,
+    company: &CompanyId,
+    headers: &HeaderMap,
+) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+    let inbound = parse_inbound_account_request(policy, headers)?;
+    if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+        return Err(not_found());
+    }
+    let (branch, department) = scopes.slugs(headers)?;
+    let field = |name: &'static str| -> Result<&str, BusinessError> {
+        let mut values = headers.get_all(name).iter();
+        let first = values.next();
+        if values.next().is_some() {
             return Err(BusinessError::invalid(
                 "CRM_CONTEXT_REQUIRED",
-                "Use the current work revision.",
+                "Use one current work context.",
             ));
         }
-        let assignment_id = AssignmentId::new(field("x-erpx-context-assignment")?)?;
-        let assignment_version = field("x-erpx-context-assignment-version")?
-            .parse::<i64>()
-            .map_err(|_| {
+        first
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
                 BusinessError::invalid(
                     "CRM_CONTEXT_REQUIRED",
-                    "Use the current assignment version.",
+                    "Use the current work revision and assignment.",
                 )
-            })?;
-        if assignment_version < 1 {
-            return Err(BusinessError::invalid(
+            })
+    };
+    let revision = field("x-erpx-context-revision")?
+        .parse::<i64>()
+        .map_err(|_| {
+            BusinessError::invalid("CRM_CONTEXT_REQUIRED", "Use the current work revision.")
+        })?;
+    if revision < 0 {
+        return Err(BusinessError::invalid(
+            "CRM_CONTEXT_REQUIRED",
+            "Use the current work revision.",
+        ));
+    }
+    let assignment_id = AssignmentId::new(field("x-erpx-context-assignment")?)?;
+    let assignment_version = field("x-erpx-context-assignment-version")?
+        .parse::<i64>()
+        .map_err(|_| {
+            BusinessError::invalid(
                 "CRM_CONTEXT_REQUIRED",
                 "Use the current assignment version.",
-            ));
-        }
-        Ok((
-            inbound.into_proof(),
-            HoldingWorkspaceRequest {
-                company_id: self.service.company().clone(),
-                branch_slug: branch,
-                department_slug: department,
-                expected: Some(ExpectedWorkSelection {
-                    revision,
-                    assignment_id,
-                    assignment_version,
-                }),
-                mutation: false,
-            },
-        ))
+            )
+        })?;
+    if assignment_version < 1 {
+        return Err(BusinessError::invalid(
+            "CRM_CONTEXT_REQUIRED",
+            "Use the current assignment version.",
+        ));
     }
+    Ok((
+        inbound.into_proof(),
+        HoldingWorkspaceRequest {
+            company_id: company.clone(),
+            branch_slug: branch,
+            department_slug: department,
+            expected: Some(ExpectedWorkSelection {
+                revision,
+                assignment_id,
+                assignment_version,
+            }),
+            mutation: false,
+        },
+    ))
 }
 
 impl<C: Clock + Send + Sync + 'static> CrmLeadCommandHttpBackend for CrmCommandBackend<C> {
@@ -1523,4 +1550,985 @@ fn command_request_invalid() -> BusinessError {
 #[allow(dead_code)]
 fn _command_router(targets: Vec<CrmLeadCommandHttpTarget>) -> Result<axum::Router, BusinessError> {
     crm_lead_command_http_router(targets)
+}
+
+// ---------------------------------------------------------------------------
+// Native CRM activity commands
+// ---------------------------------------------------------------------------
+
+#[derive(Clone)]
+pub enum CrmActivityCommand {
+    Create {
+        key: CommandKey,
+        input: ActivityCreateInput,
+    },
+    Change {
+        key: CommandKey,
+        activity_id: String,
+        input: ActivityChangeInput,
+    },
+}
+
+impl CrmActivityCommand {
+    fn key(&self) -> &CommandKey {
+        match self {
+            Self::Create { key, .. } | Self::Change { key, .. } => key,
+        }
+    }
+    fn operation(&self) -> String {
+        match self {
+            Self::Create { .. } => "crm.activity.create".into(),
+            Self::Change { input, .. } => format!("crm.activity.{}", input.action),
+        }
+    }
+    fn record_id(&self) -> String {
+        match self {
+            Self::Create { key, .. } => create_record_id(key.as_str()),
+            Self::Change { activity_id, .. } => activity_id.clone(),
+        }
+    }
+    fn purpose(&self) -> CapabilityPurpose {
+        match self {
+            Self::Create { .. } => CapabilityPurpose::NewWork,
+            Self::Change { .. } => CapabilityPurpose::SettleExisting,
+        }
+    }
+    fn extra_permission(&self) -> Option<&'static str> {
+        match self {
+            Self::Change { input, .. } if input.action == "reassign" => Some("commerce.approve"),
+            _ => None,
+        }
+    }
+    fn request(&self) -> Result<WorkflowRequest, BusinessError> {
+        let input = match self {
+            Self::Create { input, .. } => CommandJson::from_serializable(input)?,
+            Self::Change { input, .. } => CommandJson::from_serializable(input)?,
+        };
+        Ok(WorkflowRequest {
+            key: self.key().as_str().to_owned(),
+            operation: self.operation(),
+            record_id: self.record_id(),
+            input,
+        })
+    }
+}
+
+fn activity_conflict() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "CONFLICT",
+        "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+    )
+}
+
+fn activity_actor(current: &AuthorizedWorkContext) -> ActivityActor {
+    let workspace = current.selection().workspace();
+    ActivityActor {
+        user_id: current.user_id().as_str().to_owned(),
+        company_id: workspace.company_id.as_str().to_owned(),
+        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        can_sales: current.has_permission("commerce.sales"),
+        can_manage: current.has_permission("commerce.approve"),
+        has_read: current.has_permission("commerce.read"),
+        same_person_ids: current
+            .command_iam_metadata()
+            .person_user_ids
+            .iter()
+            .map(|value| value.as_str().to_owned())
+            .collect(),
+    }
+}
+
+struct ActivityAuthority<'a, G> {
+    current: &'a AuthorizedWorkContext,
+    command: &'a CrmActivityCommand,
+    mode: PackageEnforcementMode,
+    clock: &'a G,
+    catalogue: CommercialCatalogue,
+    purchase: Option<PurchaseWitness>,
+}
+
+impl<G: Clock + Sync> ActivityAuthority<'_, G> {
+    fn bind(&self, request: &WorkflowRequest) -> Result<CommandActor, BusinessError> {
+        self.current.require_permission("commerce.sales")?;
+        self.current.require_permission("commerce.read")?;
+        if let Some(permission) = self.command.extra_permission() {
+            self.current.require_permission(permission)?;
+        }
+        let expected = self.command.request()?;
+        if !self.current.modules().iter().any(|module| module == "crm")
+            || self.clock.now().get() >= self.current.expires_at()
+            || request.key != expected.key
+            || request.operation != expected.operation
+            || request.record_id != expected.record_id
+            || request.input.as_str() != expected.input.as_str()
+        {
+            return Err(command_changed());
+        }
+        crate::maintenance_parts::command_actor(self.current)
+    }
+}
+
+impl<G: Clock + Sync> PgCommandAuthority for ActivityAuthority<'_, G> {
+    async fn lock_sources(
+        &mut self,
+        c: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        lock_commercial_authority_sources(c).await
+    }
+
+    async fn authorize(
+        &mut self,
+        _: &mut PgConnection,
+        request: &WorkflowRequest,
+    ) -> Result<CommandActor, Error> {
+        Ok(self.bind(request)?)
+    }
+
+    async fn verify_command(
+        &mut self,
+        c: &mut PgConnection,
+        actor: &CommandActor,
+        request: &WorkflowRequest,
+        disposition: CommandDisposition,
+    ) -> Result<(), Error> {
+        if &self.bind(request)? != actor {
+            return Err(command_changed().into());
+        }
+        let now = self.clock.now();
+        let mut purchases = PgCompanyPurchaseReader::new(
+            self.current.holding_id().clone(),
+            actor.company_id.clone(),
+            c,
+            &self.catalogue,
+        );
+        let purpose = match disposition {
+            CommandDisposition::Execute => self.command.purpose(),
+            CommandDisposition::Replay => CapabilityPurpose::History,
+        };
+        if let Some(witness) = &self.purchase {
+            purchases
+                .revalidate(witness, now)
+                .await?
+                .require_allowed()?;
+        } else {
+            self.purchase = Some(
+                purchases
+                    .inspect(
+                        &PurchaseRequest {
+                            capabilities: vec!["sales.crm".into()],
+                            purpose,
+                            mode: self.mode,
+                        },
+                        now,
+                    )
+                    .await?
+                    .require_allowed()?
+                    .clone(),
+            );
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+struct StoredActivityNotice {
+    facts: CrmActivityNotificationFacts,
+    branch_id: String,
+    department_id: Option<String>,
+}
+
+impl StoredActivityNotice {
+    async fn require(&self, c: &mut PgConnection) -> Result<(), Error> {
+        let facts = &self.facts;
+        let found: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM public.crm_lead_activities x JOIN public.crm_leads l ON l.id=x.lead_id AND l.company_id=x.company_id WHERE x.id=$1 AND x.company_id=$2 AND x.owner_id=$3 AND x.status=$4 AND x.version=$5 AND x.updated_at=$6 AND l.branch_id=$7 AND ($8::text IS NULL OR l.department_id=$8))",
+        )
+        .bind(&facts.activity_id)
+        .bind(&facts.company_id)
+        .bind(&facts.recipient)
+        .bind(&facts.status)
+        .bind(facts.version)
+        .bind(facts.updated_at)
+        .bind(&self.branch_id)
+        .bind(self.department_id.as_deref())
+        .fetch_one(&mut *c)
+        .await?;
+        if !found {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "CRM_ACTIVITY_NOTIFICATION_CHANGED",
+                "The original CRM activity notification changed.",
+            )
+            .into());
+        }
+        Ok(())
+    }
+}
+
+impl PgCrmActivityNotificationSource for StoredActivityNotice {
+    fn facts(&self) -> &CrmActivityNotificationFacts {
+        &self.facts
+    }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.require(c).await
+    }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.require(c).await
+    }
+}
+
+struct ReassignActivityNotice<'a> {
+    retained: &'a RetainedCrmActivityReassign,
+    facts: CrmActivityNotificationFacts,
+}
+
+impl PgCrmActivityNotificationSource for ReassignActivityNotice<'_> {
+    fn facts(&self) -> &CrmActivityNotificationFacts {
+        &self.facts
+    }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.retained.require_current(c).await
+    }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.retained.require_current(c).await
+    }
+}
+
+fn reassign_notice_facts(
+    retained: &RetainedCrmActivityReassign,
+) -> CrmActivityNotificationFacts {
+    let facts = retained.notification_facts();
+    CrmActivityNotificationFacts {
+        command_key: facts.command_key,
+        company_id: facts.company_id,
+        recipient: facts.recipient,
+        activity_id: facts.activity_id,
+        version: facts.version,
+        status: facts.status.into(),
+        updated_at: facts.updated_at,
+    }
+}
+
+struct PreparedActivityCreate {
+    plan: ActivityCreatePlan,
+    input: ActivityCreateInput,
+    branch_id: String,
+    department_id: Option<String>,
+}
+
+struct PreparedActivityChange {
+    record: ActivityFacts,
+    plan: ActivityChangePlan,
+    input: ActivityChangeInput,
+    branch_id: String,
+    department_id: Option<String>,
+}
+
+struct PreparedActivityReassign {
+    prepared: PreparedCrmActivityReassign,
+}
+
+enum PreparedActivity {
+    Create(PreparedActivityCreate),
+    Change(PreparedActivityChange),
+    Reassign(PreparedActivityReassign),
+}
+
+enum WrittenActivity {
+    Stored {
+        source: StoredActivityNotice,
+        notification: RetainedCrmActivityNotification,
+    },
+    Reassign {
+        retained: RetainedCrmActivityReassign,
+        notification: RetainedCrmActivityNotification,
+    },
+}
+
+struct ActivityEffects<'a, W> {
+    current: &'a AuthorizedWorkContext,
+    command: &'a CrmActivityCommand,
+    write_clock: &'a W,
+    recipient_locks: Option<SalesRecipientSourceLocks>,
+    recipient: Option<CurrentSalesRecipient>,
+    prepared: Option<PreparedActivity>,
+    written: Option<WrittenActivity>,
+}
+
+impl<W: Clock + Sync> ActivityEffects<'_, W> {
+    async fn inspect_recipient(
+        &mut self,
+        c: &mut PgConnection,
+        user_id: &str,
+        branch_id: &str,
+        department_id: Option<&str>,
+    ) -> Result<(), Error> {
+        let locks = self
+            .recipient_locks
+            .as_ref()
+            .ok_or_else(command_changed)?;
+        let recipient = inspect_sales_recipient(
+            c,
+            locks,
+            SalesRecipientRequest {
+                company_id: self.current.selection().workspace().company_id.clone(),
+                user_id: user_id.to_owned(),
+                branch_id: branch_id.to_owned(),
+                department_id: department_id.map(str::to_owned),
+            },
+        )
+        .await?;
+        if !recipient.is_eligible() {
+            return Err(recipient_required().into());
+        }
+        self.recipient = Some(recipient);
+        Ok(())
+    }
+
+    async fn lead_scope(
+        &self,
+        c: &mut PgConnection,
+        lead_id: &str,
+    ) -> Result<(String, Option<String>), Error> {
+        let workspace = self.current.selection().workspace();
+        let row: Option<(String, Option<String>)> = sqlx::query_as(
+            "SELECT l.branch_id,l.department_id FROM public.crm_leads l WHERE l.id=$1 AND l.company_id=$2 AND ($3::text IS NULL OR l.branch_id=$3) AND ($4::text IS NULL OR l.department_id=$4)",
+        )
+        .bind(lead_id)
+        .bind(workspace.company_id.as_str())
+        .bind(workspace.branch_id.as_ref().map(|value| value.as_str()))
+        .bind(workspace.department_id.as_ref().map(|value| value.as_str()))
+        .fetch_optional(&mut *c)
+        .await?;
+        row.ok_or_else(|| {
+            BusinessError::new(
+                FailureKind::NotFound,
+                "CRM_LEAD_NOT_FOUND",
+                "Lead not found in this scope.",
+            )
+            .into()
+        })
+    }
+
+    async fn activity_scope(
+        &self,
+        c: &mut PgConnection,
+        activity_id: &str,
+    ) -> Result<(String, Option<String>), Error> {
+        let workspace = self.current.selection().workspace();
+        let row: Option<(String, Option<String>)> = sqlx::query_as(
+            "SELECT l.branch_id,l.department_id FROM public.crm_lead_activities x JOIN public.crm_leads l ON l.id=x.lead_id AND l.company_id=x.company_id WHERE x.id=$1 AND x.company_id=$2 AND ($3::text IS NULL OR l.branch_id=$3) AND ($4::text IS NULL OR l.department_id=$4)",
+        )
+        .bind(activity_id)
+        .bind(workspace.company_id.as_str())
+        .bind(workspace.branch_id.as_ref().map(|value| value.as_str()))
+        .bind(workspace.department_id.as_ref().map(|value| value.as_str()))
+        .fetch_optional(&mut *c)
+        .await?;
+        row.ok_or_else(|| {
+            BusinessError::new(
+                FailureKind::NotFound,
+                "CRM_ACTIVITY_NOT_FOUND",
+                "CRM activity not found in this scope.",
+            )
+            .into()
+        })
+    }
+
+    fn actor(&self) -> ActivityActor {
+        activity_actor(self.current)
+    }
+}
+
+impl<W: Clock + Sync> PgOwnerCommandEffects for ActivityEffects<'_, W> {
+    async fn lock_sources(
+        &mut self,
+        c: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        lock_commercial_authority_sources(c).await?;
+        let mut preparation = prepare_sales_recipient_sources(c).await?;
+        lock_crm_activity_sources(preparation.connection()).await?;
+        lock_crm_activity_notifications(preparation.connection()).await?;
+        self.recipient_locks = Some(preparation.bind().await?);
+        Ok(())
+    }
+
+    async fn prepare(
+        &mut self,
+        c: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        let actor = self.actor();
+        let command = self.command.clone();
+        match command {
+            CrmActivityCommand::Create { key, input } => {
+                let plan = validate_create(&actor, &input)?;
+                let lead = PgCrmActivityCommands::new(c)
+                    .lead(&actor, &plan.lead_id)
+                    .await?
+                    .ok_or_else(|| {
+                        BusinessError::new(
+                            FailureKind::NotFound,
+                            "CRM_LEAD_NOT_FOUND",
+                            "Lead not found in this scope.",
+                        )
+                    })?;
+                require_lead_open(&lead.status, lead.stage.as_deref())?;
+                if lead.version != plan.expected_lead_version {
+                    return Err(activity_conflict().into());
+                }
+                let (branch_id, department_id) = self.lead_scope(c, &plan.lead_id).await?;
+                self.inspect_recipient(
+                    c,
+                    &plan.owner_id,
+                    &branch_id,
+                    department_id.as_deref(),
+                )
+                .await?;
+                let id = create_record_id(key.as_str());
+                let result = CommandJson::from_serializable(&serde_json::json!({
+                    "id": id,
+                    "version": 1,
+                    "status": "open",
+                }))?;
+                self.prepared = Some(PreparedActivity::Create(PreparedActivityCreate {
+                    plan,
+                    input,
+                    branch_id,
+                    department_id,
+                }));
+                Ok(WorkflowOutput {
+                    version: 1,
+                    result,
+                    event_scope: None,
+                })
+            }
+            CrmActivityCommand::Change {
+                key,
+                activity_id,
+                input,
+            } => {
+                if input.action == "reassign" {
+                    let prepared = PgCrmActivityCommands::new(c)
+                        .prepare_reassign(&actor, &activity_id, key.as_str(), &input)
+                        .await?;
+                    let (branch_id, department_id) =
+                        self.activity_scope(c, &activity_id).await?;
+                    self.inspect_recipient(
+                        c,
+                        prepared.owner_id(),
+                        &branch_id,
+                        department_id.as_deref(),
+                    )
+                    .await?;
+                    let version = prepared.expected_version() + 1;
+                    let result = CommandJson::from_serializable(&serde_json::json!({
+                        "id": activity_id,
+                        "version": version,
+                        "status": "open",
+                    }))?;
+                    self.prepared =
+                        Some(PreparedActivity::Reassign(PreparedActivityReassign {
+                            prepared,
+                        }));
+                    Ok(WorkflowOutput {
+                        version,
+                        result,
+                        event_scope: None,
+                    })
+                } else {
+                    let record = PgCrmActivityCommands::new(c)
+                        .activity(&actor, &activity_id)
+                        .await?
+                        .ok_or_else(|| {
+                            BusinessError::new(
+                                FailureKind::NotFound,
+                                "CRM_ACTIVITY_NOT_FOUND",
+                                "CRM activity not found in this scope.",
+                            )
+                        })?;
+                    let plan =
+                        validate_change(&actor, &input, &record.owner_id, &record.status)?;
+                    if record.version != input.expected_version {
+                        return Err(activity_conflict().into());
+                    }
+                    let (branch_id, department_id) =
+                        self.activity_scope(c, &activity_id).await?;
+                    let version = input.expected_version + 1;
+                    let result = CommandJson::from_serializable(&serde_json::json!({
+                        "id": activity_id,
+                        "version": version,
+                        "status": plan.status,
+                    }))?;
+                    self.prepared = Some(PreparedActivity::Change(PreparedActivityChange {
+                        record,
+                        plan,
+                        input,
+                        branch_id,
+                        department_id,
+                    }));
+                    Ok(WorkflowOutput {
+                        version,
+                        result,
+                        event_scope: None,
+                    })
+                }
+            }
+        }
+    }
+
+    async fn apply(
+        &mut self,
+        c: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let now = self.write_clock.now().get();
+        let actor = self.actor();
+        let command_key = self.command.key().as_str().to_owned();
+        match self.prepared.take().ok_or_else(command_changed)? {
+            PreparedActivity::Create(prepared) => {
+                let id = create_record_id(&command_key);
+                PgCrmActivityCommands::new(c)
+                    .insert_activity(
+                        &actor.company_id,
+                        &id,
+                        &command_key,
+                        &actor.user_id,
+                        &prepared.plan,
+                        &prepared.input,
+                        now,
+                    )
+                    .await?;
+                let source = StoredActivityNotice {
+                    facts: CrmActivityNotificationFacts {
+                        command_key: command_key.clone(),
+                        company_id: actor.company_id.clone(),
+                        recipient: prepared.plan.owner_id.clone(),
+                        activity_id: id,
+                        version: 1,
+                        status: "open".into(),
+                        updated_at: now,
+                    },
+                    branch_id: prepared.branch_id,
+                    department_id: prepared.department_id,
+                };
+                let notification = prepare_crm_activity_notification(c, &source)
+                    .await?
+                    .persist(c)
+                    .await?;
+                self.written = Some(WrittenActivity::Stored {
+                    source,
+                    notification,
+                });
+            }
+            PreparedActivity::Change(prepared) => {
+                let activity_id = self.command.record_id();
+                PgCrmActivityCommands::new(c)
+                    .update_activity(
+                        &actor.company_id,
+                        &activity_id,
+                        &command_key,
+                        &actor.user_id,
+                        &prepared.record,
+                        &prepared.input,
+                        &prepared.plan,
+                        now,
+                    )
+                    .await?;
+                let source = StoredActivityNotice {
+                    facts: CrmActivityNotificationFacts {
+                        command_key: command_key.clone(),
+                        company_id: actor.company_id.clone(),
+                        recipient: prepared.record.owner_id.clone(),
+                        activity_id,
+                        version: prepared.input.expected_version + 1,
+                        status: prepared.plan.status.clone(),
+                        updated_at: now,
+                    },
+                    branch_id: prepared.branch_id,
+                    department_id: prepared.department_id,
+                };
+                let notification = prepare_crm_activity_notification(c, &source)
+                    .await?
+                    .persist(c)
+                    .await?;
+                self.written = Some(WrittenActivity::Stored {
+                    source,
+                    notification,
+                });
+            }
+            PreparedActivity::Reassign(prepared) => {
+                let retained = PgCrmActivityCommands::new(c)
+                    .apply_reassign(prepared.prepared, now)
+                    .await?;
+                let notification = {
+                    let source = ReassignActivityNotice {
+                        retained: &retained,
+                        facts: reassign_notice_facts(&retained),
+                    };
+                    prepare_crm_activity_notification(c, &source)
+                        .await?
+                        .persist(c)
+                        .await?
+                };
+                self.written = Some(WrittenActivity::Reassign {
+                    retained,
+                    notification,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    async fn retain(
+        &mut self,
+        c: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+            .execute(&mut *c)
+            .await?;
+        match self.written.as_ref().ok_or_else(command_changed)? {
+            WrittenActivity::Stored {
+                source,
+                notification,
+            } => {
+                source.require_after(c).await?;
+                notification.require_current_with_source(c, source).await?;
+            }
+            WrittenActivity::Reassign {
+                retained,
+                notification,
+            } => {
+                retained.require_current(c).await?;
+                let source = ReassignActivityNotice {
+                    retained,
+                    facts: reassign_notice_facts(retained),
+                };
+                notification.require_current_with_source(c, &source).await?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Execute one native CRM activity owner command in the caller's retained unit.
+pub async fn execute_crm_activity_command<
+    W: Clock + Sync,
+    G: Clock + Sync,
+    I: IdentifierSource,
+>(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    command: &CrmActivityCommand,
+    mode: PackageEnforcementMode,
+    write_clock: &W,
+    guard_clock: &G,
+    identifiers: &mut I,
+) -> Result<CommandOutcome, Error> {
+    let request = command.request()?;
+    let mut authority = ActivityAuthority {
+        current,
+        command,
+        mode,
+        clock: guard_clock,
+        catalogue: current_package_catalogue()?,
+        purchase: None,
+    };
+    let mut effects = ActivityEffects {
+        current,
+        command,
+        write_clock,
+        recipient_locks: None,
+        recipient: None,
+        prepared: None,
+        written: None,
+    };
+    PgCommandLedger::new(
+        current.selection().workspace().company_id.clone(),
+        c,
+        &mut authority,
+        write_clock,
+        identifiers,
+    )
+    .execute(&request, &mut effects)
+    .await
+}
+
+pub struct CrmActivityCommandService<C> {
+    authorizer: Arc<HoldingWorkAuthorizer>,
+    configuration: CrmConfiguration,
+    clock: Arc<C>,
+}
+
+impl<C: Clock + Send + Sync + 'static> CrmActivityCommandService<C> {
+    pub fn new(
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        configuration: CrmConfiguration,
+        clock: Arc<C>,
+    ) -> Self {
+        Self {
+            authorizer,
+            configuration,
+            clock,
+        }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        &self.configuration.company
+    }
+
+    fn access() -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: "commerce.sales".into(),
+            module: Some("crm".into()),
+            destination: "crm".into(),
+            api: true,
+        }
+    }
+
+    fn verify(&self, selection: &HoldingWorkspaceRequest) -> Result<(), BusinessError> {
+        if selection.company_id != self.configuration.company {
+            return Err(scope());
+        }
+        Ok(())
+    }
+
+    async fn run(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        command: CrmActivityCommand,
+    ) -> Result<CrmCommandHttpReply, Error> {
+        self.verify(&selection)?;
+        selection.mutation = true;
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                Self::access(),
+                CrmCommandSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.sales")?;
+                        current.require_permission("commerce.read")?;
+                        let mut identifiers = CrmCommandIds;
+                        let outcome = execute_crm_activity_command(
+                            connection,
+                            current,
+                            &command,
+                            PackageEnforcementMode::Enforced,
+                            clock.as_ref(),
+                            clock.as_ref(),
+                            &mut identifiers,
+                        )
+                        .await?;
+                        let data = serde_json::from_str(outcome.result.as_str()).map_err(|_| {
+                            BusinessError::new(
+                                FailureKind::Unavailable,
+                                "CRM_ACTIVITY_RESULT_INVALID",
+                                "The CRM activity result is unavailable.",
+                            )
+                        })?;
+                        Ok(CrmCommandHttpReply {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn create(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        key: CommandKey,
+        input: ActivityCreateInput,
+    ) -> Result<CrmCommandHttpReply, Error> {
+        self.run(
+            host,
+            proof,
+            selection,
+            CrmActivityCommand::Create { key, input },
+        )
+        .await
+    }
+
+    pub async fn change(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        key: CommandKey,
+        activity_id: String,
+        input: ActivityChangeInput,
+    ) -> Result<CrmCommandHttpReply, Error> {
+        self.run(
+            host,
+            proof,
+            selection,
+            CrmActivityCommand::Change {
+                key,
+                activity_id,
+                input,
+            },
+        )
+        .await
+    }
+}
+
+pub struct CrmActivityCommandBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<CrmActivityCommandService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> CrmActivityCommandBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<CrmActivityCommandService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn command_context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        command_context(
+            self.policy.as_ref(),
+            self.scopes.as_ref(),
+            self.service.company(),
+            headers,
+        )
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> CrmActivityCommandHttpBackend
+    for CrmActivityCommandBackend<C>
+{
+    fn create_activity<'a>(
+        &'a self,
+        request: CrmActivityCommandHttpRequest<'a>,
+    ) -> CommandHttpFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let input: ActivityCreateInput = serde_json::from_value(request.body.clone())
+                .map_err(|_| activity_request_invalid())?;
+            self.service
+                .create(
+                    request.host,
+                    proof,
+                    selection,
+                    request.key.clone(),
+                    input,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn change_activity<'a>(
+        &'a self,
+        request: CrmActivityCommandHttpRequest<'a>,
+    ) -> CommandHttpFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let input: ActivityChangeInput = serde_json::from_value(request.body.clone())
+                .map_err(|_| activity_request_invalid())?;
+            if !matches!(input.action.as_str(), "complete" | "cancel") {
+                return Err(activity_request_invalid());
+            }
+            let activity_id = request
+                .activity_id
+                .ok_or_else(activity_request_invalid)?
+                .to_owned();
+            self.service
+                .change(
+                    request.host,
+                    proof,
+                    selection,
+                    request.key.clone(),
+                    activity_id,
+                    input,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn reassign_activity<'a>(
+        &'a self,
+        request: CrmActivityCommandHttpRequest<'a>,
+    ) -> CommandHttpFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let input: ActivityChangeInput = serde_json::from_value(request.body.clone())
+                .map_err(|_| activity_request_invalid())?;
+            if input.action != "reassign" {
+                return Err(activity_request_invalid());
+            }
+            let activity_id = request
+                .activity_id
+                .ok_or_else(activity_request_invalid)?
+                .to_owned();
+            self.service
+                .change(
+                    request.host,
+                    proof,
+                    selection,
+                    request.key.clone(),
+                    activity_id,
+                    input,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+fn activity_request_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "CRM_ACTIVITY_REQUEST_INVALID",
+        "Use one bounded CRM activity command.",
+    )
+}
+
+#[allow(dead_code)]
+fn _activity_router(
+    targets: Vec<CrmActivityCommandHttpTarget>,
+) -> Result<axum::Router, BusinessError> {
+    erpx_server_crm::public::activities_http::crm_activity_command_http_router(targets)
 }

@@ -1076,19 +1076,16 @@ async fn activity_reassign_stages_cas_event_and_rollback_in_original_unit() {
         assert_eq!(row,("new-owner".into(),"2026-12-05".into(),"open".into(),None,2,1234));
         let event:(String,i64,String,String,String,String,String,serde_json::Value)=sqlx::query_as("SELECT id,version,action,actor_id,owner_id,due_date,note,snapshot_json FROM public.crm_lead_activity_events WHERE activity_id='reassign-source'").fetch_one(&mut *tx).await.unwrap();
         assert_eq!(event,("crm-activity-event-reassign-1".into(),2,"reassign".into(),"manager".into(),"new-owner".into(),"2026-12-05".into(),"Handoff".into(),serde_json::json!({"action":"reassign","expectedVersion":1,"ownerId":"new-owner","dueDate":"2026-12-05","reason":"Handoff"})));
-        // Invoke the real TS application/schema. Its commit port exposes the
-        // exact parsed input and intended mutation, not a mocked DB write.
+        // The TypeScript application writer is retired. Keep the schema oracle:
+        // the native event snapshot must equal the actual TS `crmActivityChangeSchema`
+        // normalization of the same raw reassign input.
         let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
-            .args(["--conditions=react-server","-e",r#"import {createCRMActivityApplication as app} from './packages/server-crm/src/application/activities.ts'; const p={actorId:'manager',hasRead:true,sales:true,manager:true,clock:{now:()=>1234},authorize:()=>{},replay:async()=>null,activity:async()=>({owner_id:'old-owner',due_date:'2026-11-20',status:'open',version:1}),commit:async(m,r)=>({mutation:m,result:r})}; process.stdout.write(JSON.stringify(await app(p).change('reassign-source',{action:'reassign',expectedVersion:1,ownerId:'new-owner',dueDate:'2026-12-05',reason:'  Handoff  ',unknown:'discard'},'reassign-1')))"#])
+            .args(["--conditions=react-server","-e",r#"const m=await import('./packages/server-crm/src/domain/activities.ts'); const p=m.crmActivityChangeSchema.safeParse({action:'reassign',expectedVersion:1,ownerId:'new-owner',dueDate:'2026-12-05',reason:'  Handoff  ',unknown:'discard'}); process.stdout.write(JSON.stringify(p.success?p.data:null))"#])
             .output().unwrap();
-        assert!(oracle.status.success(),"TS application oracle failed");
+        assert!(oracle.status.success(),"TS activity schema oracle failed");
         let oracle:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();
-        assert_eq!(event.7,oracle["mutation"]["input"]);
-        assert_eq!((event.4.as_str(),event.5.as_str(),event.6.as_str()),(oracle["mutation"]["owner"].as_str().unwrap(),oracle["mutation"]["due"].as_str().unwrap(),oracle["mutation"]["input"]["reason"].as_str().unwrap()));
-        assert_eq!((row.2.as_str(),row.3.as_deref(),row.4,row.5),(oracle["mutation"]["status"].as_str().unwrap(),None,oracle["result"]["version"].as_i64().unwrap(),oracle["mutation"]["now"].as_i64().unwrap()));
-        assert_eq!(oracle["mutation"]["outcome"],serde_json::Value::Null);
-        assert_eq!(oracle["mutation"]["operation"],"crm.activity.reassign");
+        assert_eq!(event.7,oracle);
         let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();assert!(retained.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
         tx.rollback().await.unwrap();
         let after:(String,String,i64,i64)=sqlx::query_as("SELECT owner_id,due_date,version,(SELECT count(*) FROM public.crm_lead_activity_events WHERE activity_id='reassign-source') FROM public.crm_lead_activities WHERE id='reassign-source'").fetch_one(pool.raw()).await.unwrap();
