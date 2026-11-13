@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1465,
+    "revision": 1473,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -31179,6 +31179,9 @@
           "packages/server-customer_authority/src/**",
           "packages/server-customer_authority/Cargo.toml",
           "packages/server-customer_authority/package.json",
+          "packages/server-customer_360/src/**",
+          "packages/server-customer_360/Cargo.toml",
+          "packages/server-customer_360/package.json",
           "packages/feature-customer_authority/**",
           "packages/feature-customer_360/**",
           "packages/feature-portal/**",
@@ -31200,9 +31203,9 @@
         "claim": {
           "runId": "run-20261113-g",
           "agentId": "worker-ca-portal-tail",
-          "claimedAt": "2026-11-13T02:33:53.357Z",
-          "heartbeatAt": "2026-11-13T02:33:53.357Z",
-          "expiresAt": "2026-11-13T03:03:53.357Z",
+          "claimedAt": "2026-11-13T02:38:39.000Z",
+          "heartbeatAt": "2026-11-13T02:38:39.000Z",
+          "expiresAt": "2026-11-13T03:08:39.000Z",
           "generation": 51
         },
         "baseSha": null,
@@ -31211,8 +31214,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement native portal-support/access ports + composition mount, switch feature routes native-only, delete 9 TS writes + barrels, migrate oracles, record customer_authority KPI 12->3.",
-        "handoff": null,
+        "nextAction": "Scope expanded with server-customer_360 consumers. Build native portal-support (respond/ack/close/threads) and portal projection/read-audit/evidence-bind ports in server-customer_authority, mount with portal-session parity in composition, switch server-customer_360 portal adapters + feature routes native-only, delete portal-support.ts/portal-access.ts and barrels, migrate oracles, record customer_authority KPI 12->3.",
+        "handoff": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-ca-portal-tail",
+          "at": "2026-11-13T02:38:38.931Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Released for scope expansion."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -31849,22 +31859,70 @@
         "resources": [
           "owner:shared-orphans"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T02:34:51.592Z",
-          "heartbeatAt": "2026-11-13T02:34:51.592Z",
-          "expiresAt": "2026-11-13T03:04:51.592Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "nextAction": "Blocked on the workspace graph: the style/turbo regeneration aborts with WORKSPACE_EXPORT_UNDECLARED for @erpx/server-files/public/project-attachment and @erpx/feature-projects/public/native-project-attachment{,-read},/native-project-wbs-page (modules exist, export keys missing). Repair tracked by repair.workspace-project-attachment-exports; resume this slice after that lands.",
+        "handoff": {
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "at": "2026-11-13T02:38:04.539Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "Blocked on the workspace graph: the style/turbo regeneration aborts with WORKSPACE_EXPORT_UNDECLARED for @erpx/server-files/public/project-attachment and @erpx/feature-projects/public/native-project-attachment{,-read},/native-project-wbs-page (modules exist, export keys missing). Repair tracked by repair.workspace-project-attachment-exports; resume this slice after that lands."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "repair.workspace-project-attachment-exports",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "projects",
+        "workflowIds": [
+          "projects/attachment-exports"
+        ],
+        "workstream": "S05",
+        "kind": "inventory",
+        "title": "Declare the live project-attachment public exports",
+        "scope": "The Projects migration added packages/feature-projects/src/public/native-project-attachment.ts, native-project-attachment-read.ts and native-project-wbs-page.ts and left packages/server-files/src/public/project-attachment.ts, but never declared their package export keys. packages/workplace imports all four specifiers, so the workspace graph aborts with WORKSPACE_EXPORT_UNDECLARED and every style/turbo regeneration plus the workplace typecheck fails. Declare the four export keys, then regenerate apps/*/src/app/globals.css and apps/*/turbo.json.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-files/package.json",
+          "packages/feature-projects/package.json",
+          "apps/**"
+        ],
+        "resources": [
+          "owner:shared-workspace-graph"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "253feba2dd623cf2e5ea78e828a67f0512027947",
+        "lastPushedSha": "253feba2dd623cf2e5ea78e828a67f0512027947",
+        "checks": [
+          {
+            "command": "bun scripts/assets/workspace-styles.ts --check",
+            "result": "passed",
+            "sourceSha": "253feba2dd623cf2e5ea78e828a67f0512027947",
+            "note": "All 22 app globals.css @source lists now regenerate exactly; the WORKSPACE_EXPORT_UNDECLARED graph abort is gone."
+          },
+          {
+            "command": "bun scripts/testing/workspace-tasks.ts --check",
+            "result": "passed",
+            "sourceSha": "253feba2dd623cf2e5ea78e828a67f0512027947",
+            "note": "All app turbo input lists regenerate exactly."
+          }
+        ],
+        "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Wait for the peer CSS/turbo WIP to clear, then delete the adapters/barrels/exports and ownership paths, regenerate style sources, record each file 1 -> 0 and the global KPI pair.",
+        "nextAction": "Declared the four missing package export keys and regenerated app style/turbo inputs at 253feba2d; the workspace graph no longer aborts and workspace-styles/workspace-tasks check clean. Remaining reds are peer WIP: payroll-cancellation required-case registration (catalogue/structure) and people-payroll.ts stageCreatePayrollRunEffect type error (workplace tsc).",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -31880,17 +31938,17 @@
       "migratedPackets": 86,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 86,
-        "blocked": 35,
+        "blocked": 36,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T02:35:07.388Z",
+    "updatedAt": "2026-11-13T02:40:04.691Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
