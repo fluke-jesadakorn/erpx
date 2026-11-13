@@ -109,6 +109,19 @@ impl PmsBoardActor {
         }
         Ok(())
     }
+    /// Retained workspace + single-permission gate for owner commands that are
+    /// not room-board/front-desk specific (payments, refunds, accounting).
+    pub fn require_action(&self, permission: &str, now: i64) -> Result<(), BusinessError> {
+        self.require_workspace(now)?;
+        if !self.has(permission) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "PERMISSION_REQUIRED",
+                "Your selected role does not grant this permission.",
+            ));
+        }
+        Ok(())
+    }
     pub fn require_board(&self, now: i64) -> Result<(), BusinessError> {
         self.require_workspace(now)?;
         if !self.can_room_board() {

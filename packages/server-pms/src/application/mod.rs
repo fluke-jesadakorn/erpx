@@ -3,6 +3,7 @@ pub(crate) mod initial_count_modules;
 pub mod front_desk;
 pub mod room_board;
 pub mod booking;
+pub mod refund;
 
 pub(crate) mod stay_room;
 pub(crate) mod room_command;

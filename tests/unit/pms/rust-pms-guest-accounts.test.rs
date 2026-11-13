@@ -827,3 +827,1086 @@ async fn application_replays_receipt_before_any_owner_load() {
     .unwrap_err();
     assert_eq!(error.code, "IDEMPOTENCY_CONFLICT");
 }
+
+/// Native booking-refund producer: money rules, guards and effects.
+mod booking_refunds {
+
+    use erpx_server_pms::public::refund::{
+        PmsBoardFuture, PmsProviderReceipt, PmsProviderRefund, PmsRefundFinanceRow, PmsRefundPart,
+    };
+    use erpx_server_pms::public::refund::{
+        PmsRefundMail, PmsRefundPayment, PmsRefundPrior, PmsRefundProvider, PmsRefundPurchaseGuard,
+        PmsRefundRepository, PmsRefundRequest, PmsRefundSelection, PmsRefundSource, approve_refund,
+        recover_receipt, refunds_for_finance, request_refund, retry_refund, settle_refund,
+    };
+    use erpx_server_pms::public::room_board::PmsBoardActor;
+    use erpx_server_pms::public::room_board::PmsRecord;
+    use erpx_server_shared::public::BusinessError;
+    use serde_json::json;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    fn actor(user: &str, branch: Option<&str>) -> PmsBoardActor {
+        PmsBoardActor {
+            user_id: user.into(),
+            company_id: "co-1".into(),
+            branch_id: branch.map(str::to_owned),
+            department_id: None,
+            permissions: vec![
+                "pms.read".into(),
+                "pms.approve".into(),
+                "finance.read".into(),
+                "finance.approve".into(),
+            ],
+            modules: vec!["pms".into()],
+            expires_at: i64::MAX,
+        }
+    }
+
+    fn payment() -> PmsRefundPayment {
+        PmsRefundPayment {
+            id: "pay-1".into(),
+            property_id: "prop-1".into(),
+            reservation_id: "res-1".into(),
+            company_id: "co-1".into(),
+            holding_slug: "acme".into(),
+            account_id: "acct-1".into(),
+            livemode: false,
+            amount_minor: 5000,
+            status: "confirmed".into(),
+            checkout_id: Some("cs-1".into()),
+            clearing_account: Some("edc-1".into()),
+            methods_json: "[\"card\"]".into(),
+            created_at: 1,
+            provider_succeeded_at: None,
+        }
+    }
+
+    fn account() -> PmsRecord {
+        PmsRecord {
+            id: "ga-1".into(),
+            kind: "guest_account".into(),
+            version: 3,
+            updated_at: 0,
+            data: json!({
+                "name": "Guest",
+                "guestId": "g-1",
+                "reservationId": "res-1",
+                "state": "open",
+                "due": 0,
+                "advance": 5000,
+                "advanceTax": 350,
+                "deposit": 0,
+                "refundReserved": 0,
+            }),
+        }
+    }
+
+    #[derive(Default)]
+    struct Store {
+        payments: HashMap<String, PmsRefundPayment>,
+        requests: HashMap<String, PmsRefundRequest>,
+        accounts: HashMap<String, PmsRecord>,
+        sources: Vec<PmsRefundSource>,
+        previous: Vec<PmsRefundPrior>,
+        entries: Vec<PmsRecord>,
+        finance: Vec<PmsRefundFinanceRow>,
+
+        write_context: usize,
+        history: usize,
+        receipt: Option<PmsRecord>,
+        stay_account: Option<String>,
+        refundable: Vec<PmsRefundRequest>,
+        approval: Option<(String, String)>,
+    }
+
+    #[derive(Clone)]
+    struct Fake {
+        store: Arc<Mutex<Store>>,
+    }
+
+    impl Fake {
+        fn new() -> Self {
+            let mut store = Store::default();
+            store.payments.insert("pay-1".into(), payment());
+            store.accounts.insert("ga-1".into(), account());
+            store.sources.push(PmsRefundSource {
+                stay_id: "stay-1".into(),
+                guest_account_id: "ga-1".into(),
+                entry_id: "entry-1".into(),
+                amount_minor: 5000,
+            });
+            store.stay_account = Some("ga-1".into());
+            Self {
+                store: Arc::new(Mutex::new(store)),
+            }
+        }
+    }
+
+    fn state(store: &Arc<Mutex<Store>>) -> std::sync::MutexGuard<'_, Store> {
+        store.lock().expect("store")
+    }
+
+    impl PmsRefundRepository for Fake {
+        type Error = BusinessError;
+
+        fn payment<'a>(
+            &'a mut self,
+            payment_id: &'a str,
+            property_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<PmsRefundPayment>, Self::Error> {
+            Box::pin(async move {
+                Ok(state(&self.store)
+                    .payments
+                    .get(payment_id)
+                    .filter(|payment| payment.property_id == property_id)
+                    .cloned())
+            })
+        }
+
+        fn payment_by_id<'a>(
+            &'a mut self,
+            payment_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<PmsRefundPayment>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).payments.get(payment_id).cloned()) })
+        }
+
+        fn request<'a>(
+            &'a mut self,
+            request_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<PmsRefundRequest>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).requests.get(request_id).cloned()) })
+        }
+
+        fn locked_request<'a>(
+            &'a mut self,
+            request_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<PmsRefundRequest>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).requests.get(request_id).cloned()) })
+        }
+
+        fn sources<'a>(
+            &'a mut self,
+            _payment_id: &'a str,
+        ) -> PmsBoardFuture<'a, Vec<PmsRefundSource>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).sources.clone()) })
+        }
+
+        fn previous<'a>(
+            &'a mut self,
+            _payment_id: &'a str,
+        ) -> PmsBoardFuture<'a, Vec<PmsRefundPrior>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).previous.clone()) })
+        }
+
+        fn account<'a>(
+            &'a mut self,
+            _property_id: &'a str,
+            account_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<PmsRecord>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).accounts.get(account_id).cloned()) })
+        }
+
+        fn entries<'a>(
+            &'a mut self,
+            _property_id: &'a str,
+            guest_account_id: &'a str,
+        ) -> PmsBoardFuture<'a, Vec<PmsRecord>, Self::Error> {
+            Box::pin(async move {
+                Ok(state(&self.store)
+                    .entries
+                    .iter()
+                    .filter(|entry| {
+                        entry
+                            .data
+                            .get("guestAccountId")
+                            .and_then(serde_json::Value::as_str)
+                            == Some(guest_account_id)
+                    })
+                    .cloned()
+                    .collect())
+            })
+        }
+
+        fn property<'a>(
+            &'a mut self,
+            property_id: &'a str,
+        ) -> PmsBoardFuture<
+            'a,
+            Option<erpx_server_pms::public::refund::PmsRefundProperty>,
+            Self::Error,
+        > {
+            Box::pin(async move {
+                Ok(Some(erpx_server_pms::public::refund::PmsRefundProperty {
+                    id: property_id.to_owned(),
+                    company_id: "co-1".into(),
+                    branch_id: "branch-1".into(),
+                    business_date: "2026-01-01".into(),
+                    config_json: json!({"onlineAccounting": {"approvedBy": "finance-1"}})
+                        .to_string(),
+                }))
+            })
+        }
+
+        fn save_account<'a>(
+            &'a mut self,
+            account: &'a PmsRecord,
+        ) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move {
+                state(&self.store)
+                    .accounts
+                    .insert(account.id.clone(), account.clone());
+                Ok(())
+            })
+        }
+
+        fn insert_entry<'a>(
+            &'a mut self,
+            _property_id: &'a str,
+            entry: &'a PmsRecord,
+        ) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move {
+                state(&self.store).entries.push(entry.clone());
+                Ok(())
+            })
+        }
+
+        fn insert_request<'a>(
+            &'a mut self,
+            request: &'a PmsRefundRequest,
+            _now: i64,
+        ) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move {
+                state(&self.store)
+                    .requests
+                    .insert(request.id.clone(), request.clone());
+                Ok(())
+            })
+        }
+
+        fn mark_payment_refund<'a>(
+            &'a mut self,
+            payment_id: &'a str,
+            state_value: &'a str,
+            _requested_at: Option<i64>,
+            _approved_by: Option<&'a str>,
+            _refund_id: Option<&'a str>,
+            _now: i64,
+        ) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move {
+                let mut store = state(&self.store);
+                if let Some(payment) = store.payments.get_mut(payment_id) {
+                    let _ = state_value;
+                    payment.provider_succeeded_at = payment.provider_succeeded_at.or(Some(0));
+                }
+                Ok(())
+            })
+        }
+
+        fn update_request<'a>(
+            &'a mut self,
+            request_id: &'a str,
+            state_value: &'a str,
+            approved_by: Option<&'a str>,
+            provider_id: Option<&'a str>,
+            last_error: Option<&'a str>,
+            _now: i64,
+        ) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move {
+                let mut store = state(&self.store);
+                if let Some(request) = store.requests.get_mut(request_id) {
+                    request.state = state_value.to_owned();
+                    if let Some(value) = approved_by {
+                        request.approved_by = Some(value.to_owned());
+                    }
+                    request.provider_id = provider_id.map(str::to_owned);
+                    if state_value == "approved" && last_error.is_some() {
+                        request.generation += 1;
+                    }
+                }
+                Ok(())
+            })
+        }
+
+        fn insert_attempt<'a>(
+            &'a mut self,
+            _request_id: &'a str,
+            _generation: i64,
+            _provider_id: &'a str,
+            _now: i64,
+        ) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move { Ok(()) })
+        }
+
+        fn bind_provider_refund<'a>(
+            &'a mut self,
+            request_id: &'a str,
+            _payment_id: &'a str,
+            provider_id: &'a str,
+            _now: i64,
+        ) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move {
+                let mut store = state(&self.store);
+                if let Some(request) = store.requests.get_mut(request_id) {
+                    if request.provider_id.is_none() {
+                        request.provider_id = Some(provider_id.to_owned());
+                        request.state = "processing".into();
+                    }
+                }
+                Ok(())
+            })
+        }
+
+        fn finance_rows<'a>(
+            &'a mut self,
+            _company_id: &'a str,
+        ) -> PmsBoardFuture<'a, Vec<PmsRefundFinanceRow>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).finance.clone()) })
+        }
+
+        fn refundable_requests<'a>(
+            &'a mut self,
+            _request_id: &'a str,
+        ) -> PmsBoardFuture<'a, Vec<PmsRefundRequest>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).refundable.clone()) })
+        }
+
+        fn approval_target<'a>(
+            &'a mut self,
+            _id: &'a str,
+            _company_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<(String, String)>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).approval.clone()) })
+        }
+
+        fn recovery_payment<'a>(
+            &'a mut self,
+            _request_id: &'a str,
+            _company_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<PmsRefundPayment>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).payments.get("pay-1").cloned()) })
+        }
+
+        fn stay_account<'a>(
+            &'a mut self,
+            _property_id: &'a str,
+            _reservation_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<String>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).stay_account.clone()) })
+        }
+
+        fn receipt_entry<'a>(
+            &'a mut self,
+            _property_id: &'a str,
+            _payment_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<PmsRecord>, Self::Error> {
+            Box::pin(async move { Ok(state(&self.store).receipt.clone()) })
+        }
+
+        fn mark_receipt_recovered<'a>(
+            &'a mut self,
+            payment_id: &'a str,
+            provider_intent_id: &'a str,
+            succeeded_at: i64,
+            _now: i64,
+        ) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move {
+                let mut store = state(&self.store);
+                if let Some(payment) = store.payments.get_mut(payment_id) {
+                    payment.provider_succeeded_at = Some(succeeded_at);
+                    payment.account_id = provider_intent_id.to_owned();
+                }
+                Ok(())
+            })
+        }
+
+        fn append_reservation_history<'a>(
+            &'a mut self,
+            _property_id: &'a str,
+            _reservation_id: &'a str,
+            _actor_id: &'a str,
+            _action: &'a str,
+            _now: i64,
+        ) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move {
+                state(&self.store).history += 1;
+                Ok(())
+            })
+        }
+
+        fn write_context<'a>(&'a mut self) -> PmsBoardFuture<'a, (), Self::Error> {
+            Box::pin(async move {
+                state(&self.store).write_context += 1;
+                Ok(())
+            })
+        }
+    }
+
+    struct FakeProvider {
+        refund: PmsProviderRefund,
+        receipt: PmsProviderReceipt,
+    }
+
+    impl FakeProvider {
+        fn ok() -> Self {
+            Self {
+                refund: PmsProviderRefund {
+                    id: "re-1".into(),
+                    amount: 2000,
+                    currency: Some("thb".into()),
+                    status: "succeeded".into(),
+                    payment_id: Some("pay-1".into()),
+                    request_id: Some("req-1".into()),
+                },
+                receipt: PmsProviderReceipt {
+                    session_paid: true,
+                    payment_intent_id: "pi-1".into(),
+                    succeeded: true,
+                    amount_received: 5000,
+                    currency: "thb".into(),
+                    payment_id: Some("pay-1".into()),
+                    succeeded_at: 5,
+                },
+            }
+        }
+    }
+
+    impl PmsRefundProvider for FakeProvider {
+        fn provider_refund<'a>(
+            &'a self,
+            _payment: &'a PmsRefundPayment,
+            _refund_id: &'a str,
+        ) -> PmsBoardFuture<'a, PmsProviderRefund, BusinessError> {
+            Box::pin(async move { Ok(self.refund.clone()) })
+        }
+
+        fn create_refund<'a>(
+            &'a self,
+            _payment: &'a PmsRefundPayment,
+            _request: &'a PmsRefundRequest,
+            _part: &'a [PmsRefundPart],
+            _promptpay: bool,
+            _email: &'a str,
+            _idempotency_key: &'a str,
+        ) -> PmsBoardFuture<'a, PmsProviderRefund, BusinessError> {
+            Box::pin(async move { Ok(self.refund.clone()) })
+        }
+
+        fn promptpay<'a>(
+            &'a self,
+            _payment: &'a PmsRefundPayment,
+        ) -> PmsBoardFuture<'a, bool, BusinessError> {
+            Box::pin(async move { Ok(false) })
+        }
+
+        fn receipt<'a>(
+            &'a self,
+            _payment: &'a PmsRefundPayment,
+        ) -> PmsBoardFuture<'a, PmsProviderReceipt, BusinessError> {
+            Box::pin(async move { Ok(self.receipt.clone()) })
+        }
+
+        fn guest_email<'a>(
+            &'a self,
+            _payment: &'a PmsRefundPayment,
+        ) -> PmsBoardFuture<'a, String, BusinessError> {
+            Box::pin(async move { Ok("guest@example.com".into()) })
+        }
+    }
+
+    struct Guard;
+    impl PmsRefundPurchaseGuard for Guard {
+        fn require_settle_existing<'a>(
+            &'a self,
+            _property_id: &'a str,
+            _permission: Option<&'a str>,
+            _now: i64,
+        ) -> PmsBoardFuture<'a, (), BusinessError> {
+            Box::pin(async move { Ok(()) })
+        }
+    }
+
+    struct Mail(Arc<Mutex<usize>>);
+    impl PmsRefundMail for Mail {
+        fn queue_refund<'a>(
+            &'a self,
+            _reservation_id: &'a str,
+            _holding_slug: &'a str,
+            _now: i64,
+        ) -> PmsBoardFuture<'a, (), BusinessError> {
+            Box::pin(async move {
+                *self.0.lock().expect("mail") += 1;
+                Ok(())
+            })
+        }
+    }
+
+    fn seed_request(fake: &Fake, state_value: &str, requested_by: &str, parts: &str) {
+        let mut store = state(&fake.store);
+        store.requests.insert(
+            "req-1".into(),
+            PmsRefundRequest {
+                id: "req-1".into(),
+                payment_id: "pay-1".into(),
+                amount_minor: 2000,
+                allocations_json: parts.into(),
+                reason: "Guest asked".into(),
+                requested_by: requested_by.into(),
+                approved_by: None,
+                provider_id: None,
+                state: state_value.into(),
+                generation: 0,
+                legacy_review: false,
+            },
+        );
+        store.approval = Some(("req-1".into(), "prop-1".into()));
+    }
+
+    #[tokio::test]
+    async fn request_reserves_original_receipt_funding() {
+        let mut fake = Fake::new();
+        let result = request_refund(
+            &mut fake,
+            "pay-1",
+            "prop-1",
+            &[PmsRefundSelection {
+                stay_id: "stay-1".into(),
+                amount: 2000,
+            }],
+            "Guest asked",
+            "user-1",
+            "req-1",
+            10,
+        )
+        .await
+        .expect("request");
+        assert_eq!(result.state, "requested");
+        assert_eq!(result.amount_minor, Some(2000));
+        let store = state(&fake.store);
+        let account = store.accounts.get("ga-1").expect("account");
+        assert_eq!(account.data["refundReserved"], json!(2000));
+        assert_eq!(account.data["advance"], json!(5000));
+        assert_eq!(account.version, 4);
+        let request = store.requests.get("req-1").expect("request row");
+        assert_eq!(request.amount_minor, 2000);
+        assert!(request.allocations_json.contains("entry-1"));
+    }
+
+    #[tokio::test]
+    async fn request_replays_the_retained_key() {
+        let mut fake = Fake::new();
+        seed_request(
+            &fake,
+            "requested",
+            "user-1",
+            "[{\"stayId\":\"stay-1\",\"guestAccountId\":\"ga-1\",\"entryId\":\"entry-1\",\"amount\":2000}]",
+        );
+        let result = request_refund(
+            &mut fake,
+            "pay-1",
+            "prop-1",
+            &[PmsRefundSelection {
+                stay_id: "stay-1".into(),
+                amount: 2000,
+            }],
+            "Guest asked",
+            "user-1",
+            "req-1",
+            10,
+        )
+        .await
+        .expect("replay");
+        assert_eq!(result.amount_minor, Some(2000));
+        let store = state(&fake.store);
+        assert_eq!(store.accounts.get("ga-1").unwrap().version, 3);
+    }
+
+    #[tokio::test]
+    async fn request_rejects_key_reuse_with_other_amounts() {
+        let mut fake = Fake::new();
+        seed_request(
+            &fake,
+            "requested",
+            "user-1",
+            "[{\"stayId\":\"stay-1\",\"guestAccountId\":\"ga-1\",\"entryId\":\"entry-1\",\"amount\":1500}]",
+        );
+        let error = request_refund(
+            &mut fake,
+            "pay-1",
+            "prop-1",
+            &[PmsRefundSelection {
+                stay_id: "stay-1".into(),
+                amount: 2000,
+            }],
+            "Guest asked",
+            "user-1",
+            "req-1",
+            10,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "PMS_REFUND_KEY_REUSED");
+    }
+
+    #[tokio::test]
+    async fn approval_requires_an_independent_manager() {
+        let mut fake = Fake::new();
+        seed_request(
+            &fake,
+            "requested",
+            "user-1",
+            "[{\"stayId\":\"stay-1\",\"guestAccountId\":\"ga-1\",\"entryId\":\"entry-1\",\"amount\":2000}]",
+        );
+        let error = approve_refund(
+            &mut fake,
+            &Guard,
+            &actor("user-1", Some("branch-1")),
+            "req-1",
+            11,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "PMS_INDEPENDENT_REFUND_APPROVAL");
+    }
+
+    #[tokio::test]
+    async fn approval_records_liability_and_postings() {
+        let mut fake = Fake::new();
+        seed_request(
+            &fake,
+            "requested",
+            "user-1",
+            "[{\"stayId\":\"stay-1\",\"guestAccountId\":\"ga-1\",\"entryId\":\"entry-1\",\"amount\":2000}]",
+        );
+        {
+            let mut store = state(&fake.store);
+            store.accounts.get_mut("ga-1").unwrap().data["refundReserved"] = json!(2000);
+        }
+        let outcome = approve_refund(
+            &mut fake,
+            &Guard,
+            &actor("user-2", Some("branch-1")),
+            "req-1",
+            11,
+        )
+        .await
+        .expect("approve");
+        assert_eq!(outcome.result.state, "approved");
+        assert_eq!(outcome.effects.postings.len(), 2);
+        assert_eq!(outcome.effects.postings[0].lines[0].account, "advance");
+        let store = state(&fake.store);
+        let account = store.accounts.get("ga-1").unwrap();
+        assert_eq!(account.data["advance"], json!(3000));
+        assert_eq!(account.data["refundReserved"], json!(0));
+        assert_eq!(store.requests.get("req-1").unwrap().state, "approved");
+        assert_eq!(store.entries.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn approval_requires_finance_online_accounts() {
+        let mut fake = Fake::new();
+        seed_request(
+            &fake,
+            "requested",
+            "user-1",
+            "[{\"stayId\":\"stay-1\",\"guestAccountId\":\"ga-1\",\"entryId\":\"entry-1\",\"amount\":2000}]",
+        );
+        // Property config without onlineAccounting approval.
+        let mut store = state(&fake.store);
+        store.accounts.get_mut("ga-1").unwrap().data["refundReserved"] = json!(2000);
+        drop(store);
+        struct Unapproved;
+        impl PmsRefundRepository for Unapproved {
+            type Error = BusinessError;
+            fn property<'a>(
+                &'a mut self,
+                property_id: &'a str,
+            ) -> PmsBoardFuture<
+                'a,
+                Option<erpx_server_pms::public::refund::PmsRefundProperty>,
+                Self::Error,
+            > {
+                Box::pin(async move {
+                    Ok(Some(erpx_server_pms::public::refund::PmsRefundProperty {
+                        id: property_id.to_owned(),
+                        company_id: "co-1".into(),
+                        branch_id: "branch-1".into(),
+                        business_date: "2026-01-01".into(),
+                        config_json: "{}".into(),
+                    }))
+                })
+            }
+            // Delegate the rest to the shared fake via a boxed inner store is
+            // unnecessary: the online-accounting gate is checked before any read.
+            fn payment<'a>(
+                &'a mut self,
+                _id: &'a str,
+                _property: &'a str,
+            ) -> PmsBoardFuture<'a, Option<PmsRefundPayment>, Self::Error> {
+                Box::pin(async { Ok(None) })
+            }
+            fn payment_by_id<'a>(
+                &'a mut self,
+                _id: &'a str,
+            ) -> PmsBoardFuture<'a, Option<PmsRefundPayment>, Self::Error> {
+                Box::pin(async { Ok(None) })
+            }
+            fn request<'a>(
+                &'a mut self,
+                _id: &'a str,
+            ) -> PmsBoardFuture<'a, Option<PmsRefundRequest>, Self::Error> {
+                Box::pin(async { Ok(None) })
+            }
+            fn locked_request<'a>(
+                &'a mut self,
+                id: &'a str,
+            ) -> PmsBoardFuture<'a, Option<PmsRefundRequest>, Self::Error> {
+                Box::pin(async move {
+                    Ok(Some(PmsRefundRequest { id: id.into(), payment_id: "pay-1".into(), amount_minor: 2000, allocations_json: "[{\"stayId\":\"stay-1\",\"guestAccountId\":\"ga-1\",\"entryId\":\"entry-1\",\"amount\":2000}]".into(), reason: "Guest asked".into(), requested_by: "user-1".into(), approved_by: None, provider_id: None, state: "requested".into(), generation: 0, legacy_review: false }))
+                })
+            }
+            fn sources<'a>(
+                &'a mut self,
+                _id: &'a str,
+            ) -> PmsBoardFuture<'a, Vec<PmsRefundSource>, Self::Error> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn previous<'a>(
+                &'a mut self,
+                _id: &'a str,
+            ) -> PmsBoardFuture<'a, Vec<PmsRefundPrior>, Self::Error> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn account<'a>(
+                &'a mut self,
+                _p: &'a str,
+                _a: &'a str,
+            ) -> PmsBoardFuture<'a, Option<PmsRecord>, Self::Error> {
+                Box::pin(async { Ok(None) })
+            }
+            fn entries<'a>(
+                &'a mut self,
+                _p: &'a str,
+                _a: &'a str,
+            ) -> PmsBoardFuture<'a, Vec<PmsRecord>, Self::Error> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn save_account<'a>(
+                &'a mut self,
+                _a: &'a PmsRecord,
+            ) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+            fn insert_entry<'a>(
+                &'a mut self,
+                _p: &'a str,
+                _e: &'a PmsRecord,
+            ) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+            fn insert_request<'a>(
+                &'a mut self,
+                _r: &'a PmsRefundRequest,
+                _n: i64,
+            ) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+            fn mark_payment_refund<'a>(
+                &'a mut self,
+                _p: &'a str,
+                _s: &'a str,
+                _r: Option<i64>,
+                _b: Option<&'a str>,
+                _f: Option<&'a str>,
+                _n: i64,
+            ) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+            fn update_request<'a>(
+                &'a mut self,
+                _r: &'a str,
+                _s: &'a str,
+                _b: Option<&'a str>,
+                _p: Option<&'a str>,
+                _e: Option<&'a str>,
+                _n: i64,
+            ) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+            fn insert_attempt<'a>(
+                &'a mut self,
+                _r: &'a str,
+                _g: i64,
+                _p: &'a str,
+                _n: i64,
+            ) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+            fn bind_provider_refund<'a>(
+                &'a mut self,
+                _r: &'a str,
+                _p: &'a str,
+                _f: &'a str,
+                _n: i64,
+            ) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+            fn finance_rows<'a>(
+                &'a mut self,
+                _c: &'a str,
+            ) -> PmsBoardFuture<'a, Vec<PmsRefundFinanceRow>, Self::Error> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn refundable_requests<'a>(
+                &'a mut self,
+                _r: &'a str,
+            ) -> PmsBoardFuture<'a, Vec<PmsRefundRequest>, Self::Error> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn approval_target<'a>(
+                &'a mut self,
+                _i: &'a str,
+                _c: &'a str,
+            ) -> PmsBoardFuture<'a, Option<(String, String)>, Self::Error> {
+                Box::pin(async { Ok(Some(("req-1".into(), "prop-1".into()))) })
+            }
+            fn recovery_payment<'a>(
+                &'a mut self,
+                _r: &'a str,
+                _c: &'a str,
+            ) -> PmsBoardFuture<'a, Option<PmsRefundPayment>, Self::Error> {
+                Box::pin(async { Ok(None) })
+            }
+            fn stay_account<'a>(
+                &'a mut self,
+                _p: &'a str,
+                _r: &'a str,
+            ) -> PmsBoardFuture<'a, Option<String>, Self::Error> {
+                Box::pin(async { Ok(None) })
+            }
+            fn receipt_entry<'a>(
+                &'a mut self,
+                _p: &'a str,
+                _i: &'a str,
+            ) -> PmsBoardFuture<'a, Option<PmsRecord>, Self::Error> {
+                Box::pin(async { Ok(None) })
+            }
+            fn mark_receipt_recovered<'a>(
+                &'a mut self,
+                _p: &'a str,
+                _i: &'a str,
+                _s: i64,
+                _n: i64,
+            ) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+            fn append_reservation_history<'a>(
+                &'a mut self,
+                _p: &'a str,
+                _r: &'a str,
+                _a: &'a str,
+                _x: &'a str,
+                _n: i64,
+            ) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+            fn write_context<'a>(&'a mut self) -> PmsBoardFuture<'a, (), Self::Error> {
+                Box::pin(async { Ok(()) })
+            }
+        }
+        let error = approve_refund(
+            &mut Unapproved,
+            &Guard,
+            &actor("user-2", Some("branch-1")),
+            "req-1",
+            11,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "PMS_ONLINE_ACCOUNTING_REQUIRED");
+        let _ = &mut fake;
+    }
+
+    #[tokio::test]
+    async fn settle_posts_entries_and_queues_refund_mail() {
+        let mut fake = Fake::new();
+        seed_request(
+            &fake,
+            "approved",
+            "user-1",
+            "[{\"stayId\":\"stay-1\",\"guestAccountId\":\"ga-1\",\"entryId\":\"entry-1\",\"amount\":2000}]",
+        );
+        {
+            let mut store = state(&fake.store);
+            let request = store.requests.get("req-1").expect("request").clone();
+            store.refundable = vec![request];
+        }
+        let mail = Mail(Arc::new(Mutex::new(0)));
+        let outcomes = settle_refund(&mut fake, &FakeProvider::ok(), &Guard, &mail, "req-1", 12)
+            .await
+            .expect("settle");
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].result.state, "succeeded");
+        assert_eq!(
+            outcomes[0].effects.postings[0].lines[0].account,
+            "refundPayable"
+        );
+        assert_eq!(outcomes[0].effects.documents[0].kind, "refund");
+        assert_eq!(*mail.0.lock().unwrap(), 1);
+        let store = state(&fake.store);
+        assert_eq!(store.requests.get("req-1").unwrap().state, "succeeded");
+        assert_eq!(store.entries.len(), 1);
+        assert_eq!(store.entries[0].data["total"], json!(-2000));
+    }
+
+    #[tokio::test]
+    async fn settle_records_a_failed_provider_refund_without_posting() {
+        let mut fake = Fake::new();
+        seed_request(
+            &fake,
+            "approved",
+            "user-1",
+            "[{\"stayId\":\"stay-1\",\"guestAccountId\":\"ga-1\",\"entryId\":\"entry-1\",\"amount\":2000}]",
+        );
+        {
+            let mut store = state(&fake.store);
+            let request = store.requests.get("req-1").expect("request").clone();
+            store.refundable = vec![request];
+        }
+        let mut provider = FakeProvider::ok();
+        provider.refund.status = "failed".into();
+        let mail = Mail(Arc::new(Mutex::new(0)));
+        let outcomes = settle_refund(&mut fake, &provider, &Guard, &mail, "req-1", 12)
+            .await
+            .expect("settle");
+        assert!(outcomes.is_empty());
+        let store = state(&fake.store);
+        assert_eq!(store.requests.get("req-1").unwrap().state, "failed");
+        assert!(store.entries.is_empty());
+        assert_eq!(*mail.0.lock().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn settle_keeps_processing_when_provider_is_pending() {
+        let mut fake = Fake::new();
+        seed_request(
+            &fake,
+            "approved",
+            "user-1",
+            "[{\"stayId\":\"stay-1\",\"guestAccountId\":\"ga-1\",\"entryId\":\"entry-1\",\"amount\":2000}]",
+        );
+        {
+            let mut store = state(&fake.store);
+            let request = store.requests.get("req-1").expect("request").clone();
+            store.refundable = vec![request];
+        }
+        let mut provider = FakeProvider::ok();
+        provider.refund.status = "processing".into();
+        let mail = Mail(Arc::new(Mutex::new(0)));
+        let outcomes = settle_refund(&mut fake, &provider, &Guard, &mail, "req-1", 12)
+            .await
+            .expect("settle");
+        assert!(outcomes.is_empty());
+        let store = state(&fake.store);
+        assert_eq!(store.requests.get("req-1").unwrap().state, "processing");
+    }
+
+    #[tokio::test]
+    async fn finance_list_requires_company_scope() {
+        let mut fake = Fake::new();
+        state(&fake.store).finance.push(PmsRefundFinanceRow {
+            id: "req-1".into(),
+            payment_id: "pay-1".into(),
+            property_id: "prop-1".into(),
+            amount_minor: 2000,
+            status: "refund_review".into(),
+            refund_state: "requested".into(),
+            last_error: None,
+            reason: "Guest asked".into(),
+            created_at: 3,
+            needs_receipt_recovery: true,
+        });
+        let rows = refunds_for_finance(&mut fake, &actor("user-3", None), 20)
+            .await
+            .expect("rows");
+        assert_eq!(rows.len(), 1);
+        let branch = refunds_for_finance(&mut fake, &actor("user-3", Some("branch-1")), 20)
+            .await
+            .expect("branch");
+        assert!(branch.is_empty());
+    }
+
+    #[tokio::test]
+    async fn retry_refuses_a_pending_provider_refund() {
+        let mut fake = Fake::new();
+        seed_request(&fake, "failed", "user-1", "[]");
+        {
+            let mut store = state(&fake.store);
+            store.requests.get_mut("req-1").unwrap().provider_id = Some("re-1".into());
+        }
+        let mut provider = FakeProvider::ok();
+        provider.refund.status = "processing".into();
+        let error = retry_refund(
+            &mut fake,
+            &provider,
+            &Guard,
+            &actor("user-2", Some("branch-1")),
+            "req-1",
+            "Provider failed once",
+            13,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "PMS_REFUND_PROVIDER_PENDING");
+    }
+
+    #[tokio::test]
+    async fn receipt_recovery_rejects_a_mismatched_receipt() {
+        let mut fake = Fake::new();
+        seed_request(&fake, "requested", "user-1", "[]");
+        let mut store = state(&fake.store);
+        store.payments.get_mut("pay-1").unwrap().status = "refund_review".into();
+        drop(store);
+        let mut provider = FakeProvider::ok();
+        provider.receipt.amount_received = 4000;
+        let error = recover_receipt(
+            &mut fake,
+            &provider,
+            &Guard,
+            &actor("finance-1", None),
+            "req-1",
+            "Recover missing receipt",
+            14,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "PMS_PAYMENT_MISMATCH");
+    }
+
+    #[tokio::test]
+    async fn receipt_recovery_posts_the_unallocated_receipt() {
+        let mut fake = Fake::new();
+        seed_request(&fake, "requested", "user-1", "[]");
+        state(&fake.store).payments.get_mut("pay-1").unwrap().status = "refund_review".into();
+        let outcome = recover_receipt(
+            &mut fake,
+            &FakeProvider::ok(),
+            &Guard,
+            &actor("finance-1", None),
+            "req-1",
+            "Recover missing receipt",
+            14,
+        )
+        .await
+        .expect("recover");
+        assert_eq!(outcome.result.state, "receipt_recovered");
+        assert_eq!(outcome.effects.postings[0].lines[0].account, "edc");
+        let store = state(&fake.store);
+        assert_eq!(store.entries.len(), 1);
+        assert_eq!(
+            store.entries[0].data["sourceKey"],
+            json!("online-payment:pay-1")
+        );
+        assert_eq!(store.history, 1);
+    }
+}
