@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1562,
+    "revision": 1564,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-g",
       "agentId": "lead",
       "startedAt": "2026-11-13T02:33:37.747Z",
-      "heartbeatAt": "2026-11-13T04:12:03.257Z",
-      "expiresAt": "2026-11-13T04:42:03.257Z",
+      "heartbeatAt": "2026-11-13T04:27:09.358Z",
+      "expiresAt": "2026-11-13T04:57:09.358Z",
       "generation": 51,
       "tokenHash": "b4636d5dac92c67424e4a78a1bf1883bb0ebe4a1220c27578bab9a4ba2ad62fd"
     },
@@ -25087,14 +25087,7 @@
           "owner:collaboration"
         ],
         "status": "blocked",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "worker-collab-messaging",
-          "claimedAt": "2026-11-13T04:23:51.318Z",
-          "heartbeatAt": "2026-11-13T04:23:51.318Z",
-          "expiresAt": "2026-11-13T04:53:51.318Z",
-          "generation": 51
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -25115,15 +25108,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "Producer landed: native messaging.manage room/team command compiles and its crate tests pass. Remaining before migrate: switch POST /messaging/rooms/{id} and /messaging/teams/{id} to the native transport with no TS fallback, delete the TS manageMessaging branch and the guardOwnerVersion/rename/removeMembers/removeChannelMembers writers, and migrate the manage oracles in tests/integration/{collaboration,organization,commercial}. The Files-owned upload port is tracked as migrate.collaboration.messaging-attachment-upload.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "worker-collab-messaging",
-          "at": "2026-11-13T04:15:25.172Z",
-          "previousStatus": "in_progress",
+          "at": "2026-11-13T04:27:19.455Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair."
+          "nextAction": "Producer landed: native messaging.manage room/team command compiles and its crate tests pass. Remaining before migrate: switch POST /messaging/rooms/{id} and /messaging/teams/{id} to the native transport with no TS fallback, delete the TS manageMessaging branch and the guardOwnerVersion/rename/removeMembers/removeChannelMembers writers, and migrate the manage oracles in tests/integration/{collaboration,organization,commercial}. The Files-owned upload port is tracked as migrate.collaboration.messaging-attachment-upload."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -31570,8 +31563,8 @@
           "runId": "run-20261113-g",
           "agentId": "worker-crm-leads",
           "claimedAt": "2026-11-13T04:12:41.373Z",
-          "heartbeatAt": "2026-11-13T04:12:41.373Z",
-          "expiresAt": "2026-11-13T04:42:41.373Z",
+          "heartbeatAt": "2026-11-13T04:27:09.358Z",
+          "expiresAt": "2026-11-13T04:57:09.358Z",
           "generation": 51
         },
         "baseSha": null,
@@ -33021,7 +33014,7 @@
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T04:23:58.745Z",
+    "updatedAt": "2026-11-13T04:27:19.456Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
