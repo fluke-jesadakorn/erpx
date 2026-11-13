@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1391,
+    "revision": 1404,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -24965,7 +24965,7 @@
         "resources": [
           "owner:files"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "6d69edfde2aa8169357b65d866270213299387cc",
@@ -25077,18 +25077,81 @@
             "before": 2402,
             "after": 2401,
             "note": "Global KPI moved by exactly the deleted Support writer; Files stays 117 pending the generic non-support owners."
+          },
+          {
+            "command": "cargo check -p erpx-server-files -p erpx-server-support",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "Files and Support crates compile with the native support_ticket intake, PG authority and HTTP router."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test attachment_command_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "9/9, including the native Support stage/reserve/complete/scan lifecycle and the same-connection purchase refusal plus HTTP transport cases."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration tests/integration/support/support-evidence.test.ts",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "12/12; the upload routes stage support evidence, leave the case binding to the native Support command and reject the generic bind."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration tests/integration/shared.attachments/attachments-v2.test.ts",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "34/34 on the shared Files behavior after removing the Support purchase chain from the generic unit."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit tests/unit/support/support-services.test.ts",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "48/48 retained Support service reads after deleting the last Support TS writer."
+          },
+          {
+            "command": "bunx tsc -p packages/server-files/tsconfig.json --noEmit && bunx tsc -p packages/server-support/tsconfig.json --noEmit && bunx tsc -p packages/feature-support/tsconfig.json --noEmit && bunx tsc -p packages/feature-files/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "All four package typechecks pass. packages/workplace tsc still reports only the peer-missing @erpx/feature-projects/public/native-project-* and @erpx/server-files/public/project-attachment exports recorded before this slice."
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "33 modules, 1215 suites."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "before": 1,
+            "after": 0,
+            "note": "adapters/attachment-purchases.ts DELETE FROM command_assertions is deleted with its public barrel and package exports; the boundary now runs on the native command's connection."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "before": 2402,
+            "after": 2401,
+            "note": "Global KPI moved by exactly the deleted Support writer; Files stays 117 pending the generic non-support owners."
           }
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Producer implemented and pushed at 6d69edfde (support_ticket create/reserve/complete/scan on Files, Support ticket/purchase authority on the same unit, workplace upload/stage routes switched). Remaining: apply migrate.files.support-attachment-mount when owner:files-mount has src/composition claim-free (agent ai-gateway currently holds it), then classify the 117 Files / 55 service-repository non-support writes with removalTaskIds.",
+        "nextAction": "Producer, native client parity, workplace route authority, Support TS-writer deletion and oracle move are pushed at 6d69edfde with Support 1->0 and global 2402->2401. Integration is the prepared composition mount migrate.files.support-attachment-mount; until it lands the four support_ticket routes fail closed 503 SUPPORT_ATTACHMENT_NATIVE_REQUIRED. After the mount, extend the same producer to the remaining non-field owners and delete service-repository.ts 55 / hospitality-purchases.ts 1.",
         "handoff": {
           "runId": "run-20261113-f",
-          "agentId": "worker-files-support",
-          "at": "2026-11-13T01:15:49.437Z",
-          "previousStatus": "in_progress",
+          "agentId": "lead",
+          "at": "2026-11-13T01:27:34.704Z",
+          "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Producer implemented and pushed at 6d69edfde (support_ticket create/reserve/complete/scan on Files, Support ticket/purchase authority on the same unit, workplace upload/stage routes switched). Remaining: apply migrate.files.support-attachment-mount when owner:files-mount has src/composition claim-free (agent ai-gateway currently holds it), then classify the 117 Files / 55 service-repository non-support writes with removalTaskIds."
+          "nextAction": "Producer, native client parity, workplace route authority, Support TS-writer deletion and oracle move are pushed at 6d69edfde with Support 1->0 and global 2402->2401. Integration is the prepared composition mount migrate.files.support-attachment-mount; until it lands the four support_ticket routes fail closed 503 SUPPORT_ATTACHMENT_NATIVE_REQUIRED. After the mount, extend the same producer to the remaining non-field owners and delete service-repository.ts 55 / hospitality-purchases.ts 1."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -30722,7 +30785,7 @@
         "workstream": "S05",
         "kind": "integration",
         "title": "Mount the native Support Files attachment producer",
-        "scope": "Apply the small composition mount for the support_ticket native Files create/reserve/complete/scan producer prepared by migrate.files.generic-attachment-command: backend construction, router merge and module declaration in src/composition. Then verify the workplace support_ticket upload/stage route uses native authority and close Support at 0.",
+        "scope": "Apply the prepared composition mount for the native Support attachment intake: implement SupportFilesService/SupportFilesBackend (current Account authority + Support ticket/version guard + same-connection support.evidence purchase + LocalFieldQuarantineWriter + NativeFilesScanWorker), expose the field_files quarantine writer map, mount the router for every support_evidence_writes holding, and document ERPX_NATIVE_SUPPORT_ATTACHMENT_CONFIG client alignment. Availability only; the producer and TS-writer deletion are migrate.files.generic-attachment-command at 6d69edfde.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -30739,7 +30802,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Wait for the Files producer worker to report its composition patch and for src/composition to be claim-free, then apply the mount and verify the support_ticket route.",
+        "nextAction": "Mount is ready: apply .scratch/dev/rust-migration/files-support-mount.patch.md (new src/composition/src/support_files.rs plus lib.rs, private_development_api/field_files.rs write-map, private_development_api.rs assembly/mount, ERPX_NATIVE_SUPPORT_ATTACHMENT_CONFIG note). Blocked only by worker-agent-gateway (migrate.agent.ai-gateway-commands) holding src/composition/src/** plus fixtures/** under run-20261113-f; do not overlap. When released: claim under the live run, apply, run cargo check -p erpx-service --features private-development-api and cargo test -p erpx-server-files --test attachment_command_postgres -- --test-threads=1, commit/push non-force, verify the remote SHA, then record.",
         "handoff": null
       },
       {
@@ -31086,25 +31149,91 @@
           "packages/server-talent/package.json",
           "packages/feature-recruit/**",
           "packages/feature-talent/**",
-          "src/composition/src/**",
           "tests/unit/talent/**",
-          "tests/integration/talent/**",
-          "tests/integration/finance/finance-payment-obligations.test.ts",
-          "fixtures/**"
+          "tests/integration/talent/**"
         ],
         "resources": [
           "owner:talent"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-talent-retire",
+          "claimedAt": "2026-11-13T01:27:06.518Z",
+          "heartbeatAt": "2026-11-13T01:27:06.518Z",
+          "expiresAt": "2026-11-13T01:57:06.518Z",
+          "generation": 50
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 native counterpart audit for the 16 residual writers; start with the Finance talent-offer money-snapshot producer needed to retire offer create, then privacy effects and purchase-boundary cleanup.",
-        "handoff": null
+        "nextAction": "Zero-caller/native-only analysis for the 16 residual Talent writes in owner paths; delete the safe set, move in-lane oracles, record the KPI pair.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.service-teams-oracle",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "support",
+        "workflowIds": [
+          "support/service-teams"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the service-team TypeScript oracle left after the writer deletion",
+        "scope": "The TS service-team writer/application was retired at 2929a4901, but the inline Rust unit test in packages/server-support/src/domain/service_teams.rs still spawns Bun to call the deleted createValidateServiceTeam, so `cargo test -p erpx-server-support --lib` is red at HEAD. Replace the TypeScript spawn with native assertions over normalize_service_team and validate_local_team_rules (schema normalization, extra-field stripping, duplicate member/coverage, lead requirement and the JS-safe bounds) and remove the last TS import from the test. No production behavior change.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/domain/service_teams.rs"
+        ],
+        "resources": [
+          "owner:support-service-teams"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "b9d2d2df215487286958307c532f4fba8bc83ed5",
+        "lastPushedSha": "b9d2d2df215487286958307c532f4fba8bc83ed5",
+        "checks": [
+          {
+            "command": "cargo test -p erpx-server-support --lib domain::service_teams",
+            "result": "passed",
+            "sourceSha": "b9d2d2df215487286958307c532f4fba8bc83ed5",
+            "note": "3/3 native assertions replace the deleted TypeScript createValidateServiceTeam spawn: normalization/extra-field stripping, duplicate member/coverage, lead requirement, JS-safe version bound, name/unicode bounds and the retained 81-char user id."
+          },
+          {
+            "command": "cargo test -p erpx-server-support --lib",
+            "result": "passed",
+            "sourceSha": "b9d2d2df215487286958307c532f4fba8bc83ed5",
+            "note": "81/81; the crate lib suite is green without Bun after the TS oracle removal."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b9d2d2df215487286958307c532f4fba8bc83ed5",
+            "before": 1,
+            "after": 0,
+            "note": "Support retirement unit measured from the pre-packet base (1 retained writer) to this commit (0). The executable attachment-purchases.ts deletion landed in 6d69edfde; this commit removes the last test oracle that still referenced deleted Support TypeScript."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Retired at b9d2d2df2: the inline service-team test no longer imports or spawns the deleted TS application; native assertions cover the retained schema/rule parity. No production behavior change.",
+        "handoff": {
+          "runId": "run-20261113-f",
+          "agentId": "lead",
+          "at": "2026-11-13T01:29:42.322Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Claim and replace the inline TypeScript oracle with native assertions, then run cargo test -p erpx-server-support --lib and record the suite result."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -31113,21 +31242,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 152,
-      "migratedPackets": 80,
+      "totalPackets": 153,
+      "migratedPackets": 81,
       "statusCounts": {
-        "pending": 23,
-        "in_progress": 5,
-        "ready_for_integration": 10,
+        "pending": 22,
+        "in_progress": 6,
+        "ready_for_integration": 11,
         "integrating": 0,
-        "migrated": 80,
-        "blocked": 34,
+        "migrated": 81,
+        "blocked": 33,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:25:52.165Z",
+    "updatedAt": "2026-11-13T01:30:17.876Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
