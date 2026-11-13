@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1407,
+    "revision": 1412,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -23713,7 +23713,6 @@
           "packages/server-support/Cargo.toml",
           "packages/server-support/package.json",
           "packages/feature-support/**",
-          "fixtures/**",
           "tests/support/**",
           "tests/unit/support/**",
           "tests/integration/support/**"
@@ -23721,15 +23720,52 @@
         "resources": [
           "owner:support"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "6d69edfde2aa8169357b65d866270213299387cc",
+        "lastPushedSha": "6d69edfde2aa8169357b65d866270213299387cc",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "before": 1,
+            "after": 0,
+            "note": "The final Support writer, adapters/attachment-purchases.ts (DELETE FROM command_assertions), is deleted with its public barrel and package export. Its purchase/command boundary now runs inside the native Files support_ticket command on the caller's connection."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "before": 2402,
+            "after": 2401,
+            "note": "Global KPI moved by exactly the deleted Support writer."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit tests/unit/support/support-services.test.ts",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "48/48 retained Support reads; no test imports the deleted writer."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration tests/integration/support/support-evidence.test.ts",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "12/12; the Support evidence oracle stages through the retained upload routes and asserts the native command owns the bind."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts' (owner close)",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "before": 1,
+            "after": 0,
+            "note": "Close owner check: the Support owner package has zero retained INSERT/DELETE/UPDATE statements after 6d69edfde."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "The final two Support writes are cross-owner effects of the still-TypeScript generic Files attachment command: supportEvidenceEvent writes support_ticket_events for attachment-add, and supportAttachmentCommandBoundary enforces the Support purchase/command boundary. support_ticket is not in the native Files has_native_owner_command set, so the native Files command does not yet own this path. Adding the ports alone without switching the generic Files command would create a dual writer. Prerequisite: migrate.files.generic-attachment-command.",
-        "nextAction": "After the active sales worker releases src/composition, claim migrate.files.generic-attachment-command, implement native support_ticket create/reserve/complete/scan with the same-connection Support purchase boundary, switch the support_ticket upload/stage consumers, delete attachment-purchases.ts, and record Support 1 -> 0.",
+        "blocker": null,
+        "nextAction": "Support has no retained TS writer: attachment-purchases.ts and its barrel/exports are deleted; the boundary runs in the native Files support_ticket command on the caller's connection. Availability follows migrate.files.support-attachment-mount.",
         "handoff": {
           "removalTaskId": "migrate.files.generic-attachment-command",
           "removalCondition": "Native generic Files attachment command owns support_ticket attachment-add evidence and purchase boundary; then retire the two remaining Support writer files."
@@ -31307,20 +31343,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 153,
-      "migratedPackets": 81,
+      "migratedPackets": 82,
       "statusCounts": {
         "pending": 22,
         "in_progress": 6,
         "ready_for_integration": 11,
         "integrating": 0,
-        "migrated": 81,
-        "blocked": 33,
+        "migrated": 82,
+        "blocked": 32,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:32:40.822Z",
+    "updatedAt": "2026-11-13T01:33:25.624Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
