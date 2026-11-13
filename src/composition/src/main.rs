@@ -244,6 +244,21 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             println!("{outcome}");
             Ok(())
         }
+        #[cfg(feature = "position-gpo-connector")]
+        [command, once, option, path, company_flag, company]
+            if command == "directory-operation-worker"
+                && once == "--once"
+                && option == "--database-manifest"
+                && company_flag == "--company" =>
+        {
+            let outcome = erpx_service::directory_operation_worker::run_once_file(
+                std::path::Path::new(path),
+                company,
+            )
+            .await?;
+            println!("{outcome}");
+            Ok(())
+        }
         #[cfg(feature = "existing-business")]
         [command, once, option, path, holding_flag, holding]
             if command == "sales-notification-worker"

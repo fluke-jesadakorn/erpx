@@ -1059,3 +1059,127 @@ pub fn canonical_uuid() -> String {
         &hex[20..32]
     )
 }
+
+/// Registry policy projection of the finite Windows policy editor.
+pub fn compile_registry_policies(policy: &WindowsPolicyDefinition) -> Vec<Value> {
+    let hive = if policy.scope == "computer" { "HKLM" } else { "HKCU" };
+    let mut result = Vec::new();
+    if policy.usb != "unchanged" {
+        result.push(json!({
+            "key": format!("{hive}\\Software\\Policies\\Microsoft\\Windows\\RemovableStorageDevices"),
+            "name": "Deny_All",
+            "type": "DWord",
+            "value": if policy.usb == "deny" { 1 } else { 0 },
+        }));
+    }
+    if let Some(seconds) = policy.lock_seconds {
+        if policy.scope == "computer" {
+            result.push(json!({
+                "key": "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+                "name": "InactivityTimeoutSecs",
+                "type": "DWord",
+                "value": seconds,
+            }));
+        } else {
+            result.push(json!({
+                "key": "HKCU\\Software\\Policies\\Microsoft\\Windows\\Control Panel\\Desktop",
+                "name": "ScreenSaveActive",
+                "type": "String",
+                "value": "1",
+            }));
+            result.push(json!({
+                "key": "HKCU\\Software\\Policies\\Microsoft\\Windows\\Control Panel\\Desktop",
+                "name": "ScreenSaverIsSecure",
+                "type": "String",
+                "value": "1",
+            }));
+            result.push(json!({
+                "key": "HKCU\\Software\\Policies\\Microsoft\\Windows\\Control Panel\\Desktop",
+                "name": "ScreenSaveTimeOut",
+                "type": "String",
+                "value": seconds.to_string(),
+            }));
+            result.push(json!({
+                "key": "HKCU\\Software\\Policies\\Microsoft\\Windows\\Control Panel\\Desktop",
+                "name": "SCRNSAVE.EXE",
+                "type": "String",
+                "value": "scrnsave.scr",
+            }));
+        }
+    }
+    if let Some(wallpaper) = &policy.wallpaper {
+        result.push(json!({
+            "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+            "name": "Wallpaper",
+            "type": "String",
+            "value": wallpaper,
+        }));
+        result.push(json!({
+            "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+            "name": "WallpaperStyle",
+            "type": "String",
+            "value": policy.wallpaper_style,
+        }));
+    }
+    result
+}
+
+fn xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+/// Group Policy Preferences files. No credentials are ever emitted.
+pub fn compile_preferences(policy: &WindowsPolicyDefinition, changed: &str) -> Vec<Value> {
+    let drives = policy
+        .drives
+        .iter()
+        .map(|drive| {
+            format!(
+                "<Drive clsid=\"{{935D1B74-9CB8-4e3c-9914-7DD559B7A417}}\" name=\"{}:\" status=\"{}:\" image=\"2\" changed=\"{}\" uid=\"{{{}}}\" userContext=\"1\"><Properties action=\"{}\" thisDrive=\"NOCHANGE\" allDrives=\"NOCHANGE\" path=\"{}\" label=\"{}\" persistent=\"1\" useLetter=\"1\" letter=\"{}\"/></Drive>",
+                xml_escape(&drive.letter),
+                xml_escape(&drive.letter),
+                xml_escape(changed),
+                drive.id.to_uppercase(),
+                if drive.remove { "D" } else { "U" },
+                xml_escape(&drive.path),
+                xml_escape(&drive.label),
+                xml_escape(&drive.letter),
+            )
+        })
+        .collect::<String>();
+    let printers = policy
+        .printers
+        .iter()
+        .map(|printer| {
+            format!(
+                "<SharedPrinter clsid=\"{{9A5E9697-9095-436d-A0EE-4D128FDFBCE5}}\" name=\"{}\" status=\"{}\" image=\"2\" changed=\"{}\" uid=\"{{{}}}\" userContext=\"1\"><Properties action=\"{}\" path=\"{}\" default=\"{}\" persistent=\"1\" port=\"\"/></SharedPrinter>",
+                xml_escape(&printer.path),
+                xml_escape(&printer.path),
+                xml_escape(changed),
+                printer.id.to_uppercase(),
+                if printer.remove { "D" } else { "U" },
+                xml_escape(&printer.path),
+                if printer.is_default { "1" } else { "0" },
+            )
+        })
+        .collect::<String>();
+    vec![
+        json!({
+            "path": "User/Preferences/Drives/Drives.xml",
+            "extension": "{5794DAFD-BE60-433f-88A2-1A31939AC01F}",
+            "toolExtension": "{2EA1A81B-48E5-45e9-8BB7-A6E3AC170006}",
+            "xml": format!("<?xml version=\"1.0\" encoding=\"utf-8\"?><Drives clsid=\"{{8FDDCC1A-0C3C-43cd-A6B4-71A6DF20DA8C}}\">{drives}</Drives>"),
+        }),
+        json!({
+            "path": "User/Preferences/Printers/Printers.xml",
+            "extension": "{BC75B1ED-5833-4858-9BB8-CBF0B166DF9D}",
+            "toolExtension": "{A8C42CEA-CDB8-4388-97F4-5831F933DA84}",
+            "xml": format!("<?xml version=\"1.0\" encoding=\"utf-8\"?><Printers clsid=\"{{1F577D12-3D1B-471e-A1B7-060317597B9C}}\">{printers}</Printers>"),
+        }),
+    ]
+}

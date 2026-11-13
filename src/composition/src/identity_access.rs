@@ -29,6 +29,12 @@ use erpx_server_identity_access::public::people_grants_http::{
     PeopleGrantsHttpRequest, PeopleGrantsHttpResponse,
 };
 use erpx_server_identity_access::public::permission_catalog::permission_catalog;
+use erpx_server_identity_access::public::directory_operation::{
+    AutomationConfiguration, DirectoryOperationHttpBackend, DirectoryOperationHttpCommand,
+    DirectoryOperationHttpFuture, DirectoryOperationHttpRequest, DirectoryOperationHttpResponse,
+    apply_operation_review, cancel_operation, configure_automation, directory_automation_data,
+    parse_change, preview_change, refresh_inventory, retry_operation, submit_change,
+};
 use erpx_server_identity_access::public::user_management::{
     UserManagementActor, UserManagementHttpBackend, UserManagementHttpCommand,
     UserManagementHttpFuture, UserManagementHttpRequest, UserManagementHttpResponse,
@@ -215,6 +221,30 @@ fn management_actor(
         platform: false,
         expires_at: current.expires_at(),
     })
+}
+
+fn directory_operation_route_access(
+    command: &DirectoryOperationHttpCommand,
+) -> WorkAuthorizationRequest {
+    let permission = match command {
+        DirectoryOperationHttpCommand::Read => {
+            WorkPermissionRequirement::Exact("iam.read".into())
+        }
+        DirectoryOperationHttpCommand::Submit { direct: true, .. }
+        | DirectoryOperationHttpCommand::Retry { .. } => {
+            WorkPermissionRequirement::Exact("iam.directory.apply".into())
+        }
+        DirectoryOperationHttpCommand::ApplyReview { .. } => {
+            WorkPermissionRequirement::Exact("iam.review".into())
+        }
+        _ => WorkPermissionRequirement::Exact("iam.directory.manage".into()),
+    };
+    WorkAuthorizationRequest {
+        permission,
+        module: Some("iam".into()),
+        destination: "iam".into(),
+        api: true,
+    }
 }
 
 fn management_route_access(command: &UserManagementHttpCommand) -> WorkAuthorizationRequest {
@@ -785,6 +815,217 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
             .await
     }
 
+    /// Reviewed Directory automation command family. Objects, work and
+    /// mappings run inside the selected serializable Holding unit; provider
+    /// effects use the installed connector profile and never select a
+    /// connection or grant authority themselves.
+    pub async fn directory_operation_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: DirectoryOperationHttpCommand,
+    ) -> Result<DirectoryOperationHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let control = self.control.clone();
+        let expected = company.clone();
+        let mutation = !matches!(command, DirectoryOperationHttpCommand::Read);
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = mutation;
+            Ok(request)
+        };
+        let access = directory_operation_route_access(&command);
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                access,
+                IdentityAccessSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let control = control.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let actor = management_actor(current)?;
+                        let now = clock.now().get();
+                        let needs_fresh = matches!(
+                            command,
+                            DirectoryOperationHttpCommand::Configure { .. }
+                                | DirectoryOperationHttpCommand::Submit { .. }
+                                | DirectoryOperationHttpCommand::Retry { .. }
+                        );
+                        let fresh = if needs_fresh {
+                            fresh_mfa(
+                                control.as_ref(),
+                                current.user_id().as_str(),
+                                current.session_id().as_str(),
+                                now,
+                            )
+                            .await
+                        } else {
+                            false
+                        };
+                        let profile = std::env::var("ERPX_IAM_SECRET_PROFILES")
+                            .map(std::path::PathBuf::from)
+                            .unwrap_or_default();
+                        let connector = PgPositionGpoDirectory::new(profile, ReqwestConnector);
+                        let data = match command {
+                            DirectoryOperationHttpCommand::Read => {
+                                current.require_permission("iam.read")?;
+                                directory_automation_data(connection, &actor, now).await?
+                            }
+                            DirectoryOperationHttpCommand::Refresh {
+                                connection_id,
+                                expected_version,
+                                idempotency_key,
+                            } => {
+                                let key = CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                refresh_inventory(
+                                    connection,
+                                    &actor,
+                                    &connector,
+                                    &connection_id,
+                                    expected_version,
+                                    key.as_str(),
+                                    now,
+                                )
+                                .await?
+                            }
+                            DirectoryOperationHttpCommand::Configure {
+                                input,
+                                idempotency_key,
+                            } => {
+                                let key = CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                let input: AutomationConfiguration = serde_json::from_value(input)
+                                    .map_err(|_| {
+                                        PgTransactionError::Business(
+                                            erpx_server_shared::public::BusinessError::invalid(
+                                                "DIRECTORY_REQUEST_INVALID",
+                                                "The directory request is invalid.",
+                                            ),
+                                        )
+                                    })?;
+                                configure_automation(
+                                    connection,
+                                    &actor,
+                                    input,
+                                    key.as_str(),
+                                    fresh,
+                                    now,
+                                )
+                                .await?
+                            }
+                            DirectoryOperationHttpCommand::Preview { change } => {
+                                current.require_permission("iam.directory.manage")?;
+                                preview_change(
+                                    connection,
+                                    &actor,
+                                    parse_change(change)
+                                        .map_err(PgTransactionError::Business)?,
+                                    now,
+                                )
+                                .await?
+                            }
+                            DirectoryOperationHttpCommand::Submit {
+                                change,
+                                token,
+                                direct,
+                                idempotency_key,
+                            } => {
+                                let key = CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                submit_change(
+                                    connection,
+                                    &actor,
+                                    parse_change(change)
+                                        .map_err(PgTransactionError::Business)?,
+                                    &token,
+                                    key.as_str(),
+                                    direct,
+                                    fresh,
+                                    now,
+                                )
+                                .await?
+                            }
+                            DirectoryOperationHttpCommand::ApplyReview {
+                                payload,
+                                decision,
+                                idempotency_key,
+                            } => {
+                                let key = CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                apply_operation_review(
+                                    connection,
+                                    &actor,
+                                    &payload,
+                                    &decision,
+                                    key.as_str(),
+                                    now,
+                                )
+                                .await?
+                            }
+                            DirectoryOperationHttpCommand::Retry {
+                                id,
+                                expected_version,
+                                idempotency_key,
+                            } => {
+                                let key = CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                retry_operation(
+                                    connection,
+                                    &actor,
+                                    &id,
+                                    expected_version,
+                                    key.as_str(),
+                                    fresh,
+                                    now,
+                                )
+                                .await?
+                            }
+                            DirectoryOperationHttpCommand::Cancel {
+                                id,
+                                expected_version,
+                                idempotency_key,
+                            } => {
+                                let key = CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                cancel_operation(
+                                    connection,
+                                    &actor,
+                                    &id,
+                                    expected_version,
+                                    key.as_str(),
+                                    now,
+                                )
+                                .await?
+                            }
+                        };
+                        Ok(DirectoryOperationHttpResponse { data })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn iam_command<Input>(
         &self,
         host: &str,
@@ -1182,6 +1423,28 @@ impl<C: Clock + Send + Sync + 'static> UserManagementHttpBackend for IdentityAcc
             let (proof, selection) = self.context(request.headers)?;
             self.service
                 .user_management_command(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.command,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> DirectoryOperationHttpBackend
+    for IdentityAccessBackend<C>
+{
+    fn execute<'a>(
+        &'a self,
+        request: DirectoryOperationHttpRequest<'a>,
+    ) -> DirectoryOperationHttpFuture<'a, DirectoryOperationHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .directory_operation_command(
                     request.host,
                     proof,
                     move || Ok(selection),

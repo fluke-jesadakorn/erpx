@@ -1654,3 +1654,588 @@ async fn read_profiles(path: &Path) -> Result<BTreeMap<String, ConnectorProfile>
     }
     Ok(profiles)
 }
+
+// --- Native Directory automation connector ---------------------------------
+//
+// The same installed profile serves the Directory operation command family.
+// Actions are the exact reviewed JSON the owner persisted; the profile's
+// `write_operations` still decides whether the effect is approved.
+
+use crate::adapters::directory_operation_postgres::{
+    Connection as OperationConnection, DirectoryOperationConnector, DirectoryOperationFuture,
+};
+use crate::domain::directory_operation::{
+    DirectoryAction, DirectoryInventory, DirectoryObject, compile_preferences,
+    compile_registry_policies,
+};
+
+fn operation_connection(row: &OperationConnection) -> ConnectionRow {
+    ConnectionRow {
+        id: row.id.clone(),
+        provider: row.provider.clone(),
+        config: row.config.clone(),
+        status: row.status.clone(),
+        version: row.version,
+    }
+}
+
+fn operation_object(item: &InventoryObject) -> DirectoryObject {
+    let identity = item
+        .properties
+        .get("erpxConnector")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    DirectoryObject {
+        id: item.id.clone(),
+        dn: identity
+            .get("dn")
+            .and_then(Value::as_str)
+            .unwrap_or(&item.id)
+            .to_owned(),
+        name: identity
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or(&item.id)
+            .to_owned(),
+        kind: item.kind.clone(),
+        parent_id: item
+            .properties
+            .get("parentId")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        version: item.version.clone(),
+        module: identity
+            .get("module")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned(),
+        properties: item.properties.clone(),
+        member_ids: item.member_ids.clone(),
+    }
+}
+
+impl<T: ConnectorTransport> PositionGpoConnector<T> {
+    async fn directory_inventory(
+        &self,
+        connection: &OperationConnection,
+    ) -> Result<DirectoryInventory, BusinessError> {
+        let row = operation_connection(connection);
+        let profile = self.profile(&row).await?;
+        match row.provider.as_str() {
+            "active_directory" => {
+                let reply = self
+                    .runner_reply(
+                        &profile,
+                        "inventory",
+                        json!({"connectionId": row.id, "baseDn": Self::base_dn(&row)}),
+                    )
+                    .await?;
+                DirectoryInventory::checked(reply.body)
+            }
+            "univention" => {
+                let inventory = self.udm_inventory(&row, &profile).await?;
+                let (root, username, password) = self.udm_root(&profile).await?;
+                let call = (username, password);
+                let schema = self
+                    .udm_call(&profile, &root, &call, "GET", "openapi.json", None, None)
+                    .await?;
+                checked(&schema)?;
+                let provider_version = schema
+                    .body
+                    .get("info")
+                    .and_then(|value| value.get("version"))
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.is_empty())
+                    .map(|value| format!("UDM {value}"))
+                    .unwrap_or_else(|| "UDM".to_owned());
+                let template = self
+                    .udm_call(&profile, &root, &call, "GET", "users/user/add", None, None)
+                    .await?;
+                checked(&template)?;
+                let available = template.body.get("properties").and_then(Value::as_object);
+                let fields = [
+                    "firstname",
+                    "lastname",
+                    "displayName",
+                    "description",
+                    "mailPrimaryAddress",
+                ]
+                .iter()
+                .filter(|name| available.is_some_and(|values| values.contains_key(**name)))
+                .map(|name| {
+                    json!({"name": name, "type": "text", "read": true, "write": true})
+                })
+                .collect::<Vec<_>>();
+                DirectoryInventory::checked(json!({
+                    "objects": inventory.objects.iter().map(operation_object).collect::<Vec<_>>(),
+                    "fields": fields,
+                    "providerVersion": provider_version,
+                    "observedAt": inventory.observed_at,
+                    "complete": true,
+                }))
+            }
+            _ => Err(provider_unsupported()),
+        }
+    }
+
+    async fn directory_apply(
+        &self,
+        connection: &OperationConnection,
+        operation_id: &str,
+        action: &DirectoryAction,
+        before: &DirectoryInventory,
+    ) -> Result<Value, BusinessError> {
+        let row = operation_connection(connection);
+        let profile = self.profile(&row).await?;
+        let kind = action.kind();
+        if !profile.write_operations.iter().any(|value| value == kind) {
+            return Err(write_not_approved());
+        }
+        if row.provider == "active_directory" || kind.starts_with("gpo.") {
+            let (registry, preferences) = match action {
+                DirectoryAction::GpoPublish { definition, .. } => (
+                    compile_registry_policies(definition),
+                    compile_preferences(definition, &preference_timestamp(before.observed_at)),
+                ),
+                _ => (Vec::new(), Vec::new()),
+            };
+            let reply = self
+                .runner_reply(
+                    &profile,
+                    "apply",
+                    json!({
+                        "connectionId": row.id,
+                        "operationId": operation_id,
+                        "action": action,
+                        "before": before,
+                        "registry": registry,
+                        "preferences": preferences,
+                    }),
+                )
+                .await?;
+            return Ok(reply.body);
+        }
+        self.udm_directory_apply(&profile, operation_id, action, before)
+            .await
+    }
+
+    async fn udm_directory_get(
+        &self,
+        profile: &ConnectorProfile,
+        root: &Url,
+        call: &(String, String),
+        object: &DirectoryObject,
+        check_version: bool,
+    ) -> Result<ConnectorReply, BusinessError> {
+        let route = format!("{}/{}", object.module, encode(&object.dn));
+        let reply = self
+            .udm_call(profile, root, call, "GET", &route, None, None)
+            .await?;
+        checked(&reply)?;
+        if text(&reply.body["uuid"]) != object.id {
+            return Err(identity_changed());
+        }
+        if check_version && reply.etag.as_deref() != Some(object.version.as_str()) {
+            return Err(version_changed());
+        }
+        Ok(reply)
+    }
+
+    async fn udm_directory_apply(
+        &self,
+        profile: &ConnectorProfile,
+        operation_id: &str,
+        action: &DirectoryAction,
+        before: &DirectoryInventory,
+    ) -> Result<Value, BusinessError> {
+        let (root, username, password) = self.udm_root(profile).await?;
+        let call = (username, password);
+        let find = |id: &str| -> Result<&DirectoryObject, BusinessError> {
+            before.object(id).ok_or_else(object_missing)
+        };
+
+        match action {
+            DirectoryAction::AccountCreate { .. }
+            | DirectoryAction::GroupCreate { .. }
+            | DirectoryAction::OuCreate { .. } => {
+                let (module, name, parent_id) = match action {
+                    DirectoryAction::AccountCreate {
+                        username,
+                        parent_id,
+                        ..
+                    } => ("users/user", username.clone(), parent_id.clone()),
+                    DirectoryAction::GroupCreate { name, parent_id } => {
+                        ("groups/group", name.clone(), parent_id.clone())
+                    }
+                    DirectoryAction::OuCreate { name, parent_id } => {
+                        ("container/ou", name.clone(), parent_id.clone())
+                    }
+                    _ => unreachable!(),
+                };
+                let parent = find(&parent_id)?;
+                let key = match action {
+                    DirectoryAction::AccountCreate { .. } => "uid",
+                    DirectoryAction::OuCreate { .. } => "ou",
+                    _ => "cn",
+                };
+                let dn = format!("{key}={name},{}", parent.dn);
+                let marker = format!("ERPX operation {operation_id}");
+                let old = self
+                    .udm_call(
+                        profile,
+                        &root,
+                        &call,
+                        "GET",
+                        &format!("{module}/{}", encode(&dn)),
+                        None,
+                        None,
+                    )
+                    .await?;
+                if old.status == 200 {
+                    if text(&old.body["properties"]["description"]) != marker
+                    {
+                        return Err(BusinessError::new(
+                            FailureKind::Conflict,
+                            "DIRECTORY_OBJECT_EXISTS",
+                            "This name belongs to another directory object.",
+                        ));
+                    }
+                    return Ok(json!({
+                        "verified": true,
+                        "objectId": text(&old.body["uuid"]),
+                        "dn": dn,
+                        "version": old.etag,
+                    }));
+                }
+                if old.status != 404 {
+                    checked(&old)?;
+                }
+                let _ = self.udm_directory_get(profile, &root, &call, parent, true).await?;
+                let properties = match action {
+                    DirectoryAction::AccountCreate {
+                        username,
+                        first_name,
+                        last_name,
+                        ..
+                    } => json!({
+                        "username": username,
+                        "firstname": first_name,
+                        "lastname": last_name,
+                        "password": random_password(),
+                        "disabled": true,
+                        "description": marker,
+                    }),
+                    _ => json!({"name": name, "description": marker}),
+                };
+                checked(
+                    &self
+                        .udm_call(
+                            profile,
+                            &root,
+                            &call,
+                            "POST",
+                            &format!("{module}/"),
+                            Some(json!({"position": parent.dn, "properties": properties})),
+                            None,
+                        )
+                        .await?,
+                )?;
+                let after = self
+                    .udm_call(
+                        profile,
+                        &root,
+                        &call,
+                        "GET",
+                        &format!("{module}/{}", encode(&dn)),
+                        None,
+                        None,
+                    )
+                    .await?;
+                checked(&after)?;
+                if text(&after.body["properties"]["description"]) != marker
+                {
+                    return Err(readback_failed());
+                }
+                Ok(json!({
+                    "verified": true,
+                    "objectId": text(&after.body["uuid"]),
+                    "dn": dn,
+                    "version": after.etag,
+                }))
+            }
+            _ => {
+                let target = find(action.object_id().unwrap_or_default())?.clone();
+                if let DirectoryAction::ObjectMove { parent_id, .. } = action {
+                    let parent = find(parent_id)?;
+                    let first = target
+                        .dn
+                        .split(',')
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned();
+                    let new_dn = format!("{first},{}", parent.dn);
+                    let route = format!("{}/{}", target.module, encode(&new_dn));
+                    let moved = self
+                        .udm_call(profile, &root, &call, "GET", &route, None, None)
+                        .await?;
+                    if moved.status == 200 && text(&moved.body["uuid"]) == target.id {
+                        return Ok(json!({
+                            "verified": true,
+                            "objectId": target.id,
+                            "dn": new_dn,
+                            "version": moved.etag,
+                        }));
+                    }
+                    if moved.status != 404 && moved.status != 200 {
+                        checked(&moved)?;
+                    }
+                    let _ = self.udm_directory_get(profile, &root, &call, parent, true).await?;
+                }
+                let current = self.udm_directory_get(profile, &root, &call, &target, false).await?;
+                let properties = current
+                    .body
+                    .get("properties")
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                let mut patch = Map::new();
+                let mut position: Option<String> = None;
+                match action {
+                    DirectoryAction::AccountDisable { .. } => {
+                        patch.insert("disabled".into(), json!(true));
+                    }
+                    DirectoryAction::AccountEnable { .. } => {
+                        patch.insert("disabled".into(), json!(false));
+                    }
+                    DirectoryAction::AccountUpdate { fields, .. } => {
+                        for (key, value) in fields {
+                            patch.insert(key.clone(), value.clone());
+                        }
+                    }
+                    DirectoryAction::OuUpdate { description, .. } => {
+                        patch.insert("description".into(), json!(description));
+                    }
+                    DirectoryAction::ObjectMove { parent_id, .. } => {
+                        position = Some(find(parent_id)?.dn.clone());
+                    }
+                    DirectoryAction::GroupMembers {
+                        member_ids,
+                        action,
+                        ..
+                    } => {
+                        for id in member_ids {
+                            let member = find(id)?;
+                            let _ = self.udm_directory_get(profile, &root, &call, member, false).await?;
+                        }
+                        let mut pending = member_ids.clone();
+                        let mut seen = BTreeSet::new();
+                        while let Some(id) = pending.pop() {
+                            if !seen.insert(id.clone()) {
+                                continue;
+                            }
+                            let member = find(&id)?;
+                            if member.kind == "group" {
+                                let _ = self.udm_directory_get(profile, &root, &call, member, true).await?;
+                                pending.extend(member.member_ids.iter().cloned());
+                            }
+                        }
+                        for (kind, property) in [
+                            ("account", "users"),
+                            ("group", "nestedGroup"),
+                            ("computer", "hosts"),
+                        ] {
+                            let desired = member_ids
+                                .iter()
+                                .filter_map(|id| before.object(id))
+                                .filter(|object| object.kind == kind)
+                                .map(|object| object.dn.clone())
+                                .collect::<Vec<_>>();
+                            if desired.is_empty() {
+                                continue;
+                            }
+                            let existing = string_list(&properties[property]);
+                            let next = if action == "add" {
+                                let mut values = existing.clone();
+                                for value in &desired {
+                                    if !values.iter().any(|item| item.eq_ignore_ascii_case(value)) {
+                                        values.push(value.clone());
+                                    }
+                                }
+                                values
+                            } else {
+                                existing
+                                    .iter()
+                                    .filter(|item| {
+                                        !desired.iter().any(|value| value.eq_ignore_ascii_case(item))
+                                    })
+                                    .cloned()
+                                    .collect()
+                            };
+                            patch.insert(property.to_owned(), json!(next));
+                        }
+                    }
+                    _ => return Err(provider_unsupported()),
+                }
+                let equal = |properties: &Value| {
+                    patch.iter().all(|(key, value)| {
+                        properties.get(key).map(|current| current == value) == Some(true)
+                    })
+                };
+                if position.is_none() && equal(&properties) {
+                    return Ok(json!({
+                        "verified": true,
+                        "objectId": target.id,
+                        "dn": target.dn,
+                        "version": current.etag,
+                    }));
+                }
+                if current.etag.as_deref() != Some(target.version.as_str()) {
+                    return Err(version_changed());
+                }
+                let mut path = format!("{}/{}", target.module, encode(&target.dn));
+                if let Some(position) = &position {
+                    let moved = self
+                        .udm_call(
+                            profile,
+                            &root,
+                            &call,
+                            "PUT",
+                            &path,
+                            Some(json!({
+                                "properties": current.body.get("properties").cloned().unwrap_or_else(|| json!({})),
+                                "options": current.body.get("options").cloned().unwrap_or_else(|| json!({})),
+                                "policies": current.body.get("policies").cloned().unwrap_or_else(|| json!({})),
+                                "position": position,
+                            })),
+                            current.etag.as_deref(),
+                        )
+                        .await?;
+                    let mut moved = moved;
+                    let deadline = seconds() + 60_000;
+                    while [202, 301, 302, 303].contains(&moved.status) {
+                        if moved.location.is_none()
+                            || moved.body.get("errors").is_some()
+                            || seconds() >= deadline
+                        {
+                            return Err(BusinessError::new(
+                                FailureKind::Unavailable,
+                                "DIRECTORY_PARTIAL_UNCERTAIN",
+                                "The directory move could not be confirmed. Read inventory and preview again.",
+                            ));
+                        }
+                        let delay = moved
+                            .retry_after
+                            .map(|value| value.saturating_mul(1000).clamp(250, 3000))
+                            .unwrap_or(500);
+                        tokio::time::sleep(Duration::from_millis(delay)).await;
+                        moved = self
+                            .udm_call(
+                                profile,
+                                &root,
+                                &call,
+                                "GET",
+                                moved.location.as_deref().unwrap_or_default(),
+                                None,
+                                None,
+                            )
+                            .await?;
+                        if ![202, 301, 302, 303].contains(&moved.status) {
+                            checked(&moved)?;
+                        }
+                    }
+                    if moved.body.get("errors").is_some() {
+                        return Err(BusinessError::new(
+                            FailureKind::Unavailable,
+                            "DIRECTORY_PARTIAL_UNCERTAIN",
+                            "The directory reported an incomplete move. Read inventory and preview again.",
+                        ));
+                    }
+                    let first = target.dn.split(',').next().unwrap_or_default();
+                    path = format!("{}/{}", target.module, encode(&format!("{first},{position}")));
+                } else {
+                    checked(
+                        &self
+                            .udm_call(
+                                profile,
+                                &root,
+                                &call,
+                                "PATCH",
+                                &path,
+                                Some(json!({"properties": patch})),
+                                current.etag.as_deref(),
+                            )
+                            .await?,
+                    )?;
+                }
+                let after = self
+                    .udm_call(profile, &root, &call, "GET", &path, None, None)
+                    .await?;
+                checked(&after)?;
+                let after_properties = after
+                    .body
+                    .get("properties")
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                if text(&after.body["uuid"]) != target.id {
+                    return Err(identity_changed());
+                }
+                let position_ok = position.as_ref().is_none_or(|position| {
+                    text(&after.body["position"]).eq_ignore_ascii_case(position)
+                });
+                if !equal(&after_properties) || !position_ok {
+                    return Err(readback_failed());
+                }
+                Ok(json!({
+                    "verified": true,
+                    "objectId": target.id,
+                    "dn": text(&after.body["dn"]),
+                    "version": after.etag,
+                }))
+            }
+        }
+    }
+}
+
+fn preference_timestamp(observed_at: i64) -> String {
+    time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(observed_at) * 1_000_000)
+        .ok()
+        .and_then(|value| {
+            value
+                .format(&time::macros::format_description!(
+                    "[year]-[month]-[day] [hour]:[minute]:[second]"
+                ))
+                .ok()
+        })
+        .unwrap_or_else(|| "2026-01-01 00:00:00".to_owned())
+}
+
+fn random_password() -> String {
+    use base64::Engine as _;
+    let mut bytes = [0u8; 36];
+    if getrandom::fill(&mut bytes).is_err() {
+        return format!("erpx-{}", seconds());
+    }
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+}
+
+impl<T: ConnectorTransport + Send + Sync> DirectoryOperationConnector
+    for PositionGpoConnector<T>
+{
+    fn inventory<'a>(
+        &'a self,
+        connection: &'a OperationConnection,
+    ) -> DirectoryOperationFuture<'a, DirectoryInventory> {
+        Box::pin(async move { self.directory_inventory(connection).await })
+    }
+    fn apply<'a>(
+        &'a self,
+        connection: &'a OperationConnection,
+        operation_id: &'a str,
+        action: &'a DirectoryAction,
+        before: &'a DirectoryInventory,
+    ) -> DirectoryOperationFuture<'a, Value> {
+        Box::pin(async move {
+            self.directory_apply(connection, operation_id, action, before)
+                .await
+        })
+    }
+}

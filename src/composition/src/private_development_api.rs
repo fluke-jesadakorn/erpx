@@ -3094,6 +3094,7 @@ async fn assemble_checked(
         let mut people_relationship_targets = Vec::new();
         let mut people_grants_targets = Vec::new();
         let mut user_management_targets = Vec::new();
+        let mut directory_operation_targets = Vec::new();
         let mut iam_roles_targets = Vec::new();
         let mut position_gpo_targets = Vec::new();
         let mut billing_targets = Vec::new();
@@ -4129,6 +4130,14 @@ async fn assemble_checked(
                 );
                 user_management_targets.push(
                     erpx_server_identity_access::public::user_management::UserManagementHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: identity_backend.clone(),
+                    },
+                );
+                directory_operation_targets.push(
+                    erpx_server_identity_access::public::directory_operation::DirectoryOperationHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -5754,6 +5763,14 @@ async fn assemble_checked(
                     user_management_targets,
                 )
                 .map_err(|_| "PRIVATE_API_USER_MANAGEMENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !directory_operation_targets.is_empty() {
+            router = router.merge(
+                erpx_server_identity_access::public::directory_operation::directory_operation_http_router(
+                    directory_operation_targets,
+                )
+                .map_err(|_| "PRIVATE_API_DIRECTORY_OPERATION_CONFIGURATION_INVALID")?,
             );
         }
         if !billing_targets.is_empty() {

@@ -1822,17 +1822,20 @@ pub async fn cancel_operation(
 
 async fn due_operations(
     connection: &mut PgConnection,
+    company: Option<&str>,
     now: i64,
     limit: i64,
 ) -> Result<Vec<(String, String)>, Error> {
     let rows = sqlx::query(
         "SELECT o.id,o.connection_id FROM people_directory_operations o \
          LEFT JOIN iam_reviews r ON r.id=o.review_id \
-         WHERE (o.status IN ('queued','retry','running') AND o.next_attempt_at<=$1) \
-         OR (o.status='pending_review' AND r.status='approved') \
-         ORDER BY o.created_at LIMIT $2",
+         WHERE ((o.status IN ('queued','retry','running') AND o.next_attempt_at<=$1) \
+         OR (o.status='pending_review' AND r.status='approved')) \
+         AND ($2::text IS NULL OR o.company_id=$2) \
+         ORDER BY o.created_at LIMIT $3",
     )
     .bind(now)
+    .bind(company)
     .bind(limit)
     .fetch_all(&mut *connection)
     .await?;
@@ -1879,11 +1882,12 @@ pub async fn drain_operations(
     connection: &mut PgConnection,
     connector: &dyn DirectoryOperationConnector,
     freshness: &dyn DirectoryDirectFreshness,
+    company: Option<&str>,
     now: i64,
     limit: i64,
 ) -> Result<usize, Error> {
     ready(connection).await?;
-    let due = due_operations(connection, now, limit).await?;
+    let due = due_operations(connection, company, now, limit).await?;
     let mut completed = 0usize;
     for (id, _) in due {
         let locked: bool = sqlx::query_scalar("SELECT pg_try_advisory_lock(hashtext($1))")

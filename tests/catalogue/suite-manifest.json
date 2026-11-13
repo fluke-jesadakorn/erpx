@@ -3705,7 +3705,7 @@
       "files": [
         "tests/integration/benefits/rust-benefits-command-http.test.rs"
       ],
-      "fixture": "postgres",
+      "fixture": "none",
       "requires": {
         "jobs": false,
         "scanner": false
@@ -7956,14 +7956,14 @@
       "files": [
         "tests/integration/identity_access/directory-operations.test.ts"
       ],
-      "fixture": "postgres",
+      "fixture": "none",
       "requires": {
         "jobs": false,
         "scanner": false
       },
       "ci": {
         "critical": true,
-        "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
+        "reason": "Native Directory operation client parity: private Holding target, command routes, context forwarding and Idempotency-Key placement retained in the PR baseline; owner transactions and readback oracles live in Rust."
       },
       "apps": [
         "account",
@@ -8026,19 +8026,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow"
-      ],
-      "postgres": {
-        "mode": "template",
-        "slots": [
-          "CONTROL_DB",
-          "H001_DB",
-          "H001_READ_DB"
-        ],
-        "migratedSlots": [
-          "CONTROL_DB",
-          "H001_DB"
-        ]
-      }
+      ]
     },
     {
       "id": "identity_access.directory-provider-live.provider",
