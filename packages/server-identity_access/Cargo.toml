@@ -15,6 +15,7 @@ path = "src/lib.rs"
 
 [features]
 directory-oidc = ["dep:ryu-js", "dep:ml-dsa", "dep:rsa", "sha2/oid", "dep:p521", "dep:reqwest", "dep:rustls", "dep:webpki-roots"]
+position-gpo-connector = ["dep:reqwest", "dep:rustls", "dep:webpki-roots"]
 directory-ldaps = ["dep:ldap3_proto", "dep:bytes", "dep:tokio-util", "dep:tracing", "dep:tokio-rustls", "dep:rustls", "dep:webpki-roots"]
 contracts = ["dep:ts-rs", "dep:utoipa"]
 mail-resend = ["dep:reqwest", "dep:rustls", "dep:webpki-roots"]
@@ -291,3 +292,12 @@ path = "../../tests/unit/identity_access/rust-position-gpo.test.rs"
 [[test]]
 name = "position_gpo_postgres"
 path = "../../tests/integration/identity_access/rust-position-gpo-postgres.test.rs"
+
+[[test]]
+name = "position_gpo_http"
+path = "../../tests/unit/identity_access/rust-position-gpo-http.test.rs"
+
+[[test]]
+name = "position_gpo_directory"
+path = "../../tests/unit/identity_access/rust-position-gpo-directory.test.rs"
+required-features = ["position-gpo-connector"]

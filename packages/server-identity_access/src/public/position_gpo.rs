@@ -5,6 +5,15 @@
 //! provider reads/effects stay behind [`PositionGpoDirectory`]; this crate
 //! never bypasses the installed connector profile.
 pub use crate::adapters::position_gpo_postgres::PgPositionGpo;
+#[cfg(feature = "position-gpo-connector")]
+pub use crate::adapters::position_gpo_directory::{
+    ConnectorRequest, ConnectorReply, ConnectorTransport, PgPositionGpoDirectory,
+    PositionGpoConnector, ReqwestConnector,
+};
+pub use crate::adapters::position_gpo_http::{
+    position_gpo_http_router, PositionGpoHttpBackend, PositionGpoHttpCommand,
+    PositionGpoHttpFuture, PositionGpoHttpRequest, PositionGpoHttpResponse, PositionGpoHttpTarget,
+};
 pub use crate::application::position_gpo::{
     configure_gpos, drain_position_gpo_locked, position_gpo_overview, preview_position_gpo,
     preview_unmap_position_gpo, publish_position_gpo, reconcile_position_gpo, retry_position_gpo,

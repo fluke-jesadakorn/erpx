@@ -459,7 +459,8 @@
     "./public/native-account-http": "./src/public/native-account-http.ts",
     "./public/native-iam-assignments": "./src/public/native-iam-assignments.ts",
     "./public/account-session": "./src/public/account-session.ts",
-    "./public/native-iam": "./src/public/native-iam.ts"
+    "./public/native-iam": "./src/public/native-iam.ts",
+    "./public/native-position-gpo": "./src/public/native-position-gpo.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

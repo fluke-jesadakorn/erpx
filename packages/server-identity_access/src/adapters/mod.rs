@@ -138,6 +138,9 @@ pub(crate) mod pms_social_event_recipients;
 pub mod routine_owner;
 
 pub(crate) mod position_gpo_postgres;
+#[cfg(feature = "position-gpo-connector")]
+pub(crate) mod position_gpo_directory;
+pub(crate) mod position_gpo_http;
 
 pub(crate) mod people_access_postgres;
 pub(crate) mod people_access_http;

@@ -122,6 +122,11 @@ pub mod routine_owner;
 
 pub mod position_gpo;
 
+/// Native Position GPO HTTP ingress, re-exported from the owner adapter.
+pub mod position_gpo_http {
+    pub use crate::adapters::position_gpo_http::*;
+}
+
 pub mod people_access;
 pub mod people_access_http;
 pub mod people_grants;
