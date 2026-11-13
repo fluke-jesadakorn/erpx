@@ -394,4 +394,42 @@ fn bad_receipts_and_invalid_configuration_fail_closed() {
             assert!(billing_router(vec![invalid]).is_err());
         }
     });
+
+}
+
+#[test]
+fn billing_context_serializes_the_exact_transport_contract() {
+    use erpx_server_billing::public::workspace::BillingContext;
+    for (platform, role) in [(true, "platform_admin"), (false, "holding_owner")] {
+        let value = serde_json::to_value(BillingContext {
+            user_id: "user-1".into(),
+            holding_id: "h001".into(),
+            platform,
+            role: role.into(),
+            assignment_id: "assignment-1".into(),
+            expires_at: Some(1_760_000_000_000),
+        })
+        .unwrap();
+        let mut keys: Vec<&str> = value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "assignmentId",
+                "expiresAt",
+                "holdingId",
+                "platform",
+                "role",
+                "userId"
+            ]
+        );
+        assert_eq!(value["platform"], serde_json::json!(platform));
+        assert_eq!(value["expiresAt"], serde_json::json!(1_760_000_000_000i64));
+        assert_eq!(value["holdingId"], serde_json::json!("h001"));
+    }
 }

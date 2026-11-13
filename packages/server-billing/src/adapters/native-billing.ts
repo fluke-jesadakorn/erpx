@@ -255,6 +255,18 @@ export class NativeBillingError extends Error {
   }
 }
 
+/**
+ * The owner serializes `BillingActor::context` for every Billing router
+ * response: exactly `{userId, holdingId, platform, role, assignmentId,
+ * expiresAt}`. Any other key set is a protocol mismatch and fails closed.
+ *
+ * `expiresAt` is the owner session expiry in epoch milliseconds. A caller that
+ * knows its own session expiry must present the exact value (equality). The
+ * retained page/route contexts (`WorkContext`, `PlatformContext`) do not expose
+ * the session expiry, so a caller without it requires a positive, still-future
+ * owner value instead; the owner re-validates the session on every request, so
+ * this only rejects a stale or malformed projection.
+ */
 function context(
   value: unknown,
   actor: NativeBillingPageContext,
@@ -268,10 +280,15 @@ function context(
     value.platform !== actor.platform ||
     value.role !== actor.role ||
     value.assignmentId !== actor.assignmentId ||
-    (value.expiresAt !== null && !integer(value.expiresAt, 1)) ||
-    (value.expiresAt ?? null) !== (actor.expiresAt ?? null)
+    !integer(value.expiresAt, 1)
   )
     return failure("NATIVE_BILLING_CONTEXT_CHANGED");
+  if (actor.expiresAt !== undefined && actor.expiresAt !== null) {
+    if (value.expiresAt !== actor.expiresAt)
+      return failure("NATIVE_BILLING_CONTEXT_CHANGED");
+  } else if (value.expiresAt <= Date.now()) {
+    return failure("NATIVE_BILLING_CONTEXT_CHANGED");
+  }
   return value;
 }
 
@@ -559,7 +576,11 @@ function configuration(raw: NativeBillingConfiguration) {
     return failure("NATIVE_BILLING_CONFIGURATION_INVALID");
   const holdings = new Map<
     string,
-    { origin: string; holdingSlug: string; holdingId: string }
+    { host: string; origin: string; holdingSlug: string; holdingId: string }
+  >();
+  const holdingsById = new Map<
+    string,
+    { host: string; origin: string; holdingSlug: string; holdingId: string }
   >();
   for (const holding of raw.holdings) {
     let origin: URL;
@@ -576,16 +597,20 @@ function configuration(raw: NativeBillingConfiguration) {
       origin.password ||
       !identifier(holding.holdingId) ||
       !/^[a-z0-9_-]{1,128}$/.test(holding.holdingSlug) ||
-      holdings.has(origin.host)
+      holdings.has(origin.host) ||
+      holdingsById.has(holding.holdingId)
     )
       return failure("NATIVE_BILLING_CONFIGURATION_INVALID");
-    holdings.set(origin.host, {
+    const entry = {
+      host: origin.host,
       origin: holding.origin,
       holdingSlug: holding.holdingSlug,
       holdingId: holding.holdingId,
-    });
+    };
+    holdings.set(origin.host, entry);
+    holdingsById.set(holding.holdingId, entry);
   }
-  return { base, holdings, timeout: raw.timeoutMs };
+  return { base, holdings, holdingsById, timeout: raw.timeoutMs };
 }
 
 function boundedHeader(
@@ -603,6 +628,22 @@ function boundedHeader(
   return value;
 }
 
+/**
+ * Resolve the private owner target for this call.
+ *
+ * * The retained Holding surface is Host-bound: the request Host selects the
+ *   configured Holding and it must be exactly the requested target.
+ * * A platform actor keeps the same requirement that the request comes from a
+ *   configured Holding surface (the admin product runs inside a Holding host),
+ *   but the target may be any configured Holding by immutable id. The owner
+ *   re-authenticates the forwarded session and still requires a platform
+ *   assignment (`require_cost_command`), so the cross-Holding target is a
+ *   routing choice, never an authority grant.
+ *
+ * The loopback request carries the resolved target Host/Origin so the owner
+ * router matches its `(host, holdingSlug)` target and applies its own exact
+ * Origin check. A non-platform actor can never widen the Host binding.
+ */
 function ownerCall(
   transport: NativeBillingTransport,
   config: ReturnType<typeof configuration>,
@@ -615,10 +656,14 @@ function ownerCall(
   key: string | undefined,
   signal?: AbortSignal,
 ): Promise<Response> {
-  const host = incoming.get("host");
-  const holding = host ? config.holdings.get(host) : undefined;
+  const requestHost = incoming.get("host");
+  const requesting = requestHost ? config.holdings.get(requestHost) : undefined;
+  const holding = actor.platform
+    ? config.holdingsById.get(input.holdingId)
+    : requesting;
   if (
-    !host ||
+    !requestHost ||
+    !requesting ||
     !holding ||
     holding.holdingSlug !== input.holdingSlug ||
     holding.holdingId !== input.holdingId ||
@@ -629,7 +674,7 @@ function ownerCall(
       new NativeBillingError("NATIVE_BILLING_AUTHORITY_INVALID"),
     );
   const headers = new Headers({
-    host,
+    host: holding.host,
     accept: "application/json",
     "cache-control": "no-cache",
   });
@@ -653,7 +698,7 @@ function ownerCall(
     if (!key || !/^[a-zA-Z0-9:_.-]{8,180}$/.test(key))
       return Promise.reject(new NativeBillingError("NATIVE_BILLING_REQUEST_INVALID"));
     const origin = incoming.get("origin");
-    if (origin && origin !== holding.origin)
+    if (origin && origin !== requesting.origin)
       return Promise.reject(
         new NativeBillingError("ORIGIN_FORBIDDEN", 403, "Use the application origin."),
       );

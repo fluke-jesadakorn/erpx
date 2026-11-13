@@ -21,6 +21,12 @@ const actor: NativeBillingPageContext = {
   expiresAt: null,
 };
 
+/** Captured owner projection: the exact JSON produced by Rust
+ * `BillingActor::context` (`#[serde(rename_all = "camelCase")]`). */
+const CAPTURED_CONTEXT =
+  '{"userId":"admin","holdingId":"h001","platform":true,"role":"platform_admin","assignmentId":"assignment","expiresAt":4102444800000}';
+const EXPIRES = 4_102_444_800_000;
+
 const configuration: NativeBillingConfiguration = {
   privateBaseUrl: 'http://127.0.0.1:3110',
   holdings: [
@@ -28,6 +34,11 @@ const configuration: NativeBillingConfiguration = {
       origin: 'https://acme.example.test',
       holdingSlug: 'acme',
       holdingId: 'h001',
+    },
+    {
+      origin: 'https://northstar.example.test',
+      holdingSlug: 'beta',
+      holdingId: 'h002',
     },
   ],
   timeoutMs: 1000,
@@ -141,7 +152,7 @@ function context(overrides: Record<string, unknown> = {}) {
     platform: actor.platform,
     role: actor.role,
     assignmentId: actor.assignmentId,
-    expiresAt: null,
+    expiresAt: EXPIRES,
     ...overrides,
   };
 }
@@ -652,6 +663,218 @@ describe('native Billing transport', () => {
       expect(
         nativeBillingCommandRequest({ action, version: 1, reason: 'Retained action' }),
       ).toBeUndefined();
+  });
+
+  it('accepts the exact captured owner BillingContext projection', async () => {
+    expect(Object.keys(JSON.parse(CAPTURED_CONTEXT)).sort()).toEqual([
+      'assignmentId',
+      'expiresAt',
+      'holdingId',
+      'platform',
+      'role',
+      'userId',
+    ]);
+    const client = createNativeBillingClient(configuration, async () =>
+      response({ data: { ok: true }, context: JSON.parse(CAPTURED_CONTEXT) }),
+    );
+    expect(
+      await client.command(headers(), actor, {
+        holdingId: 'h001',
+        holdingSlug: 'acme',
+        action: 'cost',
+        key: 'billing-command-0001',
+        body: {},
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it('rejects the retired 15-key composition context and any key drift', async () => {
+    const { expiresAt, ...missingExpiry } = context();
+    for (const value of [
+      // The 15-key `context(current)` shape the owner used to emit.
+      {
+        userId: 'admin',
+        holdingId: 'h001',
+        companyId: 'erpx',
+        branchId: null,
+        departmentId: null,
+        branchSlug: null,
+        departmentSlug: null,
+        assignmentId: 'assignment',
+        assignmentVersion: 1,
+        revision: 1,
+        role: 'platform_admin',
+        assignmentScopeKind: 'holding',
+        modules: [],
+        permissions: [],
+        expiresAt,
+      },
+      { ...context(), extra: true },
+      missingExpiry,
+    ]) {
+      const client = createNativeBillingClient(configuration, async () =>
+        response({ data: { ok: true }, context: value }),
+      );
+      await expect(
+        client.command(headers(), actor, {
+          holdingId: 'h001',
+          holdingSlug: 'acme',
+          action: 'cost',
+          key: 'billing-command-0001',
+          body: {},
+        }),
+      ).rejects.toMatchObject({ code: 'NATIVE_BILLING_RESPONSE_INVALID' });
+    }
+  });
+
+  it('requires an exact actor expiry when known and a live owner expiry otherwise', async () => {
+    const call = (
+      ownerContext: Record<string, unknown>,
+      caller: NativeBillingPageContext = actor,
+    ) => {
+      const client = createNativeBillingClient(configuration, async () =>
+        response({ data: { ok: true }, context: ownerContext }),
+      );
+      return client.command(headers(), caller, {
+        holdingId: 'h001',
+        holdingSlug: 'acme',
+        action: 'cost',
+        key: 'billing-command-0001',
+        body: {},
+      });
+    };
+    for (const ownerContext of [
+      context({ expiresAt: null }),
+      context({ expiresAt: 1 }),
+      context({ expiresAt: Date.now() - 60_000 }),
+    ])
+      await expect(call(ownerContext)).rejects.toMatchObject({
+        code: 'NATIVE_BILLING_CONTEXT_CHANGED',
+      });
+    const known = { ...actor, expiresAt: EXPIRES };
+    expect(await call(context(), known)).toEqual({ ok: true });
+    await expect(call(context({ expiresAt: EXPIRES + 1 }), known)).rejects.toMatchObject({
+      code: 'NATIVE_BILLING_CONTEXT_CHANGED',
+    });
+    // Identity drift is never silently accepted, even with a live expiry.
+    for (const drift of [
+      context({ userId: 'someone-else' }),
+      context({ assignmentId: 'other-assignment' }),
+      context({ platform: false }),
+      context({ role: 'platform_auditor' }),
+    ])
+      await expect(call(drift)).rejects.toMatchObject({
+        code: 'NATIVE_BILLING_CONTEXT_CHANGED',
+      });
+  });
+
+  it('keeps the exact Host to Holding binding for retained actors', async () => {
+    const calls: Parameters<NativeBillingTransport>[] = [];
+    const client = createNativeBillingClient(configuration, async (...args) => {
+      calls.push(args);
+      return response({
+        data: { ok: true },
+        context: context({ holdingId: 'h002', platform: false, role: 'holding_owner' }),
+      });
+    });
+    const owner = {
+      ...actor,
+      platform: false,
+      role: 'holding_owner',
+      holdingId: 'h002',
+      holdingSlug: 'beta',
+    };
+    await expect(
+      client.command(headers(), owner, {
+        holdingId: 'h002',
+        holdingSlug: 'beta',
+        action: 'cost',
+        key: 'billing-command-0001',
+        body: {},
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_BILLING_AUTHORITY_INVALID' });
+    expect(calls).toHaveLength(0);
+
+    const sameHolding = createNativeBillingClient(configuration, async (...args) => {
+      calls.push(args);
+      return response({
+        data: { ok: true },
+        context: context({ platform: false, role: 'holding_owner' }),
+      });
+    });
+    expect(
+      await sameHolding.command(
+        headers(),
+        { ...actor, platform: false, role: 'holding_owner' },
+        {
+          holdingId: 'h001',
+          holdingSlug: 'acme',
+          action: 'cost',
+          key: 'billing-command-0001',
+          body: {},
+        },
+      ),
+    ).toEqual({ ok: true });
+    expect(String(calls[0]![1])).toBe(
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/costs/record',
+    );
+    expect(calls[0]![2].get('host')).toBe('acme.example.test');
+    expect(calls[0]![2].get('origin')).toBe('https://acme.example.test');
+  });
+
+  it('resolves the platform target by immutable Holding id from a Holding surface', async () => {
+    const calls: Parameters<NativeBillingTransport>[] = [];
+    const client = createNativeBillingClient(configuration, async (...args) => {
+      calls.push(args);
+      return response({
+        data: { ok: true },
+        context: context({ holdingId: 'h002' }),
+      });
+    });
+    const platformTarget = { ...actor, holdingId: 'h002', holdingSlug: 'beta' };
+    expect(
+      await client.command(
+        headers({ origin: 'https://acme.example.test' }),
+        platformTarget,
+        {
+          holdingId: 'h002',
+          holdingSlug: 'beta',
+          action: 'cost',
+          key: 'billing-command-0001',
+          body: {},
+        },
+      ),
+    ).toEqual({ ok: true });
+    expect(String(calls[0]![1])).toBe(
+      'http://127.0.0.1:3110/api/v1/holdings/beta/billing/costs/record',
+    );
+    expect(calls[0]![2].get('host')).toBe('northstar.example.test');
+    expect(calls[0]![2].get('origin')).toBe('https://northstar.example.test');
+    expect(calls[0]![2].get('cookie')).toBe('__Host-erpx-product=session');
+
+    for (const [incoming, target] of [
+      // Not from a configured Holding surface: no authority at all.
+      [headers({ host: 'console.example.test' }), platformTarget],
+      // Unknown target Holding id.
+      [headers(), { ...actor, holdingId: 'h009', holdingSlug: 'nope' }],
+      // Foreign browser origin.
+      [headers({ origin: 'https://evil.example.test' }), platformTarget],
+    ] as const) {
+      await expect(
+        client.command(incoming, target, {
+          holdingId: target.holdingId,
+          holdingSlug: target.holdingSlug,
+          action: 'cost',
+          key: 'billing-command-0001',
+          body: {},
+        }),
+      ).rejects.toMatchObject({
+        code:
+          incoming.get('origin') === 'https://evil.example.test'
+            ? 'ORIGIN_FORBIDDEN'
+            : 'NATIVE_BILLING_AUTHORITY_INVALID',
+      });
+    }
   });
 
 });

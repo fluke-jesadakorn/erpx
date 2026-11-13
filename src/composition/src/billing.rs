@@ -45,7 +45,7 @@ use erpx_server_identity_access::public::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+    work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_billing::public::invoice::{
@@ -178,31 +178,18 @@ async fn billing_actor(
     }
 }
 
-fn context(current: &AuthorizedWorkContext) -> Value {
-    let selected = current.selection();
-    let workspace = selected.workspace();
-    let assignment = selected.assignment();
-    serde_json::json!({
-        "userId": current.user_id().as_str(),
-        "holdingId": current.holding_id().as_str(),
-        "companyId": workspace.company_id.as_str(),
-        "branchId": workspace.branch_id.as_ref().map(|value| value.as_str()),
-        "departmentId": workspace.department_id.as_ref().map(|value| value.as_str()),
-        "branchSlug": workspace.branch_slug,
-        "departmentSlug": workspace.department_slug,
-        "assignmentId": assignment.id.as_str(),
-        "assignmentVersion": assignment.version,
-        "revision": selected.revision(),
-        "role": assignment.role,
-        "assignmentScopeKind": match assignment.scope_kind {
-            WorkScopeKind::Holding => "holding",
-            WorkScopeKind::Branch => "branch",
-            WorkScopeKind::Department => "department",
-        },
-        "modules": current.modules(),
-        "permissions": current.command_iam_metadata().permissions,
-        "expiresAt": current.expires_at(),
-    })
+/// Exact owner context projection for the Billing HTTP routers.
+///
+/// The retained Next transport validates `{userId, holdingId, platform, role,
+/// assignmentId, expiresAt}` (camelCase) and nothing else. The richer workspace
+/// context stays local to composition; non-billing consumers are unaffected.
+/// The already-computed actor carries the retained authority values, so the
+/// projection adds no new DB read.
+fn actor_context(
+    actor: &BillingActor,
+    target: &HoldingId,
+) -> Result<Value, BusinessError> {
+    serde_json::to_value(actor.context(target)).map_err(|_| unavailable())
 }
 
 pub struct BillingService<C> {
@@ -292,7 +279,7 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                             billing_workspace(&actor, &holding, &mut repository, now).await?;
                         Ok(BillingHttpResponse {
                             data: serde_json::to_value(data).map_err(|_| unavailable())?,
-                            context: context(current),
+                            context: actor_context(&actor, &holding)?,
                         })
                     })
                 },
@@ -344,7 +331,7 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                                 })?;
                         Ok(BillingHttpResponse {
                             data: serde_json::json!({"ok": true}),
-                            context: context(current),
+                            context: actor_context(&actor, &holding)?,
                         })
                     })
                 },
@@ -404,7 +391,7 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                         .await?;
                         Ok(BillingHttpResponse {
                             data: serde_json::json!({"ok": true}),
-                            context: context(current),
+                            context: actor_context(&actor, &holding)?,
                         })
                     })
                 },
@@ -464,7 +451,7 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                         .await?;
                         Ok(BillingHttpResponse {
                             data: serde_json::json!({"ok": true}),
-                            context: context(current),
+                            context: actor_context(&actor, &holding)?,
                         })
                     })
                 },
@@ -509,7 +496,7 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                         execute_rate_target(connection, &actor, &holding, &command, now).await?;
                         Ok(BillingHttpResponse {
                             data: serde_json::json!({"ok": true}),
-                            context: context(current),
+                            context: actor_context(&actor, &holding)?,
                         })
                     })
                 },
@@ -555,7 +542,7 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                             .await?;
                         Ok(BillingHttpResponse {
                             data: serde_json::json!({"ok": true}),
-                            context: context(current),
+                            context: actor_context(&actor, &holding)?,
                         })
                     })
                 },
@@ -600,7 +587,7 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                         execute_retry_job(connection, &actor, &holding, &command, now).await?;
                         Ok(BillingHttpResponse {
                             data: serde_json::json!({"ok": true}),
-                            context: context(current),
+                            context: actor_context(&actor, &holding)?,
                         })
                     })
                 },
@@ -660,7 +647,7 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                         })?;
                         Ok(BillingInvoiceHttpResponse {
                             data: serde_json::json!({"ok": true}),
-                            context: context(current),
+                            context: actor_context(&actor, &holding)?,
                         })
                     })
                 },
