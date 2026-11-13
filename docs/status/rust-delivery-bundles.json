@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1378,
+    "revision": 1384,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T01:10:58.778Z",
-      "expiresAt": "2026-11-13T01:40:58.778Z",
+      "heartbeatAt": "2026-11-13T01:16:20.993Z",
+      "expiresAt": "2026-11-13T01:46:20.993Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -21364,7 +21364,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Retire TS writer in adapters/attachments/service-repository.ts (57 write statements)",
-        "scope": "G4 per-capability retirement for files: adapters/attachments/service-repository.ts holds 57 retained write statements of the owner total 125. Classify against packages/server-files/src/**/*.rs first; retire only if a complete native counterpart exists and no live TS caller remains. Then delete the writer plus barrels, migrate oracles to native seeding, and record the owner KPI pair. Removal condition: owner KPI command returns 0 and no retired export remains in packages/fixtures/tests/scripts.",
+        "scope": "G4 retirement for the retained generic Files TS engine. Measured at 6d69edfde: packages/server-files/src/**/*.ts = 117 writes across 15 files. Per-file residual and removal condition (removalTaskId = retire.files.service-repository unless noted): service-repository.ts 55 = generic set/link/upload/attachment/scan-attempt/storage-ledger/access-event/publication/expiry/destroy statements for the non-field, non-support owners; delete after the native generic create/reserve/complete/scan/remove producer (migrate.files.generic-attachment-command) covers every remaining owner and the native scan/destroy workers replace the retained scanner steps. migration.ts 24 = legacy attachment migration/backfill writer; delete after a native Files migration command exists and the migration fixtures seed owner rows directly. legal-portal-repository.ts 10 = Legal portal session/binding rows; delete after native Legal portal file sessions own them (migrate.legal or a dedicated Legal Files port). collaboration-home-sources.ts 7 = Collaboration home/social-draft file sources; delete after the native Collaboration social-draft file projection owns the rows (migrate.collaboration.social-draft-commands). legal-portal-binding.ts 3 and legal-destruction-source-facts.ts 3 = Legal link binding/destruction projections; delete with the Legal portal session port. expense-native-effects.ts 3 = Expense owner effects prepared on the caller's transaction; delete after the native Expense evidence port emits them. document-derivatives.ts 3 = derivative publication rows; delete after the native derivative/publication command exists. attachments/orphan-preservation.ts 3 = orphan preservation sweep rows; delete after the native Files orphan/cleanup worker owns preservation. support-ticket-portal-files.ts 1 = Support portal file projection; delete after the native Support portal file projection replaces it (Support ticket-portal slice already native for the customer surface). private-attachment-reads.ts 1, customer-portal-files.ts 1 and pos-images-facts.ts 1 = private read/access-audit projections on the caller's connection; delete when the native read APIs return the same audit writes. beta-resource-cleanup.ts 1 = beta expired-upload cleanup; delete after the native cleanup command owns expired uploads. attachments/hospitality-purchases.ts 1 = POS/PMS hospitality purchase observation; delete after the native command ports return the purchase result. No write may be deleted without its native counterpart and consumer switch.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -21387,7 +21387,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "BLOCKED ON CAPACITY: worker-files-retire died on OpenCode Go usage limit before any edit. Resume this lane (Step-0 native counterpart table for packages/server-files/src/**/*.ts, then six-point retirement and KPI pair) when subagent/model quota is restored.",
+        "nextAction": "Sequence: (1) apply migrate.files.support-attachment-mount once owner:files-mount is claimable; (2) extend migrate.files.generic-attachment-command to the remaining non-field owners and the native scan/destroy workers, deleting service-repository.ts 55 and hospitality-purchases.ts 1 with the consumer switch; (3) take the owner-specific files above with their named counterpart tasks; (4) re-run the Files KPI before/after for every deletion.",
         "handoff": {
           "runId": "run-20261112-q",
           "agentId": "lead",
@@ -24965,18 +24965,11 @@
         "resources": [
           "owner:files"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "worker-files-support",
-          "claimedAt": "2026-11-13T00:37:50.660Z",
-          "heartbeatAt": "2026-11-13T01:10:58.778Z",
-          "expiresAt": "2026-11-13T01:40:58.778Z",
-          "generation": 50
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
-        "lastPushedSha": "553e5754d3dd1011b6495c8d2dbc16e0a1da9160",
+        "implementedCommit": "6d69edfde2aa8169357b65d866270213299387cc",
+        "lastPushedSha": "6d69edfde2aa8169357b65d866270213299387cc",
         "checks": [
           {
             "command": "cargo test -p erpx-server-files --test attachment_read_http",
@@ -25021,18 +25014,81 @@
             "sourceSha": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
             "before": 2598,
             "after": 2597
+          },
+          {
+            "command": "cargo check -p erpx-server-files -p erpx-server-support",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "Files and Support crates compile with the native support_ticket intake, PG authority and HTTP router."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test attachment_command_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "9/9, including the native Support stage/reserve/complete/scan lifecycle and the same-connection purchase refusal plus HTTP transport cases."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration tests/integration/support/support-evidence.test.ts",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "12/12; the upload routes stage support evidence, leave the case binding to the native Support command and reject the generic bind."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration tests/integration/shared.attachments/attachments-v2.test.ts",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "34/34 on the shared Files behavior after removing the Support purchase chain from the generic unit."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit tests/unit/support/support-services.test.ts",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "48/48 retained Support service reads after deleting the last Support TS writer."
+          },
+          {
+            "command": "bunx tsc -p packages/server-files/tsconfig.json --noEmit && bunx tsc -p packages/server-support/tsconfig.json --noEmit && bunx tsc -p packages/feature-support/tsconfig.json --noEmit && bunx tsc -p packages/feature-files/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "All four package typechecks pass. packages/workplace tsc still reports only the peer-missing @erpx/feature-projects/public/native-project-* and @erpx/server-files/public/project-attachment exports recorded before this slice."
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "note": "33 modules, 1215 suites."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "before": 1,
+            "after": 0,
+            "note": "adapters/attachment-purchases.ts DELETE FROM command_assertions is deleted with its public barrel and package exports; the boundary now runs on the native command's connection."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6d69edfde2aa8169357b65d866270213299387cc",
+            "before": 2402,
+            "after": 2401,
+            "note": "Global KPI moved by exactly the deleted Support writer; Files stays 117 pending the generic non-support owners."
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement native support_ticket create/reserve/complete/scan + purchase boundary in server-files/support/workplace/tests without touching src/composition; delete attachment-purchases.ts and record Support 1->0; prepare the exact composition mount patch for migrate.files.support-attachment-mount.",
+        "blocker": "released with work preserved",
+        "nextAction": "Producer implemented and pushed at 6d69edfde (support_ticket create/reserve/complete/scan on Files, Support ticket/purchase authority on the same unit, workplace upload/stage routes switched). Remaining: apply migrate.files.support-attachment-mount when owner:files-mount has src/composition claim-free (agent ai-gateway currently holds it), then classify the 117 Files / 55 service-repository non-support writes with removalTaskIds.",
         "handoff": {
-          "runId": "run-20261112-s",
-          "agentId": "worker-files-withdraw",
-          "at": "2026-11-12T16:57:57.646Z",
+          "runId": "run-20261113-f",
+          "agentId": "worker-files-support",
+          "at": "2026-11-13T01:15:49.437Z",
           "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Next files slice: native create/reserve/complete/scan for non-field owners; classify the residual 55 service-repository writes with removalTaskId/removalCondition."
+          "reason": "released with work preserved",
+          "nextAction": "Producer implemented and pushed at 6d69edfde (support_ticket create/reserve/complete/scan on Files, Support ticket/purchase authority on the same unit, workplace upload/stage routes switched). Remaining: apply migrate.files.support-attachment-mount when owner:files-mount has src/composition claim-free (agent ai-gateway currently holds it), then classify the 117 Files / 55 service-repository non-support writes with removalTaskIds."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -29770,8 +29826,8 @@
           "runId": "run-20261113-f",
           "agentId": "lead",
           "claimedAt": "2026-11-13T00:16:11.607Z",
-          "heartbeatAt": "2026-11-13T01:10:58.778Z",
-          "expiresAt": "2026-11-13T01:40:58.778Z",
+          "heartbeatAt": "2026-11-13T01:16:20.993Z",
+          "expiresAt": "2026-11-13T01:46:20.993Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30830,23 +30886,54 @@
         "resources": [
           "owner:crm"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "843b365fff6379a1ce0dbb6c6f002a161c493e5d",
+        "lastPushedSha": "843b365fff6379a1ce0dbb6c6f002a161c493e5d",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "843b365fff6379a1ce0dbb6c6f002a161c493e5d",
+            "before": 30,
+            "after": 29,
+            "note": "Deleted the orphaned CRM customer-authority merge adapter + public barrel; the merge now runs in customer-authority Rust (duplicates.rs). Remaining 29 writes all have live route/guard callers."
+          },
+          {
+            "command": "cargo test -p erpx-server-crm",
+            "result": "passed",
+            "sourceSha": "843b365fff6379a1ce0dbb6c6f002a161c493e5d",
+            "note": "25 passed, 1 pre-existing unrelated failure (reviewed_account_link... CRM_SOURCE_TRANSACTION_REQUIRED) that reproduces on an untouched CRM tree."
+          },
+          {
+            "command": "bunx tsc -p packages/server-crm/tsconfig.json --noEmit && bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "843b365fff6379a1ce0dbb6c6f002a161c493e5d"
+          },
+          {
+            "command": "bun scripts/testing/test.ts tests/unit/crm/crm.test.ts tests/unit/crm/native-crm-command-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "843b365fff6379a1ce0dbb6c6f002a161c493e5d",
+            "note": "14/14 and 10/10; forecast 9/9, pipeline transport 12/12, activities 4/4, marketing analytics 8/8."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "843b365fff6379a1ce0dbb6c6f002a161c493e5d"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Lead: cut the feature-sales CRM route to native for covered actions, add native identity guest-link/sharing writers, then retire the remaining 29 CRM writes; regenerate UI coverage and style sources.",
+        "handoff": {
           "runId": "run-20261113-f",
           "agentId": "worker-crm-retire",
-          "claimedAt": "2026-11-13T00:52:19.465Z",
-          "heartbeatAt": "2026-11-13T01:10:58.778Z",
-          "expiresAt": "2026-11-13T01:40:58.778Z",
-          "generation": 50
+          "at": "2026-11-13T01:19:19.442Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead: cut the feature-sales CRM route to native for covered actions, add native identity guest-link/sharing writers, then retire the remaining 29 CRM writes; regenerate UI coverage and style sources."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Zero-caller/native-only writer analysis for CRM adapters, then delete the safe set and record the delta.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -30892,8 +30979,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-agent-gateway",
           "claimedAt": "2026-11-13T00:57:48.147Z",
-          "heartbeatAt": "2026-11-13T01:10:58.778Z",
-          "expiresAt": "2026-11-13T01:40:58.778Z",
+          "heartbeatAt": "2026-11-13T01:16:20.993Z",
+          "expiresAt": "2026-11-13T01:46:20.993Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30963,17 +31050,17 @@
       "migratedPackets": 80,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 7,
+        "in_progress": 5,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 80,
-        "blocked": 32,
+        "blocked": 34,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:10:58.779Z",
+    "updatedAt": "2026-11-13T01:19:19.443Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
