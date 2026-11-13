@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1620,
+    "revision": 1626,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T06:13:27.626Z",
-      "expiresAt": "2026-11-13T06:43:27.626Z",
+      "heartbeatAt": "2026-11-13T06:19:49.938Z",
+      "expiresAt": "2026-11-13T06:49:49.938Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -21964,18 +21964,11 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-legal-service",
-          "claimedAt": "2026-11-13T05:52:20.296Z",
-          "heartbeatAt": "2026-11-13T06:13:27.626Z",
-          "expiresAt": "2026-11-13T06:43:27.626Z",
-          "generation": 53
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "f464c04d93512773682deb09dfd4bc0a846417d9",
-        "lastPushedSha": "f464c04d93512773682deb09dfd4bc0a846417d9",
+        "implementedCommit": "64b68a73c2012c8aa325a01da9b22abec7415267",
+        "lastPushedSha": "64b68a73c2012c8aa325a01da9b22abec7415267",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-legal/src/**/*.ts'",
@@ -22024,11 +22017,95 @@
             "result": "passed",
             "sourceSha": "f464c04d93512773682deb09dfd4bc0a846417d9",
             "note": "52/52 across 7 files with pinned Node v26.11.1 and Bun 1.4.3; previously 12 cases failed with NATIVE_ACCOUNT_TEST_PASSWORD_HASH_FAILED because the binary lacked private-development-api."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "before": 160,
+            "after": 142,
+            "sourceSha": "64b68a73c2012c8aa325a01da9b22abec7415267",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-legal/src/adapters/legal/service.ts (settings/create/update)",
+                "writes": 10,
+                "removalTaskId": "retire.legal.service",
+                "removalCondition": "Native settings/create/update commands land and the route drops the TS fallback."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/destruction-worker.ts",
+                "writes": 14,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Native LegalDestructionWorker port is mounted in composition and the rehearsal oracle migrates."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/{portal,law-corpus,documents,operations,retention,governance,jobs,invitations,approval,...}.ts",
+                "writes": 118,
+                "removalTaskId": "retire.legal.residual",
+                "removalCondition": "Each remaining legal capability gets a native producer/read port and its TS consumer switches."
+              }
+            ],
+            "note": "Native assign/comment/link/hold.acknowledge/full transition/legacy approve replaced 18 TS writers; residual 142 is classified above."
+          },
+          {
+            "command": "cargo check -p erpx-server-legal --offline",
+            "result": "passed",
+            "sourceSha": "64b68a73c2012c8aa325a01da9b22abec7415267",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-legal --lib --offline",
+            "result": "passed",
+            "sourceSha": "64b68a73c2012c8aa325a01da9b22abec7415267",
+            "sourceKind": "committed",
+            "note": "61/61."
+          },
+          {
+            "command": "cargo test -p erpx-server-legal --test legal_records_postgres --offline",
+            "result": "passed",
+            "sourceSha": "64b68a73c2012c8aa325a01da9b22abec7415267",
+            "sourceKind": "committed",
+            "note": "8/8, including the new native assignment/discussion/link/notice/transition case."
+          },
+          {
+            "command": "cd packages/server-legal && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "64b68a73c2012c8aa325a01da9b22abec7415267",
+            "sourceKind": "committed",
+            "note": "Legal package typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "64b68a73c2012c8aa325a01da9b22abec7415267",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/legal/legal-application.test.ts",
+            "result": "passed",
+            "sourceSha": "64b68a73c2012c8aa325a01da9b22abec7415267",
+            "sourceKind": "committed",
+            "note": "52/52 legal application cases."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "64b68a73c2012c8aa325a01da9b22abec7415267",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
           }
         ],
-        "retainedLegacy": [],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-legal/src/adapters/legal/service.ts",
+            "removalTaskId": "retire.legal.service",
+            "removalCondition": "Native settings/create/update commands exist with the item/version-less transaction shape and the route drops the TS fallback; then delete configure/createRecord/createSubtype/addInitialMember/routeRequester/updateRecord/updateSubtype/retainOwnerMembership."
+          }
+        ],
         "blocker": null,
-        "nextAction": "Lead: extend the native legal command set + destruction worker; the SSO/queued-completion gate is green now.",
+        "nextAction": "Complete: native assign/comment/link/hold.acknowledge/full transition/legacy approve retired 18 TS writers (160->142). Residual 142 is classified to retire.legal.service (10), retire.legal.destruction (14) and retire.legal.residual (118).",
         "handoff": {
           "runId": "run-20261113-f",
           "agentId": "worker-legal-retire",
@@ -25304,8 +25381,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-collaboration-drafts",
           "claimedAt": "2026-11-13T06:13:06.774Z",
-          "heartbeatAt": "2026-11-13T06:13:27.626Z",
-          "expiresAt": "2026-11-13T06:43:27.626Z",
+          "heartbeatAt": "2026-11-13T06:19:49.938Z",
+          "expiresAt": "2026-11-13T06:49:49.938Z",
           "generation": 53
         },
         "baseSha": null,
@@ -33475,6 +33552,76 @@
         "nextAction": "Lead: mount ProjectionSideEffects in src/composition/src/workflow_projection_worker.rs and switch project_event to project_message for the customer-notice path first; add each family to owned_predicate only when its owner drain is native. Routing-attention cutover waits on native resolveFlow and owner page reads. Then delete the TS branches and record the Workflow KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "retire.legal.destruction",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "legal",
+        "workflowIds": [],
+        "workstream": "S15",
+        "kind": "migration",
+        "title": "Mount the native Legal destruction worker and retire the TS destruction writer",
+        "scope": "Add the lead-owned composition mount for the native LegalDestructionWorker port, migrate the isolated destruction rehearsal script/test oracle to native seeding, then delete the TS destruction worker and record the Legal KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "packages/server-legal/Cargo.toml",
+          "packages/server-legal/package.json",
+          "packages/feature-legal/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement and mount the native LegalDestructionWorker port in composition, migrate scripts/testing/fixtures/legal-isolated-destruction-uat.ts and its test oracle to native seeding, then delete destruction-worker.ts (14 writes) and record the Legal KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "retire.legal.residual",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "legal",
+        "workflowIds": [],
+        "workstream": "S15",
+        "kind": "migration",
+        "title": "Retire the remaining Legal owner TS writers and read fallbacks",
+        "scope": "Classify and retire the remaining Legal owner TS writers (portal, law corpus, documents, operations, retention, governance, jobs, invitations, approval and the access-event read fallback) as each native producer/read port lands. Delete the TS branches/barrels, move oracles to native seeding, and record the Legal KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "packages/server-legal/Cargo.toml",
+          "packages/server-legal/package.json",
+          "packages/feature-legal/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Step-0 audit each remaining legal TS writer (portal 14, law-corpus 11, documents 11, operations 8, retention 7, governance 7, jobs 5, invitations 5, approval 5, and the rest) against packages/server-legal/src/**/*.rs; implement the missing native producers/read ports, switch the consumers, then delete the TS branches and record the owner KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure"
       }
     ],
     "migrationProgress": {
@@ -33483,21 +33630,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 166,
-      "migratedPackets": 93,
+      "totalPackets": 168,
+      "migratedPackets": 94,
       "statusCounts": {
-        "pending": 18,
-        "in_progress": 2,
+        "pending": 20,
+        "in_progress": 1,
         "ready_for_integration": 12,
         "integrating": 0,
-        "migrated": 93,
+        "migrated": 94,
         "blocked": 41,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T06:13:27.626Z",
+    "updatedAt": "2026-11-13T06:19:49.939Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
