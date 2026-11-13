@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1666,
+    "revision": 1669,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-j",
       "agentId": "lead",
       "startedAt": "2026-11-13T08:01:06.178Z",
-      "heartbeatAt": "2026-11-13T08:11:33.854Z",
-      "expiresAt": "2026-11-13T08:41:33.854Z",
+      "heartbeatAt": "2026-11-13T08:39:05.812Z",
+      "expiresAt": "2026-11-13T09:09:05.812Z",
       "generation": 54,
       "tokenHash": "ce5fa52d8a7699eb63bf471e2e0f5260b9740763f65f28788a2783dbb4bae986"
     },
@@ -34149,23 +34149,79 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
+        "lastPushedSha": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-finance --offline",
+            "result": "passed",
+            "sourceSha": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.rust-payment-correction-postgres.integration",
+            "result": "passed",
+            "sourceSha": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
+            "sourceKind": "committed",
+            "note": "7/7, including 4 new supplier-batch lifecycle/replay/retry/CSV cases."
+          },
+          {
+            "command": "cd packages/server-finance && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
+            "sourceKind": "committed",
+            "note": "Finance package typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "4afaf18c045146136b7ae11d8f4da3a1a875cd4e",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-finance/src/adapters/supplier-payment-repository.ts",
+            "writes": 17,
+            "removalTaskId": "retire.finance.finance",
+            "removalCondition": "Extend the retirement claim to packages/server-procurement supplier-payments application/adapter/public, the feature-procurement supplier-batch commands and presenter, and tests/integration/procurement/supplier-payments.test.ts; switch the route/TS fallback, then delete the 17 writers and the public barrel."
+          },
+          {
+            "path": "packages/server-finance/src/adapters/supplier-payment-corrections.ts",
+            "writes": 1,
+            "removalTaskId": "retire.finance.finance",
+            "removalCondition": "Replace the final DELETE FROM command_assertions guard cleanup with the native planning port."
+          }
+        ],
+        "blocker": "released with work preserved",
+        "nextAction": "Native supplier batch/instruction producer and native-first route are committed. Lead: mount the composition transaction (PurchaseCommandBoundary, source locks, SERIALIZABLE, Files evidence, Collaboration notifications) and extend the retirement claim to the procurement consumers, then delete the 17 finance writers + barrel and record Finance after < 370 (expected ~353).",
+        "handoff": {
           "runId": "run-20261113-j",
           "agentId": "worker-finance-supplier",
-          "claimedAt": "2026-11-13T08:11:13.863Z",
-          "heartbeatAt": "2026-11-13T08:11:33.854Z",
-          "expiresAt": "2026-11-13T08:41:33.854Z",
-          "generation": 54
+          "at": "2026-11-13T08:38:56.553Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native supplier batch/instruction producer and native-first route are committed. Lead: mount the composition transaction (PurchaseCommandBoundary, source locks, SERIALIZABLE, Files evidence, Collaboration notifications) and extend the retirement claim to the procurement consumers, then delete the 17 finance writers + barrel and record Finance after < 370 (expected ~353)."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 audit supplier-payment-repository.ts (17 writes) against packages/server-finance/src/**/*.rs. Implement the native supplier batch/instruction commands, mount the HTTP route via the lead, switch the workplace finance supplier-payment route, then delete the replaced TS writers and record the Finance KPI pair. Report composition mounts to the lead.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       }
     ],
@@ -34179,8 +34235,8 @@
       "migratedPackets": 96,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 1,
-        "ready_for_integration": 15,
+        "in_progress": 0,
+        "ready_for_integration": 16,
         "integrating": 0,
         "migrated": 96,
         "blocked": 39,
@@ -34189,7 +34245,7 @@
       }
     },
     "lastCoordinatorGeneration": 54,
-    "updatedAt": "2026-11-13T08:11:33.855Z",
+    "updatedAt": "2026-11-13T08:39:05.813Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
