@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1646,
+    "revision": 1650,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T07:16:59.300Z",
-      "expiresAt": "2026-11-13T07:46:59.300Z",
+      "heartbeatAt": "2026-11-13T07:25:04.096Z",
+      "expiresAt": "2026-11-13T07:55:04.096Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -33810,22 +33810,117 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-payroll-run",
-          "claimedAt": "2026-11-13T06:48:53.747Z",
-          "heartbeatAt": "2026-11-13T07:16:59.300Z",
-          "expiresAt": "2026-11-13T07:46:59.300Z",
-          "generation": 53
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
+        "implementedCommit": "809641cde82de1c9e5f31f06a7a1c42499831f6e",
+        "lastPushedSha": "809641cde82de1c9e5f31f06a7a1c42499831f6e",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "before": 326,
+            "after": 320,
+            "sourceSha": "809641cde82de1c9e5f31f06a7a1c42499831f6e",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-payroll.ts",
+                "writes": 44,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Native approve, advances, corrections, payment batches, country packs, pay groups, cost-assignment verify and final-pay commands exist; then retire the remaining writers."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-lifecycle.ts",
+                "writes": 25,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Native lifecycle cases/tasks/cutoffs/packages/revisions/grants producers land."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-roster.ts",
+                "writes": 21,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Native roster shift/template producers land and the roster consumers switch."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-evaluation.ts",
+                "writes": 16,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Native evaluation definition/assessment/evidence/pay-basis producers land."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave-self-service.ts",
+                "writes": 15,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Native leave day/segment/type/calendar/policy/holiday producers land."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/technology-provisioning-facts.ts",
+                "writes": 14,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Native provisioning operations/applied packages/grants/cutoffs/tasks producers land."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/*.ts (remaining 55 writer files)",
+                "writes": 185,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Each capability gets a native producer and its consumer switches off the TS path."
+              }
+            ],
+            "note": "Deleted the dead calculatePayrollRun/postPayroll six writers; route already native. approvePayrollRun retained."
+          },
+          {
+            "command": "cargo check -p erpx-server-people-payroll --offline",
+            "result": "passed",
+            "sourceSha": "809641cde82de1c9e5f31f06a7a1c42499831f6e",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --offline --test payroll_run_command --test payroll_run_http",
+            "result": "passed",
+            "sourceSha": "809641cde82de1c9e5f31f06a7a1c42499831f6e",
+            "sourceKind": "committed",
+            "note": "8 + 1 tests passed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.core.integration",
+            "result": "passed",
+            "sourceSha": "809641cde82de1c9e5f31f06a7a1c42499831f6e",
+            "sourceKind": "committed",
+            "note": "22/22."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.statutory.integration",
+            "result": "passed",
+            "sourceSha": "809641cde82de1c9e5f31f06a7a1c42499831f6e",
+            "sourceKind": "committed",
+            "note": "14/14, including concurrent post exactly-one-fulfilled."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.self-service-journeys.integration",
+            "result": "passed",
+            "sourceSha": "809641cde82de1c9e5f31f06a7a1c42499831f6e",
+            "sourceKind": "committed",
+            "note": "39/39."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "809641cde82de1c9e5f31f06a7a1c42499831f6e",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-people_payroll/src/application/people-payroll.ts",
+            "removalTaskId": "retire.people_payroll.people-payroll",
+            "removalCondition": "A native runs/{id}/approve command exists, is wired through the workplace route/native client, and the payroll acceptance oracles no longer call the TS approve path; then delete approvePayrollRun and its adapter/barrel exports."
+          }
+        ],
         "blocker": null,
-        "nextAction": "Confirm no non-test caller of calculatePayrollRun/postPayroll remains, delete the six TS write statements and their exports, replace tests/integration/identity_access/iam.test.ts and tests/support/helpers/payroll-run-seed.ts oracles with native seeding, run the payroll-run unit/integration gates, and record KPI 326 -> 320.",
+        "nextAction": "Complete: deleted the dead TS calculatePayrollRun/postPayroll six writers (326->320). Residual 320 classified under retire.people_payroll.people-payroll; approvePayrollRun remains TS until a native approve command exists.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       }
@@ -33837,20 +33932,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 169,
-      "migratedPackets": 94,
+      "migratedPackets": 95,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 15,
         "integrating": 0,
-        "migrated": 94,
+        "migrated": 95,
         "blocked": 40,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T07:16:59.301Z",
+    "updatedAt": "2026-11-13T07:25:04.096Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
