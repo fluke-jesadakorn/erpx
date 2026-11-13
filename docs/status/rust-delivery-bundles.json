@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1532,
+    "revision": 1544,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-g",
       "agentId": "lead",
       "startedAt": "2026-11-13T02:33:37.747Z",
-      "heartbeatAt": "2026-11-13T03:39:49.696Z",
-      "expiresAt": "2026-11-13T04:09:49.696Z",
+      "heartbeatAt": "2026-11-13T03:58:39.043Z",
+      "expiresAt": "2026-11-13T04:28:39.043Z",
       "generation": 51,
       "tokenHash": "b4636d5dac92c67424e4a78a1bf1883bb0ebe4a1220c27578bab9a4ba2ad62fd"
     },
@@ -20194,15 +20194,8 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T03:33:05.525Z",
-          "heartbeatAt": "2026-11-13T03:39:49.696Z",
-          "expiresAt": "2026-11-13T04:09:49.696Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
         "lastPushedSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
@@ -20313,15 +20306,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Payroll-run create is retired (people_payroll 327->326, global 2354->2353; payroll-core/statutory/sensitive integration green). Remaining: calculatePayrollRun, postPayroll and payrollSummary/listPayrollRuns/getPayrollRun/workPayrollRows. The statutory/calculation/post oracles still assert the TS engine math and need native observation/seeding before those writers can be deleted.",
+        "blocker": "handoff",
+        "nextAction": "BLOCKED on oracle migration (removalTaskId: migrate.people_payroll.calculate-post-native-observation). calculatePayrollRun and postPayroll routes are already native-only; their TS application/adapter/stage-effect writers remain because payroll-core, payroll-statutory, self-service and IAM oracles call them directly for statutory math and posting. Removal condition: the native observation helper runs the Rust private-api calculate/post against the suite DBs, the four oracle files are converted, then the TS calculatePayrollRun/postPayroll writers, stage effects and exports are deleted and the People Payroll KPI pair (326 -> 323 target) is recorded. Create/readers are already retired.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "lead",
-          "at": "2026-11-13T03:31:16.232Z",
+          "at": "2026-11-13T03:51:25.196Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Cancellation writer is retired and verified (people_payroll KPI 329->327; native cancel PG 3/3; core/statutory integration green). Remaining: createPayrollRun/calculatePayrollRun/postPayroll and payrollSummary/listPayrollRuns/getPayrollRun/workPayrollRows. These need direct owner-table run seeding plus native HTTP purchase/authority oracle coverage (the three payroll-core create purchase-wrapper tests currently assert TS PACKAGE_*/PAYROLL_ACCESS_CHANGED behavior); do not delete them without that replacement."
+          "nextAction": "BLOCKED on oracle migration (removalTaskId: migrate.people_payroll.calculate-post-native-observation). calculatePayrollRun and postPayroll routes are already native-only; their TS application/adapter/stage-effect writers remain because payroll-core, payroll-statutory, self-service and IAM oracles call them directly for statutory math and posting. Removal condition: the native observation helper runs the Rust private-api calculate/post against the suite DBs, the four oracle files are converted, then the TS calculatePayrollRun/postPayroll writers, stage effects and exports are deleted and the People Payroll KPI pair (326 -> 323 target) is recorded. Create/readers are already retired."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -31503,18 +31496,11 @@
         "resources": [
           "owner:crm"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "worker-crm-activities",
-          "claimedAt": "2026-11-13T03:31:45.302Z",
-          "heartbeatAt": "2026-11-13T03:39:49.696Z",
-          "expiresAt": "2026-11-13T04:09:49.696Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "843b365fff6379a1ce0dbb6c6f002a161c493e5d",
-        "lastPushedSha": "843b365fff6379a1ce0dbb6c6f002a161c493e5d",
+        "implementedCommit": "0d9e97783c91459a31636678df40a3191379965b",
+        "lastPushedSha": "0d9e97783c91459a31636678df40a3191379965b",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-crm/src/**/*.ts'",
@@ -31545,18 +31531,54 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "843b365fff6379a1ce0dbb6c6f002a161c493e5d"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0d9e97783c91459a31636678df40a3191379965b",
+            "before": 29,
+            "after": 25,
+            "note": "createCRMActivity/changeCRMActivity and their ports/exports deleted; the feature-sales activities POST is native-only (503 without the native transport)."
+          },
+          {
+            "command": "cargo test -p erpx-server-crm",
+            "result": "passed",
+            "sourceSha": "0d9e97783c91459a31636678df40a3191379965b",
+            "note": "25 passed; 1 pre-existing unrelated pipeline failure (CRM_SOURCE_TRANSACTION_REQUIRED) reproduces on an untouched tree."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "0d9e97783c91459a31636678df40a3191379965b",
+            "note": "Composition mounts the CRM activity router per Holding."
+          },
+          {
+            "command": "bunx tsc -p packages/server-crm/tsconfig.json --noEmit && bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "0d9e97783c91459a31636678df40a3191379965b"
+          },
+          {
+            "command": "vitest integration tests/integration/crm/crm-activities.test.ts",
+            "result": "passed",
+            "sourceSha": "0d9e97783c91459a31636678df40a3191379965b",
+            "note": "4/4 with the native-seeding oracle; transport 13/13; CRM suite 13/14 (one pre-existing timeout)."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "0d9e97783c91459a31636678df40a3191379965b"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Mount the native CRM activity command router in composition, switch the feature-sales activities route native-only, delete the TS activity writers and exports, move the activity oracle to native seeding, and record the KPI pair.",
+        "blocker": "handoff",
+        "nextAction": "Lead: cut CRM lead actions to native and add native identity guest-link/sharing writers; retire the remaining 25.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "worker-crm-activities",
-          "at": "2026-11-13T03:07:23.579Z",
+          "at": "2026-11-13T04:08:37.355Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Scope extension for the CRM activities native cutover."
+          "nextAction": "Lead: cut CRM lead actions to native and add native identity guest-link/sharing writers; retire the remaining 25."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -32643,6 +32665,109 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.billing.platform-holding-navigation",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "billing",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S03",
+        "kind": "migration",
+        "title": "Platform billing actions navigate to the target Holding (option a)",
+        "scope": "Adopt the safe cross-Holding default: platform billing cost/approve/void actions navigate to the selected Holding host before acting (Holding owns the host; no identity change), so the already-native holdings route is the authority. Then make the platform billing route fail closed for approve/void and delete the replaced TS invoice cases/repository writes.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "packages/server-billing/Cargo.toml",
+          "packages/server-billing/package.json",
+          "packages/feature-billing/**",
+          "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/**",
+          "packages/feature-admin/src/routes/api/v1/platform/billing/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/settings/billing/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**",
+          "tests/integration/commercial/**",
+          "tests/provider/commercial/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-billing-option-a",
+          "claimedAt": "2026-11-13T04:08:19.773Z",
+          "heartbeatAt": "2026-11-13T04:08:19.773Z",
+          "expiresAt": "2026-11-13T04:38:19.773Z",
+          "generation": 51
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Update billing-console/platform route to navigate to the target Holding host for cross-Holding actions; switch platform approve/void to native invoice only/fail closed; delete the TS approve/void writers and oracles; record the billing KPI pair. No composition change required.",
+        "handoff": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-billing-option-a",
+          "at": "2026-11-13T04:08:16.426Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Update billing-console/platform route to navigate to the target Holding host for cross-Holding actions; switch platform approve/void to native invoice only/fail closed; delete the TS approve/void writers and oracles; record the billing KPI pair. No composition change required."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.people_payroll.calculate-post-native-observation",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "people_payroll",
+        "workflowIds": [
+          "people/payroll-runs"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Native calculate/post observation path for payroll oracles",
+        "scope": "Provide the native observation/seeding path that lets the retained People Payroll integration oracles exercise native calculate/post without the TypeScript engine. Run the Rust private-api `--test-config` against the suite databases (same pattern as tests/support/native-account-sso.ts), expose calculate/post through the assembled people_payroll_command_router, and convert the payroll-core/statutory/self-service/IAM call sites that currently invoke calculatePayrollRun/postPayroll. Statutory math parity must be asserted against the native result. Only then delete the TS calculatePayrollRun/postPayroll application, adapter, stage effects and exports.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-people_payroll/src/**",
+          "packages/feature-people_payroll/**",
+          "tests/support/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**",
+          "tests/integration/identity_access/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:people_payroll",
+          "owner:shared.integration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Build the native payroll test server/observation helper, migrate the calculate/post oracle call sites to it, then delete the TS calculatePayrollRun/postPayroll writers and exports and record the People Payroll KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -32651,21 +32776,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 160,
+      "totalPackets": 162,
       "migratedPackets": 91,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 3,
+        "pending": 21,
+        "in_progress": 2,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 91,
-        "blocked": 37,
+        "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:49:09.283Z",
+    "updatedAt": "2026-11-13T04:08:37.356Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
