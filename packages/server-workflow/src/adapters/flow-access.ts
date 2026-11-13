@@ -14,7 +14,7 @@ export async function requireFlowAccess(actor:WorkContext,kind:FlowKind,id:strin
    case 'staff_task':await (await import('@erpx/server-operations/public/staff-tasks')).taskDetail(write,actor,id);break;
    case 'request':await (await import("@erpx/server-records/public/employee-requests-read")).getEmployeeRequest(write,actor,id);break;
    case 'stock_count':await (await import('@erpx/server-inventory/public/inventory-counts')).getCount(actor,id,write);break;
-   case 'transfer':await (await import('@erpx/server-inventory/public/inventory-transfers')).getTransfer(actor,id,write);break;
+   case 'transfer':await (await import('@erpx/server-inventory/public/inventory-transfer-read')).getTransfer(actor,id,write);break;
    case 'order':await (await import('@erpx/server-commerce/public/commerce')).getOrder(actor,id,write);break;
    case 'invoice':await (await import('@erpx/server-finance/public/finance-invoice-read')).getInvoice(actor,id,write);break;
    case 'journal':await (await import('@erpx/server-finance/public/ledger')).journalDetail(actor,id,write);break;

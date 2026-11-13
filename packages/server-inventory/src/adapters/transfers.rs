@@ -89,7 +89,7 @@ async fn read_stock(
     let row = sqlx::query(
         "SELECT s.product_id,s.quantity_milli,s.value_minor,s.version,\
          p.version product_version,p.name,p.unit,p.tracking_mode,\
-         COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r \
+         COALESCE((SELECT SUM(r.quantity_milli)::bigint FROM inventory_active_reservations r \
            WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,\
          inventory_quarantined_quantity(s.warehouse_id,s.product_id) quarantined_milli \
          FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id \

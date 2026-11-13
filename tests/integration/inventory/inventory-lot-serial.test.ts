@@ -14,7 +14,7 @@ import {seedNativeQualityRelease} from "../../../fixtures/quality/hold";
 import {decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {saveTransfer,transitionTransfer,transferDetail,transferSchema} from "@erpx/server-inventory/public/inventory-transfers";
+import {saveTransfer,transitionTransfer,transferSchema} from "@erpx/server-inventory/public/inventory-transfers";
 import {getTransit,transitDetail} from "@erpx/server-inventory/public/inventory-transit";
 import {decideTransitLoss,dispatchTransit,receiveTransit,requestTransitLoss} from "../../support/inventory/legacy-transit-writer";
 import {countDetail,countOptions,countsPage,getCount,saveCount,transitionCount} from "@erpx/server-inventory/public/inventory-counts";
@@ -203,25 +203,12 @@ it('requires one unit per serial and rejects a serial number already received',a
   await expect(db.prepare("UPDATE commerce_products SET tracking_mode='lot' WHERE id=?").bind(product).run()).rejects.toThrow('TRACKING_MODE_LOCKED');
 });
 
-it('moves selected lot quantities and values between warehouses as one direct transfer',async()=>{
-  const target=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Traceable destination'},key())).id);
-  const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Transferred lot item',unit:'box',trackingMode:'lot',price:'10'},key())).id);
-  const purchase=await approved('purchase',supplier,product,'3'),purchaseId=String(purchase.order.id),purchaseLine=String(purchase.lines[0].id);
-  await seedCommerceFulfillment(db, f.owner,purchaseId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:purchaseLine,quantity:'3',allocations:[{lotCode:'MOVE-A',quantity:'2'},{lotCode:'MOVE-B',quantity:'1'}]}]}),key());
-  const lots=(await db.prepare("SELECT l.id,l.lot_code FROM inventory_lots l WHERE l.product_id=? ORDER BY l.lot_code").bind(product).all<{id:string;lot_code:string}>()).results;
-  const transfer=await saveTransfer(f.owner,null,transferSchema.parse({sourceWarehouseId:warehouse,targetWarehouseId:target,transferDate:'2026-09-03',reason:'Replenish the destination with selected physical lots',lines:[{productId:product,quantity:'2',allocations:lots.map(lot=>({lotId:lot.id,quantity:'1'}))}]}),key()),transferId=String(transfer.id);
-  const detail=await transferDetail(f.owner,transferId);expect(detail.allocations.map(a=>String(a.lot_code)).sort()).toEqual(['MOVE-A','MOVE-B']);
-  await transitionTransfer(f.owner,transferId,'submit',transferActionSchema.parse({expectedVersion:1}),key());const flow=await resolveFlow(db,f.owner,'transfer',transferId);await assignFlowPrimary(db,f.owner,'transfer',transferId,{stepKey:'submitted',userId:f.head.userId,reason:'Assign an independent receiving reviewer',saveDefault:false,expectedVersion:flow.version,recordVersion:2},key());
-  const wrongFiles=await seedAttachmentSet(db,f.head,{targetType:'inventory_transfer',targetId:transferId,purposeKey:'receipt_evidence',componentRef:'direct-receipt',expectedTargetVersion:2});
-  await expect(transitionTransfer(f.head,transferId,'post',{expectedVersion:2,reason:'Wrong receipt context must not post',attachmentSetIds:[wrongFiles.setId]},key())).rejects.toMatchObject({code:'TRANSFER_ATTACHMENT_PURPOSE'});
-  expect(await attachmentBindingState(db,wrongFiles.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
-  const receiptFiles=await seedAttachmentSet(db,f.head,{targetType:'inventory_transfer',targetId:transferId,purposeKey:'direct_receipt_evidence',componentRef:'direct-receipt',expectedTargetVersion:2});
-  await transitionTransfer(f.head,transferId,'post',{expectedVersion:2,reason:'Both selected lots counted at the receiving warehouse',attachmentSetIds:[receiptFiles.setId]},key());
-  expect(await attachmentBindingState(db,receiptFiles.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'direct_transfer_receipt',binding_id:`${transferId}:3`});
-  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:1000});
-  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(target,product).first()).toEqual({quantity_milli:2000,value_minor:2000});
-  expect((await db.prepare('SELECT l.lot_code,b.quantity_milli,b.value_minor FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.warehouse_id=? AND l.product_id=? ORDER BY l.lot_code').bind(target,product).all()).results).toEqual([{lot_code:'MOVE-A',quantity_milli:1000,value_minor:1000},{lot_code:'MOVE-B',quantity_milli:1000,value_minor:1000}]);
-  await expect(db.prepare('DELETE FROM inventory_transfer_lot_allocations WHERE transfer_line_id=?').bind(detail.lines[0].id).run()).rejects.toThrow('TRANSFER_LOT_EVIDENCE_IMMUTABLE');
+it('retires the TypeScript direct-transfer writer in favour of the native command',async()=>{
+  const input=transferSchema.parse({sourceWarehouseId:warehouse,targetWarehouseId:warehouse,transferDate:'2026-09-03',reason:'Retired TS direct transfer writer',lines:[{productId:'product',quantity:'1',allocations:[]}]});
+  await expect(saveTransfer(f.owner,null,input,key())).rejects.toMatchObject({code:'NATIVE_INVENTORY_TRANSFER_REQUIRED'});
+  await expect(transitionTransfer(f.owner,'transfer','post',{expectedVersion:1,reason:'Retired TS direct transfer writer',attachmentSetIds:[]},key())).rejects.toMatchObject({code:'NATIVE_INVENTORY_TRANSFER_REQUIRED'});
+  expect(await db.prepare('SELECT count(*) n FROM inventory_transfers').first('n')).toBe(0);
+  expect(await db.prepare('SELECT count(*) n FROM inventory_transfer_moves').first('n')).toBe(0);
 });
 
 it('preserves selected lot identity through supplier and customer returns',async()=>{
@@ -277,24 +264,14 @@ it('posts a lot-level physical count with a missing lot and a newly found lot',a
 });
 
 it('preserves lot identity through dispatch, partial receipt, and an independently approved transit loss',async()=>{
-  f.manager.role='finance_approver';f.manager.assignmentId=await f.grant(f.manager,'finance_approver');
-  const target=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Lot transit destination'},key())).id);
-  const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Lot transport item',unit:'box',trackingMode:'lot',price:'10'},key())).id);
-  const purchase=await approved('purchase',supplier,product,'2'),purchaseId=String(purchase.order.id),purchaseLine=String(purchase.lines[0].id);
-  await seedCommerceFulfillment(db, f.owner,purchaseId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:purchaseLine,quantity:'2',allocations:[{lotCode:'ROAD-A',quantity:'1'},{lotCode:'ROAD-B',quantity:'1'}]}]}),key());
-  const lots=(await db.prepare('SELECT id FROM inventory_lots WHERE product_id=? ORDER BY lot_code').bind(product).all<{id:string}>()).results;
-  const transfer=await saveTransfer(f.owner,null,transferSchema.parse({sourceWarehouseId:warehouse,targetWarehouseId:target,transferDate:'2026-09-03',deliveryMode:'transit',arrivalDueDate:'2026-09-05',reason:'Track both supplier lots while held by the carrier',lines:[{productId:product,quantity:'2',allocations:lots.map(lot=>({lotId:lot.id,quantity:'1'}))}]}),key()),transferId=String(transfer.id);
-  await transitionTransfer(f.owner,transferId,'submit',transferActionSchema.parse({expectedVersion:1}),key());const flow=await resolveFlow(db,f.owner,'transfer',transferId);await assignFlowPrimary(db,f.owner,'transfer',transferId,{stepKey:'submitted',userId:f.head.userId,reason:'Assign independent transport approval',saveDefault:false,expectedVersion:flow.version,recordVersion:2},key());await transitionTransfer(f.head,transferId,'post',transferActionSchema.parse({expectedVersion:2,reason:'Both labelled lots approved for carrier dispatch'}),key());
-  const transitId=`transit-${transferId}`;await dispatchTransit(f.owner,transitId,transitDispatchSchema.parse({expectedVersion:1,date:'2026-09-03',trackingReference:'LOT-ROAD-001',evidence:'Carrier accepted both sealed and labelled lots'}),key());
-  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});
-  const transit=await transitDetail(f.head,transitId);expect(transit.lots).toHaveLength(2);const lineId=String(transit.lines[0].id),roadA=transit.lots.find(l=>l.lot_code==='ROAD-A')!,roadB=transit.lots.find(l=>l.lot_code==='ROAD-B')!;
-  await receiveTransit(f.head,transitId,transitReceiveSchema.parse({expectedVersion:2,date:'2026-09-04',evidence:'ROAD-B physically counted at destination before ROAD-A',lines:[{lineId,quantity:'1',allocations:[{transitLotId:String(roadB.id),quantity:'1'}]}]}),key());
-  const loss=await requestTransitLoss(f.head,transitId,transitLossSchema.parse({expectedVersion:3,date:'2026-09-04',lineId,quantity:'1',allocations:[{transitLotId:String(roadA.id),quantity:'1'}],evidence:'ROAD-A missing under carrier incident LOT-ROAD-002'}),key());
-  await decideTransitLoss(f.manager,transitId,{expectedVersion:4,date:'2026-09-04',proposalId:String(loss.proposalId),decision:'approve',periodId:f.period,expenseAccountId:f.accounts.expense,evidence:'Independent Finance reviewed carrier evidence and lot cost'},key());
-  expect((await getTransit(f.owner,transitId)).status).toBe('completed');
-  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(target,product).first()).toEqual({quantity_milli:1000,value_minor:1000});
-  expect(await db.prepare('SELECT l.lot_code,b.quantity_milli FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.warehouse_id=? AND l.product_id=?').bind(target,product).first()).toEqual({lot_code:'ROAD-B',quantity_milli:1000});
-  expect(await db.prepare('SELECT sum(received_milli) received,sum(lost_milli) lost,sum(settled_value_minor) value FROM inventory_transit_lots WHERE transit_line_id=?').bind(lineId).first()).toEqual({received:1000,lost:1000,value:2000});
+  // The underlying native oracle lives in rust-stock-register-postgres.test.rs
+  // (transfer_landed_reorder_pg); this retained case proves the TypeScript
+  // transfer/transit writer can no longer create carrier rows.
+  const input=transferSchema.parse({sourceWarehouseId:warehouse,targetWarehouseId:warehouse,transferDate:'2026-09-03',deliveryMode:'transit',arrivalDueDate:'2026-09-05',reason:'Retired TS transit transfer writer',lines:[{productId:'product',quantity:'1',allocations:[]}]});
+  await expect(saveTransfer(f.owner,null,input,key())).rejects.toMatchObject({code:'NATIVE_INVENTORY_TRANSFER_REQUIRED'});
+  await expect(transitionTransfer(f.owner,'transfer','submit',{expectedVersion:1,attachmentSetIds:[]},key())).rejects.toMatchObject({code:'NATIVE_INVENTORY_TRANSFER_REQUIRED'});
+  expect(await db.prepare('SELECT count(*) n FROM inventory_transit').first('n')).toBe(0);
+  expect(await db.prepare('SELECT count(*) n FROM inventory_transfer_decisions').first('n')).toBe(0);
 });
 
 it.each(['stock_count','inventory_stock_count'] as const)('fresh private Inventory bytes fence the original %s source, actual Stock facts and deferred current IAM under Supply-only draining',async(targetType)=>{

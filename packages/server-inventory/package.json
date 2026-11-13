@@ -179,7 +179,8 @@
     "./domain/pos-initial-physical-stock-count-entry": "./src/domain/pos-initial-physical-stock-count-entry.ts",
     "./domain/reservation-alerts": "./src/domain/reservation-alerts.ts",
     "./domain/transit": "./src/domain/transit.ts",
-    "./public/service-count-outbox-predicate": "./src/public/service-count-outbox-predicate.generated.ts"
+    "./public/service-count-outbox-predicate": "./src/public/service-count-outbox-predicate.generated.ts",
+    "./public/inventory-transfer-read": "./src/public/inventory-transfer-read.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
