@@ -10,3 +10,6 @@ pub(crate) mod field_service_detail;
 pub(crate) mod service_initial_physical_count;
 
 pub(crate) mod reservation_alerts;
+
+pub(crate) mod transit;
+pub(crate) mod counts;

@@ -42,3 +42,6 @@ pub(crate) mod quality_fulfillment_allocation;
 
 pub(crate) mod field_journal_consumption_marker;
 pub mod pos_consumption;
+
+pub(crate) mod transit;
+pub(crate) mod counts;

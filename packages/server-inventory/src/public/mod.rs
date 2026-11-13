@@ -52,3 +52,6 @@ pub mod quality_fulfillment_allocation;
 
 pub mod field_journal_consumption_marker;
 pub mod pos_consumption;
+
+pub mod transit;
+pub mod counts;

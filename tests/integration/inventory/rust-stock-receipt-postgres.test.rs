@@ -2527,3 +2527,6 @@ async fn quality_origin_allocation_cte_matches_actual_typescript_join() {
         let mut rls=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *rls).await.unwrap();let bypass:bool=sqlx::query_scalar("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user").fetch_one(&mut *rls).await.unwrap();assert!(!bypass);sqlx::raw_sql("ALTER TABLE public.inventory_fulfillment_lot_allocations ENABLE ROW LEVEL SECURITY; ALTER TABLE public.inventory_fulfillment_lot_allocations FORCE ROW LEVEL SECURITY").execute(&mut *rls).await.unwrap();assert!(sqlx::query_scalar::<_,bool>("SELECT row_security_active('public.inventory_fulfillment_lot_allocations'::regclass)").fetch_one(&mut *rls).await.unwrap());lock_quality_origin_allocation_join(&mut rls).await.unwrap();assert!(inspect_quality_origin_allocation_join(&mut rls).await.is_err());rls.rollback().await.unwrap();
     }).await;
 }
+
+#[path = "rust-transit-count-writers-postgres.rs"]
+mod transit_count_writers;
