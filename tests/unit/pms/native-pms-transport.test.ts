@@ -220,4 +220,24 @@ describe('native PMS room-board transport',()=>{
   for(const raw of ['not-json',JSON.stringify({privateBaseUrl:'http://127.0.0.1:44994'})])
     expect(()=>nativePmsConfiguration(raw)).toThrowError(NativePmsError);
  });
+
+ it('posts a guest-account command with origin, scope query, idempotency key and body',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:{id:'account-1',status:'open'},context}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  const result=await client.guestAccountCommand(incoming({origin:'https://acme.example.com'}),actor,{
+    holdingSlug:'acme',
+    body:{operation:'guest_account.create',propertyId:'property-1',expectedVersion:1,guestId:'guest-1',reservationId:'reservation-1',name:'Guest'},
+    key:'command-1',branchSlug:'north',
+    expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3},
+  });
+  expect(result).toEqual({id:'account-1',status:'open'});
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pms/guest-account?branch=north');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('idempotency-key')).toBe('command-1');
+  expect(headers.get('content-type')).toBe('application/json');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(JSON.parse(String(body))).toMatchObject({operation:'guest_account.create',propertyId:'property-1'});
+ });
 });

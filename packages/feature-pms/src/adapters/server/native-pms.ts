@@ -86,12 +86,26 @@ export type NativePmsFrontDeskInput = Readonly<{
 }>;
 
 export type NativePmsTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
+
+export type NativePmsGuestAccountCommandInput = Readonly<{
+  holdingSlug: string;
+  body: Record<string, unknown>;
+  key: string;
+  branchSlug?: string;
+  departmentSlug?: string;
+  expected?: Readonly<{
+    companyId: string;
+    assignmentId: string;
+    revision: number;
+    assignmentVersion: number;
+  }>;
+}>;
 
 export class NativePmsError extends Error {
   readonly code: string;
@@ -601,13 +615,15 @@ function dispatch(
   url: URL,
   headers: Headers,
   signal?: AbortSignal,
+  method: 'GET' | 'POST' = 'GET',
+  body?: string,
 ): Promise<Response> {
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal?.addEventListener('abort', cancel, { once: true });
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(cancel, 30000);
-  return transport('GET', url, headers, undefined, controller.signal).finally(() => {
+  return transport(method, url, headers, body, controller.signal).finally(() => {
     clearTimeout(timer);
     signal?.removeEventListener('abort', cancel);
   });
@@ -752,7 +768,7 @@ async function boundedJson(response: Response): Promise<unknown> {
   }
 }
 
-const directHttp: NativePmsTransport = (method, url, headers, _body, signal) =>
+const directHttp: NativePmsTransport = (method, url, headers, body, signal) =>
   new Promise((resolve, reject) => {
     const agent = new Agent({
       keepAlive: false,
@@ -804,7 +820,7 @@ const directHttp: NativePmsTransport = (method, url, headers, _body, signal) =>
       },
     );
     req.on('error', reject);
-    req.end();
+    req.end(body);
   });
 
 export function createNativePmsClient(
@@ -874,6 +890,44 @@ export function createNativePmsClient(
           roomSummary: false,
           requireListMeta: true,
         });
+      } catch (error) {
+        if (error instanceof NativePmsError) throw error;
+        return failure('NATIVE_PMS_UNAVAILABLE');
+      }
+    },
+    guestAccountCommand: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePmsPageContext,
+      input: NativePmsGuestAccountCommandInput,
+      signal?: AbortSignal,
+    ) => {
+      if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+        return Promise.reject(new NativePmsError('NATIVE_PMS_CONTEXT_CHANGED'));
+      try {
+        const headers = authority(config.holdings, incoming, input);
+        const origin = incoming.get('origin');
+        if (!origin) throw new NativePmsError('NATIVE_PMS_AUTHORITY_INVALID');
+        headers.set('origin', origin);
+        headers.set('content-type', 'application/json');
+        headers.set('idempotency-key', input.key);
+        const url = new URL(
+          `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/pms/guest-account`,
+          config.base,
+        );
+        if (input.branchSlug) url.searchParams.set('branch', input.branchSlug);
+        if (input.departmentSlug) url.searchParams.set('department', input.departmentSlug);
+        const response = await dispatch(
+          transport,
+          url,
+          headers,
+          signal,
+          'POST',
+          JSON.stringify(input.body),
+        );
+        const value = await boundedJson(response);
+        if (!exact(value, ['data', 'context'])) return failure('NATIVE_PMS_RESPONSE_INVALID');
+        context(value.context, actor, input);
+        return value.data;
       } catch (error) {
         if (error instanceof NativePmsError) throw error;
         return failure('NATIVE_PMS_UNAVAILABLE');

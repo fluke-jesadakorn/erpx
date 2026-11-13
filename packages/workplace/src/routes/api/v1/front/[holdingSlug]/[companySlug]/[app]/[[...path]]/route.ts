@@ -1,6 +1,7 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { roomChargeReversalQueue } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { canonicalGuestAccount, guestAccountOperation } from "@erpx/feature-identity_access/lib/guest-account-compat";
+import { nativePmsGuestAccountAvailable, nativePmsGuestAccountCommand, nativePmsGuestAccountOperations } from "@erpx/feature-pms/public/native-pms";
 import { z } from "zod";
 import { ensureFrontRole, frontCompanyBrand, frontLocationScope, frontOperationAllowed, frontRoleState, type FrontAppKind } from "@erpx/server-work_projection/public/front-app";
 import { NATIVE_POS_COMMANDS, createNativePosCashClient, nativePosCashActor, nativePosCashAvailable, nativePosCashConfiguration, nativePosCashFailure } from "@erpx/feature-pos/public/native-pos-cash";
@@ -310,8 +311,15 @@ export async function POST(request: Request, { params }: Context) {
       throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Configuration and approvals are handled in ERPX.");
     const db = (await holdingResources(actor.holdingId)).write;
     if (!isTransactionalSqlDatabase(db)) throw new Error("POSTGRES_REQUIRED");
+    const data = nativePmsGuestAccountOperations.has(operation)
+      ? await (async () => {
+          if (!nativePmsGuestAccountAvailable())
+            throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel service is unavailable.");
+          return nativePmsGuestAccountCommand(request, actor, holdingSlug, body as Record<string, unknown>, key);
+        })()
+      : await pmsCommand(db, actor, body, key);
     return Response.json(
-      canonicalDestinationLinks({ data: await pmsCommand(db, actor, body, key) }),
+      canonicalDestinationLinks({ data }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
