@@ -135,13 +135,16 @@ impl PortalSessionPort for ControlSessionPort {
     }
 }
 
-pub struct PortalEnrollmentService<C> {
+pub struct PortalEnrollmentService {
     configuration: Arc<PortalEnrollmentConfiguration>,
-    clock: Arc<C>,
+    clock: Arc<dyn Clock + Send + Sync>,
 }
 
-impl<C: Clock + Send + Sync + 'static> PortalEnrollmentService<C> {
-    pub fn new(configuration: Arc<PortalEnrollmentConfiguration>, clock: Arc<C>) -> Self {
+impl PortalEnrollmentService {
+    pub fn new(
+        configuration: Arc<PortalEnrollmentConfiguration>,
+        clock: Arc<dyn Clock + Send + Sync>,
+    ) -> Self {
         Self {
             configuration,
             clock,
@@ -275,17 +278,17 @@ impl<C: Clock + Send + Sync + 'static> PortalEnrollmentService<C> {
     }
 }
 
-pub struct PortalEnrollmentBackend<C> {
-    service: Arc<PortalEnrollmentService<C>>,
+pub struct PortalEnrollmentBackend {
+    service: Arc<PortalEnrollmentService>,
 }
 
-impl<C: Clock + Send + Sync + 'static> PortalEnrollmentBackend<C> {
-    pub fn new(service: Arc<PortalEnrollmentService<C>>) -> Self {
+impl PortalEnrollmentBackend {
+    pub fn new(service: Arc<PortalEnrollmentService>) -> Self {
         Self { service }
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> PortalEnrollmentHttpBackend for PortalEnrollmentBackend<C> {
+impl PortalEnrollmentHttpBackend for PortalEnrollmentBackend {
     fn execute<'a>(
         &'a self,
         request: PortalEnrollmentHttpRequest<'a>,
