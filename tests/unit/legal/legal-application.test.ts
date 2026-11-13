@@ -93,17 +93,16 @@ it("a Legal command replay returns retained results before stale-version checks 
   const { createLegalRegisterApplication } = await import("@erpx/server-legal/application/service");
   const source = repository<import("@erpx/server-legal/application/service").LegalRegisterRepository>({ replay: async () => ({ id: "item", version: 2 }) as never });
   const application = createLegalRegisterApplication({ actor, repository: source, require: () => {}, can: () => true, samePerson: () => false, permissionCatalog: [], clock: { now: () => { throw new Error("unexpected clock"); } }, identifiers: { next: () => { throw new Error("unexpected identifier"); } }, error, hash: () => "digest", utf8Length: () => 0, access: async () => ({ ...item, version: 99, state: "active" }), eligible: async () => {}, people: async () => [] });
-  expect(await application.legalCommand({ action: "comment", id: "item", expectedVersion: 1 }, "key")).toEqual({ id: "item", version: 2 });
+  expect(await application.legalCommand({ action: "update", id: "item", expectedVersion: 1 }, "key")).toEqual({ id: "item", version: 2 });
 });
 it("a requester cannot change a submitted question despite current edit permission", async () => {
   const { createLegalRegisterApplication } = await import("@erpx/server-legal/application/service");
   const application = createLegalRegisterApplication({ actor: { ...actor, role: "legal_requester" }, repository: repository<import("@erpx/server-legal/application/service").LegalRegisterRepository>({ replay: async () => null }), require: () => {}, can: () => true, samePerson: () => false, permissionCatalog: [], clock: { now: () => { throw new Error("unexpected clock"); } }, identifiers: { next: () => "identifier" }, error, hash: () => "digest", utf8Length: () => 0, access: async () => ({ ...item, kind: "request", version: 1, state: "review" }), eligible: async () => {}, people: async () => [] });
   await expect(application.legalCommand({ action: "update", id: "item", expectedVersion: 1 }, "key")).rejects.toThrow("LEGAL_REQUESTER_SCOPE");
 });
-it("the latest Legal content author cannot independently approve another creator's record", async () => {
-  const { createLegalRegisterApplication } = await import("@erpx/server-legal/application/service");
-  const application = createLegalRegisterApplication({ actor, repository: repository<import("@erpx/server-legal/application/service").LegalRegisterRepository>({ replay: async () => null, lastAuthor: async () => ({ actor_id: "person" }) }), require: () => {}, can: () => true, samePerson: id => id === "person", permissionCatalog: [], clock: { now: () => { throw new Error("unexpected clock"); } }, identifiers: { next: () => "identifier" }, error, hash: () => "digest", utf8Length: () => 0, access: async () => ({ ...item, version: 1, state: "approval", created_by: "other" }), eligible: async () => {}, people: async () => [] });
-  await expect(application.legalCommand({ action: "approve", id: "item", expectedVersion: 1 }, "key")).rejects.toThrow("LEGAL_INDEPENDENT_REVIEW");
+it("the native Legal command set owns assignment, discussion, linking and contract approval", () => {
+  for (const action of ["assign", "comment", "link", "hold.acknowledge", "approve"])
+    expect(nativeLegalCommandSelected({ action })).toBe(true);
 });
 
 it("a trust manager cannot approve their own proposed CA material", async () => {
@@ -340,12 +339,16 @@ it("native Legal command requires the exact origin and key and returns the persi
   expect(call.headers.get("content-type")).toBe("application/json");
 });
 
-it("native Legal selection is limited to the bounded document, hold and archive commands", () => {
+it("native Legal selection covers the bounded record commands", () => {
   expect(nativeLegalCommandSelected({action: "document"})).toBe(true);
   expect(nativeLegalCommandSelected({action: "hold.create"})).toBe(true);
   expect(nativeLegalCommandSelected({action: "transition", state: "archived"})).toBe(true);
-  expect(nativeLegalCommandSelected({action: "transition", state: "approved"})).toBe(false);
-  expect(nativeLegalCommandSelected({action: "approve"})).toBe(false);
+  expect(nativeLegalCommandSelected({action: "transition", state: "approved"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "approve"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "assign"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "comment"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "link"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "hold.acknowledge"})).toBe(true);
   expect(nativeLegalCommandSelected({action: "settings"})).toBe(false);
   expect(nativeLegalCommandSelected(null)).toBe(false);
 });

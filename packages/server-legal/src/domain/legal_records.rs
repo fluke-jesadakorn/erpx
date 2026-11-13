@@ -342,6 +342,10 @@ pub struct LegalCommandSource {
     pub holds: Vec<LegalHoldSource>,
     pub documents: Vec<String>,
     pub next_document_version: i64,
+    pub data: Value,
+    pub same_person_creator: bool,
+    pub same_person_last_author: bool,
+    pub executed_contract: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -357,7 +361,6 @@ pub enum LegalCommand {
     CreateHold { reason: String },
     RequestHoldRelease { hold_id: String, reason: String },
     ReleaseHold { hold_id: String, reason: String },
-    Archive { reason: String },
     Share { document_id: String, email: String, expires_at: i64 },
     RevokeShare { share_id: String },
     SetMember { user_id: String, access: String },
@@ -392,6 +395,34 @@ pub enum LegalCommand {
     Inspect {
         document_id: String,
         kind: String,
+    },
+    AssignOwner {
+        owner_id: String,
+        reason: String,
+    },
+    Comment {
+        comment_id: String,
+        section: String,
+        body: String,
+        visibility: String,
+        document_id: Option<String>,
+    },
+    Link {
+        target_id: String,
+        relation: String,
+    },
+    AcknowledgeNotice {
+        hold_id: String,
+        note: String,
+    },
+    Transition {
+        state: String,
+        reason: String,
+    },
+    Approve {
+        document_id: String,
+        signer_ids: Vec<String>,
+        reason: String,
     },
 }
 
@@ -432,9 +463,6 @@ pub enum LegalCommandEffect {
     },
     ReleaseHold {
         hold_id: String,
-    },
-    Archive {
-        reason: String,
     },
     Share {
         share_id: String,
@@ -492,6 +520,31 @@ pub enum LegalCommandEffect {
         job_id: String,
         document_id: String,
         kind: String,
+    },
+    AssignOwner {
+        owner_id: String,
+    },
+    Comment {
+        comment_id: String,
+        section: String,
+        body: String,
+        visibility: String,
+        document_id: Option<String>,
+    },
+    Link {
+        target_id: String,
+        relation: String,
+    },
+    AcknowledgeNotice {
+        hold_id: String,
+        note: String,
+    },
+    Transition {
+        state: String,
+    },
+    Approve {
+        document_id: String,
+        signer_ids: Vec<String>,
     },
 }
 
@@ -570,6 +623,11 @@ pub fn parse_envelope(raw: &Value) -> Result<LegalCommandEnvelope, BusinessError
             | "executed.import"
             | "document.import"
             | "document.inspect"
+            | "assign"
+            | "comment"
+            | "link"
+            | "hold.acknowledge"
+            | "approve"
     ) {
         return Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
@@ -592,11 +650,14 @@ pub fn parse_envelope(raw: &Value) -> Result<LegalCommandEnvelope, BusinessError
             )
         })?;
     if action == "transition" {
-        let state = object.get("state").and_then(Value::as_str);
-        if state != Some("archived") {
+        let state = object
+            .get("state")
+            .and_then(Value::as_str)
+            .filter(|state| !state.is_empty() && state.len() <= STATE_LIMIT);
+        if state.is_none() {
             return Err(invalid(
-                "LEGAL_ACTION_UNSUPPORTED",
-                "Only the archive transition is available through the native record command.",
+                "LEGAL_TRANSITION",
+                "Choose the next Legal state.",
             ));
         }
     }
@@ -618,6 +679,9 @@ pub fn command_permission(action: &str) -> Result<&'static str, BusinessError> {
         "document.inspect" => Ok("legal.read"),
         "approval.open" => Ok("legal.review"),
         "approval.decide" | "approval.reroute" => Ok("legal.approve"),
+        "assign" | "comment" | "link" => Ok("legal.edit"),
+        "approve" => Ok("legal.approve"),
+        "hold.acknowledge" => Ok("legal.read"),
         _ => Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
             "This Legal action is not available through the native record command.",
@@ -671,7 +735,12 @@ pub fn parse_command(
             hold_id: hold_id(object)?,
             reason: reason(object)?,
         }),
-        "transition" => Ok(LegalCommand::Archive {
+        "transition" => Ok(LegalCommand::Transition {
+            state: object
+                .get("state")
+                .and_then(Value::as_str)
+                .expect("the envelope checked the transition state")
+                .to_owned(),
             reason: reason(object)?,
         }),
         "share" => {
@@ -888,6 +957,99 @@ pub fn parse_command(
                 reason: reason.to_owned(),
             })
         }
+        "assign" => {
+            let owner_id = object
+                .get("ownerId")
+                .and_then(Value::as_str)
+                .map(js_trim)
+                .filter(|id| !id.is_empty() && id.len() <= 200 && !id.chars().any(char::is_control))
+                .ok_or_else(|| invalid("LEGAL_PERSON_REQUIRED", "Choose an active person to own this record."))?;
+            Ok(LegalCommand::AssignOwner {
+                owner_id: owner_id.to_owned(),
+                reason: reason(object)?,
+            })
+        }
+        "comment" => {
+            let body = object
+                .get("body")
+                .and_then(Value::as_str)
+                .map(js_trim)
+                .filter(|body| !body.is_empty() && cp_len(body) <= 20_000 && !body.chars().any(char::is_control))
+                .ok_or_else(|| invalid("LEGAL_COMMENT_REQUIRED", "Write a discussion comment."))?;
+            let visibility = object.get("visibility").and_then(Value::as_str).unwrap_or("internal");
+            if !matches!(visibility, "internal" | "external") {
+                return Err(invalid("LEGAL_COMMENT_VISIBILITY", "Choose an internal or external comment."));
+            }
+            let section = object.get("section").and_then(Value::as_str).unwrap_or("");
+            if cp_len(section) > 200 || section.chars().any(char::is_control) {
+                return Err(invalid("LEGAL_COMMENT_SECTION", "Choose a shorter discussion section."));
+            }
+            let document_id = object
+                .get("documentId")
+                .and_then(Value::as_str)
+                .filter(|id| !id.is_empty())
+                .map(str::to_owned);
+            if visibility == "external" && document_id.is_none() {
+                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Choose the document version for external discussion."));
+            }
+            if document_id.as_deref().is_some_and(|id| id.len() > 200 || id.chars().any(char::is_control)) {
+                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document from this record."));
+            }
+            Ok(LegalCommand::Comment {
+                comment_id: derived_id("legal-comment", ""),
+                section: section.to_owned(),
+                body: body.to_owned(),
+                visibility: visibility.to_owned(),
+                document_id,
+            })
+        }
+        "link" => {
+            let target_id = object
+                .get("targetId")
+                .and_then(Value::as_str)
+                .filter(|id| !id.is_empty() && id.len() <= 200 && !id.chars().any(char::is_control))
+                .ok_or_else(|| invalid("LEGAL_RECORD_REQUIRED", "Choose a record to link."))?;
+            let relation = object
+                .get("relation")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_LINK_REQUIRED", "Choose how the records relate."))?;
+            if !matches!(relation, "related" | "evidence" | "amends" | "obligation" | "derived") {
+                return Err(invalid("LEGAL_LINK_REQUIRED", "Choose how the records relate."));
+            }
+            Ok(LegalCommand::Link {
+                target_id: target_id.to_owned(),
+                relation: relation.to_owned(),
+            })
+        }
+        "hold.acknowledge" => {
+            let hold_id = hold_id(object)?;
+            let note = object
+                .get("reason")
+                .and_then(Value::as_str)
+                .map(js_trim)
+                .filter(|note| cp_len(note) >= 10 && cp_len(note) <= 4_000)
+                .ok_or_else(|| invalid("LEGAL_REASON_REQUIRED", "Record a preservation acknowledgement between 10 and 4000 characters."))?;
+            Ok(LegalCommand::AcknowledgeNotice {
+                hold_id,
+                note: note.to_owned(),
+            })
+        }
+        "approve" => {
+            let document_id = object
+                .get("documentId")
+                .and_then(Value::as_str)
+                .filter(|id| !id.is_empty() && id.len() <= 200 && !id.chars().any(char::is_control))
+                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document belonging to this contract."))?;
+            let signer_ids = string_list(object, "signerIds", 1, 20)?;
+            if !unique(&signer_ids) {
+                return Err(invalid("LEGAL_PEOPLE_REQUIRED", "Each signer must be unique."));
+            }
+            Ok(LegalCommand::Approve {
+                document_id: document_id.to_owned(),
+                signer_ids,
+                reason: reason(object)?,
+            })
+        }
         _ => unreachable!("the envelope rejects unsupported actions"),
     }
 }
@@ -963,7 +1125,7 @@ pub fn plan_command(
         LegalCommand::CreateHold { .. } => "hold.create",
         LegalCommand::RequestHoldRelease { .. } => "hold.request-release",
         LegalCommand::ReleaseHold { .. } => "hold.release",
-        LegalCommand::Archive { .. } => "transition",
+        LegalCommand::Transition { .. } => "transition",
         LegalCommand::Share { .. } => "share",
         LegalCommand::RevokeShare { .. } => "share.revoke",
         LegalCommand::SetMember { .. } => "member",
@@ -974,13 +1136,25 @@ pub fn plan_command(
         LegalCommand::ExecutedImport { .. } => "executed.import",
         LegalCommand::DocumentImport { .. } => "document.import",
         LegalCommand::Inspect { .. } => "document.inspect",
+        LegalCommand::AssignOwner { .. } => "assign",
+        LegalCommand::Comment { .. } => "comment",
+        LegalCommand::Link { .. } => "link",
+        LegalCommand::AcknowledgeNotice { .. } => "hold.acknowledge",
+        LegalCommand::Approve { .. } => "approve",
     })?;
     require(actor, permission)?;
-    if actor.is_requester() && !matches!(command, LegalCommand::AddDocument { .. }) {
+    if actor.is_requester()
+        && !matches!(
+            command,
+            LegalCommand::AddDocument { .. }
+                | LegalCommand::Comment { .. }
+                | LegalCommand::Transition { .. }
+        )
+    {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
             "LEGAL_REQUESTER_SCOPE",
-            "Requesters can only add their draft question.",
+            "Requesters can only edit their draft question, submit it and reply to the Legal team.",
         ));
     }
     if source.item.id != envelope.id || source.item.company_id != actor.company_id.as_str() {
@@ -1106,30 +1280,81 @@ pub fn plan_command(
                 item.state.clone(),
             )
         }
-        LegalCommand::Archive { reason } => {
-            if !source.editor {
+        LegalCommand::Transition { state, reason } => {
+            if actor.is_requester() && state != "review" {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "LEGAL_REQUESTER_SCOPE",
+                    "Requesters can only submit their draft question for review.",
+                ));
+            }
+            if !source.editor && !actor.is_requester() {
                 return Err(BusinessError::new(
                     FailureKind::Forbidden,
                     "LEGAL_EDITOR_REQUIRED",
                     "An editor membership is required.",
                 ));
             }
-            if !allowed_transitions(&item.kind, &item.state).contains(&"archived") {
+            if !allowed_transitions(&item.kind, &item.state).contains(&state.as_str()) {
                 return Err(BusinessError::new(
                     FailureKind::Conflict,
                     "LEGAL_TRANSITION",
-                    "This Legal record cannot be archived from its current state.",
+                    "This Legal record cannot move to that state.",
+                ));
+            }
+            if state == "approved" && item.kind == "contract" {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_TRANSITION",
+                    "Approve a locked document and named signer list using contract approval.",
+                ));
+            }
+            if matches!(state.as_str(), "approved" | "rejected")
+                && (source.same_person_creator || source.same_person_last_author)
+            {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "LEGAL_INDEPENDENT_REVIEW",
+                    "An independent reviewer must decide.",
+                ));
+            }
+            if state == "approved"
+                && item.kind == "rule"
+                && (source.data.get("reviewNote").and_then(Value::as_str).is_none_or(str::is_empty)
+                    || source.data.get("effectiveDate").and_then(Value::as_str).is_none_or(str::is_empty))
+            {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_REVIEW_EVIDENCE",
+                    "Record the legal review evidence before activating a rule.",
+                ));
+            }
+            if state == "active" && item.kind == "contract" && !source.executed_contract {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_EXECUTED_REQUIRED",
+                    "An independently confirmed executed copy is required.",
+                ));
+            }
+            if state == "completed"
+                && item.kind == "obligation"
+                && source.data.get("completionEvidence").and_then(Value::as_str).is_none_or(str::is_empty)
+            {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_COMPLETION_EVIDENCE",
+                    "Completion evidence is required.",
                 ));
             }
             (
                 "transition".to_owned(),
                 reason.clone(),
-                LegalCommandEffect::Archive {
-                    reason: reason.clone(),
+                LegalCommandEffect::Transition {
+                    state: state.clone(),
                 },
                 None,
                 None,
-                "archived".to_owned(),
+                state.clone(),
             )
         }
         LegalCommand::Share {
@@ -1361,6 +1586,134 @@ pub fn plan_command(
             None,
             item.state.clone(),
         ),
+        LegalCommand::AssignOwner { owner_id, reason } => {
+            if matches!(
+                item.state.as_str(),
+                "archived" | "cancelled" | "closed" | "completed" | "terminated" | "expired"
+            ) {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_TRANSITION",
+                    "Reopen this record before changing its owner.",
+                ));
+            }
+            (
+                "assign".to_owned(),
+                reason.clone(),
+                LegalCommandEffect::AssignOwner {
+                    owner_id: owner_id.clone(),
+                },
+                None,
+                None,
+                item.state.clone(),
+            )
+        }
+        LegalCommand::Comment {
+            section,
+            body,
+            visibility,
+            document_id,
+            ..
+        } => {
+            if visibility == "external" && !actor.can("legal.share") {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "PERMISSION_REQUIRED",
+                    "Your selected role does not grant external discussion.",
+                ));
+            }
+            if let Some(document_id) = document_id
+                && !source.documents.iter().any(|document| document == document_id)
+            {
+                return Err(invalid(
+                    "LEGAL_DOCUMENT_REQUIRED",
+                    "Choose a document belonging to this record.",
+                ));
+            }
+            (
+                "comment".to_owned(),
+                visibility.clone(),
+                LegalCommandEffect::Comment {
+                    comment_id: derived_id("legal-comment", key),
+                    section: section.clone(),
+                    body: body.clone(),
+                    visibility: visibility.clone(),
+                    document_id: document_id.clone(),
+                },
+                None,
+                None,
+                item.state.clone(),
+            )
+        }
+        LegalCommand::Link { target_id, relation } => {
+            if &item.id == target_id {
+                return Err(invalid(
+                    "LEGAL_LINK_INVALID",
+                    "Choose another record.",
+                ));
+            }
+            (
+                "link".to_owned(),
+                format!("{relation}: {target_id}"),
+                LegalCommandEffect::Link {
+                    target_id: target_id.clone(),
+                    relation: relation.clone(),
+                },
+                None,
+                None,
+                item.state.clone(),
+            )
+        }
+        LegalCommand::AcknowledgeNotice { hold_id, note } => {
+            (
+                "hold.acknowledge".to_owned(),
+                note.clone(),
+                LegalCommandEffect::AcknowledgeNotice {
+                    hold_id: hold_id.clone(),
+                    note: note.clone(),
+                },
+                None,
+                Some(hold_id.clone()),
+                item.state.clone(),
+            )
+        }
+        LegalCommand::Approve {
+            document_id,
+            signer_ids,
+            reason,
+        } => {
+            if item.kind != "contract" || item.state != "approval" {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_APPROVAL_STATE",
+                    "Contract must be awaiting approval.",
+                ));
+            }
+            if source.same_person_creator || source.same_person_last_author {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "LEGAL_INDEPENDENT_REVIEW",
+                    "An independent reviewer must approve.",
+                ));
+            }
+            if !source.documents.iter().any(|document| document == document_id) {
+                return Err(invalid(
+                    "LEGAL_DOCUMENT_REQUIRED",
+                    "Choose a document belonging to this contract.",
+                ));
+            }
+            (
+                "approve".to_owned(),
+                reason.clone(),
+                LegalCommandEffect::Approve {
+                    document_id: document_id.clone(),
+                    signer_ids: signer_ids.clone(),
+                },
+                None,
+                None,
+                "approved".to_owned(),
+            )
+        }
     };
     let next_version = envelope.expected_version.checked_add(1).ok_or_else(|| {
         invalid(
@@ -1410,7 +1763,8 @@ pub fn plan_command(
 
 fn result_state(command: &LegalCommand, item: &LegalRecord) -> String {
     match command {
-        LegalCommand::Archive { .. } => "archived".to_owned(),
+        LegalCommand::Transition { state, .. } => state.clone(),
+        LegalCommand::Approve { .. } => "approved".to_owned(),
         LegalCommand::Share { .. }
         | LegalCommand::RevokeShare { .. }
         | LegalCommand::SetMember { .. } => item.state.clone(),
@@ -1567,6 +1921,10 @@ mod tests {
             ],
             documents: Vec::new(),
             next_document_version: 2,
+            data: json!({}),
+            same_person_creator: false,
+            same_person_last_author: false,
+            executed_contract: true,
         }
     }
 
@@ -1847,11 +2205,11 @@ mod tests {
         );
         assert_eq!(
             parse_envelope(
-                &json!({"action":"transition","id":"item","expectedVersion":1,"state":"active"})
+                &json!({"action":"transition","id":"item","expectedVersion":1})
             )
             .unwrap_err()
             .code,
-            "LEGAL_ACTION_UNSUPPORTED"
+            "LEGAL_TRANSITION"
         );
     }
 
@@ -2094,6 +2452,71 @@ mod tests {
             .unwrap_err()
             .code,
             "LEGAL_CONTENT_FROZEN"
+        );
+    }
+
+    #[test]
+    fn assignment_discussion_link_notice_and_transition_are_planned() {
+        let actor = actor(
+            "legal_manager",
+            &["legal.read", "legal.edit", "legal.review", "legal.hold"],
+        );
+        for (raw, action, effect) in [
+            (
+                json!({"action":"assign","id":"item","expectedVersion":1,"ownerId":"editor","reason":"Hand the record to counsel."}),
+                "assign",
+                "assign",
+            ),
+            (
+                json!({"action":"comment","id":"item","expectedVersion":1,"body":"Recorded the discussion.","visibility":"internal"}),
+                "comment",
+                "comment",
+            ),
+            (
+                json!({"action":"link","id":"item","expectedVersion":1,"targetId":"target","relation":"evidence"}),
+                "link",
+                "link",
+            ),
+            (
+                json!({"action":"hold.acknowledge","id":"item","expectedVersion":1,"holdId":"hold-active","reason":"Acknowledged the preservation obligation."}),
+                "hold.acknowledge",
+                "hold.acknowledge",
+            ),
+            (
+                json!({"action":"transition","id":"item","expectedVersion":1,"state":"review","reason":"Submit for independent review."}),
+                "transition",
+                "transition",
+            ),
+        ] {
+            let envelope = parse_envelope(&raw).unwrap();
+            let command = parse_command(&raw, &envelope).unwrap();
+            let plan = plan_command(&actor, &source("draft"), &envelope, &command, "legal-plan-key").unwrap();
+            assert_eq!(plan.action, action);
+            assert_eq!(plan.operation, format!("legal.{action}"));
+            let planned_effect = match &plan.effect {
+                LegalCommandEffect::AssignOwner { .. } => "assign",
+                LegalCommandEffect::Comment { .. } => "comment",
+                LegalCommandEffect::Link { .. } => "link",
+                LegalCommandEffect::AcknowledgeNotice { .. } => "hold.acknowledge",
+                LegalCommandEffect::Transition { .. } => "transition",
+                _ => "unexpected",
+            };
+            assert_eq!(planned_effect, effect);
+        }
+        let raw = json!({"action":"transition","id":"item","expectedVersion":1,"state":"active","reason":"Activate the record."});
+        let envelope = parse_envelope(&raw).unwrap();
+        let command = parse_command(&raw, &envelope).unwrap();
+        assert_eq!(
+            plan_command(&actor, &source("draft"), &envelope, &command, "legal-plan-key")
+                .unwrap_err()
+                .code,
+            "LEGAL_TRANSITION"
+        );
+        let raw = json!({"action":"comment","id":"item","expectedVersion":1,"body":"Public reply.","visibility":"external"});
+        let envelope = parse_envelope(&raw).unwrap();
+        assert_eq!(
+            parse_command(&raw, &envelope).unwrap_err().code,
+            "LEGAL_DOCUMENT_REQUIRED"
         );
     }
 }

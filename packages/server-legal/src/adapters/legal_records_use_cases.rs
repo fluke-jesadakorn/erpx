@@ -298,6 +298,10 @@ mod tests {
             holds: Vec::new(),
             documents: Vec::new(),
             next_document_version: 2,
+            data: json!({}),
+            same_person_creator: false,
+            same_person_last_author: false,
+            executed_contract: true,
         }
     }
 

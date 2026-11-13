@@ -1212,3 +1212,157 @@ async fn native_legal_http_reads_and_commands_through_postgres() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn legal_assignment_discussion_link_notice_and_transition_are_native() {
+    fixture::with_database(9, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,revoked_at,version,scope_kind,scope_node_id,parent_id,source,source_id)              VALUES('access-reviewer','reviewer-user','legal_manager','[\"legal\"]','company',NULL,0,9007199254740991,NULL,1,'holding',NULL,NULL,'legacy',NULL)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let identity = Arc::new(Identity::default());
+        let notifier = Arc::new(Notifier { fail: false });
+        let editor = actor(
+            "legal_manager",
+            &["legal.read", "legal.edit", "legal.review", "legal.share", "legal.hold"],
+        );
+
+        let comment = serde_json::json!({
+            "action":"comment","id":"contract-1","expectedVersion":1,
+            "body":"The parties confirmed the renewal window.","visibility":"internal",
+            "documentId":"contract-1-v1"
+        });
+        let result = command(
+            &pool,
+            &editor,
+            &key("legal-comment-command-0001"),
+            &comment,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["version"], 2);
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT visibility FROM legal_comments WHERE item_id='contract-1'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "internal"
+        );
+
+        let link = serde_json::json!({
+            "action":"link","id":"contract-1","expectedVersion":2,
+            "targetId":"contract-approved","relation":"evidence"
+        });
+        command(
+            &pool,
+            &editor,
+            &key("legal-link-command-0001"),
+            &link,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT relation FROM legal_links WHERE source_id='contract-1' AND target_id='contract-approved'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "evidence"
+        );
+
+        let assign = serde_json::json!({
+            "action":"assign","id":"contract-1","expectedVersion":3,
+            "ownerId":"reviewer-user","reason":"Hand the renewal to the reviewing counsel."
+        });
+        command(
+            &pool,
+            &editor,
+            &key("legal-assign-command-0001"),
+            &assign,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT owner_id FROM legal_items WHERE id='contract-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            "reviewer-user"
+        );
+
+        let hold = serde_json::json!({
+            "action":"hold.create","id":"contract-1","expectedVersion":4,
+            "reason":"Preserve the renewal correspondence."
+        });
+        let held = command(
+            &pool,
+            &editor,
+            &key("legal-hold-command-0001"),
+            &hold,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        let hold_id = held["holdId"].as_str().unwrap().to_owned();
+        let notice = command(
+            &pool,
+            &editor,
+            &key("legal-notice-command-0001"),
+            &serde_json::json!({
+                "action":"hold.acknowledge","id":"contract-1","expectedVersion":5,
+                "holdId":hold_id,"reason":"Acknowledged the preservation obligation."
+            }),
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(notice["version"], 6);
+        assert!(
+            sqlx::query_scalar::<_, Option<i64>>(
+                "SELECT acknowledged_at FROM legal_hold_notices WHERE item_id='contract-1' AND user_id='editor-user'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap()
+            .is_some()
+        );
+
+        let transition = serde_json::json!({
+            "action":"transition","id":"contract-1","expectedVersion":6,
+            "state":"review","reason":"Submit the renewal for independent review."
+        });
+        let moved = command(
+            &pool,
+            &editor,
+            &key("legal-transition-command-0001"),
+            &transition,
+            notifier,
+            identity,
+        )
+        .await
+        .unwrap();
+        assert_eq!(moved["state"], "review");
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT state FROM legal_items WHERE id='contract-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            "review"
+        );
+    })
+    .await;
+}

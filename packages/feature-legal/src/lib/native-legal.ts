@@ -152,14 +152,17 @@ const COMMANDS = new Set([
   'executed.import',
   'document.import',
   'document.inspect',
+  'assign',
+  'comment',
+  'link',
+  'hold.acknowledge',
+  'approve',
 ]);
 
 export function nativeLegalCommandSelected(body: unknown): boolean {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
   const action = (body as Record<string, unknown>).action;
   if (typeof action !== 'string' || !COMMANDS.has(action)) return false;
-  if (action === 'transition')
-    return (body as Record<string, unknown>).state === 'archived';
   return true;
 }
 

@@ -804,7 +804,6 @@ impl<'c> PgLegalRecords<'c> {
                 .execute(&mut *self.connection)
                 .await?;
             }
-            LegalCommandEffect::Archive { .. } => {}
             LegalCommandEffect::ApprovalOpen {
                 instance_id,
                 document_id,
@@ -1246,6 +1245,250 @@ impl<'c> PgLegalRecords<'c> {
                 .execute(&mut *self.connection)
                 .await?;
                 return Ok(Some("approval".to_owned()));
+            }
+            LegalCommandEffect::AssignOwner { owner_id } => {
+                let eligible: bool = sqlx::query_scalar(
+                    "SELECT legal_person_eligible($1,$2,$3,$4,'legal.edit')",
+                )
+                .bind(actor.company_id.as_str())
+                .bind(owner_id)
+                .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
+                .bind(actor.department_id.as_ref().map(|value| value.as_str()))
+                .fetch_one(&mut *self.connection)
+                .await?;
+                if !eligible {
+                    return Err(BusinessError::new(
+                        FailureKind::InvalidInput,
+                        "LEGAL_PERSON_UNAVAILABLE",
+                        "Choose an active person with access to this Company and record scope.",
+                    )
+                    .into());
+                }
+                let changed = sqlx::query(
+                    "UPDATE legal_items SET owner_id=$1,updated_at=$2 WHERE id=$3",
+                )
+                .bind(owner_id)
+                .bind(self.now)
+                .bind(&plan.item_id)
+                .execute(&mut *self.connection)
+                .await?
+                .rows_affected();
+                if changed != 1 {
+                    return Err(not_found().into());
+                }
+                sqlx::query(
+                    "INSERT INTO legal_members(item_id,user_id,access) VALUES($1,$2,'edit') \
+                     ON CONFLICT(item_id,user_id) DO UPDATE SET access='edit'",
+                )
+                .bind(&plan.item_id)
+                .bind(owner_id)
+                .execute(&mut *self.connection)
+                .await?;
+            }
+            LegalCommandEffect::Comment {
+                comment_id,
+                section,
+                body,
+                visibility,
+                document_id,
+            } => {
+                if let Some(document_id) = document_id {
+                    let belongs: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM legal_documents WHERE id=$1 AND item_id=$2)",
+                    )
+                    .bind(document_id)
+                    .bind(&plan.item_id)
+                    .fetch_one(&mut *self.connection)
+                    .await?;
+                    if !belongs {
+                        return Err(invalid(
+                            "LEGAL_DOCUMENT_REQUIRED",
+                            "Choose a document belonging to this record.",
+                        )
+                        .into());
+                    }
+                }
+                sqlx::query(
+                    "INSERT INTO legal_comments(id,item_id,section,body,visibility,created_by,created_at,document_id) \
+                     VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+                )
+                .bind(comment_id)
+                .bind(&plan.item_id)
+                .bind(section)
+                .bind(body)
+                .bind(visibility)
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .bind(document_id.as_deref())
+                .execute(&mut *self.connection)
+                .await?;
+            }
+            LegalCommandEffect::Link {
+                target_id,
+                relation,
+            } => {
+                let visible: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM legal_items i WHERE i.id=$1 AND i.company_id=$2 \
+                       AND ($3::text IS NULL OR i.branch_id=$3) \
+                       AND ($4::text IS NULL OR i.department_id=$4) \
+                       AND (i.classification='internal' OR EXISTS(SELECT 1 FROM legal_members lm WHERE lm.item_id=i.id AND lm.user_id=$5)) \
+                       AND ($6::text<>'legal_requester' OR (i.kind='request' AND i.created_by=$5)))",
+                )
+                .bind(target_id)
+                .bind(actor.company_id.as_str())
+                .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
+                .bind(actor.department_id.as_ref().map(|value| value.as_str()))
+                .bind(actor.user_id.as_str())
+                .bind(actor.role.as_str())
+                .fetch_one(&mut *self.connection)
+                .await?;
+                if !visible {
+                    return Err(BusinessError::new(
+                        FailureKind::NotFound,
+                        "LEGAL_NOT_FOUND",
+                        "Legal record is unavailable in your current scope.",
+                    )
+                    .into());
+                }
+                sqlx::query(
+                    "INSERT INTO legal_links(source_id,target_id,relation) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+                )
+                .bind(&plan.item_id)
+                .bind(target_id)
+                .bind(relation)
+                .execute(&mut *self.connection)
+                .await?;
+            }
+            LegalCommandEffect::AcknowledgeNotice { hold_id, note } => {
+                let changed = sqlx::query(
+                    "UPDATE legal_hold_notices SET acknowledged_at=$1,statement=$2 \
+                     WHERE hold_id=$3 AND item_id=$4 AND user_id=$5",
+                )
+                .bind(self.now)
+                .bind(note)
+                .bind(hold_id)
+                .bind(&plan.item_id)
+                .bind(actor.user_id.as_str())
+                .execute(&mut *self.connection)
+                .await?
+                .rows_affected();
+                if changed != 1 {
+                    return Err(BusinessError::new(
+                        FailureKind::Forbidden,
+                        "LEGAL_NOTICE_REQUIRED",
+                        "This preservation notice is not assigned to you.",
+                    )
+                    .into());
+                }
+            }
+            LegalCommandEffect::Transition { state } => {
+                if state == "cancelled" {
+                    sqlx::query(
+                        "UPDATE legal_envelopes SET state='cancelled' WHERE item_id=$1 AND state='sent'",
+                    )
+                    .bind(&plan.item_id)
+                    .execute(&mut *self.connection)
+                    .await?;
+                }
+            }
+            LegalCommandEffect::Approve {
+                document_id,
+                signer_ids,
+            } => {
+                let pending: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM approval_instances WHERE record_type='legal' AND record_id=$1 AND state IN ('pending','blocked'))",
+                )
+                .bind(&plan.item_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
+                if pending {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_APPROVAL_ROUTE",
+                        "Use the assigned approval route to decide this contract.",
+                    )
+                    .into());
+                }
+                let document = sqlx::query(
+                    "SELECT d.checksum,d.created_by FROM legal_documents d \
+                     JOIN legal_items i ON i.id=d.item_id AND i.company_id=$3 \
+                     WHERE d.id=$1 AND d.item_id=$2",
+                )
+                .bind(document_id)
+                .bind(&plan.item_id)
+                .bind(actor.company_id.as_str())
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document belonging to this contract."))?;
+                let checksum: String = document.try_get("checksum")?;
+                let author: String = document.try_get("created_by")?;
+                if self.same_person(actor.user_id.as_str(), &author, &actor.company_id).await? {
+                    return Err(BusinessError::new(
+                        FailureKind::Forbidden,
+                        "LEGAL_INDEPENDENT_REVIEW",
+                        "The document author cannot approve their own document.",
+                    )
+                    .into());
+                }
+                let executed: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM legal_executed_copies WHERE document_id=$1)",
+                )
+                .bind(document_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
+                if executed {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_APPROVAL_STATE",
+                        "Approve the draft document; imported executed copies are reviewed separately.",
+                    )
+                    .into());
+                }
+                for signer in signer_ids {
+                    let access: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM legal_members WHERE item_id=$1 AND user_id=$2) \
+                           OR EXISTS(SELECT 1 FROM legal_shares WHERE item_id=$1 AND document_id=$3 AND user_id=$2 AND revoked_at IS NULL AND expires_at>$4)",
+                    )
+                    .bind(&plan.item_id)
+                    .bind(signer)
+                    .bind(document_id)
+                    .bind(self.now)
+                    .fetch_one(&mut *self.connection)
+                    .await?;
+                    if !access {
+                        return Err(BusinessError::new(
+                            FailureKind::InvalidInput,
+                            "LEGAL_SIGNER_UNAVAILABLE",
+                            "Each signer must have explicit access to this version.",
+                        )
+                        .into());
+                    }
+                }
+                sqlx::query("UPDATE legal_documents SET locked=true WHERE id=$1 AND item_id=$2")
+                    .bind(document_id)
+                    .bind(&plan.item_id)
+                    .execute(&mut *self.connection)
+                    .await?;
+                let signers = serde_json::to_string(signer_ids).map_err(|_| {
+                    unavailable(
+                        "LEGAL_APPROVAL_STATE",
+                        "The Legal approval signers are unavailable.",
+                    )
+                })?;
+                sqlx::query(
+                    "INSERT INTO legal_approvals(item_id,cycle,document_id,document_hash,signers,reviewer_id,decision,created_at) \
+                     VALUES($1,$2,$3,$4,$5::jsonb,$6,'approved',$7) ON CONFLICT(item_id,cycle) DO NOTHING",
+                )
+                .bind(&plan.item_id)
+                .bind(i32_version(plan.next_version)?)
+                .bind(document_id)
+                .bind(&checksum)
+                .bind(signers)
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+                return Ok(Some("approved".to_owned()));
             }
         }
         Ok(None)
@@ -1923,6 +2166,31 @@ impl LegalRecordsPorts for PgLegalRecords<'_> {
             .fetch_all(&mut *self.connection)
             .await?;
             let next_document_version = self.next_document_version(id).await?;
+            let data = self.subtype(&item.kind, id).await?;
+            let same_person_creator = self
+                .same_person(actor.user_id.as_str(), &item.created_by, &actor.company_id)
+                .await?;
+            let last_author: Option<String> = sqlx::query_scalar(
+                "SELECT actor_id FROM legal_events WHERE item_id=$1 AND action IN ('created','update','document','document.upload','ai.accepted') ORDER BY version DESC,created_at DESC LIMIT 1",
+            )
+            .bind(id)
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            let same_person_last_author = match last_author.as_deref() {
+                Some(last) => {
+                    self.same_person(actor.user_id.as_str(), last, &actor.company_id)
+                        .await?
+                }
+                None => false,
+            };
+            let executed_contract: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM legal_envelopes WHERE item_id=$1 AND state='completed') \
+                    OR EXISTS(SELECT 1 FROM legal_executed_copies WHERE item_id=$1 AND state='confirmed' \
+                      AND approved_cycle=(SELECT max(cycle) FROM legal_approvals WHERE item_id=$1))",
+            )
+            .bind(id)
+            .fetch_one(&mut *self.connection)
+            .await?;
             Ok(LegalCommandSource {
                 item,
                 enabled,
@@ -1931,6 +2199,10 @@ impl LegalRecordsPorts for PgLegalRecords<'_> {
                 holds,
                 documents,
                 next_document_version,
+                data,
+                same_person_creator,
+                same_person_last_author,
+                executed_contract,
             })
         })
     }
