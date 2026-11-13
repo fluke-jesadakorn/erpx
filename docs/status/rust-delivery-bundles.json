@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1473,
+    "revision": 1477,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -31859,15 +31859,114 @@
         "resources": [
           "owner:shared-orphans"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "1d990f77709f5ac47e09e45df282103411bb7472",
+        "lastPushedSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 2360,
+            "after": 2358,
+            "note": "Global KPI moved by exactly the two deleted orphan writers (the followup SQL source had zero writes)."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 174,
+            "after": 173
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 10,
+            "after": 9
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-collaboration/src/adapters/sales-notifications.ts",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 1,
+            "after": 0,
+            "note": "Zero importers through any package specifier, barrel, test, script or fixture; the sales followup-notification SQL source was only used by it."
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-learning/src/adapters/learning-eligibility.ts",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 1,
+            "after": 0,
+            "note": "Zero importers; the live learning application layer is imported directly by its tests and stays."
+          },
+          {
+            "command": "bunx tsc -p packages/server-collaboration/tsconfig.json --noEmit && bunx tsc -p packages/server-sales/tsconfig.json --noEmit && bunx tsc -p packages/server-learning/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472"
+          },
+          {
+            "command": "bun scripts/assets/workspace-styles.ts --check && bun scripts/testing/workspace-tasks.ts --check",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "note": "No stale @source or turbo input remained; unreachable modules were never in the regenerated lists."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 2360,
+            "after": 2358,
+            "note": "Global KPI moved by exactly the two deleted orphan writers (the followup SQL source had zero writes)."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 174,
+            "after": 173
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 10,
+            "after": 9
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-collaboration/src/adapters/sales-notifications.ts",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 1,
+            "after": 0,
+            "note": "Zero importers through any package specifier, barrel, test, script or fixture; the sales followup-notification SQL source was only used by it."
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-learning/src/adapters/learning-eligibility.ts",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "before": 1,
+            "after": 0,
+            "note": "Zero importers; the live learning application layer is imported directly by its tests and stays."
+          },
+          {
+            "command": "bunx tsc -p packages/server-collaboration/tsconfig.json --noEmit && bunx tsc -p packages/server-sales/tsconfig.json --noEmit && bunx tsc -p packages/server-learning/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472"
+          },
+          {
+            "command": "bun scripts/assets/workspace-styles.ts --check && bun scripts/testing/workspace-tasks.ts --check",
+            "result": "passed",
+            "sourceSha": "1d990f77709f5ac47e09e45df282103411bb7472",
+            "note": "No stale @source or turbo input remained; unreachable modules were never in the regenerated lists."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Blocked on the workspace graph: the style/turbo regeneration aborts with WORKSPACE_EXPORT_UNDECLARED for @erpx/server-files/public/project-attachment and @erpx/feature-projects/public/native-project-attachment{,-read},/native-project-wbs-page (modules exist, export keys missing). Repair tracked by repair.workspace-project-attachment-exports; resume this slice after that lands.",
+        "blocker": null,
+        "nextAction": "Both strictly orphaned TS write adapters and the dead sales followup-notification source are deleted; package exports/barrels/ownership paths removed and style/turbo registers verified. Remaining catalogue/structure reds are the peer payroll-cancellation required-case registration, not this slice.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "lead",
@@ -31935,20 +32034,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 155,
-      "migratedPackets": 86,
+      "migratedPackets": 87,
       "statusCounts": {
         "pending": 20,
         "in_progress": 4,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 86,
-        "blocked": 36,
+        "migrated": 87,
+        "blocked": 35,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T02:40:04.691Z",
+    "updatedAt": "2026-11-13T02:41:41.132Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
