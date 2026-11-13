@@ -665,6 +665,42 @@ describe('native Billing transport', () => {
       ).toBeUndefined();
   });
 
+  it('posts the exact invoice create and void routes with the retained key', async () => {
+    const calls: Parameters<NativeBillingTransport>[] = [];
+    const client = createNativeBillingClient(configuration, async (...args) => {
+      calls.push(args);
+      return response({ data: { ok: true }, context: context() });
+    });
+    const approve = {
+      holdingId: 'h001',
+      holdingSlug: 'acme',
+      route: '',
+      key: 'billing-command-0001',
+      body: { action: 'approve', version: 3, reason: 'Reviewed invoice', periodId: 'period-1' },
+    };
+    const voided = {
+      holdingId: 'h001',
+      holdingSlug: 'acme',
+      route: '/invoice-1/void',
+      key: 'billing-command-0002',
+      body: { action: 'void', version: 4, reason: 'Reviewed void', invoiceId: 'invoice-1' },
+    };
+    expect(await client.invoice(headers(), actor, approve)).toEqual({ ok: true });
+    expect(await client.invoice(headers(), actor, voided)).toEqual({ ok: true });
+    expect(calls.map(([, url]) => String(url))).toEqual([
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/invoices',
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/invoices/invoice-1/void',
+    ]);
+    expect(calls.map(([, , sent]) => sent.get('idempotency-key'))).toEqual([
+      'billing-command-0001',
+      'billing-command-0002',
+    ]);
+    expect(calls.map(([, , , body]) => JSON.parse(body!))).toEqual([
+      approve.body,
+      voided.body,
+    ]);
+  });
+
   it('accepts the exact captured owner BillingContext projection', async () => {
     expect(Object.keys(JSON.parse(CAPTURED_CONTEXT)).sort()).toEqual([
       'assignmentId',

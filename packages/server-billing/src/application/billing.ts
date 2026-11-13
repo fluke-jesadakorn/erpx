@@ -4,7 +4,7 @@ import {roundSatang} from "@erpx/feature-billing/lib/billing-target-pricing";
 import {monthBounds as targetMonthBounds} from "@erpx/feature-billing/lib/billing";
 import {stripeList,stripeUrl,testObject,type BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {billingInput,type BillingActor,type BillingInput} from '@erpx/server-billing/domain/billing';
-import type {BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingCost,BillingJobRow,BillingPriceRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
+import type {BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow,BillingPriceRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
 import type {TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
 import type {TargetRolloutReadiness} from '@erpx/server-billing/domain/target-rollout';
 export interface BillingRepository {recordRatingRun(value0:string,value1:string,value2:string,value3:string,value4:string,value5:string,value6:string,value7:string,value8:number|null,value9:string,value10:string,value11:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -27,7 +27,6 @@ ensureAccount(value0:string,value1:number):Promise<{rows:Record<string,unknown>[
 lockedAccount(value0:string):Promise<{rows:BillingAccount[];rowCount:number|null}>;
 activeEnrollment(value0:string):Promise<{rows:BillingEnrollment[];rowCount:number|null}>;
 retainCustomer(value0:string,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-selectedPeriod(value0:string | undefined,value1:string):Promise<{rows:BillingPeriod[];rowCount:number|null}>;
 enroll(value0:string,value1:string,value2:string | undefined,value3:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 scheduleEnrollmentChange(value0:string,value1:unknown,value2:unknown,value3:unknown):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 retainConsentedCard(value0:string,value1:string,value2:number,value3:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -35,14 +34,6 @@ automaticOpenInvoices(value0:string):Promise<{rows:BillingInvoiceRow[];rowCount:
 queueManualInvoice(value0:string,value1:string,value2:string,value3:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 withdrawConsent(value0:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 setPaymentMode(value0:string,value1:"manual" | "auto" | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-currentMainInvoice(value0:string):Promise<{rows:BillingInvoiceRow[];rowCount:number|null}>;
-unissuedCosts(value0:string):Promise<{rows:BillingCost[];rowCount:number|null}>;
-retainedPlan(value0:string,value1:number):Promise<{rows:BillingPlan[];rowCount:number|null}>;
-insertLegacyInvoice(value0:string,value1:string,value2:string,value3:string,value4:number,value5:string,value6:"manual"|"auto",value7:number,value8:string,value9:string|null):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-attachCostToInvoice(value0:string,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-queueLegacyIssue(value0:string,value1:string,value2:string,value3:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-voidableInvoice(value0:string | undefined,value1:string):Promise<{rows:BillingInvoiceRow[];rowCount:number|null}>;
-queueVoid(value0:string,value1:string,value2:string,value3:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 lockPlanRevision():Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 latestPlanRevision(value0:string | undefined):Promise<{rows:BillingPlan[];rowCount:number|null}>;
 insertPlanRevision(value0:string | undefined,value1:number,value2:string,value3:number | undefined,value4:string,value5:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -98,20 +89,33 @@ export function createBillingService(ports:BillingPorts){function fail(code:stri
  *
  * The target-evidence/provider/rollout/rate actions and `retry` are NOT here:
  * their native commands use `require_target_command`, which authorizes the
- * selected `holding_owner` and rejects platform administrators. That inverts
- * the retained contract, so those actions stay on the TypeScript command until
- * the owner decides whether `holding_owner` replaces `platform_admin`. */
+/**
+ * Actions whose native owner command is the only authority.
+ *
+ * `cost`, `delete-cost`, `complete-costs`, `approve` and `void` all use the
+ * owner `require_cost_command` gate, which requires exactly the platform
+ * `platform_admin` actor the retained command required, so dispatching them
+ * natively preserves the authorized actor set. The invoice commands keep the
+ * same closed/complete-period, CAS, receipt and issue/void outbox contract the
+ * deleted TypeScript approval wrote.
+ *
+ * The target-evidence/provider/rollout/rate actions and `retry` are
+ * deliberately absent: their native commands use `require_target_command`,
+ * which authorizes the selected `holding_owner` and rejects platform
+ * administrators — the inverse of the retained contract. They stay on the
+ * TypeScript command until the owner decides that policy.
+ */
 const nativeActions = new Set<BillingInput["action"]>([
-  "cost",
-  "delete-cost",
-  "complete-costs",
-]);
-const adminActions = new Set([
   "cost",
   "delete-cost",
   "complete-costs",
   "approve",
   "void",
+]);
+const adminActions = new Set([
+  "cost",
+  "delete-cost",
+  "complete-costs",
   "revise-plan",
   "retry",
   "assign-target",
@@ -257,13 +261,6 @@ async function billingCommand(
       }
       return a.customer_id as string;
     };
-    const period = async () => {
-      const p = (
-        await c.selectedPeriod(input.periodId,holdingId)
-      ).rows[0];
-      if (!p) fail("PERIOD_REQUIRED", "Choose a billing period.");
-      return p;
-    };
     switch (input.action) {
       case "enroll": {
         if (e) fail("ALREADY_ENROLLED", "A Hosted enrollment already exists.");
@@ -371,79 +368,6 @@ async function billingCommand(
           await c.withdrawConsent(holdingId);
         }
         await c.setPaymentMode(holdingId,input.paymentMode);
-        break;
-      }
-      case "approve": {
-        const p = await period();
-        if (!p.closed_at)
-          fail(
-            "MONTH_NOT_CLOSED",
-            "Approval is only available after month end.",
-          );
-        if (!p.costs_complete)
-          fail(
-            "COSTS_INCOMPLETE",
-            "Review and confirm complete costs, including an explicit zero-cost month.",
-          );
-        const previous = (
-          await c.currentMainInvoice(p.id)
-        ).rows[0];
-        if (previous && ["queued", "draft"].includes(previous.status))
-          fail("INVOICE_PENDING", "Wait for the existing invoice to finish.");
-        const costs = (
-          await c.unissuedCosts(p.id)
-        ).rows;
-        if (previous && !costs.length)
-          fail("ALREADY_ISSUED", "No new reviewed costs to invoice.");
-        const plan = (
-          await c.retainedPlan(p.plan_id,p.plan_revision)
-        ).rows[0];
-        const lines: InvoiceLine[] = costs.map((v) => ({
-          description: `${v.simulated ? "[Simulated] " : ""}${v.category}: ${v.note}`,
-          amount: Number(v.amount_satang),
-          start: Number(v.service_start),
-          end: Number(v.service_end),
-          costId: v.id,
-          simulated: v.simulated,
-        }));
-        if (!previous)
-          lines.unshift({
-            description: `Sandbox ${plan.name} · revision ${plan.revision}`,
-            amount: Number(p.support_satang),
-            start: Number(p.start_at),
-            end: Number(p.end_at),
-          });
-        const total = lines.reduce((s, v) => s + v.amount, 0);
-        if (lines.length > 250)
-          fail(
-            "TOO_MANY_LINES",
-            "Consolidate the reviewed draft to at most 250 lines before approval.",
-          );
-        if (total < 0)
-          fail(
-            "CREDIT_REVIEW_REQUIRED",
-            "A net credit requires a separate reviewed Stripe credit note; automatic refunds are not enabled.",
-          );
-        if (a.payment_mode === "auto" && (!a.consent_at || !a.card_json))
-          fail("CONSENT_REQUIRED", "Auto-pay needs a saved card and consent.");
-        await customer();
-        const id = ports.id();
-        await c.insertLegacyInvoice(id,holdingId,p.id,previous ? "adjustment" : "main",total,JSON.stringify(lines),a.payment_mode,now,actor.userId,previous?.id ?? null);
-        for (const cost of costs)
-          await c.attachCostToInvoice(cost.id,id);
-        await c.queueLegacyIssue(`issue-${id}`,holdingId,id,now);
-        break;
-      }
-      case "void": {
-        const inv = (
-          await c.voidableInvoice(input.invoiceId,holdingId)
-        ).rows[0];
-        if (!inv)
-          fail(
-            "VOID_UNAVAILABLE",
-            "Only unpaid issued invoices may be voided.",
-          );
-        await c.queueVoid(`void-${inv.id}`,holdingId,inv.id,now);
         break;
       }
       case "revise-plan": {
