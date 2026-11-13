@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1491,
+    "revision": 1493,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -14203,11 +14203,18 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T02:59:42.355Z",
+          "heartbeatAt": "2026-11-13T02:59:42.355Z",
+          "expiresAt": "2026-11-13T03:29:42.355Z",
+          "generation": 51
+        },
         "baseSha": "0517689d6ee4b7217e1646de7789ecc0285acf54",
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "172e78ab461014a55f8a35305a25f8b7e47e6b52",
+        "lastPushedSha": "172e78ab461014a55f8a35305a25f8b7e47e6b52",
         "checks": [
           {
             "command": "cargo check -p erpx-server-pms",
@@ -14453,11 +14460,37 @@
             "command": "cargo test -p erpx-server-pms --test pms_guest_accounts_postgres -- --test-threads=1",
             "result": "passed",
             "sourceSha": "6a0995214bb7ed5464b62a19d97ed6e405b9096b"
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.native-pms-transport.unit",
+            "result": "passed",
+            "sourceSha": "172e78ab461014a55f8a35305a25f8b7e47e6b52",
+            "note": "12/12, including the new POST /pms/guest-account case: origin, branch query, context headers, Idempotency-Key and JSON body."
+          },
+          {
+            "command": "npx tsc --noEmit",
+            "result": "blocked",
+            "sourceSha": "172e78ab461014a55f8a35305a25f8b7e47e6b52",
+            "note": "No feature-pms/native-pms/workplace-PMS-route errors. The root typecheck remains blocked by the active retire.quality.residual-writers WIP (drainQualityAlerts/translated)."
+          },
+          {
+            "command": "route authority: native guest-account commands",
+            "result": "passed",
+            "sourceSha": "172e78ab461014a55f8a35305a25f8b7e47e6b52",
+            "note": "Both the holding PMS route and the front route dispatch guest_account.create/update, charge.add, charge.import_pos, guest_account.adjustment and guest_account.transfer through nativePmsGuestAccountCommand and fail closed with NATIVE_PMS_UNAVAILABLE when unconfigured."
+          },
+          {
+            "command": "retirement:ts-writes: pms",
+            "result": "blocked",
+            "sourceSha": "172e78ab461014a55f8a35305a25f8b7e47e6b52",
+            "before": 114,
+            "after": 114,
+            "note": "No KPI delta yet: the guest-account operations run through the monolithic pmsCommand engine and its shared PMS repository writers, not an isolated guest-account writer. Deleting them requires splitting the engine (loadGuestCommand/loadCashierCommand plus the shared record/property writers) so other PMS commands keep their writers. The native route authority is in place; the engine split is the remaining removal condition."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Guest-account audit: native pms_guest_account_router is mounted, but packages/feature-pms/src/adapters/server/native-pms.ts exposes only roomBoard/frontDesk reads, and both packages/workplace pms routes still call the TS pmsCommand. Next slice needs a native guest-account command client + route branches for the holding pms route and the front route (refine allowedPaths to those exact routes), then delete the guest-account branches/writers/exports and migrate oracles. Handover purchase boundary remains blocked by retire.customer_authority.portal-support holding src/composition/src/**.",
+        "blocker": null,
+        "nextAction": "Native guest-account command client + both workplace route branches are implemented (six operations fail closed without ERPX_NATIVE_PMS_CONFIG; transport 12/12). Remaining retirement: split the monolithic pmsCommand engine so the guest-account create/update/charge/adjustment/transfer branches and their loadGuestCommand/loadCashierCommand paths can be deleted without removing shared PMS writers; then record the PMS KPI pair. Do not mark migrated until that split lands.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "lead",
@@ -32158,17 +32191,17 @@
       "migratedPackets": 87,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 4,
+        "in_progress": 5,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 87,
-        "blocked": 36,
+        "blocked": 35,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T02:58:37.772Z",
+    "updatedAt": "2026-11-13T03:04:06.743Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
