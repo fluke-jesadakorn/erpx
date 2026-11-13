@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1643,
+    "revision": 1646,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T06:49:15.352Z",
-      "expiresAt": "2026-11-13T07:19:15.352Z",
+      "heartbeatAt": "2026-11-13T07:16:59.300Z",
+      "expiresAt": "2026-11-13T07:46:59.300Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -22509,18 +22509,11 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-pms-booking",
-          "claimedAt": "2026-11-13T06:36:02.840Z",
-          "heartbeatAt": "2026-11-13T06:49:15.352Z",
-          "expiresAt": "2026-11-13T07:19:15.352Z",
-          "generation": 53
-        },
+        "status": "ready_for_integration",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "a993150cd2d4676f907d25c111ba4e21469ac998",
-        "lastPushedSha": "a993150cd2d4676f907d25c111ba4e21469ac998",
+        "implementedCommit": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
+        "lastPushedSha": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-pms/src/**/*.ts'",
@@ -22551,18 +22544,53 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "a993150cd2d4676f907d25c111ba4e21469ac998"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms --offline",
+            "result": "passed",
+            "sourceSha": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles; only 3 pre-existing stay_room warnings."
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --offline",
+            "result": "passed",
+            "sourceSha": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
+            "sourceKind": "committed",
+            "note": "210 passed / 0 failed, including 25 new unit cases and 1 PostgreSQL lifecycle test (claim lease, blocked attempts, retry, sent, token renewal, expiry, bucket/prune)."
+          },
+          {
+            "command": "cargo clippy -p erpx-server-pms --offline --lib",
+            "result": "passed",
+            "sourceSha": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
+            "sourceKind": "committed",
+            "note": "No warnings in the new modules."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
           }
         ],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead: scope a native public booking/payment/refund/email port before removing the 109 residual PMS writers.",
+        "retainedLegacy": [
+          {
+            "path": "packages/server-pms/src/adapters/pms-booking.ts",
+            "writes": 9,
+            "removalTaskId": "retire.pms.pms-booking",
+            "removalCondition": "Mount drain_booking_mail_turn in pmsWork and the mail/link queue in the public booking route with the three composition ports (mail provider, cipher, purchase guard), then delete deliverBookingEmails and the token/email/limit unit members plus the ./adapters/pms-booking barrel export."
+          }
+        ],
+        "blocker": "released with work preserved",
+        "nextAction": "Native booking mail/token/rate-limit producer is committed (210 tests pass). Lead: implement the three composition ports (PmsBookingMailProvider, PmsBookingMailCipher, PmsBookingPurchaseGuard), call drain_booking_mail_turn from pmsWork and the public booking route, then delete the 9 covered pms-booking.ts writers (PMS 109 -> 100). The remaining 100 residual is blocked on the native quote/payment/change/refund engine.",
         "handoff": {
-          "runId": "run-20261113-d",
-          "agentId": "worker-pms-retire",
-          "at": "2026-11-12T22:41:12.144Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead: scope a native public booking/payment/refund/email port before removing the 109 residual PMS writers."
+          "runId": "run-20261113-i",
+          "agentId": "worker-pms-booking",
+          "at": "2026-11-13T07:16:49.496Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native booking mail/token/rate-limit producer is committed (210 tests pass). Lead: implement the three composition ports (PmsBookingMailProvider, PmsBookingMailCipher, PmsBookingPurchaseGuard), call drain_booking_mail_turn from pmsWork and the public booking route, then delete the 9 covered pms-booking.ts writers (PMS 109 -> 100). The remaining 100 residual is blocked on the native quote/payment/change/refund engine."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -33787,8 +33815,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-payroll-run",
           "claimedAt": "2026-11-13T06:48:53.747Z",
-          "heartbeatAt": "2026-11-13T06:49:15.352Z",
-          "expiresAt": "2026-11-13T07:19:15.352Z",
+          "heartbeatAt": "2026-11-13T07:16:59.300Z",
+          "expiresAt": "2026-11-13T07:46:59.300Z",
           "generation": 53
         },
         "baseSha": null,
@@ -33812,8 +33840,8 @@
       "migratedPackets": 94,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 2,
-        "ready_for_integration": 14,
+        "in_progress": 1,
+        "ready_for_integration": 15,
         "integrating": 0,
         "migrated": 94,
         "blocked": 40,
@@ -33822,7 +33850,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T06:49:15.353Z",
+    "updatedAt": "2026-11-13T07:16:59.301Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
