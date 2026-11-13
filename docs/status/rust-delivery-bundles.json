@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1564,
+    "revision": 1568,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-g",
+      "runId": "run-20261113-h",
       "agentId": "lead",
-      "startedAt": "2026-11-13T02:33:37.747Z",
-      "heartbeatAt": "2026-11-13T04:27:09.358Z",
-      "expiresAt": "2026-11-13T04:57:09.358Z",
-      "generation": 51,
-      "tokenHash": "b4636d5dac92c67424e4a78a1bf1883bb0ebe4a1220c27578bab9a4ba2ad62fd"
+      "startedAt": "2026-11-13T04:59:05.381Z",
+      "heartbeatAt": "2026-11-13T04:59:05.381Z",
+      "expiresAt": "2026-11-13T05:29:05.382Z",
+      "generation": 52,
+      "tokenHash": "5a22684da9795692e438b0692e77d18384cce7e665d1fdb1f49f17cd5db248ee"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -31558,18 +31558,11 @@
         "resources": [
           "owner:crm"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "worker-crm-leads",
-          "claimedAt": "2026-11-13T04:12:41.373Z",
-          "heartbeatAt": "2026-11-13T04:27:09.358Z",
-          "expiresAt": "2026-11-13T04:57:09.358Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "0d9e97783c91459a31636678df40a3191379965b",
-        "lastPushedSha": "0d9e97783c91459a31636678df40a3191379965b",
+        "implementedCommit": "2b8070670a2be1d43b52e2e649bc22d23eb1335c",
+        "lastPushedSha": "2b8070670a2be1d43b52e2e649bc22d23eb1335c",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-crm/src/**/*.ts'",
@@ -31636,18 +31629,59 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "0d9e97783c91459a31636678df40a3191379965b"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2b8070670a2be1d43b52e2e649bc22d23eb1335c",
+            "before": 25,
+            "after": 22,
+            "note": "qualify opportunity INSERT, qualify lead UPDATE and win-pms opportunity UPDATE deleted; leads.ts 13 -> 10."
+          },
+          {
+            "command": "cargo test -p erpx-server-crm",
+            "result": "passed",
+            "sourceSha": "2b8070670a2be1d43b52e2e649bc22d23eb1335c",
+            "note": "96 passed; 1 pre-existing unrelated pipeline failure (CRM_SOURCE_TRANSACTION_REQUIRED) reproduces on an untouched tree."
+          },
+          {
+            "command": "cargo test -p erpx-service --features existing-business --test crm_recipient_composition_postgres",
+            "result": "passed",
+            "sourceSha": "2b8070670a2be1d43b52e2e649bc22d23eb1335c",
+            "note": "5/5 composition witness cases."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "2b8070670a2be1d43b52e2e649bc22d23eb1335c"
+          },
+          {
+            "command": "bunx tsc -p packages/server-crm/tsconfig.json --noEmit && bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "2b8070670a2be1d43b52e2e649bc22d23eb1335c"
+          },
+          {
+            "command": "vitest integration tests/integration/crm/crm.test.ts",
+            "result": "passed",
+            "sourceSha": "2b8070670a2be1d43b52e2e649bc22d23eb1335c",
+            "note": "14/14; CRM suite group 27/27; activities 4/4; transport 16/16; attachment guard 11/11; the three migrated oracle suites pass for the changed cases."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "2b8070670a2be1d43b52e2e649bc22d23eb1335c"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead: cut CRM lead actions to native and add native identity guest-link/sharing writers; retire the remaining 25.",
+        "blocker": "handoff",
+        "nextAction": "Lead: add native CRM identity guest-link/sharing + lead-create writers, then retire the remaining 22.",
         "handoff": {
-          "runId": "run-20261113-g",
-          "agentId": "worker-crm-activities",
-          "at": "2026-11-13T04:08:37.355Z",
+          "runId": "run-20261113-h",
+          "agentId": "worker-crm-leads",
+          "at": "2026-11-13T04:59:05.487Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Lead: cut CRM lead actions to native and add native identity guest-link/sharing writers; retire the remaining 25."
+          "nextAction": "Lead: add native CRM identity guest-link/sharing + lead-create writers, then retire the remaining 22."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -33004,17 +33038,17 @@
       "migratedPackets": 92,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 2,
+        "in_progress": 1,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 92,
-        "blocked": 40,
+        "blocked": 41,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T04:27:19.456Z",
+    "lastCoordinatorGeneration": 52,
+    "updatedAt": "2026-11-13T04:59:05.488Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -33057,10 +33091,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-f",
-      "runId": "run-20261113-g",
-      "at": "2026-11-13T02:33:37.748Z",
-      "reason": "Coordinator lease expired at 02:31Z after the mount wait; all task-claim heartbeats were last renewed at 02:01Z. Reviewed WIP: Support mount inputs ready, quality alert-sweep Rust WIP preserved (TS typecheck red in quality alerts), no process conflict; previous run stopped",
+      "previousRunId": "run-20261113-g",
+      "runId": "run-20261113-h",
+      "at": "2026-11-13T04:59:05.382Z",
+      "reason": "Lease expired after the CRM qualify/win-pms push; WIP reviewed and claims re-established",
       "wipReviewed": true,
       "previousRunStopped": true
     }
