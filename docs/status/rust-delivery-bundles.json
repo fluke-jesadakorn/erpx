@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1353,
+    "revision": 1359,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T00:38:27.050Z",
-      "expiresAt": "2026-11-13T01:08:27.050Z",
+      "heartbeatAt": "2026-11-13T00:49:39.320Z",
+      "expiresAt": "2026-11-13T01:19:39.320Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -23777,8 +23777,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-agent-residual",
           "claimedAt": "2026-11-13T00:42:00.128Z",
-          "heartbeatAt": "2026-11-13T00:42:00.128Z",
-          "expiresAt": "2026-11-13T01:12:00.128Z",
+          "heartbeatAt": "2026-11-13T00:49:39.320Z",
+          "expiresAt": "2026-11-13T01:19:39.320Z",
           "generation": 50
         },
         "baseSha": null,
@@ -24947,8 +24947,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-files-support",
           "claimedAt": "2026-11-13T00:37:50.660Z",
-          "heartbeatAt": "2026-11-13T00:38:27.050Z",
-          "expiresAt": "2026-11-13T01:08:27.050Z",
+          "heartbeatAt": "2026-11-13T00:49:39.320Z",
+          "expiresAt": "2026-11-13T01:19:39.320Z",
           "generation": 50
         },
         "baseSha": null,
@@ -29747,8 +29747,8 @@
           "runId": "run-20261113-f",
           "agentId": "lead",
           "claimedAt": "2026-11-13T00:16:11.607Z",
-          "heartbeatAt": "2026-11-13T00:38:27.050Z",
-          "expiresAt": "2026-11-13T01:08:27.050Z",
+          "heartbeatAt": "2026-11-13T00:49:39.320Z",
+          "expiresAt": "2026-11-13T01:19:39.320Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30331,23 +30331,23 @@
         "resources": [
           "owner:procurement"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "worker-procurement-retire",
-          "claimedAt": "2026-11-13T00:14:01.763Z",
-          "heartbeatAt": "2026-11-13T00:38:27.050Z",
-          "expiresAt": "2026-11-13T01:08:27.050Z",
-          "generation": 50
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Zero-caller/native-only writer analysis for adapters with writes, then delete the safe set and record the delta.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead: create the four residual child packets; the highest-value is attachment-evidence parity for the native supplier-promise command, which unlocks the 2-write promise fallback.",
+        "handoff": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-procurement-retire",
+          "at": "2026-11-13T00:50:55.753Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Lead: create the four residual child packets; the highest-value is attachment-evidence parity for the native supplier-promise command, which unlocks the 2-write promise fallback."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -30647,6 +30647,43 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.talent.intake-create-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "talent",
+        "workflowIds": [
+          "talent/applications",
+          "talent/feature-proposals"
+        ],
+        "workstream": "S09",
+        "kind": "migration",
+        "title": "Retire the TypeScript Talent candidate/application/proposal create writers",
+        "scope": "Native createTalentCandidate/createTalentApplication/createTalentProposal commands already exist in server-talent Rust and are dispatched by the feature-recruit route through nativeTalentLifecycleCommand. Delete the TS nativeTalentCandidate/nativeTalentApplication/nativeTalentProposal adapters and their createTalent* wrappers (5 write statements in adapters/talent.ts), drop the public/index exports, fail the route create branches closed when the native service is unavailable, add the same recruit package preflight the requisition client uses for the lifecycle create paths, and migrate the talent/finance oracle seeding to direct PostgreSQL inserts. Keep the pure application-layer command builders used by the native adapters and their unit tests. Talent KPI 21 -> 16.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "packages/feature-recruit/**",
+          "tests/integration/talent/**",
+          "tests/integration/finance/finance-payment-obligations.test.ts",
+          "tests/unit/talent/**",
+          "fixtures/finance/builders/engineering-money-people-browser.ts"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete the TS candidate/application/proposal create writers, fail the route closed, add the lifecycle purchase preflight, migrate the talent/finance oracles to direct seeding, run the native and TS gates, and record the Talent KPI pair.",
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -30655,21 +30692,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 148,
+      "totalPackets": 149,
       "migratedPackets": 79,
       "statusCounts": {
-        "pending": 22,
-        "in_progress": 7,
+        "pending": 23,
+        "in_progress": 6,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 79,
-        "blocked": 30,
+        "blocked": 31,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T00:42:25.954Z",
+    "updatedAt": "2026-11-13T00:50:55.753Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
