@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1482,
+    "revision": 1487,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -32037,6 +32037,113 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.portal-support",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "customer_authority",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Retire the Customer Authority portal-support writers",
+        "scope": "6 writes in adapters/portal-support.ts: staff respond/close, customer acknowledge (ack + audit + outbox), and the purchase-boundary assertion cleanup. Native portal-support contract + consumers switch, then delete the file/barrel and move the oracles.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "packages/server-customer_authority/Cargo.toml",
+          "packages/server-customer_authority/package.json",
+          "packages/server-customer_360/src/**",
+          "packages/server-customer_360/Cargo.toml",
+          "packages/server-customer_360/package.json",
+          "packages/feature-customer_authority/**",
+          "packages/feature-customer_360/**",
+          "packages/feature-portal/**",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-access/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-360/**",
+          "packages/server-support/src/**",
+          "src/composition/src/**",
+          "Cargo.lock",
+          "fixtures/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-ca-portal-support",
+          "claimedAt": "2026-11-13T02:53:05.203Z",
+          "heartbeatAt": "2026-11-13T02:53:05.203Z",
+          "expiresAt": "2026-11-13T03:23:05.203Z",
+          "generation": 51
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement native portal-support (staff respond/close with commerce.approve + sales.portal; customer acknowledge via verified portal-product session with post-effect re-proof; native threads read), mount with fail-closed config, switch server-customer_360/feature-sales consumers, delete portal-support.ts + barrel, migrate the oracles, record customer_authority KPI 12->6.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "repair.catalogue-payroll-cancellation-cases",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "people_payroll",
+        "workflowIds": [
+          "people_payroll/payroll-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "inventory",
+        "title": "Drop the stale payroll-cancellation required cases",
+        "scope": "The payroll cancellation TS oracle was retired and the file tests/integration/people_payroll/payroll-cancellation.test.ts deleted (ea3253941), but tests/catalogue/engineering-scenarios.json still lists six required vitest cases for it. validateCatalogue aborts with REGISTERED_REQUIRED_CASE_WITHOUT_SUITE, which blocks test:catalogue and structure:check for every slice. Remove those stale case objects; the native PG cancellation suite remains the oracle.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "tests/catalogue/engineering-scenarios.json"
+        ],
+        "resources": [
+          "owner:shared-catalogue"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "a0beae7177e97bf0d77c6e5387c47e8af77b8db4",
+        "lastPushedSha": "a0beae7177e97bf0d77c6e5387c47e8af77b8db4",
+        "checks": [
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "a0beae7177e97bf0d77c6e5387c47e8af77b8db4",
+            "note": "33 modules, 1219 suites; the eight stale payroll-cancellation required cases are removed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a0beae7177e97bf0d77c6e5387c47e8af77b8db4"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Eight stale required-case objects for the deleted TS payroll-cancellation oracle removed at a0beae717; catalogue (1219 suites) and structure are green again. The native PG cancellation suite remains the oracle.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -32045,11 +32152,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 155,
+      "totalPackets": 156,
       "migratedPackets": 87,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 4,
+        "in_progress": 5,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 87,
@@ -32059,7 +32166,7 @@
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T02:50:54.250Z",
+    "updatedAt": "2026-11-13T02:55:20.519Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
