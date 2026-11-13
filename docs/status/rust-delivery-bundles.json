@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1587,
+    "revision": 1589,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -22975,23 +22975,40 @@
         "resources": [
           "owner:work_projection"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-wp-calendar",
-          "claimedAt": "2026-11-13T05:15:07.346Z",
-          "heartbeatAt": "2026-11-13T05:20:25.503Z",
-          "expiresAt": "2026-11-13T05:50:25.503Z",
-          "generation": 53
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-work-projection --offline",
+            "result": "passed",
+            "sourceSha": "46ea9d1cb19ca2874a0ea28ec08e163555ec2fa8",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles at current source; 2 pre-existing warnings only."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "before": 41,
+            "after": 41,
+            "sourceSha": "46ea9d1cb19ca2874a0ea28ec08e163555ec2fa8",
+            "sourceKind": "committed",
+            "note": "Step-0 audit: calendar-commands-facts.ts holds 26 live writes and has no native counterpart; no deletion performed."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Run the Step-0 native counterpart audit for adapters/calendar-commands-facts.ts, implement the missing native calendar writer in packages/server-work_projection, switch the consumer and complete the six-point retirement with the owner KPI pair.",
-        "handoff": null,
+        "blocker": "released with work preserved",
+        "nextAction": "BLOCKED ON A NATIVE OWNER VERTICAL: calendar-commands-facts.ts holds 26 live writes for POST /calendar with no native calendar tables or command module. Required before retirement: native identity calendar access/account/IT-assignee ports, operations eligible-person source, people_payroll roster reschedule + preparation/clearance + purchase witnesses, files calendar attachment binding, collaboration inbox publish, then the native work_projection calendar domain/application/adapter and lead composition mount + workplace route switch. Retained TS 26 writes; owner KPI 41 stays.",
+        "handoff": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-wp-calendar",
+          "at": "2026-11-13T05:25:35.180Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED ON A NATIVE OWNER VERTICAL: calendar-commands-facts.ts holds 26 live writes for POST /calendar with no native calendar tables or command module. Required before retirement: native identity calendar access/account/IT-assignee ports, operations eligible-person source, people_payroll roster reschedule + preparation/clearance + purchase witnesses, files calendar attachment binding, collaboration inbox publish, then the native work_projection calendar domain/application/adapter and lead composition mount + workplace route switch. Retained TS 26 writes; owner KPI 41 stays."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -33100,17 +33117,17 @@
       "migratedPackets": 92,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 92,
-        "blocked": 40,
+        "blocked": 41,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:20:44.421Z",
+    "updatedAt": "2026-11-13T05:25:35.180Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
