@@ -1,11 +1,12 @@
 //! Directory runtime ingress contract.
 //!
 //! The native directory source preview/approve router and the Account directory
-//! sign-in router already exist, but neither is mounted in the private
-//! development API composition. This module publishes the exact route,
-//! transport and backend-supply contract composition must satisfy before the
-//! routers are mounted. It changes no sign-in security semantics and does not
-//! replace the retained TypeScript Better Auth transport.
+//! sign-in router are mounted by the private development API composition when
+//! its profiles, provenance ring and Account security keys are configured. This
+//! module publishes the exact route, transport and backend-supply contract
+//! composition must satisfy before the routers are mounted. It changes no
+//! sign-in security semantics and does not replace the retained TypeScript
+//! Better Auth transport.
 use erpx_server_shared::public::{BusinessError, FailureKind};
 
 pub const SOURCE_PREVIEW_METHOD: &str = "POST";
