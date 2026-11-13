@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1693,
+    "revision": 1697,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-l",
       "agentId": "lead",
       "startedAt": "2026-11-13T09:48:56.055Z",
-      "heartbeatAt": "2026-11-13T10:10:34.975Z",
-      "expiresAt": "2026-11-13T10:40:34.975Z",
+      "heartbeatAt": "2026-11-13T10:13:17.134Z",
+      "expiresAt": "2026-11-13T10:43:17.134Z",
       "generation": 56,
       "tokenHash": "eef7dc6029068a20afe93aded0ad39b8746ef9f44c054adc9240abf2c97997ee"
     },
@@ -34688,6 +34688,51 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "retireTaskId": "retire.finance.period-close-ts"
+      },
+      {
+        "id": "integrate.identity_access.people-access",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Mount native people-relationship access and retire the TS writer",
+        "scope": "Mount people_relationships_http_router in composition with a PeopleRelationshipsHttpBackend built from the authorized work context and one serializable Holding transaction, add the native transport and switch the iam-api people-relationships snapshot/preview/apply, then delete the replaced TS writers and record the Identity Access KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-account/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "tests/integration/identity_access/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "resource:composition"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-l",
+          "agentId": "integrator-identity",
+          "claimedAt": "2026-11-13T10:12:53.562Z",
+          "heartbeatAt": "2026-11-13T10:13:17.134Z",
+          "expiresAt": "2026-11-13T10:43:17.134Z",
+          "generation": 56
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Mount people_relationships_http_router (public::people_access_http) in composition: implement PeopleRelationshipsHttpBackend from the authorized Holding work context, open one serializable transaction, call preview_relationship/apply_relationship with PgPeopleRelationships, and register the Holding route. Add the TS native transport (mirror native-iam-assignments) and switch iam-api people-relationships snapshot/preview/apply to native with fail-closed. Then delete the 18 people-access.ts relationship writers/barrel and record Identity Access 229 -> 211.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -34696,11 +34741,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 173,
+      "totalPackets": 174,
       "migratedPackets": 99,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 15,
         "integrating": 0,
         "migrated": 99,
@@ -34710,7 +34755,7 @@
       }
     },
     "lastCoordinatorGeneration": 56,
-    "updatedAt": "2026-11-13T10:10:34.975Z",
+    "updatedAt": "2026-11-13T10:13:17.135Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
