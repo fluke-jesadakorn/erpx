@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1650,
+    "revision": 1653,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T07:25:04.096Z",
-      "expiresAt": "2026-11-13T07:55:04.096Z",
+      "heartbeatAt": "2026-11-13T07:25:42.411Z",
+      "expiresAt": "2026-11-13T07:55:42.411Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -22618,11 +22618,9 @@
           "packages/server-pos/Cargo.toml",
           "packages/server-pos/package.json",
           "packages/feature-pos/**",
-          "packages/contracts/src/ownership.json",
           "scripts/seed/seed-pos-local.ts",
           "scripts/seed/seed-hospitality-local.ts",
           "scripts/testing/workflows/verify-pos-development.ts",
-          "tests/catalogue/engineering-scenarios.json",
           "tests/unit/pos/**",
           "tests/integration/pos/**",
           "tests/provider/pos/**",
@@ -22631,8 +22629,15 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-pos-core",
+          "claimedAt": "2026-11-13T07:25:17.248Z",
+          "heartbeatAt": "2026-11-13T07:25:42.411Z",
+          "expiresAt": "2026-11-13T07:55:42.411Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
         "lastPushedSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
@@ -22740,8 +22745,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Interim orphan retirement pushed at 1a64ea801: POS KPI 88 -> 87 (global 2375 -> 2374). Residual 87: pos-core.ts 53, pos-stripe.ts 27, pos-daily.ts 3, purchase-boundary.ts 2, pos-images.ts 1, attachment-migration-facts.ts 1; each needs its native command family/provider job port plus the live caller switch before deletion. Next: port the POS provider job helpers and the remaining no-native command families, then retire each with its live caller.",
+        "blocker": null,
+        "nextAction": "Continue the POS residual retirement: pos-core 53, pos-stripe 27, pos-daily 3, purchase-boundary 2, pos-images 1 and attachment-migration facts. Implement the missing native provider/command producers, switch the live consumers, delete each retired TS branch and record the POS KPI pair. Report composition mounts and shared register edits to the lead.",
         "handoff": {
           "runId": "run-20261113-f",
           "agentId": "lead",
@@ -33935,17 +33940,17 @@
       "migratedPackets": 95,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 15,
         "integrating": 0,
         "migrated": 95,
-        "blocked": 40,
+        "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T07:25:04.096Z",
+    "updatedAt": "2026-11-13T07:25:42.412Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
