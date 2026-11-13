@@ -67718,7 +67718,6 @@
     "packages/server-finance/src/application/ledger.ts",
     "packages/server-finance/src/application/legacy-revenue.ts",
     "packages/server-finance/src/application/money-policy.ts",
-    "packages/server-finance/src/application/opening.ts",
     "packages/server-finance/src/application/owned-reversal.ts",
     "packages/server-finance/src/application/payments.ts",
     "packages/server-finance/src/application/period-policy.ts",

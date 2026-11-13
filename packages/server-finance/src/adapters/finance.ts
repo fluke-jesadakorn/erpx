@@ -376,14 +376,10 @@ async function journalPostStatements(write: SqlDatabase, actor: WorkContext, jou
         ...(opening ? [write.prepare("UPDATE finance_invoices SET status='posted',approved_by=?,posted_at=?,version=version+1,updated_at=? WHERE company_id=? AND source_type='opening_import' AND source_id=? AND status='draft'").bind(actor.userId, now, now, actor.companyId, journalId)] : []),
     ];
 }
-function journalReviewService(provided?: SqlDatabase) {
-    let pending: Promise<SqlDatabase> | undefined = provided ? Promise.resolve(provided) : undefined;
-    const db = (actor: WorkContext) => pending ??= resources(actor).then(r => r.write);
-    return createJournalReview({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, ready: async (actor) => { await db(actor); }, replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), journal: async (actor, id) => {const database=await db(actor);await requireLegacyFinanceJournal(database,actor,id);return database.prepare('SELECT * FROM finance_journals WHERE id=? AND company_id=?').bind(id, actor.companyId).first<FinanceRow>();}, postedJournal: async (actor, id) => {const database=await db(actor);await requireLegacyFinanceJournal(database,actor,id);return database.prepare("SELECT * FROM finance_journals WHERE id=? AND company_id=? AND status='posted'").bind(id, actor.companyId).first<FinanceRow>();}, debit: async (journalId) => (await pending!).prepare('SELECT COALESCE(SUM(debit_minor),0) AS amount FROM finance_journal_lines WHERE journal_id=?').bind(journalId).first<{
+function journalReviewService(db: SqlDatabase) {
+    return createJournalReview({ error: (...args) => new ApiError(...args), now: Date.now, debit: async (journalId) => db.prepare('SELECT COALESCE(SUM(debit_minor),0) AS amount FROM finance_journal_lines WHERE journal_id=?').bind(journalId).first<{
             amount: number;
-        }>(), openingAllocated: async (actor, journalId) => !!await (await db(actor)).prepare("SELECT 1 FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE i.company_id=? AND i.source_type='opening_import' AND i.source_id=?").bind(actor.companyId, journalId).first(), commitPost: async ({ actor, journalId, id, input, journal, plan }) => { const write = await db(actor); return executeCommand(write, actor, id, 'finance.journal.post', input, journalId, input.expectedVersion + 1, { id: journalId, status: 'posted', version: input.expectedVersion + 1 }, await journalPostStatements(write, actor, journal, id, input, plan)); }, sourceOpening: async (id) => !!await (await pending!).prepare("SELECT 1 FROM finance_journals WHERE id=? AND source_type='opening_import'").bind(id).first(), reversalRoot: async (actor, journalId) => (await db(actor)).prepare("WITH RECURSIVE lineage AS (SELECT id,source_type,source_id,0 depth FROM finance_journals WHERE id=? AND company_id=? UNION ALL SELECT p.id,p.source_type,p.source_id,l.depth+1 FROM finance_journals p JOIN lineage l ON p.id=l.source_id AND l.source_type='reversal' WHERE p.company_id=? AND l.depth<100) SELECT source_type FROM lineage ORDER BY depth DESC LIMIT 1").bind(journalId, actor.companyId, actor.companyId).first<{
-            source_type: string;
-        }>(), commitReverse: async () => { throw new ApiError(409, "REVERSE_AT_SOURCE", "Journal reversal is owned by the native Finance command."); } });
+        }>() });
 }
 
 function journalBatchService(provided?: SqlDatabase) {
