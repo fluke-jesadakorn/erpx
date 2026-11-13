@@ -89,18 +89,6 @@ guardCurrentMaterialReservation(key:string,value:string,id:string | number | nul
           "EXISTS(SELECT 1 FROM manufacturing_material_reservations WHERE id=? AND consumed_milli=0 AND released_milli=0 AND expires_at>?)",
           [id, now],
         );},
-prepareReservationConsumption(id:string | number | null){return db
-          .prepare(
-            "UPDATE manufacturing_material_reservations SET consumed_milli=quantity_milli WHERE id=?",
-          )
-          .bind(id);},
-prepareIssueMove(value:string,id:string,warehouse_id:string | number | null,product_id:string | number | null,next:number,value2:number,value3:number,entryDate:string,userId:string,now:number){return db.prepare("INSERT INTO manufacturing_inventory_moves(id,order_id,warehouse_id,product_id,phase,source_order_version,quantity_milli,value_minor,movement_date,created_by,created_at) VALUES(?,?,?,?,'issue',?,?,?,?,?,?)")
-          .bind(value, id, warehouse_id, product_id, next, value2, value3, entryDate, userId, now);},
-prepareMaterialCost(material:number,id:string){return db
-        .prepare(
-          "UPDATE manufacturing_orders SET material_cost_minor=? WHERE id=?",
-        )
-        .bind(material, id);},
 guardCompleteRouting(key:string,value:"completed-routing",value2:string,id:string){return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=?
       AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))`, [value2, id]);},
 prepareOutputReport(value:number,value2:number,value3:number,value4:number,id:string){return db
@@ -121,37 +109,6 @@ async lastReportActor(id:string){return db
       .bind(id)
       .first<string>("actor_id");},
 guardIndependentPass(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)", [id, expectedVersion, userId]);},
-prepareOutputMove(value:string,id:string,warehouse_id:string | number | null,output_product_id:string | number | null,next:number,output:number,total:number,entryDate:string,userId:string,now:number){return db.prepare("INSERT INTO manufacturing_inventory_moves(id,order_id,warehouse_id,product_id,phase,source_order_version,quantity_milli,value_minor,movement_date,created_by,created_at) VALUES(?,?,?,?,'output',?,?,?,?,?,?)")
-        .bind(value, id, warehouse_id, output_product_id, next, output, total, entryDate, userId, now);},
-prepareCostSnapshot(value:string,id:string,next:number,material_cost_minor:string | number | null,labor_cost_minor:string | number | null,overhead_cost_minor:string | number | null,total:number,output:number,now:number){return db
-        .prepare(
-          "INSERT INTO manufacturing_cost_snapshots VALUES(?,?,?,?,?,?,?,?,?)",
-        )
-        .bind(
-          value,
-          id,
-          next,
-          material_cost_minor,
-          labor_cost_minor,
-          overhead_cost_minor,
-          total,
-          output,
-          now,
-        );},
-prepareProductGenealogy(value:string,id:string,product_id:string | number | null,output_product_id:string | number | null,value2:number,output:number,next:number,now:number){return db
-          .prepare(
-            "INSERT INTO manufacturing_genealogy VALUES(?,?,?,?,?,?,?,?)",
-          )
-          .bind(
-            value,
-            id,
-            product_id,
-            output_product_id,
-            value2,
-            output,
-            next,
-            now,
-          );},
 async currentReportActor(id:string,expectedVersion:number){return db.prepare("SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=?")
       .bind(id, expectedVersion).first<string>("actor_id");},
 guardIndependentFail(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)", [id, expectedVersion, userId]);},
