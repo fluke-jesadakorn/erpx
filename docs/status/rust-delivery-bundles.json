@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1853,
+    "revision": 1869,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-p",
+      "runId": "run-20261113-q",
       "agentId": "lead",
-      "startedAt": "2026-11-13T14:52:09.221Z",
-      "heartbeatAt": "2026-11-13T15:37:18.187Z",
-      "expiresAt": "2026-11-13T16:07:18.187Z",
-      "generation": 60,
-      "tokenHash": "ae9e5c26494d13ca262682ced9df88bc8132818fa3fb7106039d0bf805963d98"
+      "startedAt": "2026-11-13T16:24:08.855Z",
+      "heartbeatAt": "2026-11-13T16:24:29.235Z",
+      "expiresAt": "2026-11-13T16:54:29.235Z",
+      "generation": 61,
+      "tokenHash": "35462438ad1c1d80cc706a6083159260aad2c4c08dcaff3c53cd62f2c0c9b0b2"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -37112,25 +37112,140 @@
           "owner:inventory",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+        "lastPushedSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "7aceaff9dd6f65a09235835453bc9c87a81988e3",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "7aceaff9dd6f65a09235835453bc9c87a81988e3",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the three mounts."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --test stock_register --offline",
+            "result": "passed",
+            "sourceSha": "7aceaff9dd6f65a09235835453bc9c87a81988e3",
+            "sourceKind": "committed",
+            "note": "14 passed, including 9 new planner cases."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "7aceaff9dd6f65a09235835453bc9c87a81988e3",
+            "sourceKind": "committed",
+            "note": "Root and test typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "7aceaff9dd6f65a09235835453bc9c87a81988e3",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 85,
+            "after": 54,
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-inventory/src/adapters/commerce-stock-owner-effects.ts",
+                "writes": 21,
+                "removalTaskId": "retire.inventory.commerce-stock-owner-effects",
+                "removalCondition": "Native Commerce stock-owner effects land and their consumers switch."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/*.ts (remaining Inventory writers)",
+                "writes": 33,
+                "removalTaskId": "retire.inventory.residual",
+                "removalCondition": "Each remaining capability gets a native producer and its consumer switches."
+              }
+            ],
+            "note": "Retired the 14 transfer, 9 landed-cost and 8 reorder writers; reads remain."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "Composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --test stock_register_postgres --offline",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "10 passed, including the 4 native command tests."
+          },
+          {
+            "command": "bun run test:unit -- --suite=workflow.services.unit",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "46 passed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.work.workflow-projection.integration",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "5 passed."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "Root and test typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-inventory/src/public/inventory-reorder-policies.ts",
+            "removalTaskId": "retire.inventory.residual",
+            "removalCondition": "Move tests/integration/shared.executive/executive-canvas.test.ts reorder setup to native fixtures, then drop the fail-closed reorder writer exports."
+          }
+        ],
+        "blocker": null,
+        "nextAction": "Complete: native ports, mount and 31-writer retirement landed (Inventory 85 -> 54).",
+        "handoff": {
           "runId": "run-20261113-p",
           "agentId": "worker-inventory-transfer",
-          "claimedAt": "2026-11-13T15:03:20.172Z",
-          "heartbeatAt": "2026-11-13T15:37:18.187Z",
-          "expiresAt": "2026-11-13T16:07:18.187Z",
-          "generation": 60
+          "at": "2026-11-13T15:50:19.447Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native transfer/landed/reorder ports and mounts are committed. Remaining: port the three TS oracles to native PostgreSQL tests, switch server-workflow/work_projection reads to native ports, then delete the 31 writer statements (Inventory 85 -> 54)."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement public::{transfers,landed_costs,reorder_policies} owner ports, mount the composition commands/reads, switch feature-supply stock-transfers and landed-costs plus the workplace commerce/reorder consumers, delete inventory-transfers.ts (14), inventory-landed-costs.ts (9), inventory-reorder-policies.ts (8) and record Inventory 85 -> lower.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.inventory.commerce-stock-owner-effects"
       },
       {
         "id": "migrate.manufacturing.production-lots",
@@ -37495,16 +37610,183 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "6ddc4103086e8d3a531fe744592e7a97b8f3b6d4",
+        "lastPushedSha": "6ddc4103086e8d3a531fe744592e7a97b8f3b6d4",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 145,
+            "after": 133,
+            "sourceSha": "6ddc4103086e8d3a531fe744592e7a97b8f3b6d4",
+            "sourceKind": "committed",
+            "note": "Removed the 12 user-management writers."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "6ddc4103086e8d3a531fe744592e7a97b8f3b6d4",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the user-management mount."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --lib --offline",
+            "result": "passed",
+            "sourceSha": "6ddc4103086e8d3a531fe744592e7a97b8f3b6d4",
+            "sourceKind": "committed",
+            "note": "27 passed, 0 failed."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "6ddc4103086e8d3a531fe744592e7a97b8f3b6d4",
+            "sourceKind": "committed",
+            "note": "Root and test typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "6ddc4103086e8d3a531fe744592e7a97b8f3b6d4",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement UserManagementHttpBackend + user_management_http_router mount in composition, add the user-management-worker subcommand for managementWork, migrate tests/integration/identity_access/directory-operations.test.ts and tests/integration/people_payroll/people-lifecycle.test.ts off the compatibility shims, then verify the admin/people access paths and record the mount evidence.",
+        "nextAction": "Complete: native user-management routes and worker mounted; IAM 145 -> 133.",
         "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
+      },
+      {
+        "id": "retire.inventory.transfer-landed-reorder",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Retire the TS transfer, landed-cost and reorder writers",
+        "scope": "Port the three TS integration oracles to native PostgreSQL command tests, switch server-workflow and server-work_projection reads to native ports, then delete inventory-transfers.ts (14), inventory-landed-costs.ts (9), inventory-reorder-policies.ts (8) and record Inventory 85 -> 54.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "packages/server-inventory/Cargo.toml",
+          "packages/server-inventory/package.json",
+          "packages/feature-supply/**",
+          "packages/feature-inventory/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/{stock-transfers,landed-costs,commerce}/**",
+          "packages/server-workflow/src/**",
+          "packages/server-work_projection/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:inventory",
+          "owner:workflow"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+        "lastPushedSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 85,
+            "after": 54,
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-inventory/src/adapters/commerce-stock-owner-effects.ts",
+                "writes": 21,
+                "removalTaskId": "retire.inventory.commerce-stock-owner-effects",
+                "removalCondition": "Native Commerce stock-owner effects land and their consumers switch."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/*.ts (remaining Inventory writers)",
+                "writes": 33,
+                "removalTaskId": "retire.inventory.residual",
+                "removalCondition": "Each remaining capability gets a native producer and its consumer switches."
+              }
+            ],
+            "note": "Retired the 14 transfer, 9 landed-cost and 8 reorder writers; reads remain."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "Composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --test stock_register_postgres --offline",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "10 passed, including the 4 native command tests."
+          },
+          {
+            "command": "bun run test:unit -- --suite=workflow.services.unit",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "46 passed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.work.workflow-projection.integration",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "5 passed."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "Root and test typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "8e3bf5f696b0ddcfe97f1a439e8004224d695d67",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-inventory/src/public/inventory-reorder-policies.ts",
+            "removalTaskId": "retire.inventory.residual",
+            "removalCondition": "Move tests/integration/shared.executive/executive-canvas.test.ts reorder setup to native fixtures, then drop the fail-closed reorder writer exports."
+          }
+        ],
+        "blocker": null,
+        "nextAction": "Complete: Inventory 85 -> 54.",
+        "handoff": {
+          "runId": "run-20261113-p",
+          "agentId": "worker-inventory-transfer-retire",
+          "at": "2026-11-13T16:24:08.854Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during inventory transfer retirement closure; same lead resumes; WIP reviewed",
+          "nextAction": "Port the transfer save/submit/post, landed-cost create/approve/post and reorder propose/approve/retire oracles to native PostgreSQL tests; switch the server-workflow getTransfer and server-work_projection list/predicate reads to native ports; then delete the 31 writer statements and their barrels and record Inventory 85 -> 54."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -37515,21 +37797,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 196,
-      "migratedPackets": 117,
+      "totalPackets": 197,
+      "migratedPackets": 120,
       "statusCounts": {
-        "pending": 22,
-        "in_progress": 1,
+        "pending": 21,
+        "in_progress": 0,
         "ready_for_integration": 17,
         "integrating": 0,
-        "migrated": 117,
+        "migrated": 120,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 60,
-    "updatedAt": "2026-11-13T15:37:18.188Z",
+    "lastCoordinatorGeneration": 61,
+    "updatedAt": "2026-11-13T16:24:29.236Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -37572,10 +37854,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-o",
-      "runId": "run-20261113-p",
-      "at": "2026-11-13T14:52:09.223Z",
-      "reason": "Lease expired during IAM connection integration batch; same lead resumes; WIP reviewed",
+      "previousRunId": "run-20261113-p",
+      "runId": "run-20261113-q",
+      "at": "2026-11-13T16:24:08.856Z",
+      "reason": "Lease expired during inventory transfer retirement closure; same lead resumes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
