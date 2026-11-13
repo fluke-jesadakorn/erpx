@@ -698,6 +698,173 @@ pub fn plan_count_transition(
     })
 }
 
+/// Current count line plus its retained lot evidence, read by the transition
+/// source port. The caller owns authority and journal/Files composition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CountTransitionLot {
+    pub id: String,
+    pub count_line_id: String,
+    pub source_lot_id: Option<String>,
+    pub result_lot_id: String,
+    pub tracking_mode: String,
+    pub lot_code: Option<String>,
+    pub serial_number: Option<String>,
+    pub manufactured_date: Option<String>,
+    pub expiry_date: Option<String>,
+    pub snapshot_quantity_milli: i64,
+    pub snapshot_value_minor: i64,
+    pub counted_quantity_milli: i64,
+    pub counted_value_minor: i64,
+    pub unit_cost_minor: Option<i64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CountTransitionLine {
+    pub id: String,
+    pub product_id: String,
+    pub unit: String,
+    pub tracking_mode: String,
+    pub snapshot_quantity_milli: i64,
+    pub snapshot_value_minor: i64,
+    pub snapshot_version: i64,
+    pub counted_quantity_milli: i64,
+    pub counted_value_minor: i64,
+    pub lots: Vec<CountTransitionLot>,
+}
+
+/// Posting outcome for one line. `stock_insert` is true when the warehouse and
+/// product had no stock row at read time, so the effect inserts it first.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CountStockEffect {
+    pub line_id: String,
+    pub product_id: String,
+    pub current_quantity_milli: i64,
+    pub current_value_minor: i64,
+    pub counted_quantity_milli: i64,
+    pub counted_value_minor: i64,
+    pub stock_insert: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CountLotEffect {
+    pub lot_id: String,
+    pub count_line_id: String,
+    pub source_lot_id: Option<String>,
+    pub result_lot_id: String,
+    pub tracking_mode: String,
+    pub lot_code: Option<String>,
+    pub serial_number: Option<String>,
+    pub manufactured_date: Option<String>,
+    pub expiry_date: Option<String>,
+    pub snapshot_quantity_milli: i64,
+    pub snapshot_value_minor: i64,
+    pub counted_quantity_milli: i64,
+    pub counted_value_minor: i64,
+    pub unit_cost_minor: Option<i64>,
+}
+
+/// Native generic Count transition plan. Stock, lot and decision effects are
+/// listed in their original order; the composition boundary still owns the
+/// Finance journal and Files evidence join this plan feeds.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CountTransitionEffects {
+    pub next: String,
+    pub posting: bool,
+    pub reason: Option<String>,
+    pub gains_minor: i64,
+    pub losses_minor: i64,
+    pub stocks: Vec<CountStockEffect>,
+    pub lots: Vec<CountLotEffect>,
+}
+
+/// Guard ogni current line against the snapshot captured when the draft was
+/// saved, then expand the approved count into stock/lot posting effects.
+pub fn plan_count_transition_effects(
+    transition: &CountTransitionPlan,
+    lines: &[CountTransitionLine],
+) -> Result<CountTransitionEffects, BusinessError> {
+    if transition.posting && lines.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::Conflict,
+            "EMPTY_COUNT",
+            "Enter the counted products first.",
+        ));
+    }
+    let mut gains = 0_i64;
+    let mut losses = 0_i64;
+    let mut stocks = Vec::with_capacity(lines.len());
+    let mut lots = Vec::new();
+    for line in lines {
+        let value = safe(line.counted_value_minor - line.snapshot_value_minor)?;
+        if value > 0 {
+            gains = safe(gains + value)?;
+        } else {
+            losses = safe(losses - value)?;
+        }
+        if line.tracking_mode != "none" {
+            let total = line.lots.iter().try_fold(0_i64, |sum, lot| {
+                safe(sum + lot.counted_quantity_milli)
+            })?;
+            if line.lots.is_empty() || total != line.counted_quantity_milli {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "COUNT_LOT_TOTAL_MISMATCH",
+                    "Saved lot or serial evidence no longer matches the product count.",
+                ));
+            }
+        } else if !line.lots.is_empty() {
+            return Err(invalid(
+                "COUNT_LOT_INVALID",
+                "An untracked product contains unexpected lot evidence.",
+            ));
+        }
+        stocks.push(CountStockEffect {
+            line_id: line.id.clone(),
+            product_id: line.product_id.clone(),
+            current_quantity_milli: line.snapshot_quantity_milli,
+            current_value_minor: line.snapshot_value_minor,
+            counted_quantity_milli: line.counted_quantity_milli,
+            counted_value_minor: line.counted_value_minor,
+            stock_insert: line.snapshot_version == 0,
+        });
+        for lot in &line.lots {
+            lots.push(CountLotEffect {
+                lot_id: lot.id.clone(),
+                count_line_id: lot.count_line_id.clone(),
+                source_lot_id: lot.source_lot_id.clone(),
+                result_lot_id: lot.result_lot_id.clone(),
+                tracking_mode: lot.tracking_mode.clone(),
+                lot_code: lot.lot_code.clone(),
+                serial_number: lot.serial_number.clone(),
+                manufactured_date: lot.manufactured_date.clone(),
+                expiry_date: lot.expiry_date.clone(),
+                snapshot_quantity_milli: lot.snapshot_quantity_milli,
+                snapshot_value_minor: lot.snapshot_value_minor,
+                counted_quantity_milli: lot.counted_quantity_milli,
+                counted_value_minor: lot.counted_value_minor,
+                unit_cost_minor: lot.unit_cost_minor,
+            });
+        }
+    }
+    Ok(CountTransitionEffects {
+        next: match transition.next {
+            CountStatus::Draft => "draft",
+            CountStatus::Submitted => "submitted",
+            CountStatus::Approved => "approved",
+            CountStatus::Rejected => "rejected",
+            CountStatus::Cancelled => "cancelled",
+            CountStatus::Posted => "posted",
+        }
+        .into(),
+        posting: transition.posting,
+        reason: transition.reason.clone(),
+        gains_minor: gains,
+        losses_minor: losses,
+        stocks,
+        lots,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -920,6 +1087,92 @@ mod tests {
             can_prepare,
             can_approve,
         }
+    }
+
+    #[test]
+    fn posting_effects_split_the_exact_gain_and_loss_sides() {
+        let transition = plan_count_transition(
+            "approved",
+            3,
+            3,
+            CountAction::Post,
+            &authority(false, false, true),
+            Some("Posted"),
+            0,
+        )
+        .unwrap();
+        let effect = |line: &str, snapshot: i64, counted: i64, value: i64| CountTransitionLine {
+            id: line.into(),
+            product_id: "product".into(),
+            unit: "pcs".into(),
+            tracking_mode: "none".into(),
+            snapshot_quantity_milli: snapshot,
+            snapshot_value_minor: 0,
+            snapshot_version: if snapshot == 0 { 0 } else { 4 },
+            counted_quantity_milli: counted,
+            counted_value_minor: value,
+            lots: Vec::new(),
+        };
+        let plan = plan_count_transition_effects(
+            &transition,
+            &[effect("gain", 5_000, 6_000, 1_200), effect("loss", 0, 0, 0)],
+        )
+        .unwrap();
+        assert!(plan.posting);
+        assert_eq!(plan.next, "posted");
+        assert_eq!(plan.gains_minor, 1_200);
+        assert_eq!(plan.losses_minor, 0);
+        assert!(!plan.stocks[0].stock_insert);
+        assert!(plan.stocks[1].stock_insert);
+    }
+
+    #[test]
+    fn tracked_posting_requires_exact_lot_totals() {
+        let transition = plan_count_transition(
+            "approved",
+            3,
+            3,
+            CountAction::Post,
+            &authority(false, false, true),
+            Some("Posted"),
+            0,
+        )
+        .unwrap();
+        let mut line = CountTransitionLine {
+            id: "line".into(),
+            product_id: "product".into(),
+            unit: "pcs".into(),
+            tracking_mode: "lot".into(),
+            snapshot_quantity_milli: 1_000,
+            snapshot_value_minor: 500,
+            snapshot_version: 1,
+            counted_quantity_milli: 2_000,
+            counted_value_minor: 1_000,
+            lots: vec![CountTransitionLot {
+                id: "lot".into(),
+                count_line_id: "line".into(),
+                source_lot_id: Some("lot-a".into()),
+                result_lot_id: "lot-a".into(),
+                tracking_mode: "lot".into(),
+                lot_code: Some("L-A".into()),
+                serial_number: None,
+                manufactured_date: None,
+                expiry_date: None,
+                snapshot_quantity_milli: 1_000,
+                snapshot_value_minor: 500,
+                counted_quantity_milli: 2_000,
+                counted_value_minor: 1_000,
+                unit_cost_minor: None,
+            }],
+        };
+        assert!(plan_count_transition_effects(&transition, &[line.clone()]).is_ok());
+        line.lots[0].counted_quantity_milli = 1_000;
+        assert_eq!(
+            plan_count_transition_effects(&transition, &[line])
+                .unwrap_err()
+                .code,
+            "COUNT_LOT_TOTAL_MISMATCH"
+        );
     }
 
     #[test]

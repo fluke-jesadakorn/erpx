@@ -300,3 +300,69 @@ export async function nativeStockCountSave(
   }
   return Response.json({data}, {status: expectedStatus, headers: {'Cache-Control': 'private, no-store'}});
 }
+
+/**
+ * Forward a validated generic Count transition to the native private API.
+ * Returns `undefined` only when this deployment has no native Count target so
+ * the route can keep the retained TypeScript transition until the mount lands.
+ */
+export async function nativeStockCountTransition(
+  request_: Request,
+  holdingSlug: string,
+  id: string,
+  action: 'submit' | 'reject' | 'cancel' | 'approve' | 'post',
+  input: unknown,
+): Promise<Response | undefined> {
+  const choice = selected(request_, holdingSlug);
+  if (!choice) return undefined;
+  const key = request_.headers.get('idempotency-key');
+  if (!key || key.length < 8 || key.length > 180) {
+    return closed(422, 'COMMAND_KEY_REQUIRED', 'Idempotency-Key is required.');
+  }
+  let copied: Headers;
+  try {
+    copied = headers(request_, choice.target, new URL(choice.target.origin).host);
+    copied.set('idempotency-key', key);
+    copied.set('content-type', 'application/json');
+  } catch (error) {
+    if (error instanceof Error && error.message === 'ORIGIN_FORBIDDEN') {
+      return closed(403, 'ORIGIN_FORBIDDEN', 'Use the application origin.');
+    }
+    return closed(413, 'NATIVE_INVENTORY_COUNT_REQUEST_INVALID', 'Use a smaller request.');
+  }
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/stock-counts/${encodeURIComponent(id)}/${action}`,
+    choice.config.privateBaseUrl,
+  );
+  let reply: {status: number; body: unknown};
+  try {
+    reply = await post(url, copied, JSON.stringify(input), choice.config.timeoutMs, request_.signal);
+  } catch {
+    return closed(503, 'NATIVE_INVENTORY_COUNT_UNAVAILABLE', 'The stock Count command is unavailable.');
+  }
+  if (reply.status !== 200) {
+    const error = (reply.body as {error?: {code?: unknown; message?: unknown}} | null)?.error;
+    if (
+      reply.status >= 400 &&
+      reply.status <= 599 &&
+      error &&
+      typeof error.code === 'string' &&
+      typeof error.message === 'string'
+    ) {
+      return closed(reply.status, error.code, error.message);
+    }
+    return closed(502, 'NATIVE_INVENTORY_COUNT_UNAVAILABLE', 'The stock Count command is unavailable.');
+  }
+  const data = (reply.body as {data?: unknown} | null)?.data;
+  if (
+    !object(data) ||
+    data.id !== id ||
+    typeof data.status !== 'string' ||
+    typeof data.version !== 'number' ||
+    !Number.isSafeInteger(data.version) ||
+    data.version < 1
+  ) {
+    return closed(502, 'NATIVE_INVENTORY_COUNT_RESPONSE_INVALID', 'The stock Count command is unavailable.');
+  }
+  return Response.json({data}, {headers: {'Cache-Control': 'private, no-store'}});
+}
