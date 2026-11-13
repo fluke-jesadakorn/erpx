@@ -12,6 +12,8 @@ pub mod handbook_http;
 
 pub mod social;
 
+pub mod social_upload_files;
+
 pub mod messaging_native;
 
 pub mod messaging_file_discard;

@@ -10,6 +10,9 @@ use crate::adapters::social::{
     CurrentSocialEffects, FeedComment, FeedFilter, FeedPost, apply_plan, read_comment,
     read_comments, read_feed, read_post, read_thread, retain_effects,
 };
+use crate::adapters::social_upload_files::{
+    SocialUploadFilesPort, UnavailableSocialUploadFiles,
+};
 use crate::application::social::{Access, SocialUnit};
 use crate::domain::social::{
     Change, CommentSnapshot, DraftSnapshot, FeedCursor, FollowTarget, OwnerPlan, PostSnapshot,
@@ -154,6 +157,7 @@ pub struct PgSocialUnit<'c> {
     connection: &'c mut PgConnection,
     scope: SocialScope,
     records: &'c mut dyn SocialRecordPort,
+    uploads: Option<&'c mut dyn SocialUploadFilesPort>,
     key: CommandKey,
     actor: Option<SocialActor>,
     current: Option<CurrentSocialEffects>,
@@ -178,6 +182,7 @@ impl<'c> PgSocialUnit<'c> {
             connection,
             scope,
             records,
+            uploads: None,
             key,
             actor: None,
             current: None,
@@ -187,6 +192,16 @@ impl<'c> PgSocialUnit<'c> {
             receipt: None,
             before_apply: true,
         }
+    }
+
+    /// Bind the Files owner cleanup port used by canceled upload drafts.
+    /// Composition supplies it; without it those commands fail closed.
+    pub fn with_upload_files(
+        mut self,
+        uploads: &'c mut dyn SocialUploadFilesPort,
+    ) -> Self {
+        self.uploads = Some(uploads);
+        self
     }
 
     /// Read-only composition convenience. No receipt or ledger row is written.
@@ -537,7 +552,22 @@ impl SocialUnit for PgSocialUnit<'_> {
                 "The Social command must resolve its receipt before applying.",
             )
         })?;
-        let receipt = apply_plan(&mut *self.connection, actor, key, &plan, self.scope.now).await?;
+        let receipt = {
+            let mut unavailable = UnavailableSocialUploadFiles;
+            let uploads: &mut dyn SocialUploadFilesPort = match self.uploads.as_mut() {
+                Some(port) => &mut **port,
+                None => &mut unavailable,
+            };
+            apply_plan(
+                &mut *self.connection,
+                actor,
+                key,
+                &plan,
+                self.scope.now,
+                uploads,
+            )
+            .await?
+        };
         let effects = retain_effects(&mut *self.connection, &plan, &receipt).await?;
 
         let (record_type, purpose, event_type) = match &plan {

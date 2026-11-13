@@ -24,6 +24,8 @@ pub(crate) mod social;
 
 pub(crate) mod social_pg;
 
+pub(crate) mod social_upload_files;
+
 pub(crate) mod messaging_native;
 
 pub(crate) mod messaging_file_discard;

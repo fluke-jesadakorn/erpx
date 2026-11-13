@@ -6,6 +6,9 @@ pub use crate::adapters::social::{
     lock_social_sources, read_comment, read_comments, read_feed, read_feed_page, read_post,
     read_thread, retain_effects,
 };
+pub use crate::adapters::social_upload_files::{
+    SocialUploadFilesFuture, SocialUploadFilesPort, UnavailableSocialUploadFiles,
+};
 pub use crate::adapters::social_pg::{
     PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, UnavailableSocialRecords,
 };

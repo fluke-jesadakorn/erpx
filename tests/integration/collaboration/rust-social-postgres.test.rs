@@ -4,6 +4,9 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use erpx_server_collaboration::public::social::*;
+use erpx_server_collaboration::public::social_upload_files::{
+    SocialUploadFilesFuture, SocialUploadFilesPort,
+};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
@@ -126,7 +129,39 @@ struct Harness<'a> {
     record_id: String,
     fingerprint: String,
     retained: Option<CurrentSocialEffects>,
+    uploads: TestUploads,
     tamper: bool,
+}
+
+/// Composition's Files owner double: it proves the port receives exactly the
+/// canceled draft identity on the caller's connection. The real SQL effects
+/// are covered by the Files integration target.
+#[derive(Default)]
+struct TestUploads;
+
+impl SocialUploadFilesPort for TestUploads {
+    fn revoke_draft_uploads<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        draft_id: &'a str,
+        now: i64,
+    ) -> SocialUploadFilesFuture<'a> {
+        Box::pin(async move {
+            sqlx::query("INSERT INTO social_test_upload_cleanup(draft_id,now) VALUES($1,$2)")
+                .bind(draft_id)
+                .bind(now)
+                .execute(&mut *connection)
+                .await
+                .map_err(|_| {
+                    BusinessError::new(
+                        FailureKind::Unavailable,
+                        "TEST_FILES_PORT_UNAVAILABLE",
+                        "Synthetic Files port failed.",
+                    )
+                })?;
+            Ok(())
+        })
+    }
 }
 
 impl Harness<'_> {
@@ -293,7 +328,15 @@ impl SocialUnit for Harness<'_> {
         key: &CommandKey,
         plan: OwnerPlan,
     ) -> Result<Receipt, Error> {
-        let receipt = apply_plan(self.c, actor, key, &plan, NOW).await?;
+        let receipt = apply_plan(
+            self.c,
+            actor,
+            key,
+            &plan,
+            NOW,
+            &mut self.uploads,
+        )
+        .await?;
         self.retained = Some(retain_effects(self.c, &plan, &receipt).await?);
         self.write_receipt(&receipt).await?;
         Ok(receipt)
@@ -391,6 +434,7 @@ async fn run_observed(
                     record_id,
                     fingerprint,
                     retained: None,
+                    uploads: TestUploads,
                     tamper,
                 };
                 execute(&mut harness, &key, change).await
@@ -418,6 +462,7 @@ async fn setup(pool: &DatabasePool) {
            display_name text NOT NULL,PRIMARY KEY(company_id,user_id));
          CREATE TABLE social_test_records(company_id text NOT NULL,module text NOT NULL,id text NOT NULL,
            label text NOT NULL,PRIMARY KEY(company_id,module,id));
+         CREATE TABLE social_test_upload_cleanup(draft_id text NOT NULL,now bigint NOT NULL);
          INSERT INTO social_test_authority VALUES
            ('company','author',1,1,0,'branch-a',NULL,'Author'),
            ('company','branch-b',1,1,0,'branch-b',NULL,'Branch B'),
@@ -1282,6 +1327,16 @@ async fn upload_drafts_create_and_cancel_comment_and_edit_targets() {
         .unwrap();
         assert!(cancelled_row.0.is_some());
         assert_eq!(cancelled_row.1, 2);
+        let comment_cleanup: Vec<(String, i64)> =
+            sqlx::query_as("SELECT draft_id,now FROM social_test_upload_cleanup ORDER BY draft_id")
+                .fetch_all(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(
+            comment_cleanup,
+            vec![(comment.id.clone(), NOW)],
+            "the Files port must receive the canceled comment-upload draft"
+        );
         let edit = run(
             &pool,
             "author",
@@ -1314,6 +1369,17 @@ async fn upload_drafts_create_and_cancel_comment_and_edit_targets() {
         .await
         .unwrap();
         assert_eq!(edit_cancelled.status, "cancelled");
+        let cleanup: Vec<(String, i64)> =
+            sqlx::query_as("SELECT draft_id,now FROM social_test_upload_cleanup ORDER BY draft_id")
+                .fetch_all(pool.raw())
+                .await
+                .unwrap();
+        let mut expected = vec![(comment.id.clone(), NOW), (edit.id.clone(), NOW)];
+        expected.sort_by(|left, right| left.0.cmp(&right.0));
+        assert_eq!(
+            cleanup, expected,
+            "the Files port must receive each canceled upload draft exactly once"
+        );
     })
     .await;
 }

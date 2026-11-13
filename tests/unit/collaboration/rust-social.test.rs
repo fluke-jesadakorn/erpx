@@ -760,6 +760,13 @@ async fn creates_and_cancels_comment_and_post_edit_upload_drafts() {
     .await
     .unwrap();
     assert_eq!((cancelled.version, cancelled.status), (2, "cancelled"));
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::UploadDraftCancel { id, version } => {
+            assert_eq!(id, "comment-upload-social-command-0001");
+            assert_eq!(*version, 2);
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
     let edit = execute(
         &mut unit,
         &CommandKey::new("social-command-0003").unwrap(),
@@ -796,6 +803,13 @@ async fn creates_and_cancels_comment_and_post_edit_upload_drafts() {
     .await
     .unwrap();
     assert_eq!((edit_cancelled.version, edit_cancelled.status), (2, "cancelled"));
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::UploadDraftCancel { id, version } => {
+            assert_eq!(id, "post-edit-upload-social-command-0003");
+            assert_eq!(*version, 2);
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
 }
 
 #[tokio::test]

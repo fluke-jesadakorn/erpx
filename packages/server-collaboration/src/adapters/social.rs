@@ -6,6 +6,7 @@ use crate::domain::social::{
     story_conflict,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
+use crate::adapters::social_upload_files::SocialUploadFilesPort;
 use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, FailureKind};
 use serde::Serialize;
 use serde_json::Value;
@@ -484,13 +485,16 @@ pub async fn read_comments(
     .map_err(Into::into)
 }
 
-/// Stage only Social-owned rows in the caller's retained transaction.
+/// Stage only Social-owned rows in the caller's retained transaction. The
+/// Files owner port performs the canceled-draft attachment revocation and
+/// upload-intent expiry; this module never writes Files tables.
 pub async fn apply_plan(
     c: &mut PgConnection,
     actor: &SocialActor,
     key: &CommandKey,
     plan: &OwnerPlan,
     now: i64,
+    uploads: &mut dyn SocialUploadFilesPort,
 ) -> Result<Receipt, Error> {
     unit(c).await?;
     let expected = plan_receipt(key, plan)?;
@@ -1015,20 +1019,7 @@ pub async fn apply_plan(
             if updated.rows_affected() != 1 {
                 return Err(changed());
             }
-            sqlx::query(
-                "UPDATE attachments SET revoked_at=$1 WHERE owner_type='social_draft' AND owner_id=$2 AND revoked_at IS NULL",
-            )
-            .bind(now)
-            .bind(id)
-            .execute(&mut *c)
-            .await?;
-            sqlx::query(
-                "UPDATE upload_intents SET status='expired',updated_at=$1 WHERE owner_type='social_draft' AND owner_id=$2 AND status='ready'",
-            )
-            .bind(now)
-            .bind(id)
-            .execute(&mut *c)
-            .await?;
+            uploads.revoke_draft_uploads(&mut *c, id, now).await?;
             Ok(expected.clone())
         }
         OwnerPlan::PublishDraftPost {

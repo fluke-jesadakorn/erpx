@@ -5,8 +5,8 @@ use erpx_server_collaboration::public::social::{FeedComment, FeedPost, Receipt};
 use erpx_server_collaboration::public::social_http::{
     FeedQuery, SocialFeedData, SocialHttpBackend, SocialHttpCommandRequest, SocialHttpFuture,
     SocialHttpReadReply, SocialHttpReadRequest, SocialHttpState, SocialHttpTarget, SocialReadKind,
-    SocialThreadData, ThreadQuery, comment_action, create_post, read_feed, read_thread,
-    set_reaction,
+    SocialThreadData, ThreadQuery, cancel_comment_upload, cancel_edit_upload, comment_action,
+    create_comment_upload, create_edit_upload, create_post, read_feed, read_thread, set_reaction,
 };
 use erpx_server_runtime::public::http_support::{
     Path, Query, Request, Response, State, StatusCode,
@@ -253,6 +253,50 @@ async fn post_comment_and_reaction_commands_require_origin_and_key() {
     assert!(commands[0].contains("PublishPost"));
     assert!(commands[1].contains("TombstoneComment"));
     assert!(commands[2].contains("SetReaction"));
+}
+
+#[tokio::test]
+async fn upload_draft_commands_decode_to_the_four_native_changes() {
+    let probe = Arc::new(Probe::default());
+    let state = state(probe.clone());
+
+    let response = create_comment_upload(
+        State(state.clone()),
+        Path(("acme".into(), "post-1".into())),
+        request("POST", "{}", true),
+    )
+    .await;
+    assert_eq!(reply(response).await.0, StatusCode::OK);
+
+    let response = cancel_comment_upload(
+        State(state.clone()),
+        Path(("acme".into(), "comment-upload-key".into())),
+        request("POST", "{}", true),
+    )
+    .await;
+    assert_eq!(reply(response).await.0, StatusCode::OK);
+
+    let response = create_edit_upload(
+        State(state.clone()),
+        Path(("acme".into(), "post-1".into())),
+        request("POST", r#"{"expectedVersion":2}"#, true),
+    )
+    .await;
+    assert_eq!(reply(response).await.0, StatusCode::OK);
+
+    let response = cancel_edit_upload(
+        State(state),
+        Path(("acme".into(), "post-edit-upload-key".into())),
+        request("POST", "{}", true),
+    )
+    .await;
+    assert_eq!(reply(response).await.0, StatusCode::OK);
+
+    let commands = probe.commands.lock().unwrap();
+    assert!(commands[0].contains("CommentUploadCreate"));
+    assert!(commands[1].contains("CommentUploadCancel"));
+    assert!(commands[2].contains("PostEditUploadCreate"));
+    assert!(commands[3].contains("PostEditUploadCancel"));
 }
 
 #[tokio::test]

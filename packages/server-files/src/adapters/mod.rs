@@ -72,4 +72,5 @@ pub(crate) mod project_attachment;
 pub(crate) mod project_attachment_intake;
 
 pub(crate) mod messaging_files;
+pub(crate) mod social_draft_uploads;
 pub(crate) mod staff_task_attachments;

@@ -6,7 +6,8 @@
 //! need the Files and Work-projection ports.
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::social::{
-    PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, execute, lock_social_sources,
+    PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, SocialUploadFilesFuture,
+    SocialUploadFilesPort, execute, lock_social_sources,
 };
 use erpx_server_collaboration::public::messaging_http::{
     MessagingAttachmentKind, MessagingAttachmentReply, MessagingChannelsData,
@@ -145,6 +146,32 @@ impl SocialConfiguration {
 struct SocialRecordsPort {
     actor: RecordContextActor,
     now: i64,
+}
+
+/// Files owner port for canceled Social upload drafts. Files owns the
+/// attachment revocation and upload-intent expiry on the caller's retained
+/// serializable connection; Collaboration never writes those tables.
+struct SocialUploadFilesPortImpl;
+
+impl SocialUploadFilesPort for SocialUploadFilesPortImpl {
+    fn revoke_draft_uploads<'a>(
+        &'a mut self,
+        connection: &'a mut sqlx::PgConnection,
+        draft_id: &'a str,
+        now: i64,
+    ) -> SocialUploadFilesFuture<'a> {
+        Box::pin(async move {
+            erpx_server_files::public::social_draft_uploads::revoke_social_draft_uploads(
+                connection,
+                erpx_server_files::public::social_draft_uploads::SocialDraftUploadRevokeRequest {
+                    draft_id,
+                    now,
+                },
+            )
+            .await
+            .map_err(business)
+        })
+    }
 }
 
 impl SocialRecordPort for SocialRecordsPort {
@@ -412,7 +439,9 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
                         let actor = crate::records::records_actor(current)?;
                         let scope = social_scope(current, &company, name, now, true)?;
                         let mut records = SocialRecordsPort { actor, now };
-                        let mut unit = PgSocialUnit::new(connection, scope, key.clone(), &mut records);
+                        let mut uploads = SocialUploadFilesPortImpl;
+                        let mut unit = PgSocialUnit::new(connection, scope, key.clone(), &mut records)
+                            .with_upload_files(&mut uploads);
                         let receipt = execute(&mut unit, &key, change).await?;
                         Ok(receipt)
                     })

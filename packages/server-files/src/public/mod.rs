@@ -47,4 +47,5 @@ pub mod project_attachment;
 pub mod project_attachment_intake;
 
 pub mod messaging_files;
+pub mod social_draft_uploads;
 pub mod staff_task_attachments;
