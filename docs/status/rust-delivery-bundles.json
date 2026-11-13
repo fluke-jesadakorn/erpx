@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1334,
+    "revision": 1337,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T00:22:26.386Z",
-      "expiresAt": "2026-11-13T00:52:26.386Z",
+      "heartbeatAt": "2026-11-13T00:27:45.080Z",
+      "expiresAt": "2026-11-13T00:57:45.080Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -29735,8 +29735,8 @@
           "runId": "run-20261113-f",
           "agentId": "lead",
           "claimedAt": "2026-11-13T00:16:11.607Z",
-          "heartbeatAt": "2026-11-13T00:22:26.386Z",
-          "expiresAt": "2026-11-13T00:52:26.386Z",
+          "heartbeatAt": "2026-11-13T00:27:45.080Z",
+          "expiresAt": "2026-11-13T00:57:45.080Z",
           "generation": 50
         },
         "baseSha": null,
@@ -29753,7 +29753,7 @@
           "reason": "Recovery: Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
           "nextAction": "Native ModeratePost pushed at 21acc72db. Remaining blockers: (1) can_hide_posts wiring in src/composition/src/collaboration.rs is blocked by the active retire.customer_authority.remaining-writers claim on src/composition/src/** (removalTaskId recorded); (2) the last TS social-home write caller is operations publishHandover, now tracked as migrate.operations.handover-publish (needs a native handover command with task/PMS facts, recipients, sources and receipt). After both land, switch the last callers and delete the TS social-home writer/barrels with Collaboration KPI before/after."
         },
-        "nextAction": "Native handover post command pushed at bc2e38b58 (POST /feed/handovers; unit 14/14, PG 10/10). Remaining: split the TS publishHandover validation from its savePostDraft/publishPost writes and switch pms /home/handover to the native command; then delete the TS social-home writer/barrels, migrate oracles and record Collaboration KPI before/after. migrate.operations.handover-publish tracks the operations/pms cutover.",
+        "nextAction": "Native handover post command is pushed at bc2e38b58. The last TS social-home caller (operations publishHandover) cannot be switched yet: its save/publish run inside withOperationsHandoverPurchaseUnit with same-transaction receipt and deferred source/recipient checks, while the native command runs in its own Rust transaction. Blocked on a native handover purchase boundary or a reviewed atomicity decision, tracked as migrate.operations.handover-publish. TS social-home writer/barrels remain.",
         "scopeRefinementRequired": false
       },
       {
@@ -29944,7 +29944,7 @@
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
         "id": "migrate.operations.handover-publish",
         "title": "Native handover publish command (post + sources + recipients + receipt)",
-        "scope": "The pms/operations handover publish is the last live caller of the TS social-home savePostDraft/publishPost writers. It validates the current daily snapshot, selected staff tasks and PMS records, recipient readability, saves a handover draft (purpose=handover, sources, participants), publishes the post, and records the handover receipt/notifications in one owner transaction. Port that flow to a native command: collaboration owns the post/draft rows and audience/participants/sources; operations supplies the current task/PMS/people facts through existing owner ports; the command must keep the same receipt, source-version checks, participant readability and atomic rollback. Then switch the pms front `/home/handover` route to the native command and remove the TS savePostDraft/publishPost calls from server-operations handover. KPI removal is recorded under migrate.collaboration.social-draft-commands once the social-home writer can be deleted.",
+        "scope": "The pms/operations handover publish is the last live caller of the TS social-home savePostDraft/publishPost writers. The native post command (POST /feed/handovers, Change::PublishHandoverPost) is implemented. The remaining cutover is blocked on the purchase/transaction boundary: the TS publishHandover runs inside withOperationsHandoverPurchaseUnit, which locks the source, records the work.handover.publish receipt and runs deferred source/readable checks in the same Next transaction as savePostDraft/publishPost. The native command executes in its own Rust transaction, so calling it from inside that unit cannot be rolled back by the unit's deferred checks, and splitting validation from the write would bypass the same-transaction purchase receipt. Completion requires either a native handover purchase boundary/port that owns the same receipt and deferred checks, or an explicitly reviewed change to the handover atomicity contract. Do not switch the caller or delete the TS writer before that decision.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -29975,7 +29975,7 @@
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null,
-        "nextAction": "Design the native handover command against the current TS publishHandover ports, then implement the draft/post/recipient/source/receipt unit with Rust unit+PG tests and switch the pms /home/handover route.",
+        "nextAction": "Design the native handover purchase boundary (same transaction receipt + deferred source/recipient checks) or obtain a reviewed decision to change the handover atomicity contract; then switch pms /home/handover to nativePublishHandover, delete the TS social-home writer/barrels, migrate oracles and record Collaboration KPI before/after.",
         "scopeRefinementRequired": false
       },
       {
@@ -30324,8 +30324,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-procurement-retire",
           "claimedAt": "2026-11-13T00:14:01.763Z",
-          "heartbeatAt": "2026-11-13T00:22:26.386Z",
-          "expiresAt": "2026-11-13T00:52:26.386Z",
+          "heartbeatAt": "2026-11-13T00:27:45.080Z",
+          "expiresAt": "2026-11-13T00:57:45.080Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30378,8 +30378,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-sales-ingress",
           "claimedAt": "2026-11-13T00:17:34.051Z",
-          "heartbeatAt": "2026-11-13T00:22:26.386Z",
-          "expiresAt": "2026-11-13T00:52:26.386Z",
+          "heartbeatAt": "2026-11-13T00:27:45.080Z",
+          "expiresAt": "2026-11-13T00:57:45.080Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30415,7 +30415,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T00:22:26.430Z",
+    "updatedAt": "2026-11-13T00:27:45.117Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
