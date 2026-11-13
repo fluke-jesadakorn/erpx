@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1849,
+    "revision": 1853,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-p",
       "agentId": "lead",
       "startedAt": "2026-11-13T14:52:09.221Z",
-      "heartbeatAt": "2026-11-13T15:21:34.631Z",
-      "expiresAt": "2026-11-13T15:51:34.631Z",
+      "heartbeatAt": "2026-11-13T15:37:18.187Z",
+      "expiresAt": "2026-11-13T16:07:18.187Z",
       "generation": 60,
       "tokenHash": "ae9e5c26494d13ca262682ced9df88bc8132818fa3fb7106039d0bf805963d98"
     },
@@ -37117,8 +37117,8 @@
           "runId": "run-20261113-p",
           "agentId": "worker-inventory-transfer",
           "claimedAt": "2026-11-13T15:03:20.172Z",
-          "heartbeatAt": "2026-11-13T15:21:34.631Z",
-          "expiresAt": "2026-11-13T15:51:34.631Z",
+          "heartbeatAt": "2026-11-13T15:37:18.187Z",
+          "expiresAt": "2026-11-13T16:07:18.187Z",
           "generation": 60
         },
         "baseSha": null,
@@ -37236,23 +37236,61 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f2933bb29514909fa9792f7cfb3243b319262bfe",
+        "lastPushedSha": "f2933bb29514909fa9792f7cfb3243b319262bfe",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 145,
+            "after": 133,
+            "sourceSha": "f2933bb29514909fa9792f7cfb3243b319262bfe",
+            "sourceKind": "committed",
+            "note": "Removed the 12 user-management writers and their deleted oracles."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "f2933bb29514909fa9792f7cfb3243b319262bfe",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --lib --offline",
+            "result": "passed",
+            "sourceSha": "f2933bb29514909fa9792f7cfb3243b319262bfe",
+            "sourceKind": "committed",
+            "note": "27 passed, 0 failed."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "f2933bb29514909fa9792f7cfb3243b319262bfe",
+            "sourceKind": "committed",
+            "note": "Root and test typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f2933bb29514909fa9792f7cfb3243b319262bfe",
+            "sourceKind": "committed",
+            "note": "Repository layout passed after removing the retired suites."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "nextAction": "Native user-management producer and consumer switches are committed (IAM 145 -> 133). Lead: implement UserManagementHttpBackend + router mount and the user-management-worker subcommand, then migrate the two legacy test consumers (directory-operations, people-lifecycle) and verify the admin/people access paths.",
+        "handoff": {
           "runId": "run-20261113-p",
           "agentId": "worker-iam-user-management",
-          "claimedAt": "2026-11-13T15:03:20.306Z",
-          "heartbeatAt": "2026-11-13T15:21:34.631Z",
-          "expiresAt": "2026-11-13T15:51:34.631Z",
-          "generation": 60
+          "at": "2026-11-13T15:36:53.769Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native user-management producer and consumer switches are committed (IAM 145 -> 133). Lead: implement UserManagementHttpBackend + router mount and the user-management-worker subcommand, then migrate the two legacy test consumers (directory-operations, people-lifecycle) and verify the admin/people access paths."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the native user-management command family (um_* semantics) in server-identity_access, switch the feature-admin and feature-people access consumers, delete user-management.ts (12 writes) and record Identity Access 145 -> lower. Report any composition mount contract.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -37428,6 +37466,47 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.identity_access.user-management",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Mount native user management and finish its cutover",
+        "scope": "Implement UserManagementHttpBackend and mount the router, add the user-management-worker subcommand, migrate the two legacy test consumers, and verify the admin/people access paths. The 12 TS writers are already retired.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-admin/**",
+          "packages/feature-people/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "packages/server-runtime/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement UserManagementHttpBackend + user_management_http_router mount in composition, add the user-management-worker subcommand for managementWork, migrate tests/integration/identity_access/directory-operations.test.ts and tests/integration/people_payroll/people-lifecycle.test.ts off the compatibility shims, then verify the admin/people access paths and record the mount evidence.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -37436,12 +37515,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 195,
+      "totalPackets": 196,
       "migratedPackets": 117,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 2,
-        "ready_for_integration": 16,
+        "pending": 22,
+        "in_progress": 1,
+        "ready_for_integration": 17,
         "integrating": 0,
         "migrated": 117,
         "blocked": 39,
@@ -37450,7 +37529,7 @@
       }
     },
     "lastCoordinatorGeneration": 60,
-    "updatedAt": "2026-11-13T15:21:34.632Z",
+    "updatedAt": "2026-11-13T15:37:18.188Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
