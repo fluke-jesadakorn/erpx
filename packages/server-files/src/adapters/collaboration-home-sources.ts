@@ -2,7 +2,7 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { socialDraftFilesReadSql } from '@erpx/server-collaboration/public/social-draft-file-projection';
 export function collaborationHomeSources(db: SqlDatabase) {
-    return { revokeCommentFiles(now: number, id: string) { return db.prepare("UPDATE attachments SET revoked_at=? WHERE owner_type='social_draft' AND owner_id=? AND revoked_at IS NULL").bind(now, id); }, expireCommentUploads(now: number, id: string) { return db.prepare("UPDATE upload_intents SET status='expired',updated_at=? WHERE owner_type='social_draft' AND owner_id=? AND status='ready'").bind(now, id); }, revokeEditFiles(now: number, id: string) { return db.prepare("UPDATE attachments SET revoked_at=? WHERE owner_type='social_draft' AND owner_id=? AND revoked_at IS NULL").bind(now, id); }, expireEditUploads(now: number, id: string) { return db.prepare("UPDATE upload_intents SET status='expired',updated_at=? WHERE owner_type='social_draft' AND owner_id=? AND status='ready'").bind(now, id); }, revokeUnusedDraftFiles(now: number, recordId: string, keptAttachmentIds: string[]) {
+    return { revokeUnusedDraftFiles(now: number, recordId: string, keptAttachmentIds: string[]) {
             return db.prepare(`UPDATE attachments SET revoked_at=? WHERE owner_type='social_draft' AND owner_id=? AND revoked_at IS NULL${keptAttachmentIds.length ? ` AND id NOT IN (${keptAttachmentIds.map(() => "?").join(",")})` : ""}`)
                 .bind(now, recordId, ...keptAttachmentIds);
         }, expireUnusedDraftUploads(now: number, recordId: string) {

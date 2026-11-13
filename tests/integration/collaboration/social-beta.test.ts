@@ -15,7 +15,7 @@ import {
   memberStatements,
   branchStatements,
 } from "@erpx/server-manage_erpx/public/beta-onboarding";
-import {postView,postComments,homePosts,savePostDraft,publishPost,postAction,postRevisionHistory,createCommentUploadDraft,createPostEditUploadDraft,type PostContent} from '@erpx/server-collaboration/public/social-home';
+import {postView,postComments,homePosts,savePostDraft,publishPost,postAction,postRevisionHistory,type PostContent} from '@erpx/server-collaboration/public/social-home';
 import {socialUploadOwner} from '@erpx/server-collaboration/public/social-home-read';
 import {sourceSnapshot,readablePost} from '@erpx/server-collaboration/public/social-source';
 import { createAiDraft, aiResultSchema, callAi } from "@erpx/server-collaboration/public/social-ai";
@@ -29,7 +29,6 @@ import {
 import {
   resourceSlots,
   registeredDatabases,
-  registeredResources,
 } from "@erpx/feature-runtime/lib/holding-registry";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {seedProjectFor} from '../projects/project-actual-fixtures';
@@ -352,7 +351,11 @@ describe("social post image content", () => {
   });
   it("publishes a comment image from a private upload draft and records the reply thread",async()=>{
     const published=await post();
-    const draft=await createCommentUploadDraft(db,owner,published.id,key());
+    // Comment upload drafts are created by the native upload route; seed the
+    // exact draft row the native command writes so this TS publish oracle still
+    // exercises the retained draft-consumption path.
+    const draft={id:`comment-upload-${key()}`},now=Date.now();
+    await db.prepare("INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,comment_parent_post_id) VALUES(?,?,?,?, '',?,?,?)").bind(draft.id,owner.userId,owner.companyId,owner.branchId,now,now,published.id).run();
     const image=await readySocialImage(draft.id,"machine.png");
     const rich=plainRichContent("What is shown in this photo?");
     rich.blocks.push({type:"image",slotId:key(),attachmentId:image.attachmentId,name:"machine.png",alt:"Machine label"});
@@ -553,7 +556,10 @@ describe("social post corrections", () => {
       audience: { kind: "branch", id: branch }, expectedVersion: draft.version,
     }, key());
     const created = await publishPost(db, owner, draft.id, draft.version, key());
-    const uploadDraft = await createPostEditUploadDraft(db, owner, created.id, 1, key());
+    // Post-edit upload drafts are native; seed the exact row the native command
+    // writes so the retained edit-upload consumption path stays covered.
+    const uploadDraft={id:`post-edit-upload-${key()}`},uploadNow=Date.now();
+    await db.prepare("INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,edit_post_id,edit_post_version) VALUES(?,?,?,?, '',?,?,?,?)").bind(uploadDraft.id,owner.userId,owner.companyId,owner.branchId,uploadNow,uploadNow,created.id,1).run();
     await expect(socialUploadOwner(db, worker, uploadDraft.id, true)).rejects.toMatchObject({ status: 403 });
 
     const newImage = { type: "image" as const, slotId: "added", attachmentId: "missing-file", name: "three.png", alt: "Third" };
@@ -1619,90 +1625,3 @@ it('projectAudienceOptions rolls back a real Project audience source change afte
   }
 });
 
-// Native scan provider fixture only; all metadata, bytes, binding and business
-// state below still come through original Files/Social/Projects commands.
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'ClamAV 1.5.4/native-fixture',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'ClamAV 1.5.4/native-fixture',definitionUpdatedAt:Date.now()})}));
-async function projectCleanupImage(actor:WorkContext,draftId:string,version:number,bind=true){
- const files=await import('@erpx/server-files/public/attachments/service');
- const bytes=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64'));
- const set=await files.createAttachmentSet(db,actor,{targetType:'social_draft',targetId:draftId,componentKind:'record',componentRef:'legacy-upload-adapter',purposeKey:'post_image',expectedTargetVersion:version},key());
- const reservation=await files.reserveAttachmentFile(db,actor,set.id,{filename:'pending-project-image.png',mediaType:'image/png',bytes:bytes.byteLength},key());
- const uploaded=await files.completeAttachmentUpload(db,env.H001_FILES,actor,reservation.uploadIntentId,bytes.buffer);
- expect(await files.drainAttachmentScans(db,env.H001_FILES,uploaded.sourceId)).toBe(true);
- const binding=bind?await files.bindCompatibilityAttachmentSet(db,actor,set.id,version,key()):null;
- const stored=await db.prepare('SELECT object_key,checksum_sha256 FROM attachments WHERE id=?').bind(uploaded.sourceId).first<{object_key:string;checksum_sha256:string}>();if(!stored)throw Error('Actual original uploaded source is required');
- return {...reservation,...uploaded,setId:set.id,ownerVersion:binding?.ownerVersion??version,objectKey:stored.object_key,checksum:stored.checksum_sha256};
-}
-async function projectCleanupFixture(mode:'disabled'|'enforced'){
- const native=await import('@erpx/server-projects/public/staff-projects');
- await socialPackage('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT',mode);vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_ATTACHMENTS_V2','true');vi.stubEnv('ERPX_ATTACHMENT_UPLOAD_FREEZE','false');
- await freshIam(worker);await freshIam(reviewer);
- const project=await seedProjectFor(db,owner,null,native.projectSchema.parse({title:'Actual author-owned pending Project uploads',memberUserIds:[worker.userId]}),key());
- const draft=await savePostDraft(db,worker,null,{body:'Private Project source must remain inaccessible after membership ends',audience:{kind:'project',id:project.id},sources:[{kind:'staff_project',id:project.id}],expectedVersion:1},key()),published=await publishPost(db,worker,draft.id,draft.version,key());
- const comment=await createCommentUploadDraft(db,worker,published.id,key()),edit=await createPostEditUploadDraft(db,worker,published.id,1,key());
- const commentFile=await projectCleanupImage(worker,comment.id,1),editFile=await projectCleanupImage(worker,edit.id,edit.version,false);
- return {project,published,comment,edit,commentFile,editFile,removeMember:()=>seedProjectFor(db,owner,project.id,native.projectSchema.parse({title:'Actual author-owned pending Project uploads',memberUserIds:[],expectedVersion:1}),key())};
-}
-async function projectCleanupState(ids:string[],command?:string){return db.prepare(`SELECT jsonb_build_object('drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_post_drafts d WHERE d.id IN(SELECT jsonb_array_elements_text(?::jsonb))),'files',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM attachments a WHERE a.owner_type='social_draft' AND a.owner_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'uploads',(SELECT jsonb_agg(to_jsonb(u) ORDER BY u.id) FROM upload_intents u WHERE u.owner_type='social_draft' AND u.owner_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'sets',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.id) FROM attachment_sets s WHERE s.target_type='social_draft' AND s.target_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'links',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE s.target_type='social_draft' AND s.target_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM attachment_events e JOIN attachment_sets s ON s.id=e.set_id WHERE s.target_type='social_draft' AND s.target_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'assignment',(SELECT to_jsonb(a) FROM assignments a WHERE a.id=?),'receipt',(SELECT to_jsonb(c) FROM command_receipts c WHERE c.command_id=?),'audit',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM audit_events a WHERE a.command_id=?),'outbox',(SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM outbox_events o WHERE o.command_id=?))::text image`).bind(JSON.stringify(ids),JSON.stringify(ids),JSON.stringify(ids),JSON.stringify(ids),JSON.stringify(ids),JSON.stringify(ids),worker.assignmentId,command??'',command??'',command??'').first<string>('image');}
-for(const mode of ['disabled','enforced'] as const)it(`projectUploadCleanup preserves actual pending author File closure after member loss with Work ${mode}`,async()=>{
- const {cancelCommentUploadDraft,cancelPostEditUploadDraft}=await import('@erpx/server-collaboration/public/social-home'),f=await projectCleanupFixture(mode),consumed=await createCommentUploadDraft(db,worker,f.published.id,key());
- const consumedFile=await projectCleanupImage(worker,consumed.id,1),consumedRich=plainRichContent('Normally consumed comment upload');consumedRich.blocks.push({type:'image',slotId:key(),attachmentId:consumedFile.sourceId,name:'pending-project-image.png'});await postAction(db,worker,f.published.id,{action:'comment',body:'Normally consumed comment upload',richContent:consumedRich,commentDraftId:consumed.id},key());
- const consumedCancelKey=key(),beforeConsumed=await projectCleanupState([consumed.id],consumedCancelKey);await expect(cancelCommentUploadDraft(db,worker,consumed.id,consumedCancelKey)).rejects.toMatchObject({code:'UPLOAD_DRAFT_CONSUMED'});expect(await projectCleanupState([consumed.id],consumedCancelKey)).toBe(beforeConsumed);
- await f.removeMember();if(mode==='enforced')await socialPackage('projects','draining');await expect(postView(db,worker,f.published.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});await expect(createCommentUploadDraft(db,worker,f.published.id,key())).rejects.toMatchObject({status:403});
- const foreignCancelKey=key(),foreignBefore=await projectCleanupState([f.comment.id,f.edit.id],foreignCancelKey);await expect(cancelCommentUploadDraft(db,reviewer,f.comment.id,foreignCancelKey)).rejects.toMatchObject({code:'DRAFT_LOCKED'});expect(await projectCleanupState([f.comment.id,f.edit.id],foreignCancelKey)).toBe(foreignBefore);
- const commentKey=key(),editKey=key(),parentBefore=await db.prepare('SELECT to_jsonb(p)::text image FROM social_posts p WHERE id=?').bind(f.published.id).first<string>('image');
- expect(await cancelCommentUploadDraft(db,worker,f.comment.id,commentKey)).toEqual({id:f.comment.id});expect(await cancelPostEditUploadDraft(db,worker,f.edit.id,editKey)).toEqual({id:f.edit.id});
- const completed=await projectCleanupState([f.comment.id,f.edit.id]);expect(await cancelCommentUploadDraft(db,worker,f.comment.id,commentKey)).toEqual({id:f.comment.id});expect(await cancelPostEditUploadDraft(db,worker,f.edit.id,editKey)).toEqual({id:f.edit.id});expect(await projectCleanupState([f.comment.id,f.edit.id])).toBe(completed);
- for(const file of [f.commentFile,f.editFile]){expect(await db.prepare('SELECT revoked_at FROM attachments WHERE id=?').bind(file.sourceId).first('revoked_at')).not.toBeNull();expect(await db.prepare('SELECT status FROM upload_intents WHERE id=?').bind(file.uploadIntentId).first('status')).toBe('expired');const bytes=await env.H001_FILES.get(file.objectKey);expect(bytes).not.toBeNull();const {sha256}=await import('@erpx/server-runtime/public/crypto');expect(await sha256(await bytes!.arrayBuffer())).toBe(file.checksum);}
- expect(await db.prepare('SELECT state FROM attachment_sets WHERE id=?').bind(f.commentFile.setId).first('state')).toBe('bound');expect(await db.prepare('SELECT state FROM attachment_sets WHERE id=?').bind(f.editFile.setId).first('state')).toBe('draft');expect(await db.prepare('SELECT to_jsonb(p)::text image FROM social_posts p WHERE id=?').bind(f.published.id).first('image')).toBe(parentBefore);
- await expect(postView(db,worker,f.published.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});await expect(socialUploadOwner(db,worker,f.comment.id,true)).rejects.toMatchObject({code:'DRAFT_NOT_FOUND'});expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=? ORDER BY package_id').bind(company).all()).results).toEqual([{package_id:'projects'}]);expect(worker.modules).toEqual([]);
-});
-it('projectUploadCleanup rolls back exact native Files and current authority faults then retries the original command keys',async()=>{
- const {cancelCommentUploadDraft,cancelPostEditUploadDraft}=await import('@erpx/server-collaboration/public/social-home'),f=await projectCleanupFixture('enforced');await f.removeMember();
- for(const kind of ['authority','file'] as const){const command=key(),fault=`social_upload_cleanup_${key().replaceAll('-','')}`,draft=kind==='authority'?f.comment:f.edit,cancel=kind==='authority'?cancelCommentUploadDraft:cancelPostEditUploadDraft,before=await projectCleanupState([f.comment.id,f.edit.id],command);
-  const mutation=kind==='authority'?`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${worker.assignmentId}';`:`UPDATE upload_intents SET updated_at=updated_at+1 WHERE id='${f.editFile.uploadIntentId}';`;
-  await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${command}' THEN PERFORM nextval('${fault}');${mutation}END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ${fault}()`);
-  try{await expect(cancel(db,worker,draft.id,command)).rejects.toMatchObject({code:kind==='authority'?'WORK_SOCIAL_AUTHORITY_CHANGED':'SOCIAL_UPLOAD_CLEANUP_CHANGED'});expect(await db.prepare(`SELECT is_called FROM ${fault}`).first('is_called')).toBe(true);expect(await projectCleanupState([f.comment.id,f.edit.id],command)).toBe(before);}
-  finally{await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}();DROP SEQUENCE ${fault}`);}
-  expect(await cancel(db,worker,draft.id,command)).toEqual({id:draft.id});expect(await cancel(db,worker,draft.id,command)).toEqual({id:draft.id});
- }
-});
-
-it('projectUploadCleanup waits for the actual normal Work selector before its first source snapshot without retry masking',async()=>{
- const f=await projectCleanupFixture('enforced');await f.removeMember();
- const {cancelCommentUploadDraft}=await import('@erpx/server-collaboration/public/social-home'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),authority=reviewer.authority;
- if(!authority)throw Error('Actual independently selected native reviewer context required');
- const original=await db.prepare('SELECT revision,expires_at FROM active_work_contexts WHERE session_id=? AND company_id=? AND user_id=?').bind(authority.sessionId,company,reviewer.userId).first<{revision:number;expires_at:number}>();if(!original)throw Error('Actual native selected context required');
- const fault=`social_select_${key().replaceAll('-','')}`,command=key(),parent=await db.prepare('SELECT to_jsonb(p)::text image FROM social_posts p WHERE id=?').bind(f.published.id).first('image');
- let release=()=>{},ready=()=>{};const gateRelease=new Promise<void>(resolve=>{release=resolve;}),gateReady=new Promise<void>(resolve=>{ready=resolve;});
- await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fault}');PERFORM pg_advisory_xact_lock(hashtextextended('${fault}',0));RETURN NEW;END $$;CREATE TRIGGER ${fault} AFTER UPDATE ON active_work_contexts FOR EACH ROW WHEN(NEW.session_id='${authority.sessionId}' AND NEW.company_id='${company}') EXECUTE FUNCTION ${fault}()`);
- let gate:Promise<unknown>|undefined,writer:ReturnType<typeof selectTestWorkRole>|undefined,cleanup:Promise<{id:string}>|undefined;
- try{
-  const observed=await measureReads(async()=>{
-   gate=db.transaction(async tx=>{await tx.prepare('SELECT pg_advisory_xact_lock(hashtextextended(?,0))').bind(fault).run();ready();await gateRelease;});
-   await Promise.race([gateReady,gate.then(()=>{throw Error('Native selector barrier ended before ready');})]);
-   writer=selectTestWorkRole(db,{sessionId:authority.sessionId,userId:reviewer.userId,companyId:company,assignmentId:reviewer.assignmentId,assignmentVersion:authority.assignmentVersion,revision:original.revision,expiresAt:original.expires_at,rememberPreference:false});const writerResult=Promise.allSettled([writer]);
-   let entered=false;for(let attempt=0;attempt<100;attempt++){entered=!!await db.prepare(`SELECT is_called FROM ${fault}`).first('is_called');if(entered)break;await new Promise(resolve=>setTimeout(resolve,10));}expect(entered).toBe(true);
-   cleanup=cancelCommentUploadDraft(db,worker,f.comment.id,command);const cleanupResult=Promise.allSettled([cleanup]);let blocked:number|null=null;
-   try{
-    for(let attempt=0;attempt<100;attempt++){blocked=await db.prepare("SELECT a.pid FROM pg_stat_activity a JOIN pg_locks l ON l.pid=a.pid WHERE a.datname=current_database() AND a.query='LOCK TABLE active_work_contexts IN EXCLUSIVE MODE' AND a.wait_event_type='Lock' AND l.relation='active_work_contexts'::regclass AND l.mode='ExclusiveLock' AND NOT l.granted").first<number>('pid');if(blocked!==null)break;await new Promise(resolve=>setTimeout(resolve,10));}expect(blocked).not.toBeNull();
-    expect(await db.prepare("SELECT 1 FROM pg_locks WHERE pid=? AND granted AND relation=ANY(ARRAY['command_receipts'::regclass,'social_post_drafts'::regclass,'attachments'::regclass,'audit_events'::regclass])").bind(blocked).first()).toBeNull();
-    for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
-   }finally{release();await gate;}
-   const [selected,completed]=await Promise.all([writerResult,cleanupResult]);if(selected[0].status!=='fulfilled')throw selected[0].reason;if(completed[0].status!=='fulfilled')throw completed[0].reason;return {selected:selected[0].value,completed:completed[0].value};
-  });
-  expect({deadlockFailures:observed.metrics.deadlockFailures??0,serializationFailures:observed.metrics.serializationFailures??0,transactionRetries:observed.metrics.transactionRetries??0}).toEqual({deadlockFailures:0,serializationFailures:0,transactionRetries:0});expect(observed.result.selected).toMatchObject({assignment_id:reviewer.assignmentId,assignment_version:authority.assignmentVersion,revision:original.revision+1});expect(observed.result.completed).toEqual({id:f.comment.id});
-  const after=await projectCleanupState([f.comment.id],command);expect(await cancelCommentUploadDraft(db,worker,f.comment.id,command)).toEqual({id:f.comment.id});expect(await projectCleanupState([f.comment.id],command)).toBe(after);expect(await db.prepare('SELECT to_jsonb(p)::text image FROM social_posts p WHERE id=?').bind(f.published.id).first('image')).toBe(parent);expect(await db.prepare('SELECT revoked_at FROM attachments WHERE id=?').bind(f.commentFile.sourceId).first('revoked_at')).not.toBeNull();expect(await db.prepare('SELECT status FROM upload_intents WHERE id=?').bind(f.commentFile.uploadIntentId).first('status')).toBe('expired');
- }finally{release();await Promise.allSettled([...(gate?[gate]:[]),...(writer?[writer]:[]),...(cleanup?[cleanup]:[])]);await db.exec(`DROP TRIGGER ${fault} ON active_work_contexts;DROP FUNCTION ${fault}();DROP SEQUENCE ${fault}`);}
-});
-
-it('projectUploadCleanup rejects immediate born-receipt result and request-hash drift atomically before exact key retry',async()=>{
- const f=await projectCleanupFixture('enforced');await f.removeMember();const {cancelCommentUploadDraft,cancelPostEditUploadDraft}=await import('@erpx/server-collaboration/public/social-home');
- for(const kind of ['result','request'] as const){
-  const command=key(),fault=`social_receipt_${key().replaceAll('-','')}`,draft=kind==='result'?f.comment:f.edit,cancel=kind==='result'?cancelCommentUploadDraft:cancelPostEditUploadDraft,before=await projectCleanupState([f.comment.id,f.edit.id],command),mutation=kind==='result'?`UPDATE command_receipts SET result_json=jsonb_build_object('id','foreign-unrelated-draft')::text WHERE command_id=NEW.command_id;`:`UPDATE command_receipts SET request_hash=repeat('0',64) WHERE command_id=NEW.command_id;`;
-  await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fault}');${mutation}RETURN NEW;END $$;CREATE TRIGGER ${fault} AFTER INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
-  try{await expect(cancel(db,worker,draft.id,command)).rejects.toMatchObject({code:kind==='result'?'SOCIAL_UPLOAD_CLEANUP_CHANGED':'IDEMPOTENCY_CONFLICT'});expect(await db.prepare(`SELECT is_called FROM ${fault}`).first('is_called')).toBe(true);expect(await projectCleanupState([f.comment.id,f.edit.id],command)).toBe(before);}
-  finally{await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}();DROP SEQUENCE ${fault}`);}
-  expect(await cancel(db,worker,draft.id,command)).toEqual({id:draft.id});const after=await projectCleanupState([f.comment.id,f.edit.id],command);expect(await cancel(db,worker,draft.id,command)).toEqual({id:draft.id});expect(await projectCleanupState([f.comment.id,f.edit.id],command)).toBe(after);
- }
-});
