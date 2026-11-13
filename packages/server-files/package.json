@@ -199,6 +199,7 @@
     "./public/portal-package-obligation-sources": "./src/public/portal-package-obligation-sources.ts",
     "./public/pos-core-facts": "./src/public/pos-core-facts.ts",
     "./public/pos-images-facts": "./src/public/pos-images-facts.ts",
+    "./public/project-attachment": "./src/public/project-attachment.ts",
     "./public/private-attachment-reads": "./src/public/private-attachment-reads.ts",
     "./public/production-command-sources": "./src/public/production-command-sources.ts",
     "./public/profile-media-storage": "./src/public/profile-media-storage.ts",
