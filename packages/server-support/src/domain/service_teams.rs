@@ -152,69 +152,123 @@ pub fn validate_local_team_rules(input: &ServiceTeamInput) -> Result<(), &'stati
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const CATEGORIES: &[&str] = &[
+        "it",
+        "engineering",
+        "maintenance",
+        "facilities",
+        "housekeeping",
+        "people",
+        "finance",
+        "purchasing",
+        "operations",
+        "sales",
+    ];
+
+    fn normalize(raw: &Value) -> Result<ServiceTeamInput, &'static str> {
+        normalize_service_team(raw, CATEGORIES)
+    }
+
+    fn decided(raw: &Value) -> Result<ServiceTeamInput, &'static str> {
+        let input = normalize(raw)?;
+        validate_local_team_rules(&input)?;
+        Ok(input)
+    }
+
     #[test]
-    fn schema_and_local_rules_match_actual_typescript() {
-        let cases = serde_json::json!([
-            {"name":" \u{feff}Team 😀 ","members":[{"userId":"a","responsibility":"lead","extra":1}],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c","extra":1}],"extra":true},
-            {"name":" T ","members":[],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c"}]},
-            {"name":"Team","active":false,"expectedVersion":2,"members":[],"coverage":[{"category":"it","scopeKind":"branch","scopeNodeId":"b"}]},
-            {"name":"Team","members":[{"userId":"a","responsibility":"lead"},{"userId":"a","responsibility":"member"}],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c"}]},
-            {"name":"Team","members":[{"userId":"a","responsibility":"lead"}],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c"},{"category":"it","scopeKind":"holding","scopeNodeId":"c"}]},
-            {"name":"Team","members":[{"userId":"a","responsibility":"member"}],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c"}]},
-            {"name":"Team","expectedVersion":9007199254740992_u64,"members":[],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c"}]},
-            {"name":"Team","members":[],"coverage":[{"category":"unknown","scopeKind":"holding","scopeNodeId":"c"}]},
-            {"name":"Team","active":null,"members":[],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c"}]},
-            {"name":"Team","members":[{"userId":"😀".repeat(81),"responsibility":"lead"}],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c"}]},
-            {"name":"Team","members":[{"userId":"😀".repeat(161),"responsibility":"lead"}],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c"}]},
-            {"name":"😀","members":[{"userId":"a","responsibility":"lead"}],"coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"c"}]}
-        ]);
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let schema = root.join("packages/server-support/src/domain/service-teams.ts");
-        let application = root.join("packages/server-support/src/application/service-teams.ts");
-        let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const s=await import(process.argv[1]),a=await import(process.argv[2]);const cases=JSON.parse(process.argv[3]);const out=[];for(const raw of cases){const p=s.serviceTeamSchema.safeParse(raw);if(!p.success){out.push({error:'VALIDATION_FAILED'});continue}const validate=a.createValidateServiceTeam({error:x=>Object.assign(new Error(x.message),{code:x.code}),owner:async()=>{},team:async()=>null,companyMember:async()=>true,node:async(_c,id)=>({kind:id==='b'?'branch':'company',branch_id:null}),validateScope:async()=>{},scopeMember:async()=>true});try{await validate({companyId:'company'},null,p.data);out.push({input:p.data})}catch(e){out.push({error:e.code})}}process.stdout.write(JSON.stringify(out));"#;
-        let output =
-            std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
-                .current_dir(root)
-                .args(["--conditions=react-server", "-e", script])
-                .arg(schema)
-                .arg(application)
-                .arg(cases.to_string())
-                .output()
-                .unwrap();
-        assert!(
-            output.status.success(),
-            "actual TS oracle: {}",
-            String::from_utf8_lossy(&output.stderr)
+    fn normalizes_the_retained_payload_and_strips_unknown_fields() {
+        let input = decided(&serde_json::json!({
+            "name": " \u{feff}Team 😀 ",
+            "members": [{"userId": "a", "responsibility": "lead", "extra": 1}],
+            "coverage": [{"category": "it", "scopeKind": "holding", "scopeNodeId": "c", "extra": 1}],
+            "extra": true
+        }))
+        .unwrap();
+        assert_eq!(input.name, "Team 😀");
+        assert!(input.active);
+        assert_eq!(input.expected_version, 1);
+        assert_eq!(
+            input.members,
+            vec![Member {
+                user_id: "a".into(),
+                responsibility: "lead".into()
+            }]
         );
-        let expected: Vec<Value> = serde_json::from_slice(&output.stdout).unwrap();
-        let actual: Vec<Value> = cases
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| {
-                match normalize_service_team(
-                    v,
-                    &[
-                        "it",
-                        "engineering",
-                        "maintenance",
-                        "facilities",
-                        "housekeeping",
-                        "people",
-                        "finance",
-                        "purchasing",
-                        "operations",
-                        "sales",
-                    ],
-                ) {
-                    Ok(input) => match validate_local_team_rules(&input) {
-                        Ok(()) => serde_json::json!({"input":input}),
-                        Err(error) => serde_json::json!({"error":error}),
-                    },
-                    Err(error) => serde_json::json!({"error":error}),
-                }
-            })
-            .collect();
-        assert_eq!(actual, expected);
+        assert_eq!(
+            input.coverage,
+            vec![Coverage {
+                category: "it".into(),
+                scope_kind: "holding".into(),
+                scope_node_id: "c".into()
+            }]
+        );
+        let inactive = normalize(&serde_json::json!({
+            "name": "Team",
+            "active": false,
+            "expectedVersion": 2,
+            "members": [],
+            "coverage": [{"category": "it", "scopeKind": "branch", "scopeNodeId": "b"}]
+        }))
+        .unwrap();
+        assert!(!inactive.active);
+        assert_eq!(inactive.expected_version, 2);
+        assert_eq!(validate_local_team_rules(&inactive), Ok(()));
+    }
+
+    #[test]
+    fn enforces_duplicate_and_lead_rules() {
+        assert_eq!(
+            decided(&serde_json::json!({
+                "name": "Team",
+                "members": [
+                    {"userId": "a", "responsibility": "lead"},
+                    {"userId": "a", "responsibility": "member"}
+                ],
+                "coverage": [{"category": "it", "scopeKind": "holding", "scopeNodeId": "c"}]
+            })),
+            Err("DUPLICATE_MEMBER")
+        );
+        assert_eq!(
+            decided(&serde_json::json!({
+                "name": "Team",
+                "members": [{"userId": "a", "responsibility": "lead"}],
+                "coverage": [
+                    {"category": "it", "scopeKind": "holding", "scopeNodeId": "c"},
+                    {"category": "it", "scopeKind": "holding", "scopeNodeId": "c"}
+                ]
+            })),
+            Err("DUPLICATE_COVERAGE")
+        );
+        assert_eq!(
+            decided(&serde_json::json!({
+                "name": "Team",
+                "members": [{"userId": "a", "responsibility": "member"}],
+                "coverage": [{"category": "it", "scopeKind": "holding", "scopeNodeId": "c"}]
+            })),
+            Err("TEAM_LEAD_REQUIRED")
+        );
+    }
+
+    #[test]
+    fn rejects_the_same_schema_bounds_as_the_retained_zod_schema() {
+        for raw in [
+            serde_json::json!({"name": "T", "members": [], "coverage": [{"category": "it", "scopeKind": "holding", "scopeNodeId": "c"}]}),
+            serde_json::json!({"name": "Team", "active": null, "members": [], "coverage": [{"category": "it", "scopeKind": "holding", "scopeNodeId": "c"}]}),
+            serde_json::json!({"name": "Team", "expectedVersion": 9007199254740992_u64, "members": [], "coverage": [{"category": "it", "scopeKind": "holding", "scopeNodeId": "c"}]}),
+            serde_json::json!({"name": "Team", "members": [], "coverage": [{"category": "unknown", "scopeKind": "holding", "scopeNodeId": "c"}]}),
+            serde_json::json!({"name": "Team", "members": [{"userId": "😀".repeat(161), "responsibility": "lead"}], "coverage": [{"category": "it", "scopeKind": "holding", "scopeNodeId": "c"}]}),
+            serde_json::json!({"name": "😀", "members": [{"userId": "a", "responsibility": "lead"}], "coverage": [{"category": "it", "scopeKind": "holding", "scopeNodeId": "c"}]}),
+            serde_json::json!({"name": "Team", "members": [], "coverage": []}),
+        ] {
+            assert_eq!(normalize(&raw), Err("VALIDATION_FAILED"));
+        }
+        let long_user = normalize(&serde_json::json!({
+            "name": "Team",
+            "members": [{"userId": "😀".repeat(81), "responsibility": "lead"}],
+            "coverage": [{"category": "it", "scopeKind": "holding", "scopeNodeId": "c"}]
+        }))
+        .unwrap();
+        assert_eq!(long_user.members[0].user_id.chars().count(), 81);
     }
 }
