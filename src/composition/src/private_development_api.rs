@@ -3091,6 +3091,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut portal_support_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut portal_support_customer_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut sales_notification_command_targets = Vec::new();
         let mut files_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -4731,6 +4733,32 @@ async fn assemble_checked(
                     )),
                 ));
                 #[cfg(feature = "existing-business")]
+                if let Some(portal) = config.policy.products.iter().find(|product| {
+                    product.holding_id == holding.registration.holding_id
+                        && product.audience == "portal"
+                }) {
+                    if !portal_support_customer_targets.iter().any(|target| target.host == portal.host) {
+                    portal_support_customer_targets.push(crate::portal_support_commands::customer_target(
+                        portal.host.clone(),
+                        holding.registration.slug.clone(),
+                        portal.origin.clone(),
+                        Arc::new(crate::portal_support_commands::PortalSupportAcknowledgementBackend::new(
+                            Arc::new(crate::portal_support_commands::PortalSupportAcknowledgementService::from_runtime(
+                                pools[0].clone(),
+                                pools[i + 1].clone(),
+                                crate::portal_support_commands::PortalSupportAcknowledgementConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    holding.registration.slug.clone(),
+                                    portal.audience.clone(),
+                                ),
+                                config.policy.environment.clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    ));
+                    }
+                }
+                #[cfg(feature = "existing-business")]
                 sales_notification_command_targets.push(
                     crate::sales_notification_commands::target(
                         holding.host.clone(),
@@ -6068,6 +6096,13 @@ async fn assemble_checked(
         if !portal_support_targets.is_empty() {
             router = router.merge(
                 crate::portal_support_commands::router(portal_support_targets)
+                    .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !portal_support_customer_targets.is_empty() {
+            router = router.merge(
+                crate::portal_support_commands::customer_router(portal_support_customer_targets)
                     .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
             );
         }

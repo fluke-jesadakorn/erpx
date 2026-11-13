@@ -1,7 +1,7 @@
 //! Native portal-support commands and owner read-audit port.
 use crate::domain::portal_support_commands::{
     AcknowledgeInput, CloseInput, CustomerActor, Receipt, RespondInput, SupportActor,
-    access_active, access_changed, already_acknowledged, feature_unavailable, identity_required,
+    access_active, access_changed, already_acknowledged, binding_unavailable, feature_unavailable, identity_required,
     idempotency_conflict, independent_closer, independent_responder, not_found, readback_invalid,
     request_closed, response_changed, source_changed,
 };
@@ -83,24 +83,37 @@ impl<'c> PgPortalSupportCommands<'c> {
         if !self.authority(actor,now).await?{return Err(access_changed().into())}self.capability(&source.company_id,CapabilityPurpose::SettleExisting,now).await?;if self.image(request).await?!=before{return Err(source_changed().into())} if self.source(request).await?.map(|s|s.image).unwrap_or_default()!=source.image{return Err(source_changed().into())}
         let read=self.response(request).await?.ok_or_else(readback_invalid)?;if read.id!=receipt.id||read.response_version!=version{return Err(source_changed().into())}Ok(receipt)
     }
-    pub async fn acknowledge(&mut self,actor:&CustomerActor,request:&str,input:AcknowledgeInput,key:&str,now:i64)->Result<Receipt,Error>{
+    pub async fn acknowledge(&mut self,actor:&CustomerActor,request:&str,input:AcknowledgeInput,key:&str,now:i64)->Result<crate::domain::portal_support_commands::AcknowledgementReceipt,Error>{
+        use crate::domain::portal_support_commands::AcknowledgementReceipt;
         self.ready()?;let input=input.validate()?;let hash=Self::digest(&input.hash(actor));if !Self::valid_hash(&hash){return Err(readback_invalid().into())}
-        let source=self.source(request).await?.ok_or_else(not_found)?;if !(source.status=="approved"&&source.expires_at>now&&matches!(source.order_state.as_str(),"confirmed"|"converted"|"partially_fulfilled"|"fulfilled")){return Err(source_changed().into())}
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))").bind(format!("portal-support:{key}")).execute(&mut *self.connection).await?;
+        let source=self.source(request).await?.ok_or_else(not_found)?;if !(source.status=="approved"&&source.expires_at>now&&matches!(source.order_state.as_str(),"confirmed"|"converted"|"partially_fulfilled"|"fulfilled")){return Err(binding_unavailable().into())}
         if source.binding_id!=input.binding_id||source.user_id!=actor.user_id||source.email.to_lowercase()!=actor.email.to_lowercase(){return Err(identity_required().into())}
-        let prior:Option<(String,String,i64,String,String,String,String)>=sqlx::query_as("SELECT request_hash,result_json,response_version,binding_id,id,user_id,request_key FROM customer_portal_support_acknowledgements WHERE request_key=$1").bind(key).fetch_optional(&mut *self.connection).await.map_err(Error::from)?;
-        self.capability(&source.company_id,CapabilityPurpose::SettleExisting,now).await?;
-        if let Some((prior_hash,result,version,binding,id,user,_))=&prior{if prior_hash!=&hash||binding!=&source.binding_id||user!=&actor.user_id{return Err(idempotency_conflict().into())}return Ok(Receipt{id:id.clone(),request_id:request.into(),binding_id:binding.clone(),version:*version,status:"acknowledged".into(),published_at:now})}
+        type PriorRow=(String,i64,i64,String,String,String,String,String);
+        let prior=sqlx::query_as::<_,PriorRow>("SELECT request_hash,created_at,response_version,response_id,binding_id,id,user_id,request_id FROM customer_portal_support_acknowledgements WHERE request_key=$1").bind(key).fetch_optional(&mut *self.connection).await.map_err(Error::from)?;
+        self.capability(&source.company_id,if prior.is_some(){CapabilityPurpose::History}else{CapabilityPurpose::SettleExisting},now).await?;
+        if let Some((prior_hash,created_at,response_version,response_id,binding_id,id,user_id,prior_request))=prior{
+            if prior_hash!=hash||binding_id!=source.binding_id||user_id!=actor.user_id||prior_request!=request{return Err(idempotency_conflict().into())}
+            self.flush().await?;
+            let final_source=self.source(request).await?.ok_or_else(not_found)?;
+            if final_source.status!="approved"||final_source.expires_at<=now||!matches!(final_source.order_state.as_str(),"confirmed"|"converted"|"partially_fulfilled"|"fulfilled")||final_source.image!=source.image{return Err(binding_unavailable().into())}
+            self.capability(&source.company_id,CapabilityPurpose::History,now).await?;
+            return Ok(AcknowledgementReceipt{id,request_id:request.into(),binding_id,response_id,response_version,created_at})
+        }
         let response=self.response(request).await?.ok_or_else(response_changed)?;if self.closure_exists(request).await?{return Err(request_closed().into())}
         if source.binding_version!=input.expected_binding_version||response.id!=input.response_id||response.response_version!=input.response_version{return Err(response_changed().into())}
         if self.ack_exists(request).await?{return Err(already_acknowledged().into())}
         let id=format!("portal-support-ack-{}",uuid_like());
         sqlx::query("INSERT INTO customer_portal_support_acknowledgements(id,company_id,request_id,response_id,response_version,binding_id,order_id,customer_id,user_id,binding_version,request_key,request_hash,note,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)").bind(&id).bind(&source.company_id).bind(request).bind(&response.id).bind(response.response_version).bind(&source.binding_id).bind(&source.order_id).bind(&source.customer_id).bind(&actor.user_id).bind(source.binding_version).bind(key).bind(&hash).bind(&input.note).bind(now).execute(&mut *self.connection).await?;
-        let before=self.image(request).await?;
         let authority=serde_json::json!({"kind":"external-customer","bindingId":source.binding_id,"email":actor.email.to_lowercase()}).to_string();
         sqlx::query("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) VALUES($1,$2,$3,'external-customer','customer.portal.support.acknowledge','customer_portal_request',$4,$5,'Verified customer acknowledged exact published Portal response',$6,$7)").bind(format!("audit-ack-{id}")).bind(key).bind(&actor.user_id).bind(request).bind(response.response_version).bind(now).bind(&authority).execute(&mut *self.connection).await?;
         sqlx::query("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES($1,$2,'customer.portal.support.acknowledge','customer_portal_request',$3,$4,$5,$6)").bind(format!("outbox-ack-{id}")).bind(key).bind(request).bind(response.response_version).bind(serde_json::json!({"requestId":request,"bindingId":source.binding_id,"responseId":response.id,"customerId":source.customer_id,"userId":actor.user_id}).to_string()).bind(now).execute(&mut *self.connection).await?;
-        self.flush().await?;if self.image(request).await?!=before{return Err(source_changed().into())}
-        Ok(Receipt{id,request_id:request.into(),binding_id:source.binding_id,version:response.response_version,status:"acknowledged".into(),published_at:now})
+        let image=self.image(request).await?;
+        self.flush().await?;
+        let final_source=self.source(request).await?.ok_or_else(not_found)?;
+        if final_source.status!="approved"||final_source.expires_at<=now||!matches!(final_source.order_state.as_str(),"confirmed"|"converted"|"partially_fulfilled"|"fulfilled"){return Err(binding_unavailable().into())}if final_source.image!=source.image||self.image(request).await?!=image{return Err(source_changed().into())}
+        self.capability(&source.company_id,CapabilityPurpose::SettleExisting,now).await?;
+        Ok(AcknowledgementReceipt{id,request_id:request.into(),binding_id:source.binding_id,response_id:response.id,response_version:response.response_version,created_at:now})
     }
     pub async fn close(&mut self,actor:&SupportActor,request:&str,input:CloseInput,key:&str,now:i64)->Result<Receipt,Error>{
         self.ready()?;let input=input.validate()?;sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))").bind(format!("portal-support:{key}")).execute(&mut *self.connection).await?;

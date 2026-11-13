@@ -2,12 +2,19 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 use erpx_server_customer_authority::public::portal_support_commands::{
-    CloseInput, PgPortalSupportCommands, RespondInput, StaffBackend, StaffCommand, StaffRequest,
-    SupportActor, SupportFuture, SupportReply, SupportTarget, portal_support_staff_router,
+    AcknowledgeInput, AcknowledgementReceipt, CloseInput, CustomerAckBackend, CustomerAckRequest,
+    CustomerActor, CustomerTarget, PgPortalSupportCommands, RespondInput, StaffBackend,
+    StaffCommand, StaffRequest, SupportActor, SupportFuture, SupportReply, SupportTarget,
+    portal_support_customer_router, portal_support_staff_router,
 };
+use erpx_server_customer_authority::public::portal_session::{
+    PgPortalEnrollment, PortalCustomerProof, PortalCustomerRequest, PortalSessionEvidence,
+    PortalSessionFuture, PortalSessionVerifier, resolve_portal_customer,
+};
+use erpx_server_identity_access::public::portal_session::{PortalSessionProof,PortalSessionReadRequest,require_current_portal_session,verify_portal_session};
 use erpx_server_identity_access::public::{AccountPolicy,DeviceProof,RequestAudience,account_inbound_http::parse_inbound_account_request,effective_authority::{AuthorizedWorkContext,HoldingWorkAuthorizer,HoldingWorkSourcePreparation,WorkAuthorizationRequest},work_context::{HoldingWorkspaceRequest,WorkScopeKind}};
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{PgTransactionError,PgWorkFuture};
+use erpx_server_runtime::public::postgres::{DatabasePool,PgTransactionError,PgUnitOfWork,PgWorkFuture,TransactionOptions};
 use erpx_server_shared::public::{BusinessError,Clock,CompanyId,FailureKind,HoldingId};
 use serde_json::Value;
 use sqlx::PgConnection;
@@ -33,3 +40,118 @@ impl<C:Clock+Send+Sync+'static> PortalSupportBackend<C>{pub fn new(policy:Arc<Ac
 impl<C:Clock+Send+Sync+'static> StaffBackend for PortalSupportBackend<C>{fn execute<'a>(&'a self,r:StaffRequest<'a>)->SupportFuture<'a,SupportReply>{Box::pin(async move{let(proof,selection)=self.context(r.headers)?;self.service.execute(r.host,proof,selection,r.key,r.command).await.map_err(business)})}}
 pub fn target(host:String,holding_slug:String,origin:String,backend:Arc<dyn StaffBackend>)->SupportTarget{SupportTarget{host,holding_slug,origin,backend}}
 pub fn router(targets:Vec<SupportTarget>)->Result<erpx_server_runtime::public::http_support::Router,BusinessError>{portal_support_staff_router(targets)}
+
+/// Verified portal-product session acknowledgement. The Control Authority
+/// proves the opaque product session and the Holding resolves the exact
+/// enrolled customer; the acknowledgement then commits in one serializable
+/// Holding unit and the session is re-proved after deferred effects while the
+/// acknowledgement retains its own request/binding/identity image readback.
+#[derive(Clone)]
+pub struct PortalSupportAcknowledgementConfiguration { holding_id: HoldingId, holding_slug: String, audience: String }
+impl PortalSupportAcknowledgementConfiguration {
+    pub fn new(holding_id: HoldingId, holding_slug: String, audience: String) -> Self { Self { holding_id, holding_slug, audience } }
+    pub fn holding_id(&self) -> &HoldingId { &self.holding_id }
+}
+
+struct AckSessionVerifier<'c> { connection: &'c mut PgConnection, proof: Option<PortalSessionProof> }
+impl PortalSessionVerifier for AckSessionVerifier<'_> {
+    type Error = Error;
+    fn verify_session<'a>(&'a mut self, request: &'a PortalCustomerRequest<'_>, now: i64) -> PortalSessionFuture<'a, Option<PortalSessionEvidence>, Self::Error> {
+        Box::pin(async move {
+            let read = PortalSessionReadRequest { token: request.token, audience: request.audience, environment: request.environment };
+            let proof = verify_portal_session(&mut *self.connection, &read, now).await?;
+            if let Some(proof) = &proof { self.proof = Some(proof.clone()); }
+            Ok(proof.map(|proof| PortalSessionEvidence { session_id: proof.session_id, user_id: proof.user_id, email: proof.email, email_verified: proof.email_verified, authenticated_at: proof.authenticated_at, expires_at: proof.expires_at }))
+        })
+    }
+}
+
+fn portal_session_required() -> BusinessError { BusinessError::new(FailureKind::Unauthenticated,"CUSTOMER_PORTAL_SESSION_REQUIRED","Sign in to the customer portal.") }
+fn portal_session_changed() -> BusinessError { BusinessError::new(FailureKind::Unauthenticated,"SESSION_REVOKED","The verified customer sign-in changed.") }
+fn portal_unavailable() -> BusinessError { BusinessError::new(FailureKind::Unavailable,"CUSTOMER_PORTAL_SUPPORT_UNAVAILABLE","The customer portal support service is unavailable.") }
+fn cookie_token(headers: &HeaderMap) -> Result<String, BusinessError> {
+    let raw = headers.get("cookie").and_then(|value| value.to_str().ok()).ok_or_else(portal_session_required)?;
+    raw.split(';').filter_map(|part| part.trim().split_once('=')).find(|(name, _)| *name == "__Host-erpx-product").map(|(_, value)| value.to_owned()).filter(|value| !value.is_empty()).ok_or_else(portal_session_required)
+}
+
+async fn prove_customer(control: &DatabasePool, holding: &DatabasePool, audience: Option<&str>, token: &str, environment: &str, holding_id: &str, holding_slug: &str, now: i64) -> Result<(PortalCustomerProof, PortalSessionProof), Error> {
+    let mut control = control.raw().acquire().await.map_err(|_| PgTransactionError::Business(portal_unavailable()))?;
+    let mut holding = holding.raw().acquire().await.map_err(|_| PgTransactionError::Business(portal_unavailable()))?;
+    let request = PortalCustomerRequest { token, audience, environment, holding_id, holding_slug };
+    let mut verifier = AckSessionVerifier { connection: &mut control, proof: None };
+    let mut enrollment = PgPortalEnrollment::new(&mut holding);
+    let proof = resolve_portal_customer(&mut verifier, &mut enrollment, &request, now).await?;
+    let session = verifier.proof.ok_or_else(|| PgTransactionError::Business(portal_session_required()))?;
+    if session.expires_at <= now || proof.holding_id.as_deref() != Some(holding_id) { return Err(PgTransactionError::Business(portal_session_required())) }
+    Ok((proof, session))
+}
+
+pub struct PortalSupportAcknowledgementService<C> {
+    control: DatabasePool,
+    holding: DatabasePool,
+    configuration: PortalSupportAcknowledgementConfiguration,
+    environment: String,
+    clock: Arc<C>,
+    mode: PackageEnforcementMode,
+    production: bool,
+}
+impl<C: Clock + Send + Sync + 'static> PortalSupportAcknowledgementService<C> {
+    pub fn new(control: DatabasePool, holding: DatabasePool, configuration: PortalSupportAcknowledgementConfiguration, environment: String, clock: Arc<C>, mode: PackageEnforcementMode, production: bool) -> Self { Self { control, holding, configuration, environment, clock, mode, production } }
+    pub fn from_runtime(control: DatabasePool, holding: DatabasePool, configuration: PortalSupportAcknowledgementConfiguration, environment: String, clock: Arc<C>) -> Self { Self::new(control, holding, configuration, environment, clock, mode(), production()) }
+
+    pub async fn execute(&self, _host: &str, headers: &HeaderMap, request_id: &str, input: AcknowledgeInput, key: &str) -> Result<(AcknowledgementReceipt, Value), Error> {
+        let now = self.clock.now().get();
+        let token = cookie_token(headers)?;
+        let (proof, session) = prove_customer(&self.control, &self.holding, Some(self.configuration.audience.as_str()), &token, &self.environment, self.configuration.holding_id.as_str(), &self.configuration.holding_slug, now).await?;
+        let actor = CustomerActor { user_id: proof.user_id, email: proof.email };
+        let request = request_id.to_owned();
+        let key = key.to_owned();
+        let environment = self.environment.clone();
+        let audience = self.configuration.audience.clone();
+        let token = token.clone();
+        let session = session.clone();
+        let holding_id = self.configuration.holding_id.as_str().to_owned();
+        let control = self.control.clone();
+        let mode = self.mode;
+        let production = self.production;
+        PgUnitOfWork::new(self.holding.clone())
+            .run_once(TransactionOptions::default(), move |connection| {
+                let actor = actor.clone();
+                let request = request.clone();
+                let input = input.clone();
+                let key = key.clone();
+                let environment = environment.clone();
+                let audience = audience.clone();
+                let token = token.clone();
+                let session = session.clone();
+                let holding_id = holding_id.clone();
+                let control = control.clone();
+                Box::pin(async move {
+                    let mut repo = PgPortalSupportCommands::new(connection, mode, production);
+                    let receipt = repo.acknowledge(&actor, &request, input, &key, now).await?;
+                    drop(repo);
+                    let mut control = control.raw().acquire().await.map_err(|_| PgTransactionError::Business(portal_unavailable()))?;
+                    let read = PortalSessionReadRequest { token: &token, audience: Some(audience.as_str()), environment: &environment };
+                    require_current_portal_session(&mut control, &read, &session, now).await.map_err(|error| match error { PgTransactionError::Business(_) => PgTransactionError::Business(portal_session_changed()), PgTransactionError::Persistence(_) => PgTransactionError::Business(portal_unavailable()) })?;
+                    let context = serde_json::json!({"userId": actor.user_id, "email": actor.email, "holdingId": holding_id});
+                    Ok((receipt, context))
+                })
+            })
+            .await
+    }
+}
+
+pub struct PortalSupportAcknowledgementBackend<C> { service: Arc<PortalSupportAcknowledgementService<C>> }
+impl<C: Clock + Send + Sync + 'static> PortalSupportAcknowledgementBackend<C> {
+    pub fn new(service: Arc<PortalSupportAcknowledgementService<C>>) -> Self { Self { service } }
+}
+impl<C: Clock + Send + Sync + 'static> CustomerAckBackend for PortalSupportAcknowledgementBackend<C> {
+    fn execute<'a>(&'a self, r: CustomerAckRequest<'a>) -> SupportFuture<'a, SupportReply> {
+        Box::pin(async move {
+            let (receipt, context) = self.service.execute(r.host, r.headers, &r.request_id, r.input, &r.key).await.map_err(business)?;
+            Ok(SupportReply { data: receipt.wire(), context })
+        })
+    }
+}
+pub fn customer_target(host:String,holding_slug:String,origin:String,backend:Arc<dyn CustomerAckBackend>)->CustomerTarget{CustomerTarget{host,holding_slug,origin,backend}}
+pub fn customer_router(targets:Vec<CustomerTarget>)->Result<erpx_server_runtime::public::http_support::Router,BusinessError>{portal_support_customer_router(targets)}

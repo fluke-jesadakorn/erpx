@@ -2,11 +2,10 @@ import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import {currentSession} from '@erpx/server-identity_access/public/authorization';
 import {withCurrentPrivateSessionRead} from '@erpx/server-identity_access/public/private-session-read';
-import {acknowledgePortalSupportResponse} from '@erpx/server-customer_authority/public/portal-support';
+import {nativeAcknowledgePortalSupportResponse} from '@erpx/server-customer_authority/public/native-portal-support';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {holdingBindingBySlug,holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
-import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import {createCustomerPortalSessionApplication} from '@erpx/server-customer_360/application/portal-session';
 import {customerPortalCommand,customerPortalProjection} from '@erpx/server-customer_360/adapters/portal';
 
@@ -21,6 +20,6 @@ export async function customerPortalCommandRequest(holdingSlug:string,raw:unknow
   await customerPortalProjection(resources.write,actor);
   await assertCurrent();
   const requestId=raw&&typeof raw==='object'&&'action' in raw&&raw.action==='acknowledge_support'&&'requestId' in raw&&typeof raw.requestId==='string'?raw.requestId:null;
-  return requestId?acknowledgePortalSupportResponse(resources.write,actor,requestId,raw,key,assertCurrent):customerPortalCommand(resources.write as PostgresDatabase,actor,raw,key,assertCurrent);
+  return requestId?nativeAcknowledgePortalSupportResponse(actor,requestId,raw,key,requestHeaders):customerPortalCommand(resources.write as PostgresDatabase,actor,raw,key,assertCurrent);
  });
 }

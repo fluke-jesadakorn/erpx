@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_customer_authority::public::portal_support_commands::{CloseInput,PgPortalSupportCommands,RespondInput,SupportActor};
+use erpx_server_customer_authority::public::portal_support_commands::{AcknowledgeInput,CloseInput,CustomerActor,PgPortalSupportCommands,RespondInput,SupportActor};
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 use erpx_server_runtime::public::postgres::{DatabasePool,MigrationTrack,PgTransactionError,PgUnitOfWork,TransactionOptions,load_migrations,migrate_database};
 use erpx_server_shared::public::BusinessError;
@@ -27,7 +27,6 @@ async fn independent_response_replay_and_closure(){
  fixture::with_database(4,|pool| async move{migrate(&pool).await;seed(&pool).await;let manager=actor("manager");
  let receipt=run(&pool,false,{let manager=manager.clone();move|repo|{let manager=manager.clone();Box::pin(async move{repo.publish(&manager,"request-1",RespondInput{expected_binding_version:2,expected_response_version:0,message:"Independent reviewed response".into(),reason:"Reviewed the customer request".into()},"portal-support-0001",NOW).await})}}).await.unwrap();
  assert_eq!(receipt.status,"published");assert_eq!(receipt.version,1);
- eprintln!("receipts={:?}", sqlx::query_scalar::<_,i64>("SELECT count(*) FROM command_receipts WHERE command_id='portal-support-0001'").fetch_one(pool.raw()).await);
  let replay=run(&pool,false,{let manager=manager.clone();move|repo|{let manager=manager.clone();Box::pin(async move{repo.publish(&manager,"request-1",RespondInput{expected_binding_version:2,expected_response_version:0,message:"Independent reviewed response".into(),reason:"Reviewed the customer request".into()},"portal-support-0001",NOW).await})}}).await.unwrap();
  assert_eq!(replay,receipt);
  let independence=run(&pool,false,move|repo|Box::pin(async move{repo.publish(&actor("creator"),"request-1",RespondInput{expected_binding_version:2,expected_response_version:1,message:"Second response".into(),reason:"Try as preparer".into()},"portal-support-0002",NOW).await})).await.unwrap_err();
@@ -36,5 +35,35 @@ async fn independent_response_replay_and_closure(){
  let closed=run(&pool,false,{let closer=actor("closer");move|repo|{let closer=closer.clone();Box::pin(async move{repo.close(&closer,"request-1",CloseInput{expected_binding_version:3,expected_response_version:1,reason:"Customer cannot acknowledge the response".into()},"portal-support-close-0001",NOW).await})}}).await.unwrap();
  assert_eq!(closed.status,"closed_without_customer_acknowledgement");
  assert_eq!(closed.version,2);
+ }).await;
+}
+
+fn customer()->CustomerActor{CustomerActor{user_id:"customer".into(),email:"customer@example.invalid".into()}}
+#[tokio::test]
+async fn customer_acknowledgement_replay_audit_and_revocation(){
+ fixture::with_database(4,|pool| async move{migrate(&pool).await;seed(&pool).await;let manager=actor("manager");
+ let published=run(&pool,false,{let manager=manager.clone();move|repo|{let manager=manager.clone();Box::pin(async move{repo.publish(&manager,"request-1",RespondInput{expected_binding_version:2,expected_response_version:0,message:"Independent reviewed response".into(),reason:"Reviewed the customer request".into()},"portal-support-response-ack-0001",NOW).await})}}).await.unwrap();
+ let input=AcknowledgeInput{binding_id:"binding-1".into(),expected_binding_version:2,response_id:published.id.clone(),response_version:1,note:"Thanks".into()}.validate().unwrap();
+ let wrong_version=run(&pool,false,{let input=AcknowledgeInput{response_version:2,..input.clone()};move|repo|{let input=input.clone();Box::pin(async move{repo.acknowledge(&customer(),"request-1",input,"customer-ack-wrong-0001",NOW).await})}}).await.unwrap_err();
+ assert_eq!(code(&wrong_version),"PORTAL_SUPPORT_RESPONSE_CHANGED");
+ let denied=run(&pool,false,{let input=input.clone();move|repo|{let input=input.clone();Box::pin(async move{repo.acknowledge(&CustomerActor{user_id:"other".into(),email:"other@example.invalid".into()},"request-1",input,"customer-ack-identity-0001",NOW).await})}}).await.unwrap_err();
+ assert_eq!(code(&denied),"CUSTOMER_PORTAL_IDENTITY_REQUIRED");
+ let receipt=run(&pool,false,{let input=input.clone();move|repo|{let input=input.clone();Box::pin(async move{repo.acknowledge(&customer(),"request-1",input,"customer-ack-0001",NOW).await})}}).await.unwrap();
+ assert_eq!(receipt.id.len()>0,true);assert_eq!(receipt.request_id,"request-1");assert_eq!(receipt.binding_id,"binding-1");assert_eq!(receipt.response_id,published.id);assert_eq!(receipt.response_version,1);assert_eq!(receipt.created_at,NOW);
+ assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM customer_portal_support_acknowledgements WHERE request_key=$1").bind("customer-ack-0001").fetch_one(pool.raw()).await.unwrap(),1);
+ assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM audit_events WHERE command_id=$1").bind("customer-ack-0001").fetch_one(pool.raw()).await.unwrap(),1);
+ assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM outbox_events WHERE command_id=$1").bind("customer-ack-0001").fetch_one(pool.raw()).await.unwrap(),1);
+ let (stored_hash,stored_note):(String,String)=sqlx::query_as("SELECT request_hash,note FROM customer_portal_support_acknowledgements WHERE request_key=$1").bind("customer-ack-0001").fetch_one(pool.raw()).await.unwrap();
+ use sha2::{Digest,Sha256};
+ let expected=format!("{{\"userId\":\"customer\",\"email\":\"customer@example.invalid\",\"input\":{{\"bindingId\":\"binding-1\",\"expectedBindingVersion\":2,\"responseId\":\"{}\",\"responseVersion\":1,\"note\":\"Thanks\"}}}}",published.id);
+ assert_eq!(stored_hash,format!("{:x}",Sha256::digest(expected.as_bytes())));assert_eq!(stored_note,"Thanks");
+ let replay=run(&pool,false,{let input=input.clone();move|repo|{let input=input.clone();Box::pin(async move{repo.acknowledge(&customer(),"request-1",input,"customer-ack-0001",NOW).await})}}).await.unwrap();
+ assert_eq!(replay,receipt);
+ assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM customer_portal_support_acknowledgements WHERE request_id='request-1'").fetch_one(pool.raw()).await.unwrap(),1);
+ let duplicate=run(&pool,false,{let input=input.clone();move|repo|{let input=input.clone();Box::pin(async move{repo.acknowledge(&customer(),"request-1",input,"customer-ack-0002",NOW).await})}}).await.unwrap_err();
+ assert_eq!(code(&duplicate),"PORTAL_SUPPORT_ALREADY_ACKNOWLEDGED");
+ sqlx::query("UPDATE customer_access_bindings SET status='revoked',version=version+1 WHERE id='binding-1'").execute(pool.raw()).await.unwrap();
+ let revoked=run(&pool,false,{let input=input.clone();move|repo|{let input=input.clone();Box::pin(async move{repo.acknowledge(&customer(),"request-1",input,"customer-ack-0003",NOW).await})}}).await.unwrap_err();
+ assert_eq!(code(&revoked),"CUSTOMER_PORTAL_BINDING_UNAVAILABLE");
  }).await;
 }

@@ -54137,7 +54137,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Native portal-support command validation and receipts retain exact bounded shapes."
+        "reason": "Native portal-support staff and customer command validation, acknowledgement hash order and exact receipt replay retain bounded shapes."
       },
       "framework": "cargo",
       "cargo": {
@@ -54179,7 +54179,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Native portal-support HTTP ingress retains exact target/key/body mapping and bounded errors."
+        "reason": "Native portal-support HTTP ingress retains exact holding/portal target, action/requestId, key/body mapping and bounded errors."
       },
       "framework": "cargo",
       "cargo": {
@@ -54221,7 +54221,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Native portal-support staff response/closure retain independence, CAS, immutable evidence and exact replay."
+        "reason": "Native portal-support staff response/closure and customer acknowledgement retain independence, CAS, audit/outbox evidence, revocation denial and exact replay."
       },
       "framework": "cargo",
       "cargo": {
