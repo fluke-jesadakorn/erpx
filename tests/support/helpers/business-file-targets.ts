@@ -8,7 +8,7 @@ import {requestCommerceReturn,decideCommerceReturn} from '@erpx/server-commerce/
 import {recordSupplierPromise} from "@erpx/server-procurement/public/supplier-promises";
 import {transitionCount} from "@erpx/server-inventory/public/inventory-counts";
 import {transitionTransfer} from "@erpx/server-inventory/public/inventory-transfers";
-import {dispatchTransit,receiveTransit,requestTransitLoss} from "@erpx/server-inventory/public/inventory-transit";
+import {dispatchTransit,receiveTransit,requestTransitLoss} from "../inventory/legacy-transit-writer";
 import {seedNativeQualityEvidence} from "../../../fixtures/quality/evidence";
 import {changeManufacturingOrder} from "@erpx/server-manufacturing/public/production";
 import {createInvoice,invoiceSchema,postInvoice} from '@erpx/server-finance/public/finance';

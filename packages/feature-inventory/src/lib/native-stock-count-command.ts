@@ -272,7 +272,8 @@ export async function nativeStockCountSave(
   } catch {
     return closed(503, 'NATIVE_INVENTORY_COUNT_UNAVAILABLE', 'The stock Count command is unavailable.');
   }
-  if (reply.status !== 200) {
+  const expectedStatus = id ? 200 : 201;
+  if (reply.status !== expectedStatus) {
     const error = (reply.body as {error?: {code?: unknown; message?: unknown}} | null)?.error;
     if (
       reply.status >= 400 &&
@@ -297,5 +298,5 @@ export async function nativeStockCountSave(
   ) {
     return closed(502, 'NATIVE_INVENTORY_COUNT_RESPONSE_INVALID', 'The stock Count command is unavailable.');
   }
-  return Response.json({data}, {headers: {'Cache-Control': 'private, no-store'}});
+  return Response.json({data}, {status: expectedStatus, headers: {'Cache-Control': 'private, no-store'}});
 }

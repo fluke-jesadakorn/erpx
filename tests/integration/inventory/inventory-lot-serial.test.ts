@@ -15,7 +15,8 @@ import {decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceRetur
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {saveTransfer,transitionTransfer,transferDetail,transferSchema} from "@erpx/server-inventory/public/inventory-transfers";
-import {decideTransitLoss,dispatchTransit,getTransit,receiveTransit,requestTransitLoss,transitDetail} from "@erpx/server-inventory/public/inventory-transit";
+import {getTransit,transitDetail} from "@erpx/server-inventory/public/inventory-transit";
+import {decideTransitLoss,dispatchTransit,receiveTransit,requestTransitLoss} from "../../support/inventory/legacy-transit-writer";
 import {countDetail,countOptions,countsPage,getCount,saveCount,transitionCount} from "@erpx/server-inventory/public/inventory-counts";
 import {getDomainWork} from "@erpx/server-work_projection/public/domain-work";
 import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";

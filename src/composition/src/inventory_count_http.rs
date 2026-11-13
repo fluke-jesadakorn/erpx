@@ -112,7 +112,7 @@ async fn create_count<C: Clock + Send + Sync + 'static>(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    run(state, holding_slug, None, headers, body).await
+    run(state, holding_slug, None, headers, body, true).await
 }
 
 async fn update_count<C: Clock + Send + Sync + 'static>(
@@ -121,7 +121,7 @@ async fn update_count<C: Clock + Send + Sync + 'static>(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    run(state, holding_slug, Some(id), headers, body).await
+    run(state, holding_slug, Some(id), headers, body, false).await
 }
 
 async fn run<C: Clock + Send + Sync + 'static>(
@@ -130,6 +130,7 @@ async fn run<C: Clock + Send + Sync + 'static>(
     id: Option<String>,
     headers: HeaderMap,
     body: Bytes,
+    created: bool,
 ) -> Response {
     let result = async {
         let host = headers
@@ -182,7 +183,11 @@ async fn run<C: Clock + Send + Sync + 'static>(
                 "The stock Count command is unavailable.",
             )
         })?;
-        Ok::<_, BusinessError>(Json(json!({"data": data})))
+        let mut response = Json(json!({"data": data})).into_response();
+        if created {
+            *response.status_mut() = StatusCode::CREATED;
+        }
+        Ok::<_, BusinessError>(response)
     }
     .await;
     match result {
