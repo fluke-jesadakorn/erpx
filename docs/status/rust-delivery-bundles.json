@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1676,
+    "revision": 1682,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-j",
+      "runId": "run-20261113-k",
       "agentId": "lead",
-      "startedAt": "2026-11-13T08:01:06.178Z",
-      "heartbeatAt": "2026-11-13T08:42:41.660Z",
-      "expiresAt": "2026-11-13T09:12:41.660Z",
-      "generation": 54,
-      "tokenHash": "ce5fa52d8a7699eb63bf471e2e0f5260b9740763f65f28788a2783dbb4bae986"
+      "startedAt": "2026-11-13T09:13:52.607Z",
+      "heartbeatAt": "2026-11-13T09:14:27.316Z",
+      "expiresAt": "2026-11-13T09:44:27.316Z",
+      "generation": 55,
+      "tokenHash": "c7f6645eceb95411d7de3e557fdec2997289f141e117ef49c766841d0eb75beb"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -34253,14 +34253,21 @@
           "owner:finance",
           "owner:procurement"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-k",
+          "agentId": "worker-finance-supplier-retire",
+          "claimedAt": "2026-11-13T09:14:02.078Z",
+          "heartbeatAt": "2026-11-13T09:14:27.316Z",
+          "expiresAt": "2026-11-13T09:44:27.316Z",
+          "generation": 55
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "nextAction": "Audit the server-procurement supplier-payments application/adapter/public and the feature-procurement batch commands; remove the TS fallback, switch any remaining consumers to the native supplier-batch route, migrate tests/integration/procurement/supplier-payments.test.ts to native seeding, then delete the 17 finance writers and the public barrel and record Finance 370 -> ~353.",
         "handoff": {
           "runId": "run-20261113-j",
@@ -34301,23 +34308,38 @@
           "owner:procurement",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-j",
-          "agentId": "integrator-finance",
-          "claimedAt": "2026-11-13T08:42:13.430Z",
-          "heartbeatAt": "2026-11-13T08:42:41.660Z",
-          "expiresAt": "2026-11-13T09:12:41.660Z",
-          "generation": 54
-        },
+        "status": "ready_for_integration",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "2a900ebfd4903db488fe1c3abb4fe5b82c144ba4",
+        "lastPushedSha": "2a900ebfd4903db488fe1c3abb4fe5b82c144ba4",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "2a900ebfd4903db488fe1c3abb4fe5b82c144ba4",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the supplier-batch mount."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.rust-payment-correction-postgres.integration",
+            "result": "passed",
+            "sourceSha": "2a900ebfd4903db488fe1c3abb4fe5b82c144ba4",
+            "sourceKind": "committed",
+            "note": "8/8, including the new supplier_batch_http_route_creates_approves_and_replays transport case."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the composition mount per the worker contract in the finance supplier-batch task: actor from AuthorizedWorkContext, SERIALIZABLE holding transaction, PurchaseCommandBoundary begin/complete, lock_supplier_batch_sources, create/decide/export/record_result/confirm_supplier_instruction, source_only and can_approve facts, PgSupplierInstructionEvidence and PgSupplierBatchNotifications, and the POST/GET routes. Run cargo check -p erpx-service with private-development-api and the supplier-batch finance tests. Report the exact mount and evidence to the lead.",
-        "handoff": null,
+        "blocker": "released with work preserved",
+        "nextAction": "Mount complete: routes registered and 8/8 finance transport tests pass. The retirement task now removes the TS fallback/writers and migrates the procurement oracles to native seeding.",
+        "handoff": {
+          "runId": "run-20261113-k",
+          "agentId": "lead",
+          "at": "2026-11-13T09:14:02.043Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Mount complete: routes registered and 8/8 finance transport tests pass. The retirement task now removes the TS fallback/writers and migrates the procurement oracles to native seeding."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -34333,16 +34355,16 @@
       "statusCounts": {
         "pending": 20,
         "in_progress": 1,
-        "ready_for_integration": 16,
+        "ready_for_integration": 17,
         "integrating": 0,
         "migrated": 96,
-        "blocked": 40,
+        "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 54,
-    "updatedAt": "2026-11-13T08:42:41.660Z",
+    "lastCoordinatorGeneration": 55,
+    "updatedAt": "2026-11-13T09:14:27.317Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -34385,10 +34407,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-i",
-      "runId": "run-20261113-j",
-      "at": "2026-11-13T08:01:06.179Z",
-      "reason": "Lease expired during long POS integration batch; same lead resumes; WIP reviewed",
+      "previousRunId": "run-20261113-j",
+      "runId": "run-20261113-k",
+      "at": "2026-11-13T09:13:52.609Z",
+      "reason": "Lease expired during long finance mount/test batch; same lead resumes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
