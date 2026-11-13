@@ -396,6 +396,14 @@ pub mod inventory_reservation_alerts;
 #[cfg(feature = "private-field-api")]
 pub mod quality_alert_worker;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_count_commands;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_count_http;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_transit_commands;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_transit_http;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_stock_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_stock_read;

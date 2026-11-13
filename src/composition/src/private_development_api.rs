@@ -27,6 +27,10 @@ use crate::{
         InventoryAvailabilityHttpTarget, inventory_availability_http_router,
     },
     inventory_availability_read::InventoryAvailabilityReadService,
+    inventory_count_commands::InventoryCountCommand,
+    inventory_count_http::{InventoryCountHttpTarget, inventory_count_http_router},
+    inventory_transit_commands::InventoryTransitCommand,
+    inventory_transit_http::{InventoryTransitHttpTarget, inventory_transit_http_router},
     support_evidence_command::SupportEvidenceCommand,
     support_evidence_http::{SupportEvidenceHttpTarget, support_evidence_http_router},
     support_incident_command::SupportIncidentCommand,
@@ -6740,6 +6744,8 @@ async fn assemble_checked(
             );
             let mut targets = Vec::new();
             let mut stock_targets = Vec::new();
+            let mut transit_targets = Vec::new();
+            let mut count_targets = Vec::new();
             for (holding_id, companies) in &config.inventory_availability_reads {
                 let index = config
                     .holdings
@@ -6783,6 +6789,28 @@ async fn assemble_checked(
                             },
                         ),
                     });
+                    transit_targets.push(InventoryTransitHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        command: Arc::new(InventoryTransitCommand {
+                            authorizer: authorizer.clone(),
+                            holding: holding_id.clone(),
+                            company: company.clone(),
+                            catalogue: catalogue.clone(),
+                            clock: Arc::new(SharedClock(clock.clone())),
+                        }),
+                    });
+                    count_targets.push(InventoryCountHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        command: Arc::new(InventoryCountCommand {
+                            authorizer: authorizer.clone(),
+                            holding: holding_id.clone(),
+                            company: company.clone(),
+                            catalogue: catalogue.clone(),
+                            clock: Arc::new(SharedClock(clock.clone())),
+                        }),
+                    });
                 }
             }
             router = router.merge(
@@ -6801,6 +6829,26 @@ async fn assemble_checked(
                         stock_targets,
                     )
                     .map_err(|_| "PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?,
+                );
+            }
+            if !transit_targets.is_empty() {
+                router = router.merge(
+                    inventory_transit_http_router(
+                        config.policy.clone(),
+                        Arc::new(FieldServiceReadScopeHeaders),
+                        transit_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_INVENTORY_TRANSIT_CONFIGURATION_INVALID")?,
+                );
+            }
+            if !count_targets.is_empty() {
+                router = router.merge(
+                    inventory_count_http_router(
+                        config.policy.clone(),
+                        Arc::new(FieldServiceReadScopeHeaders),
+                        count_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_INVENTORY_COUNT_CONFIGURATION_INVALID")?,
                 );
             }
         }

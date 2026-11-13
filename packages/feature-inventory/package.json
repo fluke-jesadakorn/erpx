@@ -20,6 +20,7 @@
     "./components/inventory-reorder-console": "./src/components/inventory-reorder-console.tsx",
     "./lib/landed-cost-command-fetch": "./src/lib/landed-cost-command-fetch.ts",
     "./lib/landed-cost-purchase-controls": "./src/lib/landed-cost-purchase-controls.ts",
+    "./lib/native-stock-count-command": "./src/lib/native-stock-count-command.ts",
     "./lib/transfer-editor-draft": "./src/lib/transfer-editor-draft.ts",
     "./lib/count-purchase-controls": "./src/lib/count-purchase-controls.ts",
     "./lib/manufacturing-initial-physical-stock-count-command": "./src/lib/manufacturing-initial-physical-stock-count-command.ts",
