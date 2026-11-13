@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1641,
+    "revision": 1643,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T06:48:50.396Z",
-      "expiresAt": "2026-11-13T07:18:50.396Z",
+      "heartbeatAt": "2026-11-13T06:49:15.352Z",
+      "expiresAt": "2026-11-13T07:19:15.352Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -22514,8 +22514,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-pms-booking",
           "claimedAt": "2026-11-13T06:36:02.840Z",
-          "heartbeatAt": "2026-11-13T06:48:50.396Z",
-          "expiresAt": "2026-11-13T07:18:50.396Z",
+          "heartbeatAt": "2026-11-13T06:49:15.352Z",
+          "expiresAt": "2026-11-13T07:19:15.352Z",
           "generation": 53
         },
         "baseSha": null,
@@ -33782,8 +33782,15 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-payroll-run",
+          "claimedAt": "2026-11-13T06:48:53.747Z",
+          "heartbeatAt": "2026-11-13T06:49:15.352Z",
+          "expiresAt": "2026-11-13T07:19:15.352Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -33804,8 +33811,8 @@
       "totalPackets": 169,
       "migratedPackets": 94,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 1,
+        "pending": 19,
+        "in_progress": 2,
         "ready_for_integration": 14,
         "integrating": 0,
         "migrated": 94,
@@ -33815,7 +33822,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T06:48:50.397Z",
+    "updatedAt": "2026-11-13T06:49:15.353Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
