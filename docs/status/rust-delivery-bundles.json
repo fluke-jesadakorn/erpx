@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1451,
+    "revision": 1452,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -30181,6 +30181,30 @@
             "before": 113,
             "after": 102,
             "note": "git grep over packages/server-workflow/src/**/*.ts: 113 before, 102 after. Deleted the post/comment/flag receipt, audit, outbox and assertion-clear writers; story/archive receipt/audit/outbox/clear remain for the retained TS story path."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social",
+            "result": "passed",
+            "sourceSha": "0d66296be11385cb9497f7f243b4737d677e8772",
+            "note": "15/15, including the new story create/archive planning and receipt case (story-<key>, version 1 published, archive version 2 archived)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_http",
+            "result": "passed",
+            "sourceSha": "0d66296be11385cb9497f7f243b4737d677e8772",
+            "note": "3/3; the owner router now also declares POST /stories and POST /stories/{id}/archive."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_postgres",
+            "result": "passed",
+            "sourceSha": "0d66296be11385cb9497f7f243b4737d677e8772",
+            "note": "11/11, including story_publish_and_archive_round_trip_with_replay_and_author_guard: social_stories insert, replay, archive CAS to version 2, and STORY_CONFLICT for a non-author."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "0d66296be11385cb9497f7f243b4737d677e8772",
+            "note": "Owner crate compiles with the new Change/OwnerPlan variants, wire decode, SQL apply and retain image."
           }
         ],
         "retainedLegacy": [],
@@ -30193,7 +30217,7 @@
           "reason": "handoff",
           "nextAction": "Refine allowedPaths for the cross-owner workflow source and staff-work oracle, then commit the cutover."
         },
-        "nextAction": "Story producer blocked on claim: the native story create/archive command needs the SocialHttpBackend dispatch arm in src/composition/src/collaboration.rs, but migrate.agent.ai-gateway-commands (worker-agent-gateway) holds src/composition/src/** and fixtures/** until 02:14. Owner-side domain/application/adapter work can proceed in packages/server-collaboration/src/**; the route switch, composition dispatch, fixtures and TS story deletion must wait for that claim to release. Handover cutover remains blocked on migrate.operations.handover-publish. Do not overlap.",
+        "nextAction": "Owner-side story create/archive is implemented and tested at 0d66296be (Change/OwnerPlan, wire decode social.story.publish/archive, social_stories SQL, retain image, owner routes; unit 15/15, HTTP 3/3, PG 11/11). Remaining to close: composition SocialHttpBackend dispatch + apps stories route switch + TS story/workflow writer deletion + oracle migration, all blocked by the active migrate.agent.ai-gateway-commands claim on src/composition/src/** and fixtures/** until 02:14. Do not overlap.",
         "scopeRefinementRequired": false
       },
       {
@@ -31699,7 +31723,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:59:34.929Z",
+    "updatedAt": "2026-11-13T02:00:57.076Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
