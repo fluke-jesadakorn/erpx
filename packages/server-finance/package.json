@@ -302,7 +302,6 @@
     "./public/inventory-executive-owner-projections": "./src/public/inventory-executive-owner-projections.ts",
     "./public/ecommerce-package-obligations": "./src/public/ecommerce-package-obligations.ts",
     "./public/production-command-sources": "./src/public/production-command-sources.ts",
-    "./public/supplier-payment-money": "./src/public/supplier-payment-money.ts",
     "./public/record-presentation": "./src/public/record-presentation.ts",
     "./public/hospitality-owner-projection-sources": "./src/public/hospitality-owner-projection-sources.ts",
     "./public/finance-withholding": "./src/public/finance-withholding.ts",

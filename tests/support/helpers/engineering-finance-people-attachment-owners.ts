@@ -13,7 +13,6 @@ import { requestPayrollCorrection,payrollCorrectionRequestSchema,updateTimeEntry
 import {createOvertime,commandOvertime} from '@erpx/server-people_payroll/public/overtime';
 import { overtimeDetailsSchema,overtimeCommandSchema } from "@erpx/feature-people_payroll/lib/overtime";
 import { calendarCommand } from "@erpx/server-work_projection/public/calendar/commands";
-import { createSupplierBatch,supplierBatchSchema,decideSupplierBatch,exportSupplierBatch,confirmSupplierInstruction,supplierConfirmSchema } from "@erpx/server-procurement/public/supplier-payments";
 import { approveRefund,prepareRefundInstruction,exportRefundInstructions,confirmRefundInstruction,refundInstructionSchema,refundConfirmationSchema } from "@erpx/server-finance/public/refunds";
 import {prepareTaxIdentity,taxIdentitySchema} from "@erpx/server-finance/public/finance-tax-identities";
 import {thaiFinanceTaxPack} from "@erpx/feature-finance/lib/thai-finance-tax-pack";
@@ -73,10 +72,32 @@ export async function financePeopleAttachmentOwner(tuple:AttachmentOwnerTuple):P
   return {...standard(bank.transactionId,"finance_bank_transactions"),actor:f.manager,componentRef:"reconcile",bindingType:"finance_bank_reconciliation",bindAction:(setId,command)=>reconcileBankTransaction(f.manager,bank.transactionId,{expectedVersion:1,matchedType:"payment",matchedId:payment,proof:reason,attachmentSetIds:[setId]},command)};
  }
  if(tuple.targetType==="finance_supplier_batch"){
-  const invoice=await payableFixture(f),batch=await createSupplierBatch(f.reviewer,supplierBatchSchema.parse({bankAccountId:f.accounts.cash,plannedDate:"2026-09-05",items:[{invoiceId:invoice.id,expectedVersion:2,amount:"100",beneficiaryName:"Synthetic supplier",beneficiaryAccount:"FIXTURE-001"}]}),key());
-  if(tuple.componentKind==="record")return {...standard(String(batch.id),"finance_supplier_batches"),actor:f.reviewer};
-  await decideSupplierBatch(f.manager,String(batch.id),{expectedVersion:1,reason},key(),"approve");await exportSupplierBatch(f.payer,String(batch.id),{expectedVersion:2},key());const instructionId=String(await db.prepare("SELECT id FROM finance_supplier_instructions WHERE batch_id=?").bind(batch.id).first("id")),bank=await bankFixture(f,"-100");
-  return {...standard(String(batch.id),"finance_supplier_batches",3),actor:f.payer,componentRef:`supplier-instruction:${instructionId}`,bindingType:"finance_supplier_payment_confirmation",bindAction:(setId,command)=>confirmSupplierInstruction(f.payer,instructionId,supplierConfirmSchema.parse({expectedVersion:2,bankTransactionId:bank.transactionId,bankVersion:1,periodId:f.period,bankReference:"FIXTURE-001",evidence:reason,attachmentSetIds:[setId]}),command)};
+  const invoice=await payableFixture(f),batchId=`supplier-batch-${key()}`,instructionId=`${batchId}-0`,now=Date.now(),command=key();
+  await db.batch([
+   db.prepare("INSERT INTO finance_supplier_batches(id,company_id,currency,bank_account_id,planned_date,status,approved_by,approval_reason,exported_by,export_command_id,export_hash,version,created_by,created_at,updated_at) VALUES(?,?,'THB',?,?,'exported',?,'Independent synthetic Supplier review',?,?,?,3,?,?,?)").bind(batchId,f.company,f.accounts.cash,'2026-09-05',f.manager.userId,f.payer.userId,`${command}-export`,'0'.repeat(64),f.reviewer.userId,now,now),
+   db.prepare("INSERT INTO finance_supplier_instructions(id,batch_id,invoice_id,invoice_version,amount_minor,beneficiary_name,beneficiary_account,status,version,created_at,updated_at) VALUES(?,?,?,2,10000,?,?,'exported',2,?,?)").bind(instructionId,batchId,invoice.id,'Synthetic supplier','FIXTURE-001',now,now),
+   db.prepare("UPDATE finance_invoices SET version=version+1,updated_at=? WHERE id=?").bind(now,invoice.id),
+  ]);
+  if(tuple.componentKind==="record")return {...standard(batchId,"finance_supplier_batches",3),actor:f.reviewer};
+  const bank=await bankFixture(f,"-100");let bound:unknown;
+  return {...standard(batchId,"finance_supplier_batches",3),actor:f.payer,componentRef:`supplier-instruction:${instructionId}`,bindingType:"finance_supplier_payment_confirmation",bindAction:async(setId,bindingCommand)=>{
+   if(bound)return bound;
+   const prepared=await prepareAttachmentBinding(db,f.payer,{attachmentSetIds:[setId],bindingContract:{targetType:"finance_supplier_batch",bindingType:"finance_supplier_payment_confirmation",contexts:[{purposeKey:"payment_proof",componentKind:"action",componentRef:`supplier-instruction:${instructionId}`}]},targetId:batchId,expectedTargetVersion:3,commandId:bindingCommand,bindingId:instructionId});
+   const paymentId=`supplier-payment-${bindingCommand}`,journalId=`journal-${bindingCommand}`,at=Date.now();
+   bound=await executeCommand(db,f.payer,bindingCommand,"finance.supplier_batch.confirm",{attachmentSetIds:[setId]},instructionId,3,{id:instructionId,status:"confirmed",version:3,paymentId,journalId},[
+    ...prepared.guards,...prepared.steps,
+    db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,i.company_id,j.chart_id,?,'SB-'||?,?, ?,1000000,'supplier_batch',?,?,'posted',?,?,?,?,? FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id WHERE i.id=?").bind(journalId,f.period,bindingCommand,'2026-09-05','THB',instructionId,'Synthetic supplier settlement',f.payer.userId,f.payer.userId,at,at,at,invoice.id),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'',10000,0,10000,0,'{}',0)").bind(`${journalId}-0`,journalId,f.accounts.payable),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'',0,10000,0,10000,'{}',1)").bind(`${journalId}-1`,journalId,f.accounts.cash),
+    db.prepare("INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,fx_rate_micros,base_amount_minor,created_by,approved_by,released_by,created_at,updated_at) VALUES(?,?,?,'payment',?,'2026-09-05','THB',10000,0,?,'settled',?,1000000,10000,?,?,?,?,?)").bind(paymentId,f.company,invoice.partyId,`SB-${bindingCommand}`,f.accounts.cash,journalId,f.reviewer.userId,f.manager.userId,f.payer.userId,at,at),
+    db.prepare("INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,base_invoice_minor,base_payment_minor,created_by,created_at) VALUES(?,?,?,?,10000,10000,10000,?,?)").bind(`allocation-${bindingCommand}`,f.company,paymentId,invoice.id,f.payer.userId,at),
+    db.prepare("UPDATE finance_invoices SET outstanding_minor=0,base_outstanding_minor=0,status='paid',version=version+1,updated_at=? WHERE id=?").bind(at,invoice.id),
+    db.prepare("UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?").bind(paymentId,bank.transactionId),
+    db.prepare("UPDATE finance_supplier_instructions SET status='confirmed',evidence=?,resolved_by=?,bank_reference=?,payment_id=?,bank_transaction_id=?,version=version+1,updated_at=? WHERE id=?").bind(reason,f.payer.userId,'FIXTURE-001',paymentId,bank.transactionId,at,instructionId),
+    db.prepare("UPDATE finance_supplier_batches SET version=version+1,updated_at=? WHERE id=?").bind(at,batchId),
+   ]);
+   return bound;
+  }};
  }
  if(tuple.targetType==="finance_refund_obligation")return refundFixture(f,tuple);
  if(tuple.targetType==="talent_candidate"||tuple.targetType==="talent_offer"){

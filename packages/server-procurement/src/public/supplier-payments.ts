@@ -1,2 +1,2 @@
-/** Stable Procurement command and query boundary. */
-export { supplierBatchSchema, supplierDecisionSchema, supplierExportSchema, supplierResultSchema, supplierConfirmSchema, getSupplierBatch, listSupplierBatches, supplierBatchWorkspace, supplierInvoiceBatchWorkspace, createSupplierBatch, decideSupplierBatch, exportSupplierBatch, recoverSupplierExport, recordSupplierResult, confirmSupplierInstruction, supplierBatchWork } from "@erpx/server-procurement/adapters/supplier-payments";
+/** Stable Procurement supplier-batch query and input boundary. */
+export { supplierBatchSchema, supplierDecisionSchema, supplierExportSchema, supplierResultSchema, supplierConfirmSchema, getSupplierBatch, listSupplierBatches, supplierBatchWorkspace, supplierInvoiceBatchWorkspace, supplierBatchWork } from "@erpx/server-procurement/adapters/supplier-payments";

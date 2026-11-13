@@ -24,6 +24,16 @@ beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STA
 beforeEach(async()=>{f=await expenseFixture();f.manager.role="finance_approver";f.manager.branchId=null;f.manager.departmentId=null;f.manager.assignmentId=await f.grant(f.manager,"finance_approver");f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");});
 
 async function assign(kind:"order"|"invoice"|"journal",id:string,stepKey:string,userId:string){const flow=await resolveFlow(db,f.owner,kind,id),command=key(),input={stepKey,userId,reason:"Assign return fixture responsibility",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion};if(kind==="order")await assignFlowPrimary(db,f.owner,kind,id,input,command);else await withFinanceFlowAssignment(f.owner,command,tx=>assignFlowPrimary(tx??db,f.owner,kind,id,input,command),{kind,id});}
+// Native Finance owns supplier-batch writes. Return integration only needs the
+// persisted reservation guard, so seed the exported/confirmed-row shape directly.
+async function seedReservedSupplierBatch(database:typeof db,companyId:string,invoiceId:string,amountMinor:number,expectedVersion:number){
+ const command=key(),batchId=`supplier-batch-${command}`,instructionId=`${batchId}-0`,now=Date.now();
+ await database.batch([
+  database.prepare("INSERT INTO finance_supplier_batches(id,company_id,currency,bank_account_id,planned_date,status,version,created_by,created_at,updated_at) VALUES(?,?,'THB',?,'2026-09-03','draft',1,?,?,?)").bind(batchId,companyId,f.accounts.cash,f.owner.userId,now,now),
+  database.prepare("INSERT INTO finance_supplier_instructions(id,batch_id,invoice_id,invoice_version,amount_minor,beneficiary_name,beneficiary_account,status,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'reserved',1,?,?)").bind(instructionId,batchId,invoiceId,expectedVersion+1,amountMinor,"Simulated supplier","SIMULATED-001",now,now),
+ ]);
+ return {batchId,instructionId};
+}
 
 it("returns a supplier receipt through independent review, stock reversal and debit-note GL",async()=>{
   for(const [suffix,category] of [['inventory','asset'],['clearing','liability']])await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',1,1)").bind(`${f.company}-${suffix}`,f.chart,f.company,suffix,suffix,category).run();
@@ -41,13 +51,12 @@ it("returns a supplier receipt through independent review, stock reversal and de
   expect(await attachmentBindingState(db,pendingSlip.setId)).toMatchObject({set_state:"draft",link_state:"draft"});
   const rawSlip=await f.attach(String(invoice.invoiceId),"invoice_payment");
   await expect(settleInvoice(f.payer,String(invoice.invoiceId),{expectedVersion:2,date:"2026-09-03",amount:"1",reference:"Unlinked raw proof",paymentSlipId:rawSlip,attachmentSetIds:[]},key())).rejects.toMatchObject({code:"PAYMENT_SLIP_REQUIRED"});
-  const {createSupplierBatch,decideSupplierBatch}=await import("@erpx/server-procurement/public/supplier-payments");
-  const reserved=await createSupplierBatch(f.owner,{bankAccountId:f.accounts.cash,plannedDate:'2026-09-03',items:[{invoiceId:String(invoice.invoiceId),expectedVersion:2,amount:'20',beneficiaryName:'Simulated supplier',beneficiaryAccount:'SIMULATED-001'}]},key());
+  const reserved=await seedReservedSupplierBatch(db,f.company,String(invoice.invoiceId),2000,2);
   details=await getOrder(f.owner,orderId);const line=details.fulfillmentLines[0],returnFiles=await seedAttachmentSet(db,f.owner,{targetType:"commerce_fulfillment",targetId:String(receipt.fulfillmentId),purposeKey:"return_condition",componentRef:"return-request",expectedTargetVersion:2}),requested=await requestCommerceReturn(f.owner,String(receipt.fulfillmentId),returnRequestSchema.parse({expectedVersion:2,date:"2026-09-03",reason:"Supplier accepted damaged unit",lines:[{lineId:String(line.id),quantity:"1"}],attachmentSetIds:[returnFiles.setId]}),key());
   expect(await attachmentBindingState(db,returnFiles.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"commerce_return",binding_id:String(requested.id)});
   await expect(decideCommerceReturn(f.owner,String(requested.id),"approve",{expectedVersion:1,reason:"Self approval"},key())).rejects.toMatchObject({code:"INDEPENDENT_APPROVER_REQUIRED"});
   await expect(decideCommerceReturn(f.head,String(requested.id),'approve',{expectedVersion:1,reason:'Cannot return a reserved invoice'},key())).rejects.toMatchObject({code:'CONFLICT'});
-  await decideSupplierBatch(f.owner,String(reserved.id),{expectedVersion:1,reason:'Cancel unexported supplier payment before returning goods'},key(),'cancel');
+  await db.prepare("UPDATE finance_supplier_instructions SET status='cancelled',version=version+1 WHERE id=?").bind(reserved.instructionId).run();
   const approved=await decideCommerceReturn(f.head,String(requested.id),"approve",{expectedVersion:1,reason:"Warehouse evidence and supplier authorization reviewed"},key());
   expect(await db.prepare("SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?").bind(warehouse.id,product.id).first()).toEqual({quantity_milli:1000,value_minor:1000});
   for(const journalId of [String(approved.stockJournalId),String(approved.creditJournalId)]){await assign("journal",journalId,"draft",f.manager.userId);await markFinanceJournalPosted(db,journalId,f.manager.userId);const sums=await db.prepare("SELECT SUM(debit_minor) debit,SUM(credit_minor) credit FROM finance_journal_lines WHERE journal_id=?").bind(journalId).first();expect(sums?.debit).toBe(sums?.credit);}
