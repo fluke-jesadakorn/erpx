@@ -1423,6 +1423,28 @@ async fn handover_publish_creates_the_participant_post_and_sources() {
         .await
         .unwrap();
         assert_eq!(source, ("staff_task".into(), "task-1".into()));
+        let operational: (String, String, String, String) = sqlx::query_as(
+            "SELECT operation,actor_id,authority_json::jsonb->>'companyId',(result_json::jsonb->'sourceBindings')::text FROM command_receipts WHERE command_id=$1",
+        )
+        .bind("social-handover-0901-operations")
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            (operational.0.as_str(), operational.1.as_str(), operational.2.as_str()),
+            ("work.handover.publish", "author", "company")
+        );
+        let expected_bindings: String = sqlx::query_scalar(
+            "SELECT jsonb_agg(jsonb_build_object('kind',source_kind,'id',source_id) ORDER BY ordinal)::text FROM social_post_sources WHERE post_id=$1",
+        )
+        .bind(&published.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&operational.3).unwrap(),
+            serde_json::from_str::<serde_json::Value>(&expected_bindings).unwrap()
+        );
         let replay = run(
             &pool,
             "author",

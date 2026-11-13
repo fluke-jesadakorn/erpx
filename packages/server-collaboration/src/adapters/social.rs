@@ -939,6 +939,28 @@ pub async fn apply_plan(
             .bind(now)
             .execute(&mut *c)
             .await?;
+            let bindings: Vec<serde_json::Value> = sources
+                .iter()
+                .map(|source| serde_json::json!({"kind": source.kind, "id": source.id}))
+                .collect();
+            let operation_result = serde_json::json!({
+                "id": post_id,
+                "version": 1,
+                "sourceBindings": bindings,
+            });
+            sqlx::query(
+                "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+            )
+            .bind(format!("{}-operations", key.as_str()))
+            .bind("work.handover.publish")
+            .bind(author_id)
+            .bind(format!("handover-operations:{}", key.as_str()))
+            .bind(post_id)
+            .bind(operation_result.to_string())
+            .bind(now)
+            .bind(serde_json::json!({"companyId": company_id}).to_string())
+            .execute(&mut *c)
+            .await?;
             Ok(expected.clone())
         }
         OwnerPlan::ModeratePost { id, version } => {
