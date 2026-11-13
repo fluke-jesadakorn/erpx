@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1960,
+    "revision": 1964,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-s",
       "agentId": "lead",
       "startedAt": "2026-11-13T18:23:29.035Z",
-      "heartbeatAt": "2026-11-13T18:34:56.423Z",
-      "expiresAt": "2026-11-13T19:04:56.423Z",
+      "heartbeatAt": "2026-11-13T18:38:31.693Z",
+      "expiresAt": "2026-11-13T19:08:31.693Z",
       "generation": 63,
       "tokenHash": "3479e142b09480adda880d5209347ff6c3b50cc562def46caa019fa2555ebe47"
     },
@@ -38464,8 +38464,8 @@
           "runId": "run-20261113-s",
           "agentId": "worker-collab-mount",
           "claimedAt": "2026-11-13T18:27:32.338Z",
-          "heartbeatAt": "2026-11-13T18:34:56.423Z",
-          "expiresAt": "2026-11-13T19:04:56.423Z",
+          "heartbeatAt": "2026-11-13T18:38:31.693Z",
+          "expiresAt": "2026-11-13T19:08:31.693Z",
           "generation": 63
         },
         "baseSha": null,
@@ -38508,8 +38508,8 @@
           "runId": "run-20261113-s",
           "agentId": "worker-finance-cutover",
           "claimedAt": "2026-11-13T18:27:11.377Z",
-          "heartbeatAt": "2026-11-13T18:34:56.423Z",
-          "expiresAt": "2026-11-13T19:04:56.423Z",
+          "heartbeatAt": "2026-11-13T18:38:31.693Z",
+          "expiresAt": "2026-11-13T19:08:31.693Z",
           "generation": 63
         },
         "baseSha": null,
@@ -38544,22 +38544,158 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-s",
-          "agentId": "worker-mfg-dead-lots",
-          "claimedAt": "2026-11-13T18:26:58.332Z",
-          "heartbeatAt": "2026-11-13T18:34:56.423Z",
-          "expiresAt": "2026-11-13T19:04:56.423Z",
-          "generation": 63
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+        "lastPushedSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "before": 19,
+            "after": 13,
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-manufacturing/src/adapters/production-command-sources.ts",
+                "writes": 8,
+                "removalTaskId": "retire.manufacturing",
+                "removalCondition": "Extend ManufacturingOrderAction to reserve/complete-operation/report/fail-qc/rework/scrap/cancel, switch the production route to the full native action set, then delete the 8 live order-action writers."
+              },
+              {
+                "path": "packages/server-manufacturing/src/adapters/accounting.ts",
+                "writes": 4,
+                "removalTaskId": "retire.manufacturing",
+                "removalCondition": "Native manufacturing accounting producer (profile create/review, posting evidence, cost movement) lands and the accounting/posting-setup consumers switch."
+              },
+              {
+                "path": "packages/server-manufacturing/src/adapters/purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.manufacturing",
+                "removalCondition": "The native purchase-command boundary replaces the transient command_assertions cleanup."
+              }
+            ],
+            "note": "Deleted the six dead issue/pass-QC repository methods; the legacy oracle now uses test-only copies."
+          },
+          {
+            "command": "cargo check -p erpx-server-manufacturing --offline",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --offline",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "All 8 binaries passed (10/2/4/13/11/3/4 + lib) with ERPX_TEST_ADMIN_URL."
+          },
+          {
+            "command": "ERPX_TEST_PG_BIN=/opt/homebrew/opt/postgresql@18/bin bun scripts/testing/test.ts integration --suite=manufacturing.production.integration",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "40/40 with the test-only legacy oracle."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "before": 19,
+            "after": 13,
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-manufacturing/src/adapters/production-command-sources.ts",
+                "writes": 8,
+                "removalTaskId": "retire.manufacturing",
+                "removalCondition": "Extend ManufacturingOrderAction to reserve/complete-operation/report/fail-qc/rework/scrap/cancel, switch the production route to the full native action set, then delete the 8 live order-action writers."
+              },
+              {
+                "path": "packages/server-manufacturing/src/adapters/accounting.ts",
+                "writes": 4,
+                "removalTaskId": "retire.manufacturing",
+                "removalCondition": "Native manufacturing accounting producer (profile create/review, posting evidence, cost movement) lands and the accounting/posting-setup consumers switch."
+              },
+              {
+                "path": "packages/server-manufacturing/src/adapters/purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.manufacturing",
+                "removalCondition": "The native purchase-command boundary replaces the transient command_assertions cleanup."
+              }
+            ],
+            "note": "Deleted the six dead issue/pass-QC repository methods; the legacy oracle now uses test-only copies."
+          },
+          {
+            "command": "cargo check -p erpx-server-manufacturing --offline",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --offline",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "All 8 binaries passed (10/2/4/13/11/3/4 + lib) with ERPX_TEST_ADMIN_URL."
+          },
+          {
+            "command": "ERPX_TEST_PG_BIN=/opt/homebrew/opt/postgresql@18/bin bun scripts/testing/test.ts integration --suite=manufacturing.production.integration",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "40/40 with the test-only legacy oracle."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "853a10310fccc3fa557491dd9110d1e1baeaa911",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete prepareReservationConsumption/prepareIssueMove/prepareMaterialCost/prepareOutputMove/prepareCostSnapshot/prepareProductGenealogy from production-command-sources.ts and their six legacy-oracle forwarders; keep the native order command coverage; record Manufacturing 19 -> 13.",
+        "nextAction": "Complete: deleted the six dead issue/pass-QC lot writers (manufacturing 19 -> 13).",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -39175,20 +39311,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 219,
-      "migratedPackets": 123,
+      "migratedPackets": 124,
       "statusCounts": {
         "pending": 33,
-        "in_progress": 3,
+        "in_progress": 2,
         "ready_for_integration": 23,
         "integrating": 0,
-        "migrated": 123,
+        "migrated": 124,
         "blocked": 37,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 63,
-    "updatedAt": "2026-11-13T18:34:56.423Z",
+    "updatedAt": "2026-11-13T18:38:31.808Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
