@@ -18,7 +18,7 @@ import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { decimalToMinor } from "@erpx/feature-finance/lib/finance-money";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import { createTalentWorkspace, createTalentCandidate as createTalentCandidateApplication, createTalentApplication as createTalentApplicationApplication, createTalentProposal as createTalentProposalApplication, createTalentOffer as createTalentOfferApplication, createChangeTalentRecord, createTalentDetail, createTalentExecutiveEvidence, createTalentWork, type TalentCommandPorts, type TalentCommand, type TalentMutation, type TalentExecutiveEvidenceMetric } from "@erpx/server-talent/application/talent";
+import { createTalentWorkspace, createTalentOffer as createTalentOfferApplication, createChangeTalentRecord, createTalentDetail, createTalentExecutiveEvidence, createTalentWork, type TalentCommandPorts, type TalentCommand, type TalentMutation, type TalentExecutiveEvidenceMetric } from "@erpx/server-talent/application/talent";
 import type { TalentKind } from "@erpx/server-talent/domain/talent";
 export type { TalentExecutiveEvidenceMetric } from "@erpx/server-talent/application/talent";
 function access(a: WorkContext, write = false) {
@@ -89,105 +89,6 @@ async applications(a){const write=await database();return (await write
 async people(a){return recruiterReferences(await database(),a);}
 });}
 export async function talentWorkspace(a:WorkContext){return withTalentPurchasedRead(a,["recruit.positions","recruit.candidates","recruit.applications","recruit.offers"],async db=>({...await nativeTalentWorkspace(db??lazyDatabase(a))(a),canWrite:hasPermission(a,"records.write"),purchases:await talentPurchaseControls(a,db)}));}
-export function nativeTalentCandidate(source:DatabaseSource){const database=databaseSource(source);return createTalentCandidateApplication({...commandPorts(database),
-async prepare(command,i){const write=await database(),{actor:a,key,id,now}=command;return {native:[
-    write
-      .prepare(
-        "INSERT INTO talent_candidates VALUES(?,?,?,?,?,?,?,?,'active',?,1,?,?)",
-      )
-      .bind(
-        id,
-        a.companyId,
-        i.legalName,
-        i.email.toLowerCase(),
-        i.phone ?? null,
-        i.consentEvidence,
-        now,
-        i.retentionUntil,
-        a.userId,
-        now,
-        now,
-      ),
-    write
-      .prepare(
-        "INSERT INTO talent_candidate_events VALUES(?,?,1,'consent',?,'Candidate consent recorded','active',?)",
-      )
-      .bind(`talent-candidate-event-${key}`, id, a.userId, now),
-  ]};},
-});}
-export async function createTalentCandidate(a:WorkContext,raw:unknown,key:string){return withTalentPurchasedCommand(a,{key,operation:"talent.candidate.create",capability:"recruit.candidates",purpose:"new-work",target:{kind:"candidate",id:`talent-candidate-${key}`},creating:true,permissions:["records.write","records.review"]},db=>nativeTalentCandidate(db??lazyDatabase(a))(a,raw,key));}
-export function nativeTalentApplication(source:DatabaseSource){const database=databaseSource(source);return createTalentApplicationApplication({...commandPorts(database),async currentRequisition(a,i){const write=await database();return await write
-      .prepare(
-        "SELECT * FROM talent_requisitions WHERE id=? AND company_id=? AND version=? AND status='open' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)",
-      )
-      .bind(i.requisitionId, a.companyId, i.requisitionVersion,a.branchId,a.branchId,a.departmentId,a.departmentId)
-      .first<Row>();},
-async prepare(command,i){const write=await database(),{actor:a,key,id,now}=command;return {native:[
-    assertion(write,key,"requisition-source","EXISTS(SELECT 1 FROM talent_requisitions WHERE id=? AND company_id=? AND version=? AND status='open' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?))",[i.requisitionId,a.companyId,i.requisitionVersion,a.branchId,a.branchId,a.departmentId,a.departmentId]),
-    assertion(
-      write,
-      key,
-      "candidate",
-      "EXISTS(SELECT 1 FROM talent_candidates WHERE id=? AND company_id=? AND status='active' AND retention_until>=?)",
-      [i.candidateId, a.companyId, new Date().toISOString().slice(0, 10)],
-    ),
-    assertion(
-      write,
-      key,
-      "owner",
-      `EXISTS(SELECT 1 ${identityaccessSources.talent_adapters_talent_assignments_from} WHERE company_id=? AND user_id=? AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?))`,
-      [a.companyId, i.ownerId, now, now],
-    ),
-    write
-      .prepare(
-        "INSERT INTO talent_applications VALUES(?,?,?,?,?,'applied',?,?,1,?,?)",
-      )
-      .bind(
-        id,
-        a.companyId,
-        i.requisitionId,
-        i.requisitionVersion,
-        i.candidateId,
-        i.ownerId,
-        a.userId,
-        now,
-        now,
-      ),
-    write
-      .prepare(
-        "INSERT INTO talent_application_events VALUES(?,?,1,'apply',?,'Candidate applied to approved requisition','applied',?)",
-      )
-      .bind(`talent-app-event-${key}`, id, a.userId, now),
-  ]};},
-});}
-export async function createTalentApplication(a:WorkContext,raw:unknown,key:string){return withTalentPurchasedCommand(a,{key,operation:"talent.application.create",capability:"recruit.applications",purpose:"new-work",target:{kind:"application",id:`talent-application-${key}`},creating:true,permissions:["records.write","records.review"]},db=>nativeTalentApplication(db??lazyDatabase(a))(a,raw,key));}
-export function nativeTalentProposal(source:DatabaseSource){const database=databaseSource(source);return createTalentProposalApplication({...commandPorts(database),
-async prepare(command,i){const write=await database(),{actor:a,key,id,now}=command;return {native:[
-    assertion(
-      write,
-      key,
-      "application",
-      "EXISTS(SELECT 1 FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.version=? AND a.status='interview' AND a.owner_id=? AND c.status='active' AND c.retention_until>=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?))",
-      [i.applicationId, a.companyId, i.applicationVersion, a.userId,new Date().toISOString().slice(0,10),a.branchId,a.branchId,a.departmentId,a.departmentId],
-    ),
-    write
-      .prepare(
-        "INSERT INTO talent_proposals VALUES(?,?,?,?,?,?,'submitted',?,NULL,1,?,?)",
-      )
-      .bind(
-        id,
-        i.applicationId,
-        i.applicationVersion,
-        i.recommendation,
-        i.scoreBps,
-        i.evidence,
-        a.userId,
-        now,
-        now,
-      ),
-  ]};},
-});}
-export async function createTalentProposal(a:WorkContext,raw:unknown,key:string){return withTalentPurchasedCommand(a,{key,operation:"talent.proposal.create",capability:"recruit.applications",purpose:"new-work",target:{kind:"proposal",id:`talent-proposal-${key}`},creating:true,permissions:["records.write","records.review"]},db=>nativeTalentProposal(db??lazyDatabase(a))(a,raw,key));}
 export function nativeTalentOffer(source:DatabaseSource){const database=databaseSource(source);return createTalentOfferApplication({...commandPorts(database),moneyUnits:decimalToMinor,async snapshot(a,id,i,amount){const write=await database();return await snapshotMoney(write,a,{sourceType:"talent_offer",sourceId:id,amountKind:"monthly_compensation",transactionDate:i.startDate,currency:i.currency,currencyScale:2,amountUnits:String(amount)});},
 async prepare(command,i,amount,capturedMoney){const write=await database(),{actor:a,key,id,now}=command,money=capturedMoney as Awaited<ReturnType<typeof snapshotMoney>>;return {native:[
     assertion(

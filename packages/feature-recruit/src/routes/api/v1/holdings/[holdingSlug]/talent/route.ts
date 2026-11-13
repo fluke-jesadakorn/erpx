@@ -5,10 +5,7 @@ import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { z } from "zod";
 import {
   changeTalentRecord,
-  createTalentApplication,
-  createTalentCandidate,
   createTalentOffer,
-  createTalentProposal,
   talentDetail,
   talentWorkspace,
 } from "@erpx/server-talent/public/talent";
@@ -79,7 +76,7 @@ export async function POST(r: Request, c: C) {
     const lifecycle = native
       ? undefined
       : nativeTalentLifecycleAvailable()
-        ? await nativeTalentLifecycleCommand(r, (await c.params).holdingSlug, i, key)
+        ? await nativeTalentLifecycleCommand(r, a, (await c.params).holdingSlug, i, key)
         : undefined;
     if (native) data = native;
     else if (lifecycle !== undefined) data = lifecycle;
@@ -116,12 +113,16 @@ export async function POST(r: Request, c: C) {
         "NATIVE_TALENT_REQUISITION_UNAVAILABLE",
         "The native Talent requisition command is unavailable.",
       );
-    else if (i.entity === "candidate")
-      data = await createTalentCandidate(a, i, key);
-    else if (i.entity === "application")
-      data = await createTalentApplication(a, i, key);
-    else if (i.entity === "proposal")
-      data = await createTalentProposal(a, i, key);
+    else if (
+      i.entity === "candidate" ||
+      i.entity === "application" ||
+      i.entity === "proposal"
+    )
+      throw new ApiError(
+        503,
+        "NATIVE_TALENT_LIFECYCLE_UNAVAILABLE",
+        "The native Talent lifecycle command is unavailable.",
+      );
     else if(i.entity==="offer")data = await createTalentOffer(a, i, key);
     else throw new ApiError(422,"TALENT_ENTITY_REQUIRED","Choose a registered Recruitment record type.");
     return Response.json(canonicalDestinationLinks({ data }), { headers });

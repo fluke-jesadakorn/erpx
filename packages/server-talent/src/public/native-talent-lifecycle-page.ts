@@ -1,5 +1,7 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import { talentPurchaseControls } from '@erpx/server-talent/public/purchases';
 
 export type NativeTalentConfiguration = Readonly<{
   privateBaseUrl: string;
@@ -56,8 +58,47 @@ function nativeRoute(input: Record<string, unknown>): { path: string; id: string
   return null;
 }
 
+const settleActions = new Set([
+  'withdraw',
+  'decline',
+  'reject',
+  'reject-proposal',
+  'close',
+  'cancel',
+  'reassign',
+  'accept-offer',
+]);
+const capabilityByEntity: Record<string, string | undefined> = {
+  candidate: 'recruit.candidates',
+  application: 'recruit.applications',
+  proposal: 'recruit.applications',
+};
+
+async function purchasePreflight(
+  actor: WorkContext,
+  input: Record<string, unknown>,
+): Promise<void> {
+  const entity = typeof input.entity === 'string' ? input.entity : undefined;
+  const capability = entity ? capabilityByEntity[entity] : undefined;
+  if (!capability) return;
+  const purchases = await talentPurchaseControls(actor);
+  if (!purchases) return;
+  const action = typeof input.action === 'string' ? input.action : undefined;
+  const allowed =
+    action && settleActions.has(action)
+      ? purchases[capability]?.settleExisting
+      : purchases[capability]?.newWork;
+  if (!allowed)
+    throw new ApiError(
+      403,
+      'TALENT_PURCHASE_REQUIRED',
+      'Your current Company package does not include this Recruitment command.',
+    );
+}
+
 export async function nativeTalentLifecycleCommand(
   request: Request,
+  actor: WorkContext,
   holdingSlug: string,
   input: Record<string, unknown>,
   key: string,
@@ -65,6 +106,7 @@ export async function nativeTalentLifecycleCommand(
   const route = nativeRoute(input);
   if (!route) return undefined;
   const config = configuration();
+  await purchasePreflight(actor, input);
   const entity = input.entity;
   let path: string;
   if (entity === 'candidate-privacy') {

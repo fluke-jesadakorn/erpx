@@ -14,6 +14,7 @@ import {
   nativeTalentRequisitionCommand,
   nativeTalentWorkspace,
 } from '../../../packages/feature-talent/src/public/native-talent-page';
+import {nativeTalentLifecycleCommand} from '../../../packages/server-talent/src/public/native-talent-lifecycle-page';
 import {talentPurchaseControls} from '../../../packages/server-talent/src/public/purchases';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
@@ -179,6 +180,22 @@ describe('native Talent requisition transport',()=>{
     actor as never,
     {entity:'requisition',jobTitle:'Service specialist',openings:2,targetStartDate:'2026-11-01',description:'Serve customer cases.'},
     'talent-requisition-command-12',
+  )).rejects.toMatchObject({status:403,code:'TALENT_PURCHASE_REQUIRED'});
+  if(previous===undefined)delete process.env.ERPX_NATIVE_TALENT_CONFIG;else process.env.ERPX_NATIVE_TALENT_CONFIG=previous;
+ });
+
+ it('enforces the recruit lifecycle purchase preflight before a configured candidate create',async()=>{
+  const previous=process.env.ERPX_NATIVE_TALENT_CONFIG;
+  process.env.ERPX_NATIVE_TALENT_CONFIG=config();
+  vi.mocked(talentPurchaseControls).mockResolvedValueOnce({
+    'recruit.candidates':{newWork:false,settleExisting:true,history:true,revision:'revision'},
+  } as never);
+  await expect(nativeTalentLifecycleCommand(
+    new Request('https://acme.example.com/api/v1/talent',{method:'POST',headers:incoming()}),
+    actor as never,
+    'acme',
+    {entity:'candidate',legalName:'Candidate',email:'candidate@example.test',consentEvidence:'Consent',retentionUntil:'2027-01-01'},
+    'talent-lifecycle-command-1',
   )).rejects.toMatchObject({status:403,code:'TALENT_PURCHASE_REQUIRED'});
   if(previous===undefined)delete process.env.ERPX_NATIVE_TALENT_CONFIG;else process.env.ERPX_NATIVE_TALENT_CONFIG=previous;
  });
