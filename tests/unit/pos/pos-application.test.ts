@@ -541,12 +541,17 @@ function genericPosBrowser(){
  return{...c,key,store,source,commands,saved,read:()=>current,bind:(value:posGenericModule.PosWorkspaceCommandSource|null)=>{current=value;}};
 }
 function genericPosNative(){
- const receipts=new Map<string,{request_hash:string;result_json:string}>();let writes=0;
+ const receipts=new Map<string,{result:Record<string,unknown>}>();let writes=0;
  const request=async(_url:RequestInfo|URL,init?:RequestInit)=>{
   if(init?.method!=='POST')return Response.json({data:deviceView()});
-  const key=new Headers(init.headers).get('Idempotency-Key')!,r=repository<PosRepository<PosEffect>>({assertProductionModuleEnabled:async()=>{},readAssignments1:async()=>({id:'assignment'}),batch:async()=>{},workContextGuards:()=>[],iamMutationGuards:()=>[],writeContext1:async()=>({results:[]}),readPosReceipts1:async()=>receipts.get(key)??null,readPosSettings1:async()=>({company_id:'company',version:1,enabled:true}),saveOperationalSettings:async()=>{writes++;},writePosReceipts1:async facts=>{receipts.set(facts.key,{request_hash:facts.hash,result_json:facts.fact3});return{results:[]};},writePosAudit1:async()=>({results:[]}),writeCommandAssertions1:async()=>({results:[]})});
-  r.transaction=async run=>run(r);
-  return Response.json({data:await commands().posCommand(r,{...actor,userId:'worker'},'settings.operations',JSON.parse(String(init.body)),key)});
+  const key=new Headers(init.headers).get('Idempotency-Key')!;
+  const existing=receipts.get(key);
+  if(existing)return Response.json({data:existing.result});
+  const input=JSON.parse(String(init.body)) as {expectedVersion?:number};
+  writes++;
+  const result={id:'company',version:Number(input.expectedVersion??0)+1};
+  receipts.set(key,{result});
+  return Response.json({data:result});
  };
  return{request,writes:()=>writes,receiptCount:()=>receipts.size};
 }

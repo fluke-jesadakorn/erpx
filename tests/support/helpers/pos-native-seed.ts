@@ -56,6 +56,7 @@ export const retiredPosCommandNames = [
   'shift.open', 'cash.create', 'cash.approve', 'shift.close', 'shift.review',
   'sale.create', 'sale.add', 'sale.discount', 'sale.hold', 'sale.resume', 'sale.cancel',
   'payment.create', 'payment.verify_transfer', 'refund.request', 'refund.approve',
+  'settings.operations', 'accounting.approve', 'table.create', 'sale.approve_discount',
 ] as const;
 export type RetiredPosCommand = (typeof retiredPosCommandNames)[number];
 const retired = new Set<string>(retiredPosCommandNames);
@@ -84,8 +85,9 @@ const base = z.object({ id: z.string().min(1), expectedVersion: z.number().int()
 
 function permissionFor(op: string) {
   return op === 'day.confirm' || op === 'payment.verify_transfer' ? 'finance.approve'
-    : op === 'refund.approve' || op === 'shift.review' || op === 'cash.approve' ? 'pos.approve'
-      : 'pos.sell';
+    : op === 'refund.approve' || op === 'shift.review' || op === 'cash.approve' || op === 'accounting.approve' || op === 'sale.approve_discount' ? 'pos.approve'
+      : op === 'settings.operations' || op === 'table.create' ? 'pos.configure'
+        : 'pos.sell';
 }
 
 export async function seedPosCommand(
@@ -199,6 +201,40 @@ async function refreshSale(db: SqlDatabase, saleId: string) {
 
 async function perform(db: SqlDatabase, actor: WorkContext, op: string, input: unknown): Promise<Record<string, unknown>> {
   const company = actor.companyId, user = actor.userId;
+  if (op === 'settings.operations') {
+    const p = z.object({ expectedVersion: z.number().int().positive(), enabled: z.boolean(), cashierDiscountBps: z.number().int().min(0) }).parse(input);
+    const settings = await one(db, 'SELECT version FROM pos_settings WHERE company_id=?', company);
+    if (!settings) fail('POS_SETUP_REQUIRED', 'Configure POS accounts and sales points before use');
+    if (num(settings, 'version') !== p.expectedVersion) fail('POS_VERSION_CONFLICT', 'Record changed. Load the latest data');
+    await run(db, 'UPDATE pos_settings SET enabled=?,cashier_discount_bps=?,version=version+1 WHERE company_id=?', p.enabled, p.cashierDiscountBps, company);
+    return { id: company, version: p.expectedVersion + 1 };
+  }
+  if (op === 'accounting.approve') {
+    const p = z.object({ expectedVersion: z.number().int().positive() }).parse(input);
+    const settings = await one(db, 'SELECT version,accounting_prepared_by,accounting_approved_by FROM pos_settings WHERE company_id=?', company);
+    if (!settings) fail('POS_SETUP_REQUIRED', 'Configure POS accounts and sales points before use');
+    if (num(settings, 'version') !== p.expectedVersion) fail('POS_VERSION_CONFLICT', 'Record changed. Load the latest data');
+    if (!settings.accounting_prepared_by) fail('POS_ACCOUNTING_REVIEW_REQUIRED', 'Finance must approve the POS posting accounts before selling');
+    if (String(settings.accounting_prepared_by) === user) fail('POS_INDEPENDENT_REVIEW', 'A different manager must review this POS record');
+    await run(db, 'UPDATE pos_settings SET accounting_approved_by=?,version=version+1 WHERE company_id=?', user, company);
+    return { id: company, version: p.expectedVersion + 1 };
+  }
+  if (op === 'table.create') {
+    const p = z.object({ registerId: z.string().min(1), name: z.string().trim().min(1).max(80), seats: z.number().int().min(1).max(100) }).parse(input);
+    const register = scopeRow(actor, await one(db, 'SELECT * FROM pos_registers WHERE id=? AND company_id=? AND active=true FOR UPDATE', p.registerId, company));
+    if (await one(db, 'SELECT id FROM pos_tables WHERE register_id=? AND name=?', register.id, p.name)) fail('POS_TABLE_NAME_EXISTS', 'A table with this name already exists at this register');
+    const tid = id();
+    await run(db, 'INSERT INTO pos_tables VALUES(?,?,?,?)', tid, register.id, p.name, p.seats);
+    return { id: tid };
+  }
+  if (op === 'sale.approve_discount') {
+    const p = z.object({ id: z.string().min(1), expectedVersion: z.number().int().positive(), reason: z.string().trim().min(3).max(1000) }).parse(input);
+    const sale = scopeRow(actor, await one(db, 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE', p.id));
+    version(sale, p);
+    if (String(sale.discount_requested_by ?? sale.created_by) === user) fail('POS_INDEPENDENT_REVIEW', 'A different manager must review this POS record');
+    await run(db, 'UPDATE pos_sales SET discount_approved_by=?,discount_reason=?,version=version+1 WHERE id=?', user, p.reason, p.id);
+    return { id: p.id, version: p.expectedVersion + 1 };
+  }
   if (op === 'shift.open') {
     const p = z.object({ registerId: z.string(), openingMinor: money }).parse(input);
     const register = scopeRow(actor, await one(db, 'SELECT * FROM pos_registers WHERE id=? AND active=true FOR UPDATE', p.registerId));

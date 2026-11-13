@@ -547,13 +547,18 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
         let clock = self.clock.clone();
+        let permission = match command.operation() {
+            "settings.operations" | "table.create" => "pos.configure",
+            "accounting.approve" | "sale.approve_discount" => "pos.approve",
+            _ => "pos.sell",
+        };
         self.authorizer
             .execute_with_sources(
                 host,
                 proof,
                 selection,
                 WorkAuthorizationRequest {
-                    permission: "pos.sell".into(),
+                    permission: permission.into(),
                     module: Some("pos".into()),
                     destination: "pos".into(),
                     api: true,
@@ -570,7 +575,7 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                         {
                             return Err(scope().into());
                         }
-                        current.require_permission("pos.sell")?;
+                        current.require_permission(permission)?;
                         let now = clock.now();
                         let business_date = {
                             let mut repository = PgPosCommandRepository::new(connection);

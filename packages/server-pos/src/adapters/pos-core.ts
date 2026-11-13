@@ -41,8 +41,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         saveReversalRequest: async row => { await run(db, "INSERT INTO pos_room_charge_reversal_requests(id,sale_id,company_id,branch_id,property_id,sale_version,property_version,amount_minor,reason,restock_line_ids_json,state,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'requested',?,?,?)", row.id,row.sale_id,row.company_id,row.branch_id,row.property_id,row.sale_version,row.property_version,row.amount_minor,row.reason,row.restock_line_ids_json,row.requested_by,row.created_at,row.created_at); },
         reviewReversalRequest: async (id,state,user,reason,now) => { await run(db, "UPDATE pos_room_charge_reversal_requests SET state=?,version=version+1,pos_approved_by=CASE WHEN ?='pos_approved' THEN ? ELSE pos_approved_by END,pms_approved_by=CASE WHEN ?='approved' THEN ? ELSE pms_approved_by END,rejected_by=CASE WHEN ?='rejected' THEN ? ELSE rejected_by END,review_reason=?,updated_at=? WHERE id=?", state,state,user,state,user,state,user,reason,now,id); },
         prepareAccounting: async (company,accounts,user) => { await run(db, 'UPDATE pos_settings SET accounts_json=?,accounting_prepared_by=?,accounting_approved_by=NULL WHERE company_id=?', JSON.stringify(accounts),user,company); },
-        approveAccounting: async (company,user) => { await run(db, 'UPDATE pos_settings SET accounting_approved_by=?,version=version+1 WHERE company_id=?',user,company); },
-        saveOperationalSettings: async (company,enabled,discount) => { await run(db, 'UPDATE pos_settings SET enabled=?,cashier_discount_bps=?,version=version+1 WHERE company_id=?',enabled,discount,company); },
         linkRegister: async (id,propertyId) => { await run(db, 'UPDATE pos_registers SET property_id=? WHERE id=?',propertyId,id); },
         readPosSales1: (facts: {
             saleId: string;
@@ -258,12 +256,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             registerId: string;
             name: string;
         }) => one(db, 'SELECT id FROM pos_tables WHERE register_id=? AND name=?', facts.registerId, facts.name),
-        writePosTables1: (facts: {
-            tid: `${string}-${string}-${string}-${string}-${string}`;
-            registerId: string;
-            name: string;
-            seats: number;
-        }) => run(db, 'INSERT INTO pos_tables VALUES(?,?,?,?)', facts.tid, facts.registerId, facts.name, facts.seats),
         readPosCatalog1: (facts: {
             productId: string;
             company: string;
@@ -395,11 +387,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             fact0: number;
             id: string | number | boolean | null;
         }) => run(db, "UPDATE pos_sales SET state='completed',table_id=NULL,version=version+1,updated_at=? WHERE id=?", facts.fact0, facts.id),
-        writePosSales8: (facts: {
-            user: string;
-            reason: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET discount_approved_by=?,discount_reason=?,version=version+1 WHERE id=?', facts.user, facts.reason, facts.id),
         writePosReservations4: (facts: {
             id: string | number | boolean | null;
         }) => run(db, 'DELETE FROM pos_reservations WHERE fulfillment_id=?', facts.id),
