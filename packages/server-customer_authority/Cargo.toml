@@ -88,3 +88,15 @@ path = "../../tests/unit/customer_authority/rust-portal-enrollment-http.test.rs"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "portal_support"
+path = "../../tests/unit/customer_authority/rust-portal-support.test.rs"
+
+[[test]]
+name = "portal_support_http"
+path = "../../tests/unit/customer_authority/rust-portal-support-http.test.rs"
+
+[[test]]
+name = "portal_support_postgres"
+path = "../../tests/integration/customer_authority/rust-portal-support-postgres.test.rs"

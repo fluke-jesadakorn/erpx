@@ -11,3 +11,5 @@ pub mod portal_invitation_token;
 pub mod portal_invitations;
 pub mod portal_enrollment;
 pub mod portal_enrollment_http;
+pub(crate) mod portal_support_commands;
+pub(crate) mod portal_support_commands_http;

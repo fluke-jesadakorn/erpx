@@ -452,3 +452,5 @@ pub mod support_ticket_command;
 pub mod support_ticket_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_ticket_read;
+#[cfg(feature = "existing-business")]
+pub mod portal_support_commands;

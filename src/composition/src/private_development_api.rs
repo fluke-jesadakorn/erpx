@@ -3089,6 +3089,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut sales_followup_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut portal_support_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut sales_notification_command_targets = Vec::new();
         let mut files_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -4711,6 +4713,24 @@ async fn assemble_checked(
                     )),
                 ));
                 #[cfg(feature = "existing-business")]
+                portal_support_targets.push(crate::portal_support_commands::target(
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                    Arc::new(crate::portal_support_commands::PortalSupportBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::portal_support_commands::PortalSupportService::from_runtime(
+                            authorizer.clone(),
+                            crate::portal_support_commands::PortalSupportConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                ));
+                #[cfg(feature = "existing-business")]
                 sales_notification_command_targets.push(
                     crate::sales_notification_commands::target(
                         holding.host.clone(),
@@ -6042,6 +6062,13 @@ async fn assemble_checked(
                     sales_price_lists_targets,
                 )
                 .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !portal_support_targets.is_empty() {
+            router = router.merge(
+                crate::portal_support_commands::router(portal_support_targets)
+                    .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

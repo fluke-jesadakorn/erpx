@@ -27,6 +27,7 @@
     "./adapters/portal-source-locks": "./src/adapters/portal-source-locks.ts",
     "./public/portal-projection-unit": "./src/public/portal-projection-unit.ts",
     "./public/portal-support": "./src/public/portal-support.ts",
+    "./public/native-portal-support": "./src/public/native-portal-support.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/customer-identity-changes": "./src/public/customer-identity-changes.ts",
     "./public/sales-review-counts": "./src/public/sales-review-counts.ts",

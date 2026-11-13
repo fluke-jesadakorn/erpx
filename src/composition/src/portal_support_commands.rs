@@ -1,0 +1,35 @@
+//! Native staff portal-support response/closure composition.
+use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commercial::public::purchases::PackageEnforcementMode;
+use erpx_server_customer_authority::public::portal_support_commands::{
+    CloseInput, PgPortalSupportCommands, RespondInput, StaffBackend, StaffCommand, StaffRequest,
+    SupportActor, SupportFuture, SupportReply, SupportTarget, portal_support_staff_router,
+};
+use erpx_server_identity_access::public::{AccountPolicy,DeviceProof,RequestAudience,account_inbound_http::parse_inbound_account_request,effective_authority::{AuthorizedWorkContext,HoldingWorkAuthorizer,HoldingWorkSourcePreparation,WorkAuthorizationRequest},work_context::{HoldingWorkspaceRequest,WorkScopeKind}};
+use erpx_server_runtime::public::http_support::HeaderMap;
+use erpx_server_runtime::public::postgres::{PgTransactionError,PgWorkFuture};
+use erpx_server_shared::public::{BusinessError,Clock,CompanyId,FailureKind,HoldingId};
+use serde_json::Value;
+use sqlx::PgConnection;
+use std::sync::Arc;
+type Error=PgTransactionError<BusinessError>;
+fn scope()->BusinessError{BusinessError::new(FailureKind::Forbidden,"SALES_SCOPE_REQUIRED","Choose the current authorized Company workspace.")}
+fn not_found()->BusinessError{BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.")}
+fn unavailable()->BusinessError{BusinessError::new(FailureKind::Unavailable,"SALES_UNAVAILABLE","The Sales service is unavailable.")}
+fn business(e:Error)->BusinessError{match e{PgTransactionError::Business(e)=>e,PgTransactionError::Persistence(_)=>unavailable()}}
+fn mode()->PackageEnforcementMode{match std::env::var("ERPX_COMMERCE_PACKAGE_ENFORCEMENT").unwrap_or_else(|_|"disabled".into()).as_str(){"disabled"=>PackageEnforcementMode::Disabled,"shadow"=>PackageEnforcementMode::Shadow,_=>PackageEnforcementMode::Enforced}}
+fn production()->bool{std::env::var("NODE_ENV").map(|v|v=="production").unwrap_or(false)}
+#[derive(Clone,Copy)]struct Sources;
+impl HoldingWorkSourcePreparation for Sources{fn prepare<'c>(&'c self,_:&'c mut PgConnection)->PgWorkFuture<'c,(),BusinessError>{Box::pin(async{Ok(())})}}
+#[derive(Clone)]pub struct PortalSupportConfiguration{holding:HoldingId,company:CompanyId}
+impl PortalSupportConfiguration{pub fn new(holding:HoldingId,company:CompanyId)->Self{Self{holding,company}}pub fn company(&self)->&CompanyId{&self.company}}
+fn actor(c:&AuthorizedWorkContext)->Result<SupportActor,BusinessError>{let s=c.selection();let w=s.workspace();let a=s.assignment();Ok(SupportActor{user_id:c.user_id().as_str().into(),company_id:w.company_id.as_str().into(),branch_id:w.branch_id.as_ref().map(|v|v.as_str().into()),department_id:w.department_id.as_ref().map(|v|v.as_str().into()),assignment_id:a.id.as_str().into(),role:a.role.clone(),session_id:Some(c.session_id().as_str().into()),assignment_version:Some(a.version),permissions:c.command_iam_metadata().permissions.clone()})}
+fn context(c:&AuthorizedWorkContext)->Value{let s=c.selection();let w=s.workspace();let a=s.assignment();serde_json::json!({"userId":c.user_id().as_str(),"holdingId":c.holding_id().as_str(),"companyId":w.company_id.as_str(),"branchId":w.branch_id.as_ref().map(|v|v.as_str()),"departmentId":w.department_id.as_ref().map(|v|v.as_str()),"branchSlug":w.branch_slug,"departmentSlug":w.department_slug,"assignmentId":a.id.as_str(),"assignmentVersion":a.version,"revision":s.revision(),"role":a.role,"assignmentScopeKind":match a.scope_kind{WorkScopeKind::Holding=>"holding",WorkScopeKind::Branch=>"branch",WorkScopeKind::Department=>"department"},"modules":c.modules(),"permissions":c.command_iam_metadata().permissions,"expiresAt":c.expires_at()})}
+pub struct PortalSupportService<C>{authorizer:Arc<HoldingWorkAuthorizer>,configuration:PortalSupportConfiguration,clock:Arc<C>,mode:PackageEnforcementMode,production:bool}
+impl<C:Clock+Send+Sync+'static> PortalSupportService<C>{pub fn new(a:Arc<HoldingWorkAuthorizer>,c:PortalSupportConfiguration,cl:Arc<C>,m:PackageEnforcementMode,p:bool)->Self{Self{authorizer:a,configuration:c,clock:cl,mode:m,production:p}}pub fn from_runtime(a:Arc<HoldingWorkAuthorizer>,c:PortalSupportConfiguration,cl:Arc<C>)->Self{Self::new(a,c,cl,mode(),production())}pub fn company(&self)->&CompanyId{self.configuration.company()}
+ pub async fn execute(&self,host:&str,proof:DeviceProof,selection:HoldingWorkspaceRequest,key:String,command:StaffCommand)->Result<SupportReply,Error>{let holding=self.configuration.holding.clone();let company=self.configuration.company.clone();let clock=self.clock.clone();let mode=self.mode;let production=self.production;let expected=company.clone();self.authorizer.execute_with_sources_deferred(host,proof,move||{let mut r=selection;if r.company_id!=expected{return Err(scope())}r.mutation=true;Ok(r)},WorkAuthorizationRequest{permission:"commerce.approve".into(),module:Some("sales".into()),destination:"sales".into(),api:true},Sources,move|connection,current|{let holding=holding.clone();let company=company.clone();let clock=clock.clone();let key=key.clone();let command=command.clone();Box::pin(async move{if current.holding_id()!=&holding||current.selection().workspace().company_id!=company{return Err(scope().into())}current.require_permission("commerce.approve")?;let actor=actor(current)?;let now=clock.now().get();let mut repo=PgPortalSupportCommands::new(connection,mode,production);let receipt=match command{StaffCommand::Respond{request_id,input}=>{let input:RespondInput=input;repo.publish(&actor,&request_id,input,&key,now).await?}StaffCommand::Close{request_id,input}=>{let input:CloseInput=input;repo.close(&actor,&request_id,input,&key,now).await?}};Ok(SupportReply{data:receipt.wire(),context:context(current)})})}).await}}
+pub struct PortalSupportBackend<C>{policy:Arc<AccountPolicy>,scopes:Arc<dyn BusinessScopeSlugs>,service:Arc<PortalSupportService<C>>}
+impl<C:Clock+Send+Sync+'static> PortalSupportBackend<C>{pub fn new(policy:Arc<AccountPolicy>,scopes:Arc<dyn BusinessScopeSlugs>,service:Arc<PortalSupportService<C>>)->Self{Self{policy,scopes,service}}fn context(&self,h:&HeaderMap)->Result<(DeviceProof,HoldingWorkspaceRequest),BusinessError>{let inbound=parse_inbound_account_request(&self.policy,h)?;if !matches!(inbound.audience(),RequestAudience::Holding{..}){return Err(not_found())}let(branch,department)=self.scopes.slugs(h)?;Ok((inbound.into_proof(),HoldingWorkspaceRequest{company_id:self.service.company().clone(),branch_slug:branch,department_slug:department,expected:None,mutation:false}))}}
+impl<C:Clock+Send+Sync+'static> StaffBackend for PortalSupportBackend<C>{fn execute<'a>(&'a self,r:StaffRequest<'a>)->SupportFuture<'a,SupportReply>{Box::pin(async move{let(proof,selection)=self.context(r.headers)?;self.service.execute(r.host,proof,selection,r.key,r.command).await.map_err(business)})}}
+pub fn target(host:String,holding_slug:String,origin:String,backend:Arc<dyn StaffBackend>)->SupportTarget{SupportTarget{host,holding_slug,origin,backend}}
+pub fn router(targets:Vec<SupportTarget>)->Result<erpx_server_runtime::public::http_support::Router,BusinessError>{portal_support_staff_router(targets)}
