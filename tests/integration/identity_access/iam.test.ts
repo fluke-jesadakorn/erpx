@@ -1665,8 +1665,9 @@ it('rechecks financial source Company, scope, purchase history, release, IAM ver
  const restored=await selectWorkRole(env.H001_DB,{sessionId:f.owner.sessionId,userId:f.owner.userId,companyId:f.companyId,assignmentId:f.owner.assignmentId,assignmentVersion:1,revision:originalContext!.revision,expiresAt:now()+600000});
  const restoredVersion=restored.assignment_version;if(typeof restoredVersion!=='number'||!Number.isSafeInteger(restoredVersion)||restoredVersion<1)throw Error('CURRENT_RESTORED_ASSIGNMENT_VERSION_REQUIRED');
  f.original.authority={sessionId:f.owner.sessionId,assignmentVersion:restoredVersion,revision:restored.revision};f.original.iam=await loadIamAuthority(db,f.companyId,f.owner.userId,f.owner.role,f.owner.sessionId);
- const {cancelPayrollRun}=await import('@erpx/server-people_payroll/public/payroll-cancellation');
- const cancelled=await cancelPayrollRun(f.original,String(f.run.id),{expectedVersion:1,reason:'Cancel unused native entry-only payroll preparation'},key());expect(cancelled.status).toBe('cancelled');
+ const {cancelPayrollRunSeed}=await import('../../support/helpers/payroll-cancellation-seed');
+ await cancelPayrollRunSeed(db,{runId:String(f.run.id),companyId:f.companyId,actorId:f.original.userId,reason:'Cancel unused native entry-only payroll preparation'});
+ expect(await db.prepare("SELECT status FROM hr_payroll_runs WHERE id=?").bind(f.run.id).first('status')).toBe('cancelled');
  await f.withOwnerPackageObligations(env.H001_DB,{companyId:f.companyId,packageId:child.packageId,packageVersion:1},async transaction=>f.store.batch.applyIn(transaction,{companyId:f.companyId,expectedRevision:f.packageGrantRevision(f.companyId,await readCompanyPackageGrants(transaction,f.companyId)),idempotencyKey:key(),changes:[{expectedVersion:child.version,grant:{...child,version:child.version+1,state:'inactive',reason:'Withdraw after exact native cancellation',evidence:'test:financial-entry-retained-history'}}]},async()=>{}));
  expect(await f.entry(target)).toMatchObject({purchasePurpose:'history'});
  const oldMode=process.env.NODE_ENV;vi.stubEnv('NODE_ENV','production');try{expect(await f.entry(target)).toBeNull();}finally{vi.stubEnv('NODE_ENV',oldMode);}

@@ -41,7 +41,7 @@ import { payrollIdentityFacts } from '@erpx/server-identity_access/public/payrol
 import { payrollBenefitOwnerFacts } from '@erpx/server-benefits/public/payroll-owner-facts';
 import { payrollFinanceFacts } from '@erpx/server-finance/public/payroll-owner-facts';
 export { createPersonSchema, createEngagementSchema, compensationSchema, compensationTransitionSchema, engagementTransitionSchema, payrollCostVerificationSchema, payGroupSchema, countryPackSchema, countryPackTransitionSchema, payrollRunSchema, paymentBatchSchema, timeEntrySchema, paymentConfirmationSchema, payrollPostSchema, payrollAccountMappingSchema, payrollCorrectionRequestSchema, payrollCorrectionDecisionSchema, finalPayPreparationSchema, payrollAdvanceRequestSchema, payrollAdvanceDecisionSchema, assignPayGroupSchema, timeEntryUpdateSchema, timeEntryReviewSchema } from '@erpx/server-people_payroll/domain/people-payroll';
-export { cancelPayrollRun, payrollCancelSchema } from "@erpx/server-people_payroll/adapters/payroll-cancellation";
+export { payrollCancelSchema } from "@erpx/server-people_payroll/domain/payroll-cancellation";
 export { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@erpx/server-people_payroll/adapters/payroll-adjustments";
 function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
     let database = provided!, files: FileStore;

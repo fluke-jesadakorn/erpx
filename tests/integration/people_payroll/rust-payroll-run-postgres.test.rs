@@ -7,7 +7,7 @@ mod fixture;
 
 use erpx_server_people_payroll::public::payroll_run::{
     PayrollCommandActor, PayrollJournalPort, PayrollJournalRequest, PayrollPreparedJournal,
-    PgPayrollCommand, calculate_payroll_run, create_payroll_run, post_payroll,
+    PgPayrollCommand, calculate_payroll_run, cancel_payroll_run, create_payroll_run, post_payroll,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -372,6 +372,91 @@ async fn in_process_detail_projects_owner_audit_columns_the_stored_error_and_pay
         .await
         .unwrap_err();
         assert_eq!(error.code, "PAYROLL_COMMAND_TRANSACTION_REQUIRED");
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cancel_run_retains_the_owner_transition_evidence_and_exact_replay() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let create = json!({
+            "payGroupId": "group",
+            "periodStart": "2026-10-01",
+            "periodEnd": "2026-10-02",
+            "payDate": "2026-10-02",
+            "currency": "THB",
+            "mode": "preview"
+        });
+        let current = actor();
+        PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let actor = current.clone();
+                let create = create.clone();
+                Box::pin(async move {
+                    let created = {
+                        let mut repository = PgPayrollCommand::new(&mut *connection, &actor);
+                        create_payroll_run(&actor, &create, &key("cancel-create-1"), &mut repository, NOW)
+                            .await
+                            .map_err(business)?
+                    };
+                    let run_id = created["id"].as_str().unwrap().to_owned();
+                    let input = json!({
+                        "expectedVersion": 1,
+                        "reason": "Future work period entered accidentally."
+                    });
+                    let cancelled = {
+                        let mut repository = PgPayrollCommand::new(&mut *connection, &actor);
+                        cancel_payroll_run(
+                            &actor,
+                            &run_id,
+                            &input,
+                            &key("cancel-key-1"),
+                            &mut repository,
+                            NOW,
+                        )
+                        .await
+                        .map_err(business)?
+                    };
+                    assert_eq!(cancelled["status"], "cancelled");
+                    assert_eq!(cancelled["version"], 2);
+                    assert_eq!(cancelled["cancellationId"], "payroll-cancellation-cancel-key-1");
+                    let replay = {
+                        let mut repository = PgPayrollCommand::new(&mut *connection, &actor);
+                        cancel_payroll_run(
+                            &actor,
+                            &run_id,
+                            &input,
+                            &key("cancel-key-1"),
+                            &mut repository,
+                            NOW,
+                        )
+                        .await
+                        .map_err(business)?
+                    };
+                    assert_eq!(replay, cancelled);
+                    let evidence: (String, i64, String) = sqlx::query_as(
+                        "SELECT r.status,r.version,c.reason \
+                         FROM hr_payroll_runs r JOIN hr_payroll_run_cancellations c \
+                         ON c.run_id=r.id AND c.company_id=r.company_id WHERE r.id=$1",
+                    )
+                    .bind(&run_id)
+                    .fetch_one(&mut *connection)
+                    .await
+                    .unwrap();
+                    assert_eq!(
+                        evidence,
+                        (
+                            "cancelled".into(),
+                            2,
+                            "Future work period entered accidentally.".into()
+                        )
+                    );
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
     })
     .await;
 }
