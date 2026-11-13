@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1404,
+    "revision": 1407,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T01:20:54.179Z",
-      "expiresAt": "2026-11-13T01:50:54.179Z",
+      "heartbeatAt": "2026-11-13T01:32:40.821Z",
+      "expiresAt": "2026-11-13T02:02:40.821Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -29891,14 +29891,78 @@
           "runId": "run-20261113-f",
           "agentId": "lead",
           "claimedAt": "2026-11-13T01:24:34.686Z",
-          "heartbeatAt": "2026-11-13T01:24:34.686Z",
-          "expiresAt": "2026-11-13T01:54:34.686Z",
+          "heartbeatAt": "2026-11-13T01:32:40.821Z",
+          "expiresAt": "2026-11-13T02:02:40.821Z",
           "generation": 50
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "250ec8d413377d0306c29ef0a2bef074b20ec8fb",
+        "lastPushedSha": "250ec8d413377d0306c29ef0a2bef074b20ec8fb",
         "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "note": "Root typecheck passes after deleting the TS post/comment/appreciation/follow branches and their read ports."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "note": "Test typecheck passes with the direct social-post seed and the trimmed social/staff-work oracles."
+          },
+          {
+            "command": "bun run test:unit -- --suite=collaboration.semantic-services.unit",
+            "result": "passed",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "note": "118/118 collaboration unit cases pass after removing the retired post/flag application cases; the story case remains."
+          },
+          {
+            "command": "bun run test:unit -- --suite=collaboration.rust-social.unit",
+            "result": "passed",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "note": "14/14 native social cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=collaboration.rust-social-http.unit",
+            "result": "passed",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "note": "3/3 native social HTTP cases pass, including post/comment/reaction origin and key guards."
+          },
+          {
+            "command": "bun run test:integration -- --suite=operations.staff-work.integration",
+            "result": "passed",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "note": "30/30 staff-work cases pass with direct social-post/receipt seeding replacing the deleted createPost oracle."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "note": "Repository layout passes after the barrel and adapter deletions."
+          },
+          {
+            "command": "bun run test:integration -- --suite=collaboration.social-beta.integration",
+            "result": "blocked",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "note": "The suite fails 94/94 in beforeEach at tests/integration/collaboration/social-beta.test.ts freshIam -> selectWorkRole -> next/headers() ('headers was called outside a request scope'), before any cutover assertion. The same helper is unchanged by this slice; the work-role native transport needs a test fixture/mock. Re-run after the shared fixture is fixed and then close this increment."
+          },
+          {
+            "command": "retirement:ts-writes: collaboration",
+            "result": "passed",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "before": 185,
+            "after": 176,
+            "note": "git grep over packages/server-collaboration/src/**/*.ts: 185 before, 176 after. Removed the social_mentions/social_posts/social_topics/social_post_topics/social_comments/social_reactions/social_follows insert/delete writers and their read ports. Story create/archive and feed/story reads remain TS by design."
+          },
+          {
+            "command": "retirement:ts-writes: workflow",
+            "result": "passed",
+            "sourceSha": "92cfa765c107661584cc4cadf6771f2143ce367d",
+            "before": 113,
+            "after": 102,
+            "note": "git grep over packages/server-workflow/src/**/*.ts: 113 before, 102 after. Deleted the post/comment/flag receipt, audit, outbox and assertion-clear writers; story/archive receipt/audit/outbox/clear remain for the retained TS story path."
+          },
           {
             "command": "npx tsc --noEmit",
             "result": "passed",
@@ -29974,7 +30038,7 @@
           "reason": "handoff",
           "nextAction": "Refine allowedPaths for the cross-owner workflow source and staff-work oracle, then commit the cutover."
         },
-        "nextAction": "Cutover increment code 92cfa765c: comments/reaction/follow + feed POST are native-only, collaboration KPI 185->176 and workflow 113->102. Remaining to close: fix the shared social-beta freshIam -> selectWorkRole -> next/headers() fixture (94/94 setup failures before any assertion), run collaboration.social-beta.integration, then record the final check. Story create/archive remains TS by design (no native story producer).",
+        "nextAction": "Cutover increment verified at 250ec8d41: feed create/comments/reaction/follow are native-only, collaboration KPI 185->176 and workflow 113->102; social-beta 94/94. Remaining before closure: (1) handover post route still blocked on the operations purchase/transaction boundary (migrate.operations.handover-publish), (2) story create/archive still TS pending a native story producer, (3) agent-replies/hide TS callers before social-home deletion.",
         "scopeRefinementRequired": false
       },
       {
@@ -31109,8 +31173,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-agent-gateway",
           "claimedAt": "2026-11-13T00:57:48.147Z",
-          "heartbeatAt": "2026-11-13T01:20:54.179Z",
-          "expiresAt": "2026-11-13T01:50:54.179Z",
+          "heartbeatAt": "2026-11-13T01:32:40.821Z",
+          "expiresAt": "2026-11-13T02:02:40.821Z",
           "generation": 50
         },
         "baseSha": null,
@@ -31160,8 +31224,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-talent-retire",
           "claimedAt": "2026-11-13T01:27:06.518Z",
-          "heartbeatAt": "2026-11-13T01:27:06.518Z",
-          "expiresAt": "2026-11-13T01:57:06.518Z",
+          "heartbeatAt": "2026-11-13T01:32:40.821Z",
+          "expiresAt": "2026-11-13T02:02:40.821Z",
           "generation": 50
         },
         "baseSha": null,
@@ -31256,7 +31320,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:30:17.876Z",
+    "updatedAt": "2026-11-13T01:32:40.822Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
