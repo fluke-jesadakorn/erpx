@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1907,
+    "revision": 1929,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-r",
+      "runId": "run-20261113-s",
       "agentId": "lead",
-      "startedAt": "2026-11-13T17:35:31.335Z",
-      "heartbeatAt": "2026-11-13T17:36:48.922Z",
-      "expiresAt": "2026-11-13T18:06:48.922Z",
-      "generation": 62,
-      "tokenHash": "58ab7b868337adde184eb9a528bfe5bc726c47796c02644a2db5ced8bebaf6d5"
+      "startedAt": "2026-11-13T18:23:29.035Z",
+      "heartbeatAt": "2026-11-13T18:24:13.928Z",
+      "expiresAt": "2026-11-13T18:54:13.928Z",
+      "generation": 63,
+      "tokenHash": "3479e142b09480adda880d5209347ff6c3b50cc562def46caa019fa2555ebe47"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -21341,29 +21341,65 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-r",
-          "agentId": "worker-collaboration-home",
-          "claimedAt": "2026-11-13T17:36:28.694Z",
-          "heartbeatAt": "2026-11-13T17:36:48.922Z",
-          "expiresAt": "2026-11-13T18:06:48.922Z",
-          "generation": 62
-        },
+        "status": "ready_for_integration",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
+        "lastPushedSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_postgres",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "13 passed."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_http",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "5 passed."
+          },
+          {
+            "command": "bun run test:unit -- --suite=collaboration.semantic-services.unit",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "120 passed."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 33 modules, 1225 suites."
+          },
+          {
+            "command": "bun run --filter '@erpx/server-collaboration' typecheck",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Package typecheck passed."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "BLOCKED ON NATIVE PRODUCER: native social.rs covers post/comment/mention/topic/reaction/follow/notification but has no writer for social_post_drafts, social_post_participants, social_post_sources, social_post_revisions, social_reports or upload-discard intake; live TS callers remain in server-operations handover, server-manage_erpx beta-api and server-pms home-api. Implement those native commands and switch those owners before retiring the TS writer; removalTaskId=retire.collaboration.social-home.",
+        "blocker": "released with work preserved",
+        "nextAction": " mount the composition read overrides + feature-apps GET switches + dev native social config, then switch operations/manage_erpx/pms callers and delete the 31 social-home writers.",
         "handoff": {
-          "runId": "run-20261113-b",
+          "runId": "run-20261113-s",
           "agentId": "lead",
-          "at": "2026-11-12T20:58:29.787Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "BLOCKED ON NATIVE PRODUCER: native social.rs covers post/comment/mention/topic/reaction/follow/notification but has no writer for social_post_drafts, social_post_participants, social_post_sources, social_post_revisions, social_reports or upload-discard intake; live TS callers remain in server-operations handover, server-manage_erpx beta-api and server-pms home-api. Implement those native commands and switch those owners before retiring the TS writer; removalTaskId=retire.collaboration.social-home."
+          "at": "2026-11-13T18:23:51.102Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": " mount the composition read overrides + feature-apps GET switches + dev native social config, then switch operations/manage_erpx/pms callers and delete the 31 social-home writers."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -21720,18 +21756,11 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-r",
-          "agentId": "worker-finance-residual-2",
-          "claimedAt": "2026-11-13T17:36:28.590Z",
-          "heartbeatAt": "2026-11-13T17:36:48.922Z",
-          "expiresAt": "2026-11-13T18:06:48.922Z",
-          "generation": 62
-        },
+        "status": "ready_for_integration",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "5d50d70763d63a86d2ec2beb0342342095a38f07",
-        "lastPushedSha": "5d50d70763d63a86d2ec2beb0342342095a38f07",
+        "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
+        "lastPushedSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
@@ -21769,6 +21798,50 @@
             "sourceSha": "5d50d70763d63a86d2ec2beb0342342095a38f07",
             "sourceKind": "committed",
             "note": "20 retained application-layer tests passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "before": 353,
+            "after": 336,
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Replaced 17 duplicate command_assertions cleanups with the shared workflow port."
+          },
+          {
+            "command": "cd packages/server-finance && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Finance typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.payment-obligations.integration",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "bun run test:integration -- --suite=finance.business-contracts.integration",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "15/15."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
           }
         ],
         "retainedLegacy": [
@@ -21793,15 +21866,15 @@
             "removalCondition": "Move the retained application-layer cases to native Rust seeding, then delete this test and its catalogue entry."
           }
         ],
-        "blocker": null,
-        "nextAction": "Residual 370 after retiring finance-manual-drafts (375->370). Classified: 154 in nine blocked producer files (finance-ai 18, supplier batches/instructions 17, VAT 13, consolidation 13, accruals 12, instruments 11, asset policies 11, refunds 10, adapters/finance.ts 49); 17 in 14 command_assertions-only guards; 199 cross-owner published facts/capability modules whose native producer lives in the originating owner. Highest leverage: make the workplace finance [...path] route native-only for chart/account/import/status/period and bank import/reconcile (needs lead path extension), then split the remaining producers by capability.",
+        "blocker": "released with work preserved",
+        "nextAction": "Finance 353 -> 336 (17 duplicate assertion cleanups deduped). Next: grant the workplace finance route path to cut over setup/bank (~11 writers, fail-closed), then split VAT/consolidation/accruals/finance-ai into producer packets.",
         "handoff": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-finance",
-          "at": "2026-11-13T05:43:59.426Z",
-          "previousStatus": "blocked",
+          "runId": "run-20261113-s",
+          "agentId": "lead",
+          "at": "2026-11-13T18:23:39.058Z",
+          "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Residual 370 after retiring finance-manual-drafts (375->370). Classified: 154 in nine blocked producer files (finance-ai 18, supplier batches/instructions 17, VAT 13, consolidation 13, accruals 12, instruments 11, asset policies 11, refunds 10, adapters/finance.ts 49); 17 in 14 command_assertions-only guards; 199 cross-owner published facts/capability modules whose native producer lives in the originating owner. Highest leverage: make the workplace finance [...path] route native-only for chart/account/import/status/period and bank import/reconcile (needs lead path extension), then split the remaining producers by capability."
+          "nextAction": "Finance 353 -> 336 (17 duplicate assertion cleanups deduped). Next: grant the workplace finance route path to cut over setup/bank (~11 writers, fail-closed), then split VAT/consolidation/accruals/finance-ai into producer packets."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -22575,14 +22648,14 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "integrating",
+        "status": "in_progress",
         "claim": {
-          "runId": "run-20261113-r",
+          "runId": "run-20261113-s",
           "agentId": "worker-pms-residual",
-          "claimedAt": "2026-11-13T17:36:28.730Z",
-          "heartbeatAt": "2026-11-13T17:36:48.922Z",
-          "expiresAt": "2026-11-13T18:06:48.922Z",
-          "generation": 62
+          "claimedAt": "2026-11-13T18:23:29.229Z",
+          "heartbeatAt": "2026-11-13T18:24:13.928Z",
+          "expiresAt": "2026-11-13T18:54:13.928Z",
+          "generation": 63
         },
         "baseSha": null,
         "implementedCommit": "ec47d0ea0c9cd68d4cee7e73aaf065a0b0621bb8",
@@ -22658,11 +22731,11 @@
         "blocker": null,
         "nextAction": "Native booking mail/token/rate-limit producer is committed (210 tests pass). Lead: implement the three composition ports (PmsBookingMailProvider, PmsBookingMailCipher, PmsBookingPurchaseGuard), call drain_booking_mail_turn from pmsWork and the public booking route, then delete the 9 covered pms-booking.ts writers (PMS 109 -> 100). The remaining 100 residual is blocked on the native quote/payment/change/refund engine.",
         "handoff": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-pms-booking",
-          "at": "2026-11-13T07:16:49.496Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "released with work preserved",
+          "runId": "run-20261113-r",
+          "agentId": "worker-pms-residual",
+          "at": "2026-11-13T18:23:29.034Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Lease expired during five-worker closure batch; same lead resumes; WIP reviewed",
           "nextAction": "Native booking mail/token/rate-limit producer is committed (210 tests pass). Lead: implement the three composition ports (PmsBookingMailProvider, PmsBookingMailCipher, PmsBookingPurchaseGuard), call drain_booking_mail_turn from pmsWork and the public booking route, then delete the 9 covered pms-booking.ts writers (PMS 109 -> 100). The remaining 100 residual is blocked on the native quote/payment/change/refund engine."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -23632,28 +23705,25 @@
           "packages/server-identity_access/src/**",
           "packages/feature-identity_access/**",
           "packages/feature-account/**",
+          "src/composition/src/**",
           "tests/integration/identity_access/**",
-          "tests/unit/identity_access/**"
+          "tests/unit/identity_access/**",
+          "tests/integration/commercial/**",
+          "fixtures/shared/**"
         ],
         "resources": [
-          "owner:identity_access"
+          "owner:identity_access",
+          "resource:composition"
         ],
-        "status": "integrating",
-        "nextAction": "Classic invitation acceptance retired (IAM 211 -> 204). Residual 204 remains blocked on: production PositionGpoDirectory + GPO HTTP/mount (33), directory sync/connection routers (~26), directory-operations (15), user-management (12), iam-migrations/account-recovery (22), iam-api branches (10), the product SSO/app routes, and the native jobs runtime. Dispatch per-capability producer tasks.",
+        "status": "ready_for_integration",
+        "nextAction": "Native emergency access and dead writers retired (IAM 118 -> 110). Remaining 110 blocked on IAM migrations, GPO rules, account recovery, iam-api branches, product SSO, people lifecycle, technology/provisioning, preferences and cross-owner fact adapters; composition mounts still needed.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": {
-          "runId": "run-20261113-r",
-          "agentId": "worker-iam-residual-3",
-          "claimedAt": "2026-11-13T17:36:28.625Z",
-          "heartbeatAt": "2026-11-13T17:36:48.922Z",
-          "expiresAt": "2026-11-13T18:06:48.922Z",
-          "generation": 62
-        },
+        "claim": null,
         "baseSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
-        "implementedCommit": "72717fd9961028db1aaa9f895a299760a97af37a",
-        "lastPushedSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+        "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
+        "lastPushedSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
         "checks": [
           {
             "command": "npx tsc --noEmit",
@@ -23783,6 +23853,57 @@
             "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
             "sourceKind": "committed",
             "note": "29/29."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 118,
+            "after": 110,
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Removed product-session-revocation (1), iam-mfa (3) and iam-recovery (4) writers."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the recovery router."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-identity-access --lib --offline",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "31 passed."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-identity-access --test account_security_postgres --offline",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "11/11, including the emergency-access exact-once test."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
           }
         ],
         "retainedLegacy": [
@@ -23793,14 +23914,14 @@
             "removalCondition": "Mount the native PeopleRelationshipsHttpBackend in composition, register the Holding route, add the TS transport client and switch peopleRelationshipsSnapshot/previewPeopleRelationships/applyPeopleRelationships, then delete the 18 TS statements and exports."
           }
         ],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261113-m",
-          "agentId": "worker-iam-residual-2",
-          "at": "2026-11-13T12:31:07.732Z",
+          "runId": "run-20261113-s",
+          "agentId": "lead",
+          "at": "2026-11-13T18:23:50.962Z",
           "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Classic invitation acceptance retired (IAM 211 -> 204). Residual 204 remains blocked on: production PositionGpoDirectory + GPO HTTP/mount (33), directory sync/connection routers (~26), directory-operations (15), user-management (12), iam-migrations/account-recovery (22), iam-api branches (10), the product SSO/app routes, and the native jobs runtime. Dispatch per-capability producer tasks."
+          "nextAction": "Native emergency access and dead writers retired (IAM 118 -> 110). Remaining 110 blocked on IAM migrations, GPO rules, account recovery, iam-api branches, product SSO, people lifecycle, technology/provisioning, preferences and cross-owner fact adapters; composition mounts still needed."
         }
       },
       {
@@ -38152,23 +38273,61 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-r",
-          "agentId": "worker-manufacturing-residual",
-          "claimedAt": "2026-11-13T17:36:28.660Z",
-          "heartbeatAt": "2026-11-13T17:36:48.922Z",
-          "expiresAt": "2026-11-13T18:06:48.922Z",
-          "generation": 62
-        },
+        "status": "ready_for_integration",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
+        "lastPushedSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "before": 23,
+            "after": 19,
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Shared command-assertion cleanup."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx vitest run tests/unit/planning/production-services.test.ts tests/unit/manufacturing/native-manufacturing-bom-transport.test.ts --exclude '.scratch/**'",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "164/164."
+          },
+          {
+            "command": "ERPX_TEST_PG_BIN=/opt/homebrew/opt/postgresql@18/bin bun scripts/testing/test.ts integration --suite=manufacturing.production.integration",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "40/40."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 audit the remaining 23 Manufacturing TS writers against packages/server-manufacturing/src/**/*.rs; implement the missing native producers, switch consumers, delete the TS writers and record the Manufacturing KPI pair.",
-        "handoff": null,
+        "blocker": "released with work preserved",
+        "nextAction": " extend paths to tests/support/manufacturing to delete the 6 dead issue/pass-QC writers (19 -> 13), then widen the native order actions (13 -> 7) and add the native accounting producer (7 -> 3).",
+        "handoff": {
+          "runId": "run-20261113-s",
+          "agentId": "lead",
+          "at": "2026-11-13T18:23:51.033Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": " extend paths to tests/support/manufacturing to delete the 6 dead issue/pass-QC writers (19 -> 13), then widen the native order actions (13 -> 7) and add the native accounting producer (7 -> 3)."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -38249,6 +38408,119 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.collaboration.social-home",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S13",
+        "kind": "migration",
+        "title": "Mount native social reads and cut over social-home callers",
+        "scope": "Mount the comments/revisions read overrides in composition, switch the feature-apps GETs and dev native social config, switch server-operations/manage_erpx/pms callers, then delete the 31 social-home writers and barrels and record Collaboration 169 -> 138.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-collaboration/src/**",
+          "packages/feature-collaboration/**",
+          "packages/feature-apps/**",
+          "packages/server-operations/src/**",
+          "packages/server-manage_erpx/src/**",
+          "packages/server-pms/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/{posts,feed,home}/**",
+          "scripts/local/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Override comments_page/revisions in the composition SocialHttpBackend, switch the feature-apps comments/revisions GETs, add ERPX_NATIVE_COLLABORATION_CONFIG to the dev container start, switch server-operations/manage_erpx/pms to the native social routes, then delete savePostDraft/publishPost/postAction + the social-home repository writers/barrels and record Collaboration 169 -> 138.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.finance.setup-bank-cutover",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Fail-closed finance setup and bank route cutover",
+        "scope": "Make the native finance setup and bank import/reconcile routes fail closed when unconfigured, switch the workplace finance route, delete the replaced TS setup/bank writers (~11), move the oracles to native seeding, and record the Finance KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "packages/server-finance/src/**",
+          "packages/feature-finance/**",
+          "fixtures/finance/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Make the workplace finance setup and bank import/reconcile branches native-only (503 when unconfigured), delete commitCreateChart/Account/Status/Import/Period and the bank writers from finance.ts, move the finance-book/payroll-history oracle helpers to native seeding, and record Finance 336 -> ~325.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.dead-lot-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "manufacturing",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Delete the dead issue/pass-QC lot writers",
+        "scope": "Delete the six dead issue/pass-QC repository methods left behind by the native order cutover and their test-oracle forwarders, then record Manufacturing 19 -> 13.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/support/manufacturing/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete prepareReservationConsumption/prepareIssueMove/prepareMaterialCost/prepareOutputMove/prepareCostSnapshot/prepareProductGenealogy from production-command-sources.ts and their six legacy-oracle forwarders; keep the native order command coverage; record Manufacturing 19 -> 13.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -38257,21 +38529,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 202,
+      "totalPackets": 205,
       "migratedPackets": 122,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 3,
-        "ready_for_integration": 18,
-        "integrating": 2,
+        "pending": 23,
+        "in_progress": 1,
+        "ready_for_integration": 22,
+        "integrating": 0,
         "migrated": 122,
         "blocked": 37,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 62,
-    "updatedAt": "2026-11-13T17:36:48.924Z",
+    "lastCoordinatorGeneration": 63,
+    "updatedAt": "2026-11-13T18:24:13.929Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -38314,10 +38586,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-q",
-      "runId": "run-20261113-r",
-      "at": "2026-11-13T17:35:31.338Z",
-      "reason": "Lease expired during directory-operations integration closure; same lead resumes; WIP reviewed",
+      "previousRunId": "run-20261113-r",
+      "runId": "run-20261113-s",
+      "at": "2026-11-13T18:23:29.037Z",
+      "reason": "Lease expired during five-worker closure batch; same lead resumes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
