@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1955,
+    "revision": 1960,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-s",
       "agentId": "lead",
       "startedAt": "2026-11-13T18:23:29.035Z",
-      "heartbeatAt": "2026-11-13T18:30:14.026Z",
-      "expiresAt": "2026-11-13T19:00:14.026Z",
+      "heartbeatAt": "2026-11-13T18:34:56.423Z",
+      "expiresAt": "2026-11-13T19:04:56.423Z",
       "generation": 63,
       "tokenHash": "3479e142b09480adda880d5209347ff6c3b50cc562def46caa019fa2555ebe47"
     },
@@ -38464,8 +38464,8 @@
           "runId": "run-20261113-s",
           "agentId": "worker-collab-mount",
           "claimedAt": "2026-11-13T18:27:32.338Z",
-          "heartbeatAt": "2026-11-13T18:30:14.026Z",
-          "expiresAt": "2026-11-13T19:00:14.026Z",
+          "heartbeatAt": "2026-11-13T18:34:56.423Z",
+          "expiresAt": "2026-11-13T19:04:56.423Z",
           "generation": 63
         },
         "baseSha": null,
@@ -38508,8 +38508,8 @@
           "runId": "run-20261113-s",
           "agentId": "worker-finance-cutover",
           "claimedAt": "2026-11-13T18:27:11.377Z",
-          "heartbeatAt": "2026-11-13T18:30:14.026Z",
-          "expiresAt": "2026-11-13T19:00:14.026Z",
+          "heartbeatAt": "2026-11-13T18:34:56.423Z",
+          "expiresAt": "2026-11-13T19:04:56.423Z",
           "generation": 63
         },
         "baseSha": null,
@@ -38549,8 +38549,8 @@
           "runId": "run-20261113-s",
           "agentId": "worker-mfg-dead-lots",
           "claimedAt": "2026-11-13T18:26:58.332Z",
-          "heartbeatAt": "2026-11-13T18:30:14.026Z",
-          "expiresAt": "2026-11-13T19:00:14.026Z",
+          "heartbeatAt": "2026-11-13T18:34:56.423Z",
+          "expiresAt": "2026-11-13T19:04:56.423Z",
           "generation": 63
         },
         "baseSha": null,
@@ -39056,7 +39056,7 @@
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.command-assertions-owner-cleanup",
+        "id": "migrate.workflow.assertion-cleanup",
         "goalId": "G3",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "owner": "workflow",
@@ -39079,28 +39079,93 @@
           "tests/integration/inventory/**"
         ],
         "resources": [
-          "owner:workflow",
-          "resource:command-assertions"
+          "owner:workflow"
         ],
-        "status": "integrating",
-        "claim": {
-          "runId": "run-20261113-s",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T18:30:14.124Z",
-          "heartbeatAt": "2026-11-13T18:30:14.124Z",
-          "expiresAt": "2026-11-13T19:00:14.125Z",
-          "generation": 63
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+        "lastPushedSha": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "before": 320,
+            "after": 292,
+            "sourceSha": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+            "sourceKind": "committed",
+            "note": "28 duplicated command_assertions cleanups replaced with the shared workflow port."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "before": 50,
+            "after": 35,
+            "sourceSha": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+            "sourceKind": "committed",
+            "note": "15 duplicated cleanups replaced."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 48,
+            "after": 32,
+            "sourceSha": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+            "sourceKind": "committed",
+            "note": "16 duplicated cleanups replaced."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "before": 2052,
+            "after": 1993,
+            "sourceSha": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+            "sourceKind": "committed",
+            "note": "Global KPI -59."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run test:unit -- --suite=people_payroll.services.unit --suite=people_payroll.expense-commands.unit --suite=inventory.native-inventory-stock-transport.unit --suite=commerce.native-commerce-orders-transport.unit",
+            "result": "passed",
+            "sourceSha": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+            "sourceKind": "committed",
+            "note": "146/146."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.core.integration",
+            "result": "passed",
+            "sourceSha": "a5147f1b765f119f5e2b006a1d2c2750ed5a7492",
+            "sourceKind": "committed",
+            "note": "22/22, including the purchase-boundary rollback and receipt-first ordering cases."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead review.",
-        "handoff": null,
+        "nextAction": "Complete: 59 duplicated command_assertions cleanups collapsed into the shared workflow port (people_payroll -28, commerce -15, inventory -16; global 2052 -> 1993).",
+        "handoff": {
+          "runId": "run-20261113-s",
+          "agentId": "lead",
+          "at": "2026-11-13T18:34:16.849Z",
+          "previousStatus": "integrating",
+          "reason": "released with work preserved",
+          "nextAction": "Lead review."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.workflow"
       }
     ],
     "migrationProgress": {
@@ -39110,20 +39175,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 219,
-      "migratedPackets": 122,
+      "migratedPackets": 123,
       "statusCounts": {
         "pending": 33,
         "in_progress": 3,
         "ready_for_integration": 23,
-        "integrating": 1,
-        "migrated": 122,
+        "integrating": 0,
+        "migrated": 123,
         "blocked": 37,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 63,
-    "updatedAt": "2026-11-13T18:33:45.163Z",
+    "updatedAt": "2026-11-13T18:34:56.423Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
