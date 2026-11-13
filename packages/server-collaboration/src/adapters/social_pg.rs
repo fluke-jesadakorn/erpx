@@ -278,6 +278,8 @@ impl<'c> PgSocialUnit<'c> {
             Change::PostEditUploadCancel { .. } => "social.post.edit-upload.cancel",
             Change::ModeratePost { .. } => "social.post.hide",
             Change::PublishHandoverPost { .. } => "social.handover.publish",
+            Change::CreateStory { .. } => "social.story.publish",
+            Change::ArchiveStory { .. } => "social.story.archive",
         }
     }
 
@@ -308,6 +310,8 @@ impl<'c> PgSocialUnit<'c> {
             Change::PostEditUploadCreate { .. } => format!("post-edit-upload-{}", key.as_str()),
             Change::ModeratePost { id } => id.clone(),
             Change::PublishHandoverPost { .. } => format!("post-post-draft-{}", key.as_str()),
+            Change::CreateStory { .. } => format!("story-{}", key.as_str()),
+            Change::ArchiveStory { id, .. } => id.clone(),
         })
     }
 
@@ -541,6 +545,16 @@ impl SocialUnit for PgSocialUnit<'_> {
                 "social_post",
                 "Publish workplace update",
                 "social.post.published",
+            ),
+            OwnerPlan::CreateStory { .. } => (
+                "social_story",
+                "Publish workplace story",
+                "social.story.published",
+            ),
+            OwnerPlan::ArchiveStory { .. } => (
+                "social_story",
+                "Archive workplace story",
+                "social.story.archived",
             ),
             OwnerPlan::CreateComment { .. } => (
                 "social_comment",

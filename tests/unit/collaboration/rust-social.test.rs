@@ -242,6 +242,59 @@ async fn publishes_a_post_with_normalized_topics_resolved_mentions_and_record() 
 }
 
 #[tokio::test]
+async fn creates_and_archives_a_story_with_owner_versions() {
+    let mut unit = Unit::new();
+    let created = execute(
+        &mut unit,
+        &key(),
+        Change::CreateStory {
+            title: "  News  ".into(),
+            body: " Current story ".into(),
+            theme: "sage".into(),
+            audience: Audience::Holding,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        (created.id.as_str(), created.version, created.status),
+        ("story-social-command-0001", 1, "published")
+    );
+    match unit.applied.take().unwrap() {
+        OwnerPlan::CreateStory {
+            title,
+            body,
+            theme,
+            branch_id,
+            ..
+        } => {
+            assert_eq!(title, "News");
+            assert_eq!(body, "Current story");
+            assert_eq!(theme, "sage");
+            assert_eq!(branch_id, None);
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let archived = execute(
+        &mut unit,
+        &CommandKey::new("social-command-0002").unwrap(),
+        Change::ArchiveStory {
+            id: "story-1".into(),
+            expected_version: 1,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!((archived.version, archived.status), (2, "archived"));
+    match unit.applied.unwrap() {
+        OwnerPlan::ArchiveStory { id, expected_version } => {
+            assert_eq!((id.as_str(), expected_version), ("story-1", 1));
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn denies_company_audience_without_current_scope_before_writing() {
     let mut unit = Unit::new();
     unit.actor.can_share_company = false;

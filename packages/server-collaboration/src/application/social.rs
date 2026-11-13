@@ -596,6 +596,39 @@ pub async fn execute<P: SocialUnit>(
                     rich_content_json,
                 });
             }
+            Change::CreateStory {
+                title,
+                body,
+                theme,
+                audience,
+            } => {
+                let branch_id = require_audience(&actor, audience)?;
+                let title = text(&title, 1, 80)?;
+                let body = text(&body, 1, 500)?;
+                if !matches!(theme.as_str(), "sage" | "sunset" | "sky" | "plum") {
+                    return Err(invalid().into());
+                }
+                plan = Some(OwnerPlan::CreateStory {
+                    id: format!("story-{}", key.as_str()),
+                    author_name: actor.display_name.clone(),
+                    company_id: actor.company_id.clone(),
+                    branch_id,
+                    department_id: actor.department_id.clone(),
+                    title,
+                    body,
+                    theme,
+                });
+            }
+            Change::ArchiveStory {
+                id,
+                expected_version,
+            } => {
+                validate_expected_version(expected_version)?;
+                plan = Some(OwnerPlan::ArchiveStory {
+                    id,
+                    expected_version,
+                });
+            }
         }
     }
     let result = match prior {

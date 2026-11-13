@@ -234,6 +234,14 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
             "/api/v1/holdings/{holding_slug}/feed/edit-uploads/{draft_id}/cancel",
             post(cancel_edit_upload),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/stories",
+            post(create_story),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/stories/{story_id}/archive",
+            post(archive_story),
+        )
         .with_state(Arc::new(state)))
 }
 
@@ -418,6 +426,34 @@ pub async fn create_post(
 ) -> Response {
     let headers = request.headers().clone();
     let prepared = prepare_command(state, slug, request, "social.post.publish", None, None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn create_story(
+    State(state): State<Arc<SocialHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(state, slug, request, "social.story.publish", None, None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn archive_story(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, story_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.story.archive",
+        Some(story_id),
+        None,
+    )
+    .await;
     command_response(prepared, headers).await
 }
 

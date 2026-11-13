@@ -107,6 +107,16 @@ pub fn decode_social_command(
             mentions: mentions(raw)?,
             linked_record: linked_record(raw)?,
         },
+        "social.story.publish" => Change::CreateStory {
+            title: text(raw, "title")?.to_owned(),
+            body: text(raw, "body")?.to_owned(),
+            theme: optional_text(raw, "theme")?.unwrap_or("sage").to_owned(),
+            audience: Audience::parse(optional_text(raw, "audience")?.unwrap_or("holding"))?,
+        },
+        "social.story.archive" => Change::ArchiveStory {
+            id: post(post_id)?,
+            expected_version: positive(raw, "expectedVersion")?,
+        },
         "social.comment.publish" => Change::PublishComment {
             post_id: post(post_id)?,
             body: text(raw, "body")?.to_owned(),

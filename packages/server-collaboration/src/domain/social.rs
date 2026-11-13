@@ -291,6 +291,16 @@ pub enum Change {
         rich_content_json: Option<String>,
         expected_version: i64,
     },
+    CreateStory {
+        title: String,
+        body: String,
+        theme: String,
+        audience: Audience,
+    },
+    ArchiveStory {
+        id: String,
+        expected_version: i64,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -424,6 +434,20 @@ pub enum OwnerPlan {
         content_json: Option<String>,
         rich_content_json: Option<String>,
     },
+    CreateStory {
+        id: String,
+        author_name: String,
+        company_id: String,
+        branch_id: Option<String>,
+        department_id: Option<String>,
+        title: String,
+        body: String,
+        theme: String,
+    },
+    ArchiveStory {
+        id: String,
+        expected_version: i64,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -477,6 +501,14 @@ pub fn draft_not_found() -> BusinessError {
         FailureKind::NotFound,
         "DRAFT_NOT_FOUND",
         "The draft is unavailable in this work scope.",
+    )
+}
+
+pub fn story_conflict() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "STORY_CONFLICT",
+        "Only the author can archive the current story.",
     )
 }
 
@@ -691,6 +723,19 @@ pub fn plan_receipt(_key: &CommandKey, plan: &OwnerPlan) -> Result<Receipt, Busi
             id: id.clone(),
             version: 1,
             status: "published",
+        },
+        OwnerPlan::CreateStory { id, .. } => Receipt {
+            id: id.clone(),
+            version: 1,
+            status: "published",
+        },
+        OwnerPlan::ArchiveStory {
+            id,
+            expected_version,
+        } => Receipt {
+            id: id.clone(),
+            version: next_version(*expected_version)?,
+            status: "archived",
         },
         OwnerPlan::CreateComment { id, .. } => Receipt {
             id: id.clone(),

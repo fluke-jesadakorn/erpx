@@ -41,6 +41,8 @@ fn operation(change: &Change) -> &'static str {
         Change::PostEditUploadCancel { .. } => "social.post.edit-upload.cancel",
         Change::ModeratePost { .. } => "social.post.hide",
         Change::PublishHandoverPost { .. } => "social.handover.publish",
+        Change::CreateStory { .. } => "social.story.publish",
+        Change::ArchiveStory { .. } => "social.story.archive",
     }
 }
 
@@ -60,6 +62,8 @@ fn record_id(key: &str, change: &Change) -> String {
         Change::PostEditUploadCreate { .. } => format!("post-edit-upload-{key}"),
         Change::ModeratePost { id } => id.clone(),
         Change::PublishHandoverPost { .. } => format!("post-post-draft-{key}"),
+        Change::CreateStory { .. } => format!("story-{key}"),
+        Change::ArchiveStory { id, .. } => id.clone(),
     }
 }
 
@@ -1429,6 +1433,76 @@ async fn handover_publish_creates_the_participant_post_and_sources() {
         .await
         .unwrap();
         assert_eq!(replay, published);
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn story_publish_and_archive_round_trip_with_replay_and_author_guard() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let key = "social-story-0001";
+        let change = Change::CreateStory {
+            title: "  News  ".into(),
+            body: " Current story ".into(),
+            theme: "sage".into(),
+            audience: Audience::Branch,
+        };
+        let receipt = run(&pool, "author", "company", key, change.clone())
+            .await
+            .unwrap();
+        assert_eq!(receipt.id, format!("story-{key}"));
+        assert_eq!((receipt.version, receipt.status), (1, "published"));
+        let replay = run(&pool, "author", "company", key, change).await.unwrap();
+        assert_eq!(replay, receipt);
+        let row: (String, i64, String, String) = sqlx::query_as(
+            "SELECT author_id,version,state,title FROM social_stories WHERE id=$1",
+        )
+        .bind(&receipt.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            row,
+            ("author".into(), 1, "published".into(), "News".into())
+        );
+
+        let archive_key = "social-story-0002";
+        let archive = Change::ArchiveStory {
+            id: receipt.id.clone(),
+            expected_version: 1,
+        };
+        let archived = run(&pool, "author", "company", archive_key, archive.clone())
+            .await
+            .unwrap();
+        assert_eq!(archived.id, receipt.id);
+        assert_eq!((archived.version, archived.status), (2, "archived"));
+        let replay_archived = run(&pool, "author", "company", archive_key, archive)
+            .await
+            .unwrap();
+        assert_eq!(replay_archived, archived);
+        let state: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM social_stories WHERE id=$1",
+        )
+        .bind(&archived.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(state, ("archived".into(), 2));
+
+        let denied = run(
+            &pool,
+            "reader",
+            "company",
+            "social-story-0003",
+            Change::ArchiveStory {
+                id: archived.id.clone(),
+                expected_version: 2,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(denied, PgTransactionError::Business(e) if e.code == "STORY_CONFLICT"));
     })
     .await;
 }

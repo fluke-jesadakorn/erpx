@@ -3,6 +3,7 @@
 use crate::domain::social::{
     Audience, CommentSnapshot, CommentState, FeedCursor, Mention, MentionKind, OwnerPlan,
     PostSnapshot, PostState, Receipt, SocialActor, hashtags, normalize_tags, plan_receipt,
+    story_conflict,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, FailureKind};
@@ -528,6 +529,57 @@ pub async fn apply_plan(
             .await?;
             post_topics(c, id, tags, &actor.user_id, now).await?;
             mentions(c, "post", id, mention_rows, &actor.user_id, &actor.company_id, now).await?;
+            Ok(expected.clone())
+        }
+        OwnerPlan::CreateStory {
+            id,
+            author_name,
+            company_id,
+            branch_id,
+            department_id,
+            title,
+            body,
+            theme,
+        } => {
+            sqlx::query(
+                "INSERT INTO social_stories(id,author_id,author_name,company_id,branch_id,department_id,title,body,theme,state,version,last_command_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'published',1,$10,$11,$11)",
+            )
+            .bind(id)
+            .bind(&actor.user_id)
+            .bind(author_name)
+            .bind(company_id)
+            .bind(branch_id)
+            .bind(department_id)
+            .bind(title)
+            .bind(body)
+            .bind(theme)
+            .bind(key.as_str())
+            .bind(now)
+            .execute(&mut *c)
+            .await?;
+            Ok(expected.clone())
+        }
+        OwnerPlan::ArchiveStory {
+            id,
+            expected_version,
+        } => {
+            let changed = sqlx::query(
+                "UPDATE social_stories SET state='archived',version=version+1,last_command_id=$1,updated_at=$2 WHERE id=$3 AND author_id=$4 AND version=$5 AND state='published' AND company_id=$6 AND ($7::text IS NULL OR branch_id=$7) AND ($8::text IS NULL OR department_id=$8)",
+            )
+            .bind(key.as_str())
+            .bind(now)
+            .bind(id)
+            .bind(&actor.user_id)
+            .bind(expected_version)
+            .bind(&actor.company_id)
+            .bind(&actor.branch_id)
+            .bind(&actor.department_id)
+            .execute(&mut *c)
+            .await?
+            .rows_affected();
+            if changed != 1 {
+                return Err(story_conflict().into());
+            }
             Ok(expected.clone())
         }
         OwnerPlan::CreateComment {
@@ -1080,6 +1132,7 @@ async fn image(c: &mut PgConnection, key: &str) -> Result<Option<String>, Error>
         "comment" => "SELECT to_jsonb(p)::text FROM social_comments p WHERE p.id=$1",
         "notice" => "SELECT to_jsonb(p)::text FROM staff_notifications p WHERE p.id=$1",
         "draft" => "SELECT to_jsonb(p)::text FROM social_post_drafts p WHERE p.id=$1",
+        "story" => "SELECT to_jsonb(p)::text FROM social_stories p WHERE p.id=$1",
         "report" => {
             let (post_id, reporter_id) = id.split_once(':').ok_or_else(changed)?;
             return Ok(sqlx::query_scalar(
@@ -1131,6 +1184,12 @@ pub async fn retain_effects(
                 )
                 .await?;
             }
+        }
+        OwnerPlan::CreateStory { id, .. } | OwnerPlan::ArchiveStory { id, .. } => {
+            if receipt.id != *id {
+                return Err(changed());
+            }
+            capture(c, &mut images, format!("story:{id}")).await?;
         }
         OwnerPlan::CreateComment {
             id,
