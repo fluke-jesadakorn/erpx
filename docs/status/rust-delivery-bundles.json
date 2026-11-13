@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1527,
+    "revision": 1532,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -32571,6 +32571,78 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "retire.customer_authority.portal-purchases-command",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "customer_authority",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Retire the unused customer-access command purchase wrapper",
+        "scope": "1 write: the dead withCustomerAccessPurchasedCommand wrapper and its command_assertions cleanup in portal-purchases.ts. All native access/invitation/enrollment commands own their own purchase boundary; the wrapper has no callers.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "packages/server-customer_authority/Cargo.toml",
+          "packages/server-customer_authority/package.json",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "5e28652bdab9e2c17ed81a0149ada34614bcd408",
+        "lastPushedSha": "5e28652bdab9e2c17ed81a0149ada34614bcd408",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-customer_authority/src",
+            "result": "passed",
+            "before": 6,
+            "after": 5,
+            "sourceSha": "5e28652bdab9e2c17ed81a0149ada34614bcd408",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-access.ts",
+                "writes": 3,
+                "removalTaskId": "retire.customer_authority.portal-access",
+                "removalCondition": "Move the whole Customer 360 portal command transaction (projection read-audit + attachment evidence) native."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.customer_authority.purchase-boundary",
+                "removalCondition": "Native Files attachment boundary owns the portal evidence purchase assertions."
+              }
+            ],
+            "note": "Unused command wrapper deleted; native commands own their boundaries."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "5e28652bdab9e2c17ed81a0149ada34614bcd408",
+            "sourceKind": "committed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Closed. Residual 5: portal-access 3, attachment purchase boundary 2.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -32579,21 +32651,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 159,
-      "migratedPackets": 90,
+      "totalPackets": 160,
+      "migratedPackets": 91,
       "statusCounts": {
         "pending": 20,
         "in_progress": 3,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 90,
+        "migrated": 91,
         "blocked": 37,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:46:01.736Z",
+    "updatedAt": "2026-11-13T03:49:09.283Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
