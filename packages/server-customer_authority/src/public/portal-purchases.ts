@@ -1,1 +1,1 @@
-export {customerPortalOwnedUnit,requireCustomerAccessPurchasedRead,customerAccessPurchaseControls,withCustomerAccessPurchasedCommand} from '@erpx/server-customer_authority/adapters/portal-purchases';
+export {customerPortalOwnedUnit,requireCustomerAccessPurchasedRead,customerAccessPurchaseControls} from '@erpx/server-customer_authority/adapters/portal-purchases';
