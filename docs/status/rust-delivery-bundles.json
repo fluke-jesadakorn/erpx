@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1544,
+    "revision": 1548,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -31262,8 +31262,15 @@
         "resources": [
           "owner:files-mount"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T04:08:54.269Z",
+          "heartbeatAt": "2026-11-13T04:08:54.269Z",
+          "expiresAt": "2026-11-13T04:38:54.269Z",
+          "generation": 51
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -32699,22 +32706,54 @@
         "resources": [
           "owner:billing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "worker-billing-option-a",
-          "claimedAt": "2026-11-13T04:08:19.773Z",
-          "heartbeatAt": "2026-11-13T04:08:19.773Z",
-          "expiresAt": "2026-11-13T04:38:19.773Z",
-          "generation": 51
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
+        "implementedCommit": "48a4af8b7e0e4007703faf197683be918729caee",
+        "lastPushedSha": "48a4af8b7e0e4007703faf197683be918729caee",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-billing platform invoice approve/void cutover",
+            "result": "passed",
+            "before": 77,
+            "after": 73,
+            "sourceSha": "48a4af8b7e0e4007703faf197683be918729caee",
+            "sourceKind": "committed",
+            "note": "Deleted the TS approve/void invoice cases, their selected-period/main-invoice/unissued-cost/plan/insert/attach/queue/void repository writes and the platform route body dispatch. The native owner invoice command (require_cost_command keeps the platform_admin actor) now owns period closure, completeness, CAS, receipt, cost attachment and the issue/void outbox. Billing KPI 77->73; residual 73 is the target/retry actions blocked on the holding_owner vs platform_admin product decision."
+          },
+          {
+            "command": "bun run test:unit -- --suite=shared.billing.owner-services.unit",
+            "result": "passed",
+            "sourceSha": "48a4af8b7e0e4007703faf197683be918729caee",
+            "sourceKind": "committed",
+            "note": "2 files, 90 passed (owner services + native billing transport)."
+          },
+          {
+            "command": "bun run test:integration -- --suite=commercial.billing.integration --suite=commercial.target.integration --suite=commercial.api.integration",
+            "result": "passed",
+            "sourceSha": "48a4af8b7e0e4007703faf197683be918729caee",
+            "sourceKind": "committed",
+            "note": "3 files, 27 passed. Oracles seed the native invoice/cost state; retained command oracles assert NATIVE_BILLING_REQUIRED and the native void rejection."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "48a4af8b7e0e4007703faf197683be918729caee",
+            "sourceKind": "committed",
+            "note": "Repository layout, test lanes and providers pass."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-billing/src/application/billing.ts",
+            "reason": "Target-evidence/provider/rollout/rate actions and retry still write through the retained TS command because their native commands use require_target_command (holding_owner) while the retained platform contract authorizes platform_admin.",
+            "consumer": "packages/feature-admin/src/routes/api/v1/platform/billing/**",
+            "removalTaskId": "retire.billing.residual-writers",
+            "removalCondition": "The native Billing target commands expose the platform_admin authority the retained platform route grants, or the owner records the holding_owner-only policy decision and the console enforces it."
+          }
+        ],
         "blocker": null,
-        "nextAction": "Update billing-console/platform route to navigate to the target Holding host for cross-Holding actions; switch platform approve/void to native invoice only/fail closed; delete the TS approve/void writers and oracles; record the billing KPI pair. No composition change required.",
+        "nextAction": "Billing KPI is 73; the remaining target/evidence/provider/rollout/rate/retry writers stay TS until the owner resolves holding_owner vs platform_admin authority (retire.billing.residual-writers). Verify the cross-Holding navigation journey with an authenticated platform session when credentials permit.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "worker-billing-option-a",
@@ -32725,7 +32764,13 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.billing.billing"
       },
       {
         "id": "migrate.people_payroll.calculate-post-native-observation",
@@ -32777,20 +32822,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 162,
-      "migratedPackets": 91,
+      "migratedPackets": 92,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 2,
+        "in_progress": 1,
         "ready_for_integration": 9,
         "integrating": 0,
-        "migrated": 91,
+        "migrated": 92,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T04:08:37.356Z",
+    "updatedAt": "2026-11-13T04:10:40.889Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
