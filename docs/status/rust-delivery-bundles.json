@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1706,
+    "revision": 1712,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-l",
+      "runId": "run-20261113-m",
       "agentId": "lead",
-      "startedAt": "2026-11-13T09:48:56.055Z",
-      "heartbeatAt": "2026-11-13T10:33:58.183Z",
-      "expiresAt": "2026-11-13T11:03:58.183Z",
-      "generation": 56,
-      "tokenHash": "eef7dc6029068a20afe93aded0ad39b8746ef9f44c054adc9240abf2c97997ee"
+      "startedAt": "2026-11-13T11:17:19.844Z",
+      "heartbeatAt": "2026-11-13T11:17:26.763Z",
+      "expiresAt": "2026-11-13T11:47:26.763Z",
+      "generation": 57,
+      "tokenHash": "c5910c1521e976b448c7f793731ca689a6583e9888385019ac1912b7f6c666cd"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -34805,12 +34805,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261113-l",
+          "runId": "run-20261113-m",
           "agentId": "worker-iam-grants",
-          "claimedAt": "2026-11-13T10:33:01.151Z",
-          "heartbeatAt": "2026-11-13T10:33:58.183Z",
-          "expiresAt": "2026-11-13T11:03:58.183Z",
-          "generation": 56
+          "claimedAt": "2026-11-13T11:17:19.880Z",
+          "heartbeatAt": "2026-11-13T11:17:26.763Z",
+          "expiresAt": "2026-11-13T11:47:26.763Z",
+          "generation": 57
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -34819,7 +34819,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Audit the 15 remaining grants/invitation writes in people-access.ts; implement the native command family with preview/apply, role/assignment/invitation lifecycle, direct-invitation activation and account_invitations delivery, then switch the /iam/people-access routes and technology Accounts consumers, delete the TS writers/barrels, move oracles to native seeding, and record Identity Access 226 -> 211.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261113-l",
+          "agentId": "worker-iam-grants",
+          "at": "2026-11-13T11:17:19.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during inventory mount/report batch; same lead resumes; IAM worker WIP reviewed",
+          "nextAction": "Audit the 15 remaining grants/invitation writes in people-access.ts; implement the native command family with preview/apply, role/assignment/invitation lifecycle, direct-invitation activation and account_invitations delivery, then switch the /iam/people-access routes and technology Accounts consumers, delete the TS writers/barrels, move oracles to native seeding, and record Identity Access 226 -> 211."
+        },
         "procedureRef": "executionPlan.sliceProcedure"
       },
       {
@@ -34851,23 +34858,66 @@
           "owner:inventory",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-l",
-          "agentId": "integrator-inventory",
-          "claimedAt": "2026-11-13T10:33:22.513Z",
-          "heartbeatAt": "2026-11-13T10:33:58.183Z",
-          "expiresAt": "2026-11-13T11:03:58.183Z",
-          "generation": 56
-        },
+        "status": "ready_for_integration",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "66b9cb3487bd26632318426297d4866ddf80104c",
+        "lastPushedSha": "66b9cb3487bd26632318426297d4866ddf80104c",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "66b9cb3487bd26632318426297d4866ddf80104c",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the transit/count mounts."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "66b9cb3487bd26632318426297d4866ddf80104c",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib --offline domain::transit",
+            "result": "passed",
+            "sourceSha": "66b9cb3487bd26632318426297d4866ddf80104c",
+            "sourceKind": "committed",
+            "note": "5/5."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib --offline domain::counts",
+            "result": "passed",
+            "sourceSha": "66b9cb3487bd26632318426297d4866ddf80104c",
+            "sourceKind": "committed",
+            "note": "5/5."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --test stock_receipt_postgres --offline transit_count_writers",
+            "result": "passed",
+            "sourceSha": "66b9cb3487bd26632318426297d4866ddf80104c",
+            "sourceKind": "committed",
+            "note": "2/2 PostgreSQL cases."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "66b9cb3487bd26632318426297d4866ddf80104c",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Mount src/composition/src/inventory_transit_commands.rs and inventory_count_commands.rs per the worker contract: lock_*_sources -> read_*_source -> plan_* -> apply_* inside the existing authority/purchase/PgCommandLedger/Finance journal/Files evidence unit. Switch packages/feature-supply stock-transit and packages/workplace stock-counts to the native client, delete inventory-transit.ts/inventory-counts.ts and their barrels, move the legacy count oracle to native seeding, and record Inventory KPI 132 -> lower.",
-        "handoff": null,
+        "blocker": "released with work preserved",
+        "nextAction": "Native transit/count commands are mounted and the supply/stock-count POST routes are native-only. Remaining: rebind the transit/count integration suites and initial-count seeding adapters to native seeding, update the catalogue entries, then delete inventory-transit.ts/inventory-counts.ts and record Inventory 132 -> lower. This needs an extended test/catalogue path claim.",
+        "handoff": {
+          "runId": "run-20261113-m",
+          "agentId": "lead",
+          "at": "2026-11-13T11:17:26.715Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native transit/count commands are mounted and the supply/stock-count POST routes are native-only. Remaining: rebind the transit/count integration suites and initial-count seeding adapters to native seeding, update the catalogue entries, then delete inventory-transit.ts/inventory-counts.ts and record Inventory 132 -> lower. This needs an extended test/catalogue path claim."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -34882,8 +34932,8 @@
       "migratedPackets": 99,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 2,
-        "ready_for_integration": 16,
+        "in_progress": 1,
+        "ready_for_integration": 17,
         "integrating": 0,
         "migrated": 99,
         "blocked": 39,
@@ -34891,8 +34941,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 56,
-    "updatedAt": "2026-11-13T10:33:58.184Z",
+    "lastCoordinatorGeneration": 57,
+    "updatedAt": "2026-11-13T11:17:26.763Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -34935,10 +34985,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-k",
-      "runId": "run-20261113-l",
-      "at": "2026-11-13T09:48:56.056Z",
-      "reason": "Lease expired during finance retirement batch; same lead resumes; WIP reviewed",
+      "previousRunId": "run-20261113-l",
+      "runId": "run-20261113-m",
+      "at": "2026-11-13T11:17:19.844Z",
+      "reason": "Lease expired during inventory mount/report batch; same lead resumes; IAM worker WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
