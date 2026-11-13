@@ -20,8 +20,4 @@ export type QualityAlert = {
 };
 
 
-export type QualityAlertResult={dueSoon:number;overdue:number};
 export const qualityTerminalStates=['released','cancelled','disposed'];
-export function qualityAlertDate(now: number) {
-  return new Date(now).toISOString().slice(0, 10);
-}

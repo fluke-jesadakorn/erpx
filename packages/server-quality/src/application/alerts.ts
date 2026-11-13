@@ -1,13 +1,9 @@
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
-import {qualityTerminalStates,qualityAlertDate,type QualityAlert,type QualityAlertResult} from '@erpx/server-quality/domain/alerts';
+import {qualityTerminalStates,type QualityAlert} from '@erpx/server-quality/domain/alerts';
 export interface QualityAlertRepository{
  alerts():Promise<QualityAlert[]>;
 }
-export interface QualityAlertSweepRepository{dueSoon(now:number,today:string,horizon:string):Promise<number>;overdue(now:number,today:string):Promise<number>;notify(now:number):Promise<void>;}
-/** Each sweep stage is recoverable independently; unique source keys make a
- * restarted sweep continue routing alerts created before a previous failure. */
-export async function sweepQualityAlerts(repository:QualityAlertSweepRepository,now:number,warningWindowMs:number):Promise<QualityAlertResult>{const today=qualityAlertDate(now),horizon=qualityAlertDate(now+warningWindowMs),dueSoon=await repository.dueSoon(now,today,horizon),overdue=await repository.overdue(now,today);await repository.notify(now);return {dueSoon,overdue};}
 export function createQualityAlertApplication(ports:{departmentScope:boolean;authorizeRead():void;can(permission:string):boolean;repository():Promise<QualityAlertRepository>}){
  function access(){ports.authorizeRead();if(ports.departmentScope)throw new BusinessRuleError(403,'QUALITY_SCOPE_REQUIRED','Use a Company or Branch quality assignment.');}
  async function qualityAlerts(){access();return (await ports.repository()).alerts();}

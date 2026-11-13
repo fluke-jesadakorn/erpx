@@ -10,7 +10,9 @@ use crate::application::quality_alerts::{
     normalize_quality_alert_acknowledge,
 };
 use crate::domain::quality::HoldStatus;
-use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_runtime::public::postgres::{
+    DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
+};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
 use sqlx::{PgConnection, Row};
 
@@ -307,4 +309,182 @@ pub async fn prepare_quality_alert_acknowledge(
         now,
         receipt,
     })
+}
+
+/// The retained escalation window: one business day ahead of the sweep clock.
+pub const QUALITY_ALERT_WARNING_WINDOW_MS: i64 = 86_400_000;
+
+/// Due-soon escalations are inserted from the hold's own reviewed version. The
+/// `UNIQUE(hold_id,phase)` source key plus `ON CONFLICT DO NOTHING` make a
+/// repeated or restarted sweep idempotent.
+const DUE_SOON_ALERT: &str = "INSERT INTO inventory_quality_alerts(id,hold_id,phase,source_version,due_date,detected_at) \
+ SELECT 'quality-alert-due-soon-'||h.id,h.id,'due_soon',h.version,h.due_date::date,$1 \
+ FROM inventory_quality_holds h \
+ WHERE h.status NOT IN ('released','cancelled','disposed') AND h.company_id=$2 \
+   AND h.due_date>=$3 AND h.due_date<=$4 \
+ ON CONFLICT DO NOTHING";
+
+const OVERDUE_ALERT: &str = "INSERT INTO inventory_quality_alerts(id,hold_id,phase,source_version,due_date,detected_at) \
+ SELECT 'quality-alert-overdue-'||h.id,h.id,'overdue',h.version,h.due_date::date,$1 \
+ FROM inventory_quality_holds h \
+ WHERE h.status NOT IN ('released','cancelled','disposed') AND h.company_id=$2 \
+   AND h.due_date<$3 \
+ ON CONFLICT DO NOTHING";
+
+/// The two escalation phases one scheduled sweep evaluates.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum QualityAlertPhase {
+    DueSoon,
+    Overdue,
+}
+
+impl QualityAlertPhase {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::DueSoon => "due_soon",
+            Self::Overdue => "overdue",
+        }
+    }
+
+    /// The retained deterministic alert identity for one hold and phase.
+    pub fn alert_id(self, hold_id: &str) -> String {
+        format!("quality-alert-{}-{hold_id}", self.as_str().replace('_', "-"))
+    }
+}
+
+/// The business-day boundaries one scheduled sweep evaluates.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityAlertSweepPlan {
+    today: String,
+    horizon: String,
+}
+
+impl QualityAlertSweepPlan {
+    /// The UTC business date of the sweep clock.
+    pub fn today(&self) -> &str {
+        &self.today
+    }
+
+    /// The last inclusive due date that is still "due soon".
+    pub fn due_soon_horizon(&self) -> &str {
+        &self.horizon
+    }
+
+    pub fn phases(&self) -> [QualityAlertPhase; 2] {
+        [QualityAlertPhase::DueSoon, QualityAlertPhase::Overdue]
+    }
+}
+
+fn clock_invalid() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "QUALITY_ALERT_CLOCK_INVALID",
+        "The scheduled Quality clock is unavailable.",
+    )
+}
+
+fn utc_date(now: i64) -> Result<String, BusinessError> {
+    const DATE: &[time::format_description::FormatItem<'static>] =
+        time::macros::format_description!("[year]-[month]-[day]");
+    let moment = time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(now) * 1_000_000)
+        .map_err(|_| clock_invalid())?;
+    moment.date().format(DATE).map_err(|_| clock_invalid())
+}
+
+/// Plan one sweep from the caller's business clock. Dates are the UTC business
+/// dates the retained sweep used; the warning window is inclusive of the
+/// horizon date and never reorders the two stages.
+pub fn quality_alert_sweep_plan(
+    now: i64,
+    window_ms: i64,
+) -> Result<QualityAlertSweepPlan, BusinessError> {
+    if !(0..=crate::domain::quality::MAX_SAFE_INTEGER).contains(&now) || window_ms < 0 {
+        return Err(clock_invalid());
+    }
+    let horizon = now
+        .checked_add(window_ms)
+        .filter(|value| *value <= crate::domain::quality::MAX_SAFE_INTEGER)
+        .ok_or_else(clock_invalid)?;
+    Ok(QualityAlertSweepPlan {
+        today: utc_date(now)?,
+        horizon: utc_date(horizon)?,
+    })
+}
+
+async fn due_soon_stage(
+    c: &mut PgConnection,
+    company: &str,
+    plan: &QualityAlertSweepPlan,
+    now: i64,
+) -> Result<u64, Error> {
+    Ok(sqlx::query(DUE_SOON_ALERT)
+        .bind(now)
+        .bind(company)
+        .bind(plan.today())
+        .bind(plan.due_soon_horizon())
+        .execute(&mut *c)
+        .await?
+        .rows_affected())
+}
+
+async fn overdue_stage(
+    c: &mut PgConnection,
+    company: &str,
+    plan: &QualityAlertSweepPlan,
+    now: i64,
+) -> Result<u64, Error> {
+    Ok(sqlx::query(OVERDUE_ALERT)
+        .bind(now)
+        .bind(company)
+        .bind(plan.today())
+        .execute(&mut *c)
+        .await?
+        .rows_affected())
+}
+
+/// Sweep the due-soon and overdue escalations for every Company that still has
+/// an active Quality hold. Each Company keeps its own bounded insert and the
+/// caller's unit of work keeps the sweep replayable.
+async fn sweep(
+    c: &mut PgConnection,
+    plan: &QualityAlertSweepPlan,
+    now: i64,
+) -> Result<(u64, u64), Error> {
+    serializable(c).await?;
+    let companies: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT company_id FROM inventory_quality_holds \
+         WHERE status NOT IN ('released','cancelled','disposed') ORDER BY company_id",
+    )
+    .fetch_all(&mut *c)
+    .await?;
+    let (mut due_soon, mut overdue) = (0, 0);
+    for company in companies {
+        due_soon += due_soon_stage(c, &company, plan, now).await?;
+        overdue += overdue_stage(c, &company, plan, now).await?;
+    }
+    Ok((due_soon, overdue))
+}
+
+/// Native scheduled Quality alert sweep. Returns the due-soon and overdue
+/// escalations actually created; a replay returns `(0, 0)`.
+pub async fn drain_quality_alerts(
+    pool: DatabasePool,
+    now: i64,
+    window_ms: i64,
+) -> Result<(u64, u64), BusinessError> {
+    let plan = quality_alert_sweep_plan(now, window_ms)?;
+    PgUnitOfWork::new(pool)
+        .run(TransactionOptions::default(), move |c| {
+            let plan = plan.clone();
+            Box::pin(async move { sweep(c, &plan, now).await })
+        })
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_ALERT_UNAVAILABLE",
+                "The scheduled Quality escalation sweep is unavailable.",
+            ),
+        })
 }

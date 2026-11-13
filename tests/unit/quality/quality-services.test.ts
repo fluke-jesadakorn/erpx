@@ -1,6 +1,6 @@
 import {describe,expect,test} from 'vitest';
 import {createQualityApplication,type QualityRepository} from "@erpx/server-quality/application/quality";
-import {createQualityAlertApplication,sweepQualityAlerts,type QualityAlertRepository,type QualityAlertSweepRepository} from "@erpx/server-quality/application/alerts";
+import {createQualityAlertApplication,type QualityAlertRepository} from "@erpx/server-quality/application/alerts";
 import type {QualityRow} from "@erpx/server-quality/domain/quality";
 import type {QualityAlert} from "@erpx/server-quality/domain/alerts";
 
@@ -23,8 +23,6 @@ describe('Quality retained reads and evidence guards',()=>{
 });
 const alert:QualityAlert={id:'alert',hold_id:'hold',phase:'overdue',source_version:1,hold_version:2,due_date:'2026-10-06',detected_at:42,version:1,acknowledged_by:null,acknowledged_at:null,reason:null,company_id:'company',branch_id:'branch',status:'held',product_name:'Product',warehouse_name:'Warehouse',can_ack:1,recipients:1};
 describe('Quality alert recovery',()=>{
- test('sweep ordering and UTC dates remain deterministic across recovery',async()=>{const calls:unknown[][]=[],repository:QualityAlertSweepRepository={async dueSoon(...args){calls.push(['due',...args]);return 2;},async overdue(...args){calls.push(['overdue',...args]);return 3;},async notify(...args){calls.push(['route',...args]);}};const now=Date.UTC(2026,9,6,23,30);expect(await sweepQualityAlerts(repository,now,86400000)).toEqual({dueSoon:2,overdue:3});expect(calls).toEqual([['due',now,'2026-10-06','2026-10-07'],['overdue',now,'2026-10-06'],['route',now]]);});
- test('a partially failed sweep stops and a restarted sweep continues all three stages',async()=>{const calls:string[]=[],repository:QualityAlertSweepRepository={async dueSoon(){calls.push('due');return 0;},async overdue(){calls.push('overdue');throw new Error('database interruption');},async notify(){calls.push('route');}};await expect(sweepQualityAlerts(repository,42,86400000)).rejects.toThrow('database interruption');expect(calls).toEqual(['due','overdue']);repository.overdue=async()=>{calls.push('overdue');return 1;};expect(await sweepQualityAlerts(repository,42,86400000)).toEqual({dueSoon:0,overdue:1});expect(calls.slice(2)).toEqual(['due','overdue','route']);});
  test('completed and recipient-revoked escalations retain their source but cannot act',async()=>{const repository:QualityAlertRepository={async alerts(){return [{...alert,can_ack:0,recipients:0},{...alert,id:'released',status:'released'}];}};const app=createQualityAlertApplication({departmentScope:false,authorizeRead(){},can:()=>true,async repository(){return repository;}});expect(await app.qualityAlertWork()).toEqual([expect.objectContaining({queue:'waiting',canAct:false,blocker:expect.stringContaining('No eligible Quality recipient'),source:expect.objectContaining({id:'hold',version:2})}),expect.objectContaining({queue:'completed',canAct:false,status:'acknowledged'})]);});
 });
 

@@ -74,14 +74,23 @@ it('cancels an incorrect uninspected hold only after independent review, retaini
 });
 
 it('recovers quality due-soon and overdue escalations with live routing and persisted acknowledgement',async()=>{
- const {drainQualityAlerts,qualityAlerts,qualityAlertWork,getQualityAlert}=await import("@erpx/server-quality/public/quality-alerts");
+ const {qualityAlerts,qualityAlertWork,getQualityAlert}=await import("@erpx/server-quality/public/quality-alerts");
+ const {routeQualityAlertNotifications}=await import("@erpx/server-collaboration/public/quality-notifications");
  const due=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-22',reason:'Prepare a quality inspection before the receiving deadline'},key());
  const overdue=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-20',reason:'Recover a missed quality inspection and preserve the quarantine evidence'},key());
- const now=Date.parse('2026-09-21T12:00:00Z');
- const firstSweep=await drainQualityAlerts(db,now,86_400_000);
- expect(firstSweep.dueSoon).toBeGreaterThanOrEqual(1);
- expect(firstSweep.overdue).toBeGreaterThanOrEqual(1);
- expect(await drainQualityAlerts(db,now,86_400_000)).toEqual({dueSoon:0,overdue:0});
+ const now=Date.parse('2026-09-21T12:00:00Z'),today=new Date(now).toISOString().slice(0,10),horizon=new Date(now+86_400_000).toISOString().slice(0,10);
+ // The scheduled sweep is native (erpx_server_quality::public::quality_alerts
+ // drain_quality_alerts, proved by rust-quality-alert-sweep-postgres). This case
+ // seeds its exact idempotent identities so the retained read, route, work and
+ // acknowledgement surfaces stay covered.
+ for(const [phase,id,from,to] of [['due_soon','due-soon',today,horizon],['overdue','overdue',null,today]] as [string,string,string|null,string][])
+  await db.prepare(`INSERT INTO inventory_quality_alerts(id,hold_id,phase,source_version,due_date,detected_at)
+   SELECT 'quality-alert-${id}-'||h.id,h.id,'${phase}',h.version,h.due_date::date,?
+   FROM inventory_quality_holds h
+   WHERE h.status NOT IN ('released','cancelled','disposed') AND ${from?'h.due_date>=? AND h.due_date<=?':'h.due_date<?'}
+   ON CONFLICT DO NOTHING`).bind(now,...(from?[from,to]:[to])).run();
+ await routeQualityAlertNotifications(db,now);
+ expect((await db.prepare("SELECT id,phase,source_version,due_date::text due_date FROM inventory_quality_alerts WHERE hold_id IN (?,?) ORDER BY id").bind(String(due.id),String(overdue.id)).all<{id:string;phase:string;source_version:number;due_date:string}>()).results).toEqual([{id:`quality-alert-due-soon-${due.id}`,phase:'due_soon',source_version:1,due_date:'2026-09-22'},{id:`quality-alert-overdue-${overdue.id}`,phase:'overdue',source_version:1,due_date:'2026-09-20'}]);
  const alerts=await qualityAlerts(f.manager),dueAlert=alerts.find(a=>a.hold_id===String(due.id)&&a.phase==='due_soon'),overdueAlert=alerts.find(a=>a.hold_id===String(overdue.id)&&a.phase==='overdue');
  expect(dueAlert).toMatchObject({source_version:1,version:1,can_ack:1,recipients:2});
  expect(overdueAlert).toMatchObject({source_version:1,version:1,can_ack:1,recipients:2});

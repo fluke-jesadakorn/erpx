@@ -96335,8 +96335,9 @@
         "migratedSlots": [
           "H001_DB"
         ]
-      }    },
-{
+      }
+    },
+    {
       "id": "quality.rust-quality-alert-sweep.unit",
       "lane": "unit",
       "owner": "quality",
@@ -96378,7 +96379,7 @@
         "@erpx/server-quality"
       ]
     },
-{
+    {
       "id": "quality.rust-quality-alert-sweep-postgres.integration",
       "lane": "integration",
       "owner": "quality",

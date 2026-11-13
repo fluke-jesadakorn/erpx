@@ -426,11 +426,13 @@ if(mode==='prepare'||diagnostic){
   const initialInventoryGl=await env.H001_DB.prepare("SELECT COALESCE(SUM(l.base_debit_minor-l.base_credit_minor),0)::bigint value FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted' AND l.account_id=?").bind(f.company,inventoryAccountId).first<{value:number}>();
   if(Number(initialStock?.value)!==152000||Number(initialInventoryGl?.value)!==152000)throw new Error('FICTIONAL_INITIAL_STOCK_GL_NOT_RECONCILED');
   const {seedNativeQualityHold}=await import("../../fixtures/quality/hold");
-  const {drainQualityAlerts}=await import("@erpx/server-quality/public/quality-alerts");
   const demoDate=(offset:number)=>new Date(Date.now()+offset*86_400_000).toISOString().slice(0,10);
   const qualityDueSoon=await seedNativeQualityHold(env.H001_DB,f.head,{warehouseId:source,productId:laptopEach,expectedStockVersion:1,dueDate:demoDate(0),reason:'Demo laptop intake requires inspection before service deployment'},'demo-quality-due-soon');
   const qualityOverdue=await seedNativeQualityHold(env.H001_DB,f.head,{warehouseId:source,productId:laptopCase,expectedStockVersion:1,dueDate:demoDate(-1),reason:'Demo laptop case packaging review missed its target date'},'demo-quality-overdue');
-  await drainQualityAlerts(env.H001_DB,Date.now(),86_400_000);
+  await env.H001_DB.batch([
+    env.H001_DB.prepare("INSERT INTO inventory_quality_alerts(id,hold_id,phase,source_version,due_date,detected_at) SELECT 'quality-alert-due-soon-'||h.id,h.id,'due_soon',h.version,h.due_date::date,? FROM inventory_quality_holds h WHERE h.id=? ON CONFLICT(id) DO NOTHING").bind(Date.now(),qualityDueSoon.id),
+    env.H001_DB.prepare("INSERT INTO inventory_quality_alerts(id,hold_id,phase,source_version,due_date,detected_at) SELECT 'quality-alert-overdue-'||h.id,h.id,'overdue',h.version,h.due_date::date,? FROM inventory_quality_holds h WHERE h.id=? ON CONFLICT(id) DO NOTHING").bind(Date.now(),qualityOverdue.id),
+  ]);
   const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:'SIM-CUSTOMER',name:'Simulation customer only'},crypto.randomUUID());
   const duplicateCustomerLeft=await saveMaster(f.owner,'parties',null,{kind:'customer',code:'SIM-DUP-A',name:'Demo Harbor Logistics'},crypto.randomUUID()),duplicateCustomerRight=await saveMaster(f.owner,'parties',null,{kind:'customer',code:'SIM-DUP-B',name:'Demo Harbor Logistic'},crypto.randomUUID());
   await env.H001_DB.prepare('UPDATE finance_parties SET tax_registration=? WHERE id IN (?,?)').bind('SIM-TAX-204812340001',duplicateCustomerLeft.id,duplicateCustomerRight.id).run();

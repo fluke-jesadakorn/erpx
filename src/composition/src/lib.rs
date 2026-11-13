@@ -389,6 +389,8 @@ pub mod field_reservation_alerts;
 pub mod inventory_availability_http;
 pub mod inventory_availability_read;
 pub mod inventory_reservation_alerts;
+#[cfg(feature = "private-field-api")]
+pub mod quality_alert_worker;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_stock_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]

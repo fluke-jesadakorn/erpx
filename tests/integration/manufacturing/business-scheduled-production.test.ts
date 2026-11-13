@@ -8,7 +8,8 @@ import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {LocalFileStore} from "@erpx/server-runtime/adapters/runtime/filesystem";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {qualityWork} from "@erpx/server-quality/public/quality";
-import {drainQualityAlerts,qualityAlertWork} from "@erpx/server-quality/public/quality-alerts";
+import {qualityAlertWork} from "@erpx/server-quality/public/quality-alerts";
+const qualityAlertCounts=async()=>({dueSoon:Number(await db.prepare("SELECT count(*)::int n FROM inventory_quality_alerts WHERE phase='due_soon'").first('n')),overdue:Number(await db.prepare("SELECT count(*)::int n FROM inventory_quality_alerts WHERE phase='overdue'").first('n'))});
 import {escalateInventoryReservations} from "@erpx/server-inventory/public/inventory-reservation-alerts";
 import {enrollEngineeringVerification} from "@erpx/server-platform_administration/public/engineering-verification";
 import {filterWork} from "@erpx/feature-work_projection/lib/work-item";
@@ -52,7 +53,7 @@ async function stockAndDeliveryJournal(s:typeof enabled){return {
 const configuredAttachmentTools=attachmentToolEnvironment(process.cwd());
 it('blocks nonattested production alert creation and mail claims without consuming native sources',async()=>{
  vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN','');
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});
+ expect(await db.prepare('SELECT count(*)::int n FROM inventory_quality_alerts').first('n')).toBe(0);expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});
  expect(await counts(enabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
  // Customer notification settings/queue gates are native-owned; their
  // production refusal is proved by the native Sales command Postgres suite.
@@ -64,7 +65,7 @@ it('delivers only the attested Company Quality and the remaining Commerce/Manufa
   expect(s.reviewer.userId).not.toBe(s.f.owner.userId);
   expect(stockBefore[index].movements).toHaveLength(3);
  }
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});
+ expect(await qualityAlertCounts()).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});
  const reservations=(await db.prepare("SELECT record_type,record_id,user_id FROM staff_notifications WHERE company_id=? AND message LIKE 'Stock reservation%' ORDER BY record_type,user_id").bind(enabled.f.company).all<{record_type:string;record_id:string;user_id:string}>()).results;
  // The two Field recipients, deterministic phase IDs and native acknowledgement
  // retention/rollback assertions live in the Rust scheduled Field case, not this TS worker.
@@ -74,30 +75,30 @@ it('delivers only the attested Company Quality and the remaining Commerce/Manufa
  expect(reservations.map(row=>row.record_id)).toEqual(expect.arrayContaining([enabled.salesId,enabled.productionId]));
  expect((await counts(enabled)).mail).toEqual({status:'pending',attempts:0,provider_message_id:null});
  expect(await counts(disabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
- const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});expect(await counts(enabled)).toEqual(before);
+ const before=await counts(enabled);expect(await db.prepare('SELECT count(*)::int n FROM inventory_quality_alerts').first('n')).toBe(0);expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});expect(await counts(enabled)).toEqual(before);
  expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);
  expect(await Promise.all([enabled,disabled].map(stockAndDeliveryJournal))).toEqual(stockBefore);
 });
 it('rechecks Company withdrawal and expiry before each worker write and resumes the preserved native sources without duplicates',async()=>{
  await db.prepare('UPDATE engineering_verification_contexts SET enabled=false WHERE company_id=? AND run_id=?').bind(enabled.f.company,run).run();
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});
+ expect(await db.prepare('SELECT count(*)::int n FROM inventory_quality_alerts').first('n')).toBe(0);expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});
  expect(await counts(enabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
  await db.prepare('UPDATE engineering_verification_contexts SET enabled=true WHERE company_id=? AND run_id=?').bind(enabled.f.company,run).run();
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});
+ expect(await qualityAlertCounts()).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});
  const before=await counts(enabled);await db.prepare('UPDATE engineering_verification_contexts SET expires_at=? WHERE company_id=? AND run_id=?').bind(Date.now()-1,enabled.f.company,run).run();
- expect(await drainQualityAlerts(db,now+2*86400000)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now+2*86400000)).toEqual({expiring:0,expired:0});expect(await counts(enabled)).toEqual(before);
+ expect(await qualityAlertCounts()).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now+2*86400000)).toEqual({expiring:0,expired:0});expect(await counts(enabled)).toEqual(before);
 });
 it('rechecks live Quality recipients and cached authority after revocation and recovers missing recipients without duplicating alerts',async()=>{
  await db.prepare('UPDATE assignments SET revoked_at=? WHERE id IN (?,?)').bind(Date.now(),enabled.reviewer.assignmentId,enabled.qualityReviewer.assignmentId).run();
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});
+ expect(await qualityAlertCounts()).toEqual({dueSoon:1,overdue:1});
  expect((await counts(enabled)).notifications).toBe(0);
  const row=filterWork(mergeWorkItems([...(await qualityWork(enabled.f.owner)),...(await qualityAlertWork(enabled.f.owner))]),'all','quality_alert','').find(item=>item.id===enabled.holdIds[0]);
  expect(row?.blocker).toContain('No eligible independent recipient');
  const alertId=`quality-alert-due-soon-${enabled.holdIds[0]}`;
  const replacement={...enabled.qualityReviewer,assignmentId:await enabled.f.grant(enabled.qualityReviewer,'quality_manager')};
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});
+ expect(await db.prepare('SELECT count(*)::int n FROM inventory_quality_alerts').first('n')).toBe(0);
  expect((await db.prepare("SELECT record_id,user_id FROM staff_notifications WHERE company_id=? AND record_type='quality_alert'").bind(enabled.f.company).all()).results).toEqual(expect.arrayContaining([{record_id:alertId,user_id:replacement.userId}]));
- const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await counts(enabled)).toEqual(before);
+ const before=await counts(enabled);expect(await db.prepare('SELECT count(*)::int n FROM inventory_quality_alerts').first('n')).toBe(0);expect(await counts(enabled)).toEqual(before);
 });
 it('prepares worker sources through native counted inventory and actual ClamAV-bound delivery evidence',async()=>{
  vi.stubEnv('NODE_ENV','development');vi.stubEnv('ERPX_ATTACHMENTS_V2','true');vi.stubEnv('ERPX_ATTACHMENT_UPLOAD_FREEZE','false');
