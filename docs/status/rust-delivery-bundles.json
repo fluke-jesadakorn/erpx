@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1432,
+    "revision": 1435,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21446,14 +21446,14 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Sequence: (1) apply migrate.files.support-attachment-mount once owner:files-mount is claimable; (2) extend migrate.files.generic-attachment-command to the remaining non-field owners and the native scan/destroy workers, deleting service-repository.ts 55 and hospitality-purchases.ts 1 with the consumer switch; (3) take the owner-specific files above with their named counterpart tasks; (4) re-run the Files KPI before/after for every deletion.",
+        "nextAction": "Audited the 15 residual Files TS files at 5f1d2d5e5: every one still has a live importer (support-ticket-portal-files via Support customer portal reads, private-attachment-reads via Finance attachment reads, customer-portal-files via customer_authority/customer_360 portals, pos-images-facts via POS images, beta-resource-cleanup via manage_erpx cleanup, document-derivatives via the workplace derivatives route + agent test, orphan-preservation via migration/application, migration/legal/collaboration/expense files via their owners). No file is safe to delete inside the Files-only path set; removal requires the native producer for the consuming owner and the consumer switch. service-repository.ts 55 is the generic engine blocked on the remaining non-field/non-support native producer. Resume after migrate.files.support-attachment-mount and the generic owner expansions.",
         "handoff": {
-          "runId": "run-20261112-q",
+          "runId": "run-20261113-f",
           "agentId": "lead",
-          "at": "2026-11-12T12:24:19.769Z",
-          "previousStatus": "in_progress",
+          "at": "2026-11-13T01:54:17.066Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "BLOCKED ON CAPACITY: worker-files-retire died on OpenCode Go usage limit before any edit. Resume this lane (Step-0 native counterpart table for packages/server-files/src/**/*.ts, then six-point retirement and KPI pair) when subagent/model quota is restored."
+          "nextAction": "Audited the 15 residual Files TS files at 5f1d2d5e5: every one still has a live importer (support-ticket-portal-files via Support customer portal reads, private-attachment-reads via Finance attachment reads, customer-portal-files via customer_authority/customer_360 portals, pos-images-facts via POS images, beta-resource-cleanup via manage_erpx cleanup, document-derivatives via the workplace derivatives route + agent test, orphan-preservation via migration/application, migration/legal/collaboration/expense files via their owners). No file is safe to delete inside the Files-only path set; removal requires the native producer for the consuming owner and the consumer switch. service-repository.ts 55 is the generic engine blocked on the remaining non-field/non-support native producer. Resume after migrate.files.support-attachment-mount and the generic owner expansions."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -31428,7 +31428,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:52:51.218Z",
+    "updatedAt": "2026-11-13T01:54:17.067Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
