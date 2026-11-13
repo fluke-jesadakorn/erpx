@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1458,
+    "revision": 1465,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-f",
+      "runId": "run-20261113-g",
       "agentId": "lead",
-      "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T02:01:16.171Z",
-      "expiresAt": "2026-11-13T02:31:16.171Z",
-      "generation": 50,
-      "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
+      "startedAt": "2026-11-13T02:33:37.747Z",
+      "heartbeatAt": "2026-11-13T02:33:37.747Z",
+      "expiresAt": "2026-11-13T03:03:37.748Z",
+      "generation": 51,
+      "tokenHash": "b4636d5dac92c67424e4a78a1bf1883bb0ebe4a1220c27578bab9a4ba2ad62fd"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -20131,22 +20131,80 @@
           "tests/integration/identity_access/**",
           "tests/integration/shared.attachments/**",
           "tests/integration/shared.work/**",
-          "tests/support/helpers/**",
-          "tests/catalogue/suite-manifest.json",
-          "fixtures/**"
+          "tests/support/helpers/**"
         ],
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T02:34:43.712Z",
+          "heartbeatAt": "2026-11-13T02:34:43.712Z",
+          "expiresAt": "2026-11-13T03:04:43.712Z",
+          "generation": 51
+        },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+        "lastPushedSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+        "checks": [
+          {
+            "command": "cargo test -p erpx-server-people-payroll --test payroll_run_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+            "note": "3/3 including the new cancel_run_retains_the_owner_transition_evidence_and_exact_replay case (run status cancelled/version 2, immutable cancellation row, exact replay)."
+          },
+          {
+            "command": "bun run test:unit -- --suite=people_payroll.people-services.unit",
+            "result": "passed",
+            "sourceSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+            "note": "59/59 pure cancellation application cases remain (the application module is retained; only the adapter/route-facing writer was deleted)."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.core.integration",
+            "result": "passed",
+            "sourceSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+            "note": "Passed with the direct native cancellation seed and the scanner env; the addon obligation drops after the seeded cancellation+schedule disable."
+          },
+          {
+            "command": "bun run test:integration -- --suite=people_payroll.statutory.integration",
+            "result": "passed",
+            "sourceSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+            "note": "Passed with the cancellation evidence seeded through the shared helper; the final-pay guard remains closed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=identity_access.iam.integration",
+            "result": "blocked",
+            "sourceSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+            "note": "The payroll withdrawal/cancellation block passes. Four unrelated tests fail in this checkout (published Legal/Support/Quality role offers, custom-role scopes, reviewer reminders, stale account grants) before/independent of the cancellation call; recorded for the IAM owner, not caused by this slice."
+          },
+          {
+            "command": "npx tsc --noEmit",
+            "result": "blocked",
+            "sourceSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+            "note": "Root typecheck is blocked by the active retire.quality.residual-writers WIP (alerts.ts missing translated/drainQualityAlerts); no people_payroll or payroll-cancellation errors were reported."
+          },
+          {
+            "command": "retirement:ts-writes: people_payroll",
+            "result": "passed",
+            "sourceSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+            "before": 329,
+            "after": 327,
+            "note": "Deleted adapters/payroll-cancellation.ts (run UPDATE + cancellation INSERT). The pure application and domain remain; create/calculate/post/readers are retained in this task."
+          },
+          {
+            "command": "retirement:ts-writes: global",
+            "result": "passed",
+            "sourceSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
+            "before": 2362,
+            "after": 2360,
+            "note": "Global owner KPI drops by exactly the two deleted cancellation writers."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
-        "nextAction": "Register the three payroll-run cargo suites, migrate the foreign payroll-run seeds, remove the route fallbacks and TS writers/readers, then run owner KPI and affected suites.",
+        "blocker": null,
+        "nextAction": "Cancellation writer retired at ea3253941: TS adapters/payroll-cancellation.ts (run UPDATE + cancellation INSERT), public exports and package export removed; native PG cancel test 3/3 and payroll-core/statutory pass; people_payroll KPI 329->327, global 2362->2360. Remaining in this task: createPayrollRun/calculatePayrollRun/postPayroll and payrollSummary/listPayrollRuns/getPayrollRun/workPayrollRows plus their wide identity/shared oracles. The catalogue suite entry was removed as a reviewed cross-claim change while retire.customer_authority.portal-tail holds tests/catalogue/suite-manifest.json and fixtures/**; the IAM suite has four unrelated pre-existing account-grant/reviewer failures.",
         "handoff": {
           "runId": "run-20261112-m",
           "agentId": "worker-payroll-readers",
@@ -20442,7 +20500,7 @@
         "resources": [
           "owner:quality"
         ],
-        "status": "in_progress",
+        "status": "blocked",
         "nextAction": "Implement the native quality alert sweep (due_soon/overdue idempotent inserts with the supply.quality purchase fence) in Rust, mount it in the composition worker/job path, then delete the TS drainQualityAlerts writer and exports and record the owner KPI pair.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
@@ -20455,14 +20513,7 @@
           "Deleted TS readers and exports",
           "Moved oracles and KPI delta"
         ],
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "worker-quality-sweep",
-          "claimedAt": "2026-11-13T01:51:51.052Z",
-          "heartbeatAt": "2026-11-13T02:01:16.171Z",
-          "expiresAt": "2026-11-13T02:31:16.171Z",
-          "generation": 50
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -20520,14 +20571,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 02:31Z after the mount wait; all task-claim heartbeats were last renewed at 02:01Z. Reviewed WIP: Support mount inputs ready, quality alert-sweep Rust WIP preserved (TS typecheck red in quality alerts), no process conflict; previous run stopped",
         "handoff": {
-          "runId": "run-20261112-r",
-          "agentId": "lead",
-          "at": "2026-11-12T16:09:25.073Z",
+          "runId": "run-20261113-f",
+          "agentId": "worker-quality-sweep",
+          "at": "2026-11-13T02:33:37.746Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Recover expired run-20261112-r after the agent AI-provider worker completed its slice and lease expired; WIP reviewed, previous run stopped.",
-          "nextAction": "Alert acknowledge retired (quality KPI 15->14 at fa7cd6e05): native owner command+route+client, TS writer/schema/export deleted, oracles native. Known parity note: native admission uses supply.quality settle-existing like the other native Quality commands; the TS writer additional Quality-hold purchase-source witness expansion has no native port yet (same posture as native inspect/release). Residual 14: alert sweep inserts 2, inventory-count-effects 5, attachment-purchases 2, product-entry 1, quality purchase helpers 4; each needs its native owner port before deletion."
+          "reason": "Recovery: Coordinator lease expired at 02:31Z after the mount wait; all task-claim heartbeats were last renewed at 02:01Z. Reviewed WIP: Support mount inputs ready, quality alert-sweep Rust WIP preserved (TS typecheck red in quality alerts), no process conflict; previous run stopped",
+          "nextAction": "Implement the native quality alert sweep (due_soon/overdue idempotent inserts with the supply.quality purchase fence) in Rust, mount it in the composition worker/job path, then delete the TS drainQualityAlerts writer and exports and record the owner KPI pair."
         }
       },
       {
@@ -30041,15 +30092,8 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T01:24:34.686Z",
-          "heartbeatAt": "2026-11-13T02:01:16.171Z",
-          "expiresAt": "2026-11-13T02:31:16.171Z",
-          "generation": 50
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "be42a7b48bbe0e7dee36d948df6512be11036263",
         "lastPushedSha": "be42a7b48bbe0e7dee36d948df6512be11036263",
@@ -30274,14 +30318,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 02:31Z after the mount wait; all task-claim heartbeats were last renewed at 02:01Z. Reviewed WIP: Support mount inputs ready, quality alert-sweep Rust WIP preserved (TS typecheck red in quality alerts), no process conflict; previous run stopped",
         "handoff": {
           "runId": "run-20261113-f",
           "agentId": "lead",
-          "at": "2026-11-13T01:24:27.095Z",
-          "previousStatus": "blocked",
-          "reason": "handoff",
-          "nextAction": "Refine allowedPaths for the cross-owner workflow source and staff-work oracle, then commit the cutover."
+          "at": "2026-11-13T02:33:37.746Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 02:31Z after the mount wait; all task-claim heartbeats were last renewed at 02:01Z. Reviewed WIP: Support mount inputs ready, quality alert-sweep Rust WIP preserved (TS typecheck red in quality alerts), no process conflict; previous run stopped",
+          "nextAction": "Story create/archive is native end-to-end and the TS story/workflow writers are deleted (collaboration 176->174, workflow 102->95, global 2371->2362; unit 117/117, social-beta 94/94, Rust unit/HTTP/PG 15/3/11, service composition compiles). Remaining before this task can close: the pms/operations handover route cutover, blocked on the same-transaction purchase boundary in migrate.operations.handover-publish; agent-replies/hide remain before social-home deletion. Do not mark migrated until the handover caller is resolved or explicitly split by the lead."
         },
         "nextAction": "Story create/archive is native end-to-end and the TS story/workflow writers are deleted (collaboration 176->174, workflow 102->95, global 2371->2362; unit 117/117, social-beta 94/94, Rust unit/HTTP/PG 15/3/11, service composition compiles). Remaining before this task can close: the pms/operations handover route cutover, blocked on the same-transaction purchase boundary in migrate.operations.handover-publish; agent-replies/hide remain before social-home deletion. Do not mark migrated until the handover caller is resolved or explicitly split by the lead.",
         "scopeRefinementRequired": false
@@ -31152,15 +31196,22 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-ca-portal-tail",
+          "claimedAt": "2026-11-13T02:33:53.357Z",
+          "heartbeatAt": "2026-11-13T02:33:53.357Z",
+          "expiresAt": "2026-11-13T03:03:53.357Z",
+          "generation": 51
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Audit portal-support.ts and portal-access.ts against native support/customer_360 ports; implement the missing native commands/read-audit, switch feature-customer_authority/customer_360/portal routes native-only, delete the TS writers/barrels, migrate oracles, record customer_authority KPI 12->3 (purchase-boundary 3 residual).",
+        "nextAction": "Implement native portal-support/access ports + composition mount, switch feature routes native-only, delete 9 TS writes + barrels, migrate oracles, record customer_authority KPI 12->3.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -31798,8 +31849,15 @@
         "resources": [
           "owner:shared-orphans"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T02:34:51.592Z",
+          "heartbeatAt": "2026-11-13T02:34:51.592Z",
+          "expiresAt": "2026-11-13T03:04:51.592Z",
+          "generation": 51
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -31821,18 +31879,18 @@
       "totalPackets": 155,
       "migratedPackets": 86,
       "statusCounts": {
-        "pending": 22,
-        "in_progress": 4,
+        "pending": 20,
+        "in_progress": 5,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 86,
-        "blocked": 34,
+        "blocked": 35,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T02:13:12.946Z",
+    "lastCoordinatorGeneration": 51,
+    "updatedAt": "2026-11-13T02:35:07.388Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -31875,10 +31933,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-e",
-      "runId": "run-20261113-f",
-      "at": "2026-11-12T23:52:03.194Z",
-      "reason": "run-20261113-e lease expired 23:44Z; organization cargo test finished and no worker process or tree change remained for 3+ minutes; WIP reviewed",
+      "previousRunId": "run-20261113-f",
+      "runId": "run-20261113-g",
+      "at": "2026-11-13T02:33:37.748Z",
+      "reason": "Coordinator lease expired at 02:31Z after the mount wait; all task-claim heartbeats were last renewed at 02:01Z. Reviewed WIP: Support mount inputs ready, quality alert-sweep Rust WIP preserved (TS typecheck red in quality alerts), no process conflict; previous run stopped",
       "wipReviewed": true,
       "previousRunStopped": true
     }
