@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1759,
+    "revision": 1765,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-m",
       "agentId": "lead",
       "startedAt": "2026-11-13T11:17:19.844Z",
-      "heartbeatAt": "2026-11-13T12:31:34.951Z",
-      "expiresAt": "2026-11-13T13:01:34.951Z",
+      "heartbeatAt": "2026-11-13T12:34:23.417Z",
+      "expiresAt": "2026-11-13T13:04:23.417Z",
       "generation": 57,
       "tokenHash": "c5910c1521e976b448c7f793731ca689a6583e9888385019ac1912b7f6c666cd"
     },
@@ -35800,8 +35800,15 @@
           "owner:inventory",
           "resource:composition"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-m",
+          "agentId": "worker-inventory-seeding",
+          "claimedAt": "2026-11-13T12:33:20.655Z",
+          "heartbeatAt": "2026-11-13T12:34:23.417Z",
+          "expiresAt": "2026-11-13T13:04:23.417Z",
+          "generation": 57
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -35826,28 +35833,32 @@
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
-          "src/composition/src/**",
           "packages/server-identity_access/src/**",
           "packages/feature-identity_access/**",
           "packages/feature-admin/**",
           "packages/server-runtime/src/**",
-          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
           "tests/unit/identity_access/**",
           "tests/integration/identity_access/**"
         ],
         "resources": [
-          "owner:identity_access",
-          "resource:composition"
+          "owner:identity_access"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-m",
+          "agentId": "worker-iam-gpo-directory",
+          "claimedAt": "2026-11-13T12:33:50.250Z",
+          "heartbeatAt": "2026-11-13T12:34:23.417Z",
+          "expiresAt": "2026-11-13T13:04:23.417Z",
+          "generation": 57
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement PositionGpoDirectory over the installed connector (runner/UDM, secret profiles, approved URL/TLS/no-redirect), add position_gpo_http (overview/preview/publish/unmap-preview/unmap/retry/retry-config), mount the backend + router in composition, add the native feature transport and switch the feature-admin technology route + runtime drain, then delete position-gpo.ts (33 writes) and record Identity Access 204 -> 171.",
+        "nextAction": "Owner-side: implement the production PositionGpoDirectory adapter (runner/UDM, secret profiles, approved URL/TLS/no-redirect), add position_gpo_http, and the native feature transport. Do NOT edit src/composition; report the exact mount contract. Then the lead mounts it, switches the feature-admin technology route and the runtime drain, and deletes position-gpo.ts (33 writes, KPI 204 -> 171).",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -35862,8 +35873,8 @@
       "totalPackets": 184,
       "migratedPackets": 106,
       "statusCounts": {
-        "pending": 23,
-        "in_progress": 0,
+        "pending": 21,
+        "in_progress": 2,
         "ready_for_integration": 16,
         "integrating": 0,
         "migrated": 106,
@@ -35873,7 +35884,7 @@
       }
     },
     "lastCoordinatorGeneration": 57,
-    "updatedAt": "2026-11-13T12:31:34.951Z",
+    "updatedAt": "2026-11-13T12:34:23.418Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
