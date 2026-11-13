@@ -2,7 +2,8 @@ import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
-import { setActiveSchema, setFollow } from "@erpx/server-collaboration/public/social";
+import { setActiveSchema } from "@erpx/server-collaboration/public/social";
+import { nativeSetPostFollow, nativeSocialAvailable } from "@erpx/server-collaboration/public/native-social-page";
 
 export async function PUT(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/posts/[id]/follow">) {
   try {
@@ -12,6 +13,12 @@ export async function PUT(request: Request, context: RouteContext<"/api/v1/holdi
     const parsed = setActiveSchema.safeParse(await request.json());
     if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid follow state.");
     const actor = await requireWorkContext(holdingSlug);
-    return Response.json(canonicalDestinationLinks({ data: await setFollow(actor.holdingId, id, parsed.data.active, commandId, actor) }));
+    if (!nativeSocialAvailable())
+      throw new ApiError(
+        503,
+        "NATIVE_SOCIAL_UNAVAILABLE",
+        "The native Social service is unavailable.",
+      );
+    return Response.json(canonicalDestinationLinks({ data: await nativeSetPostFollow(request, holdingSlug, id, parsed.data.active, commandId) }));
   } catch (error) { return errorResponse(error); }
 }

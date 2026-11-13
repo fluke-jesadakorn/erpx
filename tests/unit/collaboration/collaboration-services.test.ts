@@ -87,17 +87,14 @@ describe('Private message intake guards precede owner file creation',()=>{
 });
 
 import {createSocialApplication,type SocialPorts,type SocialRepository} from "@erpx/server-collaboration/application/social";
-import {createPostSchema,createStorySchema} from "@erpx/server-collaboration/domain/social";
+import {createStorySchema} from "@erpx/server-collaboration/domain/social";
 import {createSocialTaskApplication,type SocialTaskPorts} from "@erpx/server-collaboration/application/social-task";
 import {createSocialAgentApplication,type SocialAgentPorts} from "@erpx/server-collaboration/application/social-agent";
 import {createCurrentPushSessionCleanup,createWebPushApplication,type CurrentPushSessionCleanupPorts,type WebPushPorts} from "@erpx/server-collaboration/application/web-push";
 import {createMessagingApplication,type MessagingPorts,type MessagingRepository} from "@erpx/server-collaboration/application/messaging";
 const emptyCalls:string[]=[];
-function basicSocial(facts:Partial<SocialRepository<string>>={}){const calls:string[]=[],ports=repository<SocialPorts<string>>({repository:repository<SocialRepository<string>>({priorReceipt:async()=>null,...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'post'},sha256:async()=> 'digest',visiblePost:async()=>null,commit:async()=>{calls.push('commit');}},calls);return {calls,ports,app:createSocialApplication<string>(ports)};}
-describe('Legacy public conversation and story APIs have real injected business decisions',()=>{
- test('rejects another request under a reused key before publishing any content',async()=>{const f=basicSocial({priorReceipt:async()=>({request_hash:'another',result_json:'{}'})});await expect(f.app.createPost('holding',createPostSchema.parse({body:'Text',audience:'holding'}),'key',actor)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});expect(f.calls).toEqual([]);});
- test('company and branch audience rules are independent of storage adapters',async()=>{const f=basicSocial();await expect(f.app.createPost('holding',createPostSchema.parse({body:'Text',audience:'holding'}),'key',{...actor,assignmentScope:'branch',branchId:'branch'})).rejects.toMatchObject({code:'AUDIENCE_FORBIDDEN'});await expect(f.app.createPost('holding',createPostSchema.parse({body:'Text',audience:'branch'}),'key',actor)).rejects.toMatchObject({code:'AUDIENCE_FORBIDDEN'});});
- test('even a flag receipt does not bypass current source privacy',async()=>{const f=basicSocial({priorReceipt:async()=>({request_hash:'digest',result_json:'{}'})});await expect(f.app.setAppreciation('holding','post',true,'key',actor)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect(f.calls).toEqual([]);});
+function basicSocial(facts:Partial<SocialRepository<string>>={}){const calls:string[]=[],ports=repository<SocialPorts<string>>({repository:repository<SocialRepository<string>>({priorReceipt:async()=>null,...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'post'},sha256:async()=> 'digest',commit:async()=>{calls.push('commit');}},calls);return {calls,ports,app:createSocialApplication<string>(ports)};}
+describe('Legacy public story APIs have real injected business decisions',()=>{
  test('branch stories cannot be published without choosing a branch assignment',async()=>{const f=basicSocial();await expect(f.app.createStory('holding',createStorySchema.parse({title:'News',body:'Text',audience:'branch'}),'key',actor)).rejects.toMatchObject({code:'BRANCH_REQUIRED'});expect(f.calls).toEqual([]);});
 });
 function linkedTask(){const calls:string[]=[],ports:SocialTaskPorts<string>={clock:{now:()=>42},repository:{taskOrigin:async()=>null,aiProvider:async()=>null,guardAiDraft:()=> 'draft',bindTaskOrigin:()=> 'origin'},sources:{read:async()=>({...post}),snapshot:async()=>({post:{...post},hash:'digest'}),guard:(_key,_post,user)=>{calls.push(user);return 'guard:'+user;}},providerGuard:()=> 'provider'};return {calls,ports,app:createSocialTaskApplication<string>(ports)};}

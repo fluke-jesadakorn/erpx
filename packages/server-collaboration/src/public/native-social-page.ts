@@ -244,6 +244,36 @@ export function nativeCreateComment(
   );
 }
 
+export function nativeSetPostReaction(
+  request: Request,
+  holdingSlug: string,
+  postId: string,
+  active: boolean,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/${encodeURIComponent(postId)}/reactions`,
+    { body: { active }, key },
+  );
+}
+
+export function nativeSetPostFollow(
+  request: Request,
+  holdingSlug: string,
+  postId: string,
+  active: boolean,
+  key: string,
+) {
+  return call(
+    request,
+    holdingSlug,
+    `/feed/${encodeURIComponent(postId)}/follows`,
+    { body: { active }, key },
+  );
+}
+
 export function nativePublishHandover(
   request: Request,
   holdingSlug: string,
