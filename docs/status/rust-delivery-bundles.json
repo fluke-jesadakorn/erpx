@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1457,
+    "revision": 1458,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -31767,6 +31767,49 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.orphan-ts-write-adapters",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "shared",
+        "workflowIds": [
+          "shared/ts-orphans"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the two strictly orphaned TS write adapters",
+        "scope": "Read-only reachability audit at 71f19d191 found exactly two write adapters with zero importers (no package export, barrel, test, script or fixture consumer): packages/server-collaboration/src/adapters/sales-notifications.ts (INSERT staff_notifications, prepareFollowupNotification; its dependency packages/server-sales/src/adapters/followup-notification-source.ts is also dead) and packages/server-learning/src/adapters/learning-eligibility.ts (INSERT learning_benefit_consumption_receipts; the live application layer is imported directly by the learning tests). Both app/public barrels, package export keys, ownership.json paths, every apps/*/src/app/globals.css @source line and apps/*/turbo.json input entry must be removed in the same slice; regenerate style sources on a quiescent tree (peers currently hold dirty globals.css/turbo).",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/adapters/sales-notifications.ts",
+          "packages/server-collaboration/src/public/sales-notifications.ts",
+          "packages/server-collaboration/package.json",
+          "packages/server-sales/src/adapters/followup-notification-source.ts",
+          "packages/server-sales/src/public/followup-notification-source.ts",
+          "packages/server-sales/package.json",
+          "packages/server-learning/src/adapters/learning-eligibility.ts",
+          "packages/server-learning/src/public/learning-eligibility.ts",
+          "packages/server-learning/package.json",
+          "packages/contracts/src/ownership.json",
+          "apps/**"
+        ],
+        "resources": [
+          "owner:shared-orphans"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Wait for the peer CSS/turbo WIP to clear, then delete the adapters/barrels/exports and ownership paths, regenerate style sources, record each file 1 -> 0 and the global KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -31775,10 +31818,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 154,
+      "totalPackets": 155,
       "migratedPackets": 86,
       "statusCounts": {
-        "pending": 21,
+        "pending": 22,
         "in_progress": 4,
         "ready_for_integration": 9,
         "integrating": 0,
@@ -31789,7 +31832,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T02:10:14.935Z",
+    "updatedAt": "2026-11-13T02:13:12.946Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
