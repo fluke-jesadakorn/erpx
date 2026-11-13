@@ -675,3 +675,196 @@ async fn supplier_instruction_result_records_unknown_and_failed_retry_states() {
     })
     .await;
 }
+
+// ---------------------------------------------------------------------------
+// Composition mount: the private development router resolves the current
+// Account/IAM assignment, opens one serializable Holding transaction with the
+// Company purchase boundary, takes the Finance source leases and calls the
+// native owner command.
+// ---------------------------------------------------------------------------
+use axum::{
+    body::to_bytes,
+    http::{Request, StatusCode},
+};
+use erpx_server_commercial::public::purchases::current_package_catalogue;
+use erpx_service::finance_journal_detail::{
+    FinanceJournalDetailService, FinanceJournalReadConfiguration,
+};
+use erpx_service::finance_journal_detail_http::{
+    FinanceJournalReadScopeHeaders, FinanceJournalReadTarget, finance_journal_read_router,
+};
+use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use std::sync::Arc;
+use tower::ServiceExt;
+
+fn supplier_batch_service(
+    p: &facts::Prepared,
+) -> FinanceJournalDetailService<facts::TestClock> {
+    FinanceJournalDetailService::new(
+        p.authorizer.clone(),
+        FinanceJournalReadConfiguration::new(
+            FinanceJournalEnvironment::Development,
+            HoldingId::new("h001").unwrap(),
+            CompanyId::new("company").unwrap(),
+            Arc::new(current_package_catalogue().unwrap()),
+        )
+        .unwrap(),
+        p.system.scenario.clock.clone(),
+    )
+}
+
+fn supplier_batch_request(
+    method: &str,
+    uri: &str,
+    token: &erpx_server_identity_access::public::OpaqueSecret,
+    assignment: &str,
+    key: Option<&str>,
+    body: Option<serde_json::Value>,
+) -> Request<axum::body::Body> {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("host", "acme.example.test")
+        .header("cookie", format!("__Host-erpx-product={}", token.expose()))
+        .header("origin", "https://acme.example.test")
+        .header("content-type", "application/json")
+        .header("x-erpx-context-company", "company")
+        .header("x-erpx-context-assignment", assignment)
+        .header("x-erpx-context-revision", "7")
+        .header("x-erpx-context-assignment-version", "3");
+    if let Some(key) = key {
+        builder = builder.header("idempotency-key", key);
+    }
+    builder
+        .body(match body {
+            Some(value) => axum::body::Body::from(serde_json::to_vec(&value).unwrap()),
+            None => axum::body::Body::empty(),
+        })
+        .unwrap()
+}
+
+#[tokio::test]
+async fn supplier_batch_http_route_creates_approves_and_replays() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        seed(&p.system.holdings[0]).await;
+        seed_supplier_batch(&p.system.holdings[0]).await;
+        let app = finance_journal_read_router(
+            Arc::new(account::fixture::account::policy()),
+            account::fixture::account::holding_registry(),
+            Arc::new(FinanceJournalReadScopeHeaders),
+            vec![FinanceJournalReadTarget {
+                host: "acme.example.test".into(),
+                holding_slug: "acme".into(),
+                service: Arc::new(supplier_batch_service(&p)),
+            }],
+        )
+        .unwrap();
+        let key = "supplier-batch-http-0001";
+        let create_body = serde_json::json!({
+            "bankAccountId": "bank",
+            "plannedDate": "2026-01-15",
+            "items": [{
+                "invoiceId": "supplier-bill-open",
+                "expectedVersion": 1,
+                "amount": "10.00",
+                "beneficiaryName": "Synthetic Supplier",
+                "beneficiaryAccount": "123-456-789"
+            }]
+        });
+
+        let missing_key = app
+            .clone()
+            .oneshot(supplier_batch_request(
+                "POST",
+                "/api/v1/holdings/acme/finance/supplier-batches",
+                &p.maker_token,
+                "finance-fixture-a",
+                None,
+                Some(create_body.clone()),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(missing_key.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let response = app
+            .clone()
+            .oneshot(supplier_batch_request(
+                "POST",
+                "/api/v1/holdings/acme/finance/supplier-batches",
+                &p.maker_token,
+                "finance-fixture-a",
+                Some(key),
+                Some(create_body.clone()),
+            ))
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = to_bytes(response.into_body(), 128 * 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(status, StatusCode::CREATED, "{value}");
+        assert_eq!(value["data"]["id"], format!("supplier-batch-{key}"));
+        assert_eq!(value["data"]["status"], "draft");
+        assert_eq!(value["data"]["version"], 1);
+
+        let response = app
+            .clone()
+            .oneshot(supplier_batch_request(
+                "POST",
+                &format!("/api/v1/holdings/acme/finance/supplier-batches/supplier-batch-{key}/approve"),
+                &p.reviewer_token,
+                "finance-fixture-b",
+                Some("supplier-batch-http-approve-0001"),
+                Some(serde_json::json!({
+                    "expectedVersion": 1,
+                    "reason": "Reviewed the source invoice, amount and beneficiary"
+                })),
+            ))
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = to_bytes(response.into_body(), 128 * 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(status, StatusCode::OK, "{value}");
+        assert_eq!(value["data"]["status"], "approved");
+        assert_eq!(value["data"]["version"], 2);
+
+        // The same command key replays the retained receipt instead of
+        // preparing a second batch.
+        let response = app
+            .clone()
+            .oneshot(supplier_batch_request(
+                "POST",
+                "/api/v1/holdings/acme/finance/supplier-batches",
+                &p.maker_token,
+                "finance-fixture-a",
+                Some(key),
+                Some(create_body),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), 128 * 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["data"]["version"], 1);
+
+        let batch: (String, Option<String>, i64) = sqlx::query_as(
+            "SELECT status,approved_by,version FROM finance_supplier_batches WHERE id=$1",
+        )
+        .bind(format!("supplier-batch-{key}"))
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(batch, ("approved".into(), Some("fixture-b".into()), 2));
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id IN ($1,$2)",
+        )
+        .bind(key)
+        .bind("supplier-batch-http-approve-0001")
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 2);
+    })
+    .await;
+}

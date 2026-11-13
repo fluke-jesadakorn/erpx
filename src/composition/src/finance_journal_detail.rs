@@ -80,6 +80,12 @@ impl FinanceJournalReadConfiguration {
     pub fn company_id(&self) -> &CompanyId {
         &self.company
     }
+    pub(crate) fn holding(&self) -> &HoldingId {
+        &self.holding
+    }
+    pub(crate) fn purchases(&self) -> &Arc<CommercialCatalogue> {
+        &self.purchases
+    }
 }
 impl HoldingWorkSourcePreparation for FinanceJournalReadConfiguration {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
@@ -179,6 +185,22 @@ pub struct FinanceSupplierBillPostResponse {
 pub struct FinanceSupplierBillDetailResponse {
     pub data: SupplierBillDetail,
     pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct FinanceSupplierBatchResultResponse {
+    pub data: erpx_server_finance::public::supplier_batch::SupplierBatchResult,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct FinanceSupplierBatchExportResponse {
+    pub data: erpx_server_finance::public::supplier_batch::SupplierBatchExportResult,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct FinanceSupplierInstructionResultResponse {
+    pub data: erpx_server_finance::public::supplier_batch::SupplierInstructionResult,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct FinanceSupplierInstructionConfirmResponse {
+    pub data: erpx_server_finance::public::supplier_batch::SupplierInstructionConfirmResult,
 }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
@@ -3390,6 +3412,316 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                 },
             )
             .await
+    }
+
+    /// One bounded native supplier-batch command: the authorizer owns the
+    /// Holding transaction and the closure adds the package/Finance/Files
+    /// fences before the owner write. No TypeScript fallback is reachable.
+    #[allow(clippy::too_many_arguments)]
+    async fn supplier_batch_command<T, Input, F>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        permission: &'static str,
+        mutation: bool,
+        action: F,
+    ) -> Result<T, Error>
+    where
+        T: Send + 'static,
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        F: for<'c> Fn(
+                &'c mut PgConnection,
+                &'c AuthorizedWorkContext,
+            ) -> PgWorkFuture<'c, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = mutation;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: permission.into(),
+                    module: Some("finance".into()),
+                    destination: "finance/payables".into(),
+                    api: true,
+                },
+                crate::finance_supplier_batch::SupplierBatchSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let action = action.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for supplier bank batches.",
+                            )
+                            .into());
+                        }
+                        action(c, current).await
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn create_supplier_batch<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        body: erpx_server_finance::public::supplier_batch::SupplierBatchCreateInput,
+    ) -> Result<FinanceSupplierBatchResultResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.supplier_batch_command(host, proof, input, "finance.write", true, move |c, current| {
+            let configuration = configuration.clone();
+            let clock = clock.clone();
+            let command = command.clone();
+            let body = body.clone();
+            Box::pin(async move {
+                let actor = command_actor(current)?;
+                let data = crate::finance_supplier_batch::create(
+                    c,
+                    &actor,
+                    &configuration,
+                    clock.as_ref(),
+                    &command,
+                    &body,
+                    clock.now().get(),
+                )
+                .await?;
+                Ok(FinanceSupplierBatchResultResponse { data })
+            })
+        })
+        .await
+    }
+
+    pub async fn decide_supplier_batch<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+        decision: &'static str,
+        body: erpx_server_finance::public::supplier_batch::SupplierBatchDecisionInput,
+    ) -> Result<FinanceSupplierBatchResultResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        let permission = if decision == "approve" {
+            "finance.approve"
+        } else {
+            "finance.write"
+        };
+        self.supplier_batch_command(host, proof, input, permission, true, move |c, current| {
+            let configuration = configuration.clone();
+            let clock = clock.clone();
+            let command = command.clone();
+            let id = id.clone();
+            let body = body.clone();
+            Box::pin(async move {
+                let actor = command_actor(current)?;
+                let can_approve = current.has_permission("finance.approve");
+                let data = crate::finance_supplier_batch::decide(
+                    c,
+                    &actor,
+                    &configuration,
+                    clock.as_ref(),
+                    &command,
+                    &id,
+                    &body,
+                    decision,
+                    can_approve,
+                    clock.now().get(),
+                )
+                .await?;
+                Ok(FinanceSupplierBatchResultResponse { data })
+            })
+        })
+        .await
+    }
+
+    pub async fn export_supplier_batch<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+        body: erpx_server_finance::public::supplier_batch::SupplierBatchExportInput,
+    ) -> Result<FinanceSupplierBatchExportResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.supplier_batch_command(host, proof, input, "finance.pay", true, move |c, current| {
+            let configuration = configuration.clone();
+            let clock = clock.clone();
+            let command = command.clone();
+            let id = id.clone();
+            let body = body.clone();
+            Box::pin(async move {
+                let actor = command_actor(current)?;
+                let data = crate::finance_supplier_batch::export(
+                    c,
+                    &actor,
+                    &configuration,
+                    clock.as_ref(),
+                    &command,
+                    &id,
+                    &body,
+                    clock.now().get(),
+                )
+                .await?;
+                Ok(FinanceSupplierBatchExportResponse { data })
+            })
+        })
+        .await
+    }
+
+    pub async fn recover_supplier_batch_export<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+    ) -> Result<FinanceSupplierBatchExportResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let configuration = self.configuration.clone();
+        self.supplier_batch_command(host, proof, input, "finance.pay", false, move |c, _current| {
+            let configuration = configuration.clone();
+            let id = id.clone();
+            Box::pin(async move {
+                let data =
+                    crate::finance_supplier_batch::recover_export(c, &configuration, &id).await?;
+                Ok(FinanceSupplierBatchExportResponse { data })
+            })
+        })
+        .await
+    }
+
+    pub async fn record_supplier_instruction_result<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+        body: erpx_server_finance::public::supplier_batch::SupplierInstructionResultInput,
+    ) -> Result<FinanceSupplierInstructionResultResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        let outcome = body.outcome.clone();
+        self.supplier_batch_command(host, proof, input, "finance.write", true, move |c, current| {
+            let configuration = configuration.clone();
+            let clock = clock.clone();
+            let command = command.clone();
+            let id = id.clone();
+            let body = body.clone();
+            let outcome = outcome.clone();
+            Box::pin(async move {
+                // A failed result needs a current Finance approver; an unknown
+                // result needs the independent payer. The owner re-checks both
+                // against the retained batch roles.
+                match outcome.as_str() {
+                    "failed" => current.require_permission("finance.approve")?,
+                    "unknown" => current.require_permission("finance.pay")?,
+                    _ => {}
+                }
+                let actor = command_actor(current)?;
+                let can_approve = current.has_permission("finance.approve");
+                let data = crate::finance_supplier_batch::record_result(
+                    c,
+                    &actor,
+                    &configuration,
+                    clock.as_ref(),
+                    &command,
+                    &id,
+                    &body,
+                    can_approve,
+                    clock.now().get(),
+                )
+                .await?;
+                Ok(FinanceSupplierInstructionResultResponse { data })
+            })
+        })
+        .await
+    }
+
+    pub async fn confirm_supplier_instruction<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+        body: erpx_server_finance::public::supplier_batch::SupplierInstructionConfirmInput,
+    ) -> Result<FinanceSupplierInstructionConfirmResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.supplier_batch_command(host, proof, input, "finance.pay", true, move |c, current| {
+            let configuration = configuration.clone();
+            let clock = clock.clone();
+            let command = command.clone();
+            let id = id.clone();
+            let body = body.clone();
+            Box::pin(async move {
+                let actor = command_actor(current)?;
+                let data = crate::finance_supplier_batch::confirm(
+                    c,
+                    &actor,
+                    &configuration,
+                    clock.as_ref(),
+                    &command,
+                    &id,
+                    &body,
+                    clock.now().get(),
+                )
+                .await?;
+                Ok(FinanceSupplierInstructionConfirmResponse { data })
+            })
+        })
+        .await
     }
 
     pub async fn period_close_workspace<Input>(

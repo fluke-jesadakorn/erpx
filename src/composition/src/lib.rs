@@ -95,6 +95,8 @@ pub mod finance_generic_payment;
 pub mod finance_generic_payment_http;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_journal_detail;
+#[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
+pub mod finance_supplier_batch;
 #[cfg(feature = "existing-business")]
 pub mod handbook;
 pub mod identity_access;

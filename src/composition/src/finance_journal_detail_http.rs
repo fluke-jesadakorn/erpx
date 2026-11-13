@@ -16,11 +16,12 @@ use axum::{
     routing::{get, post},
 };
 use erpx_server_identity_access::public::{
-    AccountPolicy, RequestAudience,
+    AccountPolicy, DeviceProof, RequestAudience,
     account_holding_bindings::ConfiguredHoldingRegistry,
     account_inbound_http::{
         CapturedHoldingMutation, parse_inbound_account_request, unique_request_header,
     },
+    work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, CommandKey, FailureKind, RecordId};
@@ -129,6 +130,30 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
         .route(
             "/api/v1/holdings/{holding_slug}/finance/payables/{id}/void",
             post(void_supplier_bill::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/supplier-batches",
+            post(create_supplier_batch::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/supplier-batches/{id}/approve",
+            post(approve_supplier_batch::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/supplier-batches/{id}/cancel",
+            post(cancel_supplier_batch::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/supplier-batches/{id}/export",
+            get(recover_supplier_batch_export::<C>).post(export_supplier_batch::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/supplier-instructions/{id}/result",
+            post(supplier_instruction_result::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/supplier-instructions/{id}/confirm",
+            post(confirm_supplier_instruction::<C>),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/finance/periods/{id}/workspace",
@@ -1814,6 +1839,354 @@ async fn create_supplier_bill<C: Clock + Send + Sync + 'static>(
     .await;
     let mut response = match result {
         Ok(reply) => (StatusCode::CREATED, Json(reply)).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+struct SupplierBatchIngress {
+    proof: DeviceProof,
+    command: CommandKey,
+    scope: Result<(Option<String>, Option<String>), BusinessError>,
+    captured: CapturedHoldingMutation,
+}
+
+fn supplier_batch_ingress<C: Clock + Send + Sync + 'static>(
+    state: &ReadState<C>,
+    headers: &HeaderMap,
+) -> Result<SupplierBatchIngress, PgTransactionError<BusinessError>> {
+    let inbound = parse_inbound_account_request(&state.policy, headers)?;
+    if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+        return Err(missing().into());
+    }
+    if unique_request_header(headers, "origin")?.is_some_and(|value| value != inbound.expected_origin())
+    {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "ORIGIN_FORBIDDEN",
+            "Use the application origin.",
+        )
+        .into());
+    }
+    let key = unique_request_header(headers, "idempotency-key")?
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            BusinessError::invalid("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.")
+        })?;
+    let command = CommandKey::new(key.to_owned())?;
+    let scope = state.scopes.slugs(headers);
+    let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+    let captured = CapturedHoldingMutation::capture(headers, branch, department);
+    Ok(SupplierBatchIngress {
+        proof: inbound.into_proof(),
+        command,
+        scope,
+        captured,
+    })
+}
+
+fn supplier_batch_parts(
+    ingress: SupplierBatchIngress,
+) -> (
+    DeviceProof,
+    CommandKey,
+    impl FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+) {
+    let SupplierBatchIngress {
+        proof,
+        command,
+        scope,
+        captured,
+    } = ingress;
+    (proof, command, move || {
+        scope?;
+        captured.resolve()
+    })
+}
+
+async fn supplier_batch_body(request: Request) -> Result<axum::body::Bytes, PgTransactionError<BusinessError>> {
+    to_bytes(request.into_body(), 128 * 1024)
+        .await
+        .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request.").into())
+}
+
+fn supplier_batch_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "INVALID_SUPPLIER_BATCH",
+        "Use a valid supplier batch request.",
+    )
+}
+
+async fn create_supplier_batch<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
+        let ingress = supplier_batch_ingress(&state, request.headers())?;
+        let body = supplier_batch_body(request).await?;
+        let input: erpx_server_finance::public::supplier_batch::SupplierBatchCreateInput =
+            serde_json::from_slice(&body).map_err(|_| supplier_batch_invalid())?;
+        let (proof, command, run) = supplier_batch_parts(ingress);
+        target
+            .service
+            .create_supplier_batch(&host, proof, run, command, input)
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => (StatusCode::CREATED, Json(reply)).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+async fn decide_supplier_batch<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+    decision: &'static str,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
+        let ingress = supplier_batch_ingress(&state, request.headers())?;
+        let body = supplier_batch_body(request).await?;
+        let input: erpx_server_finance::public::supplier_batch::SupplierBatchDecisionInput =
+            serde_json::from_slice(&body).map_err(|_| supplier_batch_invalid())?;
+        let (proof, command, run) = supplier_batch_parts(ingress);
+        target
+            .service
+            .decide_supplier_batch(
+                &host,
+                proof,
+                run,
+                command,
+                id,
+                decision,
+                input,
+            )
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => (StatusCode::OK, Json(reply)).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+async fn approve_supplier_batch<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    path: Path<(String, String)>,
+    request: Request,
+) -> Response {
+    decide_supplier_batch(state, path, request, "approve").await
+}
+
+async fn cancel_supplier_batch<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    path: Path<(String, String)>,
+    request: Request,
+) -> Response {
+    decide_supplier_batch(state, path, request, "cancel").await
+}
+
+async fn export_supplier_batch<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
+        let ingress = supplier_batch_ingress(&state, request.headers())?;
+        let body = supplier_batch_body(request).await?;
+        let input: erpx_server_finance::public::supplier_batch::SupplierBatchExportInput =
+            serde_json::from_slice(&body).map_err(|_| supplier_batch_invalid())?;
+        let (proof, command, run) = supplier_batch_parts(ingress);
+        target
+            .service
+            .export_supplier_batch(&host, proof, run, command, id, input)
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => (StatusCode::OK, Json(reply)).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+async fn recover_supplier_batch_export<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            &headers,
+        )?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let run = move || -> Result<HoldingWorkspaceRequest, BusinessError> {
+            scope?;
+            captured.resolve()
+        };
+        target
+            .service
+            .recover_supplier_batch_export(&host, inbound.into_proof(), run, id)
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => (StatusCode::OK, Json(reply)).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+async fn supplier_instruction_result<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
+        let ingress = supplier_batch_ingress(&state, request.headers())?;
+        let body = supplier_batch_body(request).await?;
+        let input: erpx_server_finance::public::supplier_batch::SupplierInstructionResultInput =
+            serde_json::from_slice(&body).map_err(|_| {
+                BusinessError::invalid(
+                    "INVALID_SUPPLIER_RESULT",
+                    "Use a valid supplier bank result.",
+                )
+            })?;
+        let (proof, command, run) = supplier_batch_parts(ingress);
+        target
+            .service
+            .record_supplier_instruction_result(
+                &host,
+                proof,
+                run,
+                command,
+                id,
+                input,
+            )
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => (StatusCode::OK, Json(reply)).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+async fn confirm_supplier_instruction<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
+        let ingress = supplier_batch_ingress(&state, request.headers())?;
+        let body = supplier_batch_body(request).await?;
+        let input: erpx_server_finance::public::supplier_batch::SupplierInstructionConfirmInput =
+            serde_json::from_slice(&body).map_err(|_| {
+                BusinessError::invalid(
+                    "INVALID_SUPPLIER_CONFIRMATION",
+                    "Use a valid supplier bank confirmation.",
+                )
+            })?;
+        let (proof, command, run) = supplier_batch_parts(ingress);
+        target
+            .service
+            .confirm_supplier_instruction(
+                &host,
+                proof,
+                run,
+                command,
+                id,
+                input,
+            )
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => (StatusCode::OK, Json(reply)).into_response(),
         Err(PgTransactionError::Business(error)) => business_error(error),
         Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
     };
