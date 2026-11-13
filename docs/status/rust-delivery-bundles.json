@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1374,
+    "revision": 1378,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T01:06:28.442Z",
-      "expiresAt": "2026-11-13T01:36:28.442Z",
+      "heartbeatAt": "2026-11-13T01:10:58.778Z",
+      "expiresAt": "2026-11-13T01:40:58.778Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -24970,8 +24970,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-files-support",
           "claimedAt": "2026-11-13T00:37:50.660Z",
-          "heartbeatAt": "2026-11-13T01:06:28.442Z",
-          "expiresAt": "2026-11-13T01:36:28.442Z",
+          "heartbeatAt": "2026-11-13T01:10:58.778Z",
+          "expiresAt": "2026-11-13T01:40:58.778Z",
           "generation": 50
         },
         "baseSha": null,
@@ -29770,8 +29770,8 @@
           "runId": "run-20261113-f",
           "agentId": "lead",
           "claimedAt": "2026-11-13T00:16:11.607Z",
-          "heartbeatAt": "2026-11-13T01:06:28.442Z",
-          "expiresAt": "2026-11-13T01:36:28.442Z",
+          "heartbeatAt": "2026-11-13T01:10:58.778Z",
+          "expiresAt": "2026-11-13T01:40:58.778Z",
           "generation": 50
         },
         "baseSha": null,
@@ -29788,7 +29788,7 @@
           "reason": "Recovery: Lease expired after the PMS dead-member push; worker WIP preserved and claims re-established",
           "nextAction": "Native ModeratePost pushed at 21acc72db. Remaining blockers: (1) can_hide_posts wiring in src/composition/src/collaboration.rs is blocked by the active retire.customer_authority.remaining-writers claim on src/composition/src/** (removalTaskId recorded); (2) the last TS social-home write caller is operations publishHandover, now tracked as migrate.operations.handover-publish (needs a native handover command with task/PMS facts, recipients, sources and receipt). After both land, switch the last callers and delete the TS social-home writer/barrels with Collaboration KPI before/after."
         },
-        "nextAction": "Native handover post command is pushed at bc2e38b58. The last TS social-home caller (operations publishHandover) cannot be switched yet: its save/publish run inside withOperationsHandoverPurchaseUnit with same-transaction receipt and deferred source/recipient checks, while the native command runs in its own Rust transaction. Blocked on a native handover purchase boundary or a reviewed atomicity decision, tracked as migrate.operations.handover-publish. TS social-home writer/barrels remain.",
+        "nextAction": "Next executable: switch feature-apps feed create, posts/[id]/comments, reaction and follow routes to the native social client (native post/comment/reaction/follow commands exist), then delete those TS social.ts branches and the workflow collaboration-social-sources post/comment/flag writers; story create/archive still have no native story command and must be a separate producer slice. Do not retire workflow collaboration-social-sources wholesale before the story path moves.",
         "scopeRefinementRequired": false
       },
       {
@@ -30835,8 +30835,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-crm-retire",
           "claimedAt": "2026-11-13T00:52:19.465Z",
-          "heartbeatAt": "2026-11-13T01:06:28.442Z",
-          "expiresAt": "2026-11-13T01:36:28.442Z",
+          "heartbeatAt": "2026-11-13T01:10:58.778Z",
+          "expiresAt": "2026-11-13T01:40:58.778Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30892,8 +30892,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-agent-gateway",
           "claimedAt": "2026-11-13T00:57:48.147Z",
-          "heartbeatAt": "2026-11-13T01:06:28.442Z",
-          "expiresAt": "2026-11-13T01:36:28.442Z",
+          "heartbeatAt": "2026-11-13T01:10:58.778Z",
+          "expiresAt": "2026-11-13T01:40:58.778Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30973,7 +30973,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:06:28.443Z",
+    "updatedAt": "2026-11-13T01:10:58.779Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
