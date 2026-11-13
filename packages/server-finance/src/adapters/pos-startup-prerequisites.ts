@@ -19,6 +19,7 @@ import {replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import {commercePostingFinanceReferences} from '@erpx/server-finance/adapters/commerce-posting-setup';
 import type {PosStartupPrerequisitesView} from '@erpx/server-finance/domain/pos-startup-prerequisites';
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Kind='chart'|'account'|'period'|'rate';
 const operations={chart:'finance.chart.create',account:'finance.account.create',period:'finance.period.create',rate:'money.rate.confirm'} as const;
@@ -108,7 +109,7 @@ export async function withPosStartupPrerequisiteCommand<Result extends {id:strin
   }
   const created=await references(database,actor);
   if(!receipt&&(!createdReferenceMatches(created,kind,result.id,actor,request.input)||!unchangedBeforeCreation(before,created,kind,result.id)))throw new ApiError(409,'POS_POSTING_SOURCE_CHANGED','The original posting references changed while creating a prerequisite.');
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);const final=await authority(database,actor,permission),after=await references(database,actor),finalState=await postingState(database,actor);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database,item.key)]));await flushFinanceDeferredEffects(database);const final=await authority(database,actor,permission),after=await references(database,actor),finalState=await postingState(database,actor);
   if(authorityImage(current)!==authorityImage(final))throw new ApiError(409,'POS_POSTING_CONTEXT_CHANGED','The selected Finance authority changed before prerequisite completion.');
   if(image(created)!==image(after)||JSON.stringify(state)!==JSON.stringify(finalState))throw new ApiError(409,'POS_POSTING_SOURCE_CHANGED','The original posting references changed before prerequisite completion.');
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});return result;

@@ -24,6 +24,7 @@ import {commercePostingFinanceReferences} from '@erpx/server-finance/adapters/co
 import {commerceFinanceJoinedFacts} from '@erpx/server-finance/adapters/commerce-joined-facts';
 import type {SalesDefaults} from '@erpx/server-finance/domain/sales';
 import type {SalesPostingSetupView} from '@erpx/server-finance/domain/sales-posting-setup';
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Kind='chart'|'account'|'period'|'rate'|'defaults'|'decision';
 type Permission='finance.read'|'finance.write'|'finance.approve';
@@ -145,7 +146,7 @@ export async function withSalesPostingCommand<Result extends {id:string}>(actor:
   await flushFinanceDeferredEffects(database);const final=await authority(database,actor,permission,selected.sales),after=await references(database,actor);
   if(authorityImage(current)!==authorityImage(final))throw new ApiError(409,'SALES_POSTING_CONTEXT_CHANGED','The selected Finance authority changed before Sales setup completed.');
   if(image(created)!==image(after))throw sourceChanged();
-  if(boundary){const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(guard)]);boundary.observe?.(observed);}
+  if(boundary){const observed=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database,guard)]);boundary.observe?.(observed);}
   return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }

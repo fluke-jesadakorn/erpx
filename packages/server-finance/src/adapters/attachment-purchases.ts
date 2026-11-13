@@ -17,6 +17,7 @@ import {requireFinanceCurrentAuthority,financeReferenceCapabilities} from "@erpx
 import {financeDeferredEffectStatements} from "@erpx/server-finance/adapters/finance-transactions";
 import {groupEditionPurchases,groupRecordPurchases} from "@erpx/server-finance/adapters/group-purchase-sources";
 import {initialPhysicalStockJournalMarked,requireFinanceDocumentHistory,financeDocumentSourceGuards,financeSourceDocumentReadLocks,type FinanceDocumentKind} from "@erpx/server-finance/adapters/document-purchases";
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 const advanced=new Set(["finance_book_adjustment","finance_instrument","finance_instrument_run","finance_group_report","finance_ownership_interest","finance_acquisition","finance_intercompany_pair","finance_lease","finance_loan"]);
 const banking=new Set(["finance_bank_match_group","finance_bank_statement","finance_bank_transaction","finance_payment","finance_refund_obligation","finance_supplier_batch","invoice_payment"]);
@@ -85,14 +86,14 @@ export async function financeAttachmentCommandBoundary(database:SqlDatabase,scop
   const authority=(phase:string)=>actors.flatMap(actor=>{
     const key=`finance-file-${phase}:${crypto.randomUUID()}`;
     return [database.prepare("SELECT id FROM assignments WHERE id=? AND company_id=? FOR SHARE").bind(actor.assignmentId,actor.companyId),...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),
-      assertion(database,key,"finance-file-assignment",`(SELECT ${assignmentReadSql("finance_file_scope","finance.read")} FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) finance_file_scope)`,[actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)];
+      assertion(database,key,"finance-file-assignment",`(SELECT ${assignmentReadSql("finance_file_scope","finance.read")} FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) finance_file_scope)`,[actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]),clearWorkflowCommandAssertions(database,key)];
   });
   const source=(phase:string)=>scopes.flatMap(scope=>{
     if(!scope.document||!scope.actor)return [];
     const key=`finance-file-source-${phase}:${crypto.randomUUID()}`;
     const guards=financeDocumentSourceGuards(database,scope.actor,scope.document.kind,scope.document.id,scope.capability,key,scope.document.commerceProof);
     const batch=scope.supplierBatchWitness?[assertion(database,key,"finance-supplier-batch-owner",`(${supplierBatchFileImage})=?`,[scope.document.id,scope.companyId,scope.supplierBatchWitness])]:[];
-    return guards.length||batch.length?[...guards,...batch,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]:[];
+    return guards.length||batch.length?[...guards,...batch,clearWorkflowCommandAssertions(database,key)]:[];
   });
-  return {before:[...boundaries.flatMap(item=>item.boundary.before),...authority("before"),...source("before")],after:[...financeDeferredEffectStatements(database),...authority("after"),...source("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};
+  return {before:[...boundaries.flatMap(item=>item.boundary.before),...authority("before"),...source("before")],after:[...financeDeferredEffectStatements(database),...authority("after"),...source("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>clearWorkflowCommandAssertions(database,item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};
 }

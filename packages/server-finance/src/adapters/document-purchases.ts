@@ -24,6 +24,7 @@ import {requireFinanceCurrentAuthority,requireFinancePurchasedRead,withFinancePu
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {financeSourceAccess} from "@erpx/server-finance/adapters/source-purchases";
 import {standaloneSalesCompletionReceiptQuery} from "@erpx/server-finance/adapters/sales-completion-proof";
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 export type FinanceDocumentKind="invoice"|"journal"|"payment"|"refund"|"supplier-batch";
 const tables={invoice:"finance_invoices",journal:"finance_journals",payment:"finance_payments",refund:"finance_refund_obligations","supplier-batch":"finance_supplier_batches"} as const;
@@ -166,7 +167,7 @@ export async function withFinanceSourceDocuments<Result>(actor:WorkContext,targe
    }else{const access=await requireFinanceDocumentHistory(transaction,actor,target.kind,target.id,purpose,command.strictPurchase);sources.push({...target,additionalCapabilities:access.additionalCapabilities,commerceProof:access.commerceProof,capability:await commercePostSource(transaction,actor,target.kind,target.id,access.capability,access.commerceProof)?access.capability:base(target.kind)});}
   }
   const capability=sources[0]?.capability??"finance.banking",key=`finance-source-post:${crypto.randomUUID()}`;
-  const fence=()=>sources.flatMap((target,index)=>[...(target.capability===command.baseCapability?[]:financeDocumentSourceGuards(transaction,actor,target.kind,target.id,target.capability,`${key}:${index}`,target.commerceProof)),transaction.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(`${key}:${index}`)]);
+  const fence=()=>sources.flatMap((target,index)=>[...(target.capability===command.baseCapability?[]:financeDocumentSourceGuards(transaction,actor,target.kind,target.id,target.capability,`${key}:${index}`,target.commerceProof)),clearWorkflowCommandAssertions(transaction,`${key}:${index}`)]);
   await transaction.batch(fence());
   const result=await withFinancePurchasedCommand(actor,{...command,purpose:"settle-existing",capability,companyPurchases:async()=>[...sources.slice(1).map(target=>({companyId:actor.companyId,capability:target.capability,purpose})),...sources.flatMap(target=>(target.additionalCapabilities??[]).map(capability=>({companyId:actor.companyId,capability,purpose})))]},run,transaction);
   // The normal Finance boundary has flushed complete deferred money/book

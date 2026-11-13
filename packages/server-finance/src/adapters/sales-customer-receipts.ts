@@ -20,6 +20,7 @@ import {financeSalesReceiptOriginalSources} from '@erpx/server-finance/adapters/
 import {financePaymentReversalSources} from '@erpx/server-finance/adapters/supplier-payment-correction-sources';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import type {SalesPostingSetupProductScope} from '@erpx/server-finance/adapters/sales-posting-setup';
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 const sales='finance.sales-posting';
 async function receiptSource(database:SqlDatabase,actor:WorkContext,id:string,issue:boolean){
@@ -60,7 +61,7 @@ async function owned<Result>(actor:WorkContext,id:string,issue:{key:string}|unde
   if(before&&(!after||after.image!==before.image||after.sales!==before.sales)||capability===sales&&!after?.sales)throw new ApiError(409,'SALES_RECEIPT_SOURCE_CHANGED','The original immutable customer receipt source changed before completion.');
   if(authority!==await current(database,actor,!!issue,capability===sales))throw new ApiError(409,'SALES_POSTING_CONTEXT_CHANGED','The selected Finance authority changed before customer receipt completion.');
   await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability,purpose:'history'});
-  if(boundary){const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(guard)]);boundary.observe?.(observed);}return result;
+  if(boundary){const observed=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database,guard)]);boundary.observe?.(observed);}return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 export function withSalesCustomerReceiptRead<Result>(actor:WorkContext,id:string,run:(database:SqlDatabase)=>Promise<Result>){return owned(actor,id,undefined,run);}

@@ -15,6 +15,7 @@ import {financialConstraintError} from '@erpx/server-workflow/public/command-gua
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import {assetsFinancialFinanceSourceLocks,assetsFinancialReferences,assetsFinancialOriginalSource,assetsFinancialOwnerImage,assetsFinancialRetainedJournalImage} from '@erpx/server-finance/adapters/assets-financial-sources';
 import type {AssetsFinancialResult} from '@erpx/server-finance/domain/assets-financial-workflow';
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 export type AssetsFinancialOperation='finance.asset.create'|'finance.asset.edit'|'finance.asset.cancel'|'finance.asset.activate'|'finance.asset.disposal.prepare'|'finance.asset.disposal.post'|'finance.asset.disposal.cancel';
 const authorityImage=(actor:WorkContext)=>JSON.stringify([actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam]);
 export async function requireAssetsFinancialAuthority(database:SqlDatabase,actor:WorkContext,permission:'finance.read'|'finance.write'|'finance.approve'='finance.read'){
@@ -52,7 +53,7 @@ export async function withAssetsFinancialCommand(actor:WorkContext,command:{oper
   if(!expectedOwner||!expectedReceipt)throw changed();
   // All original deferred book projections and owner effects finish before
   // final source/current-authority/purchase reads. No subsequent writes.
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database,item.key)]));await flushFinanceDeferredEffects(database);
   if(expectedOwner!==await assetsFinancialOwnerImage(database,actor,assetId)||expectedReceipt!==await receiptImage(database,actor,command.key,command.operation)||references!==await assetsFinancialReferences(database,actor)||(await assetsFinancialPhysicalSource(database,actor.companyId,assetId)).image!==before.physical.image)throw changed();
   const oldHistory=await assetsFinancialRetainedJournalImage(database,actor,before.ids);if(oldHistory.invalid||oldHistory.image!==before.journals.image)throw changed();
   await assetsFinancialOriginalSource(database,actor,assetId);
