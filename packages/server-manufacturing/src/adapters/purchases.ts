@@ -14,6 +14,10 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {planningPurchaseScenarioRows,planningPurchaseRecommendationRows,planningPurchaseResourceRows,planningPurchaseSourceReadLocks} from "@erpx/server-planning/public/purchase-sources";
 import {manufacturingWarehouseSources,manufacturingProductSources,manufacturingCommerceSourceReadLocks} from "@erpx/server-commerce/public/manufacturing-purchase-sources";
 export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
+/** Transient guard rows are keyed by the command that staged them. Every
+ * purchase/attachment/posting boundary cleans them in the same before/after
+ * batch, so the statement lives in one place instead of being copied. */
+export function clearCommandAssertions(database:SqlDatabase,key:string){return database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key);}
 export type ManufacturingPurchaseTarget={kind:"specification"|"scenario"|"recommendation"|"order"|"resource"|"accounting";id:string};
 export const manufacturingPurchaseSpecificationRows=`SELECT s.id,s.company_id,NULL::text branch_id,false advanced,
  jsonb_build_object('specification',to_jsonb(s)-'status'-'version'-'updated_at'-'reviewed_by','lines',COALESCE((SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM manufacturing_specification_lines line WHERE line.specification_id=s.id),'[]'::jsonb),'products',COALESCE((SELECT jsonb_agg(to_jsonb(product) ORDER BY product.id) FROM (${manufacturingProductSources}) product WHERE product.company_id=s.company_id AND (product.id=s.output_product_id OR product.id IN(SELECT product_id FROM manufacturing_specification_lines WHERE specification_id=s.id))),'[]'::jsonb),'operations',COALESCE((SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=s.id),'[]'::jsonb)) witness
@@ -34,7 +38,7 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,permiss
  const row=await database.prepare(`SELECT ${assignmentReadSql("production_scope",required)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) production_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","The original production assignment is no longer current.");}
  if(module){const selection=await database.prepare("SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array(?::text)) allowed FROM assignments WHERE id=?").bind(module,actor.assignmentId).first<{allowed:boolean}>();if(!selection?.allowed)throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","The current assignment no longer selects the original production module.");}
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearCommandAssertions(database,key)]);
 }
 async function source(database:SqlDatabase,actor:WorkContext,target:ManufacturingPurchaseTarget){const row=await database.prepare(`SELECT id,advanced,${target.kind==="scenario"||target.kind==="recommendation"?"source_witness":"witness"}::text witness FROM (${rows(target.kind)}) actual_production WHERE id=? AND company_id=? AND (branch_id IS NULL OR ?::text IS NULL OR branch_id=?)`).bind(target.id,actor.companyId,actor.branchId,actor.branchId).first<{id:string;advanced:boolean;witness:string}>();if(!row)throw new ApiError(404,"PRODUCTION_SOURCE_NOT_FOUND","The original production source is unavailable in this workspace.");return row;}
 function base(kind:ManufacturingPurchaseTarget["kind"]){return kind==="specification"?["manufacturing.bom"]:kind==="accounting"?["manufacturing.costs","finance.production-costing"]:kind==="order"?["manufacturing.execution"]:["planning.basic"];}
@@ -62,7 +66,7 @@ export async function withManufacturingPurchasedCommand<Result>(owner:SqlDatabas
  if(!replay&&purpose==="new-work")await currentPlanningSpecification(database,actor,command.target);
  const after=await source(database,actor,command.target);if(before&&after.witness!==before.witness||advanced&&!after.advanced&&command.target.kind!=="resource"&&command.target.kind!=="accounting")throw new ApiError(409,"PRODUCTION_SOURCE_CHANGED","The original production source changed before commit.");
  for(const item of sources){if((await source(database,actor,item.target)).witness!==item.value.witness)throw new ApiError(409,"PRODUCTION_SOURCE_CHANGED","The captured production source changed before commit.");}
- await current(database,actor,key,command.permission,command.module);const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
+ await current(database,actor,key,command.permission,command.module);const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearCommandAssertions(database,item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 
