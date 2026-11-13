@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1417,
+    "revision": 1422,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -18501,11 +18501,11 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "in_progress",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+        "lastPushedSha": "86e460228f4cfcb2f6048b060bbfdb914a8a3e8c",
         "checks": [
           {
             "command": "retirement:ts-writes packages/server-projects project attachment modules",
@@ -18682,20 +18682,72 @@
             "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
             "sourceKind": "committed",
             "note": "TEST_CATALOGUE_VALID:33 modules,1185 suites."
+          },
+          {
+            "command": "retirement:ts-writes: projects",
+            "result": "passed",
+            "sourceSha": "5323b62928ca3bfbc2ac4490ca9d3c127e9eacf3",
+            "before": 8,
+            "after": 4,
+            "note": "git grep over packages/server-projects/src/**/*.ts: 8 before, 4 after. The project-data writers (saveProject create/edit, structure, actuals, milestones) are gone and the routes are native. The four remaining statements are command_assertions guard cleanup inside the still-used project purchase helpers; the Operations saveTask beta source flow and task-alert escalation are their last consumers (retire.operations.routines), which records the removal condition below.",
+            "residual": [
+              {
+                "path": "packages/server-projects/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.operations.routines",
+                "removalCondition": "Delete the withProjectPurchasedCommand command_assertions cleanup after the Operations saveTask beta source flow and task-alert escalation are native and no TS purchase-helper consumer remains."
+              },
+              {
+                "path": "packages/server-projects/src/adapters/task-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.operations.routines",
+                "removalCondition": "Delete the withProjectTaskPurchasedCommand command_assertions cleanup after the Operations saveTask beta source flow is native and no TS purchase-helper consumer remains."
+              },
+              {
+                "path": "packages/server-projects/src/adapters/scheduled-tasks.ts",
+                "writes": 1,
+                "removalTaskId": "retire.operations.routines",
+                "removalCondition": "Delete the withProjectTaskAlert command_assertions cleanup after the Operations task-alert escalation is native and no TS purchase-helper consumer remains."
+              }
+            ]
           }
         ],
-        "retainedLegacy": [],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-projects/src/adapters/purchases.ts",
+            "capability": "project purchase command_assertions guard cleanup",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Delete after the Operations saveTask beta source flow and task-alert escalation are native and no TS purchase-helper consumer remains."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/task-purchases.ts",
+            "capability": "project task purchase command_assertions guard cleanup",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Delete after the Operations saveTask beta source flow is native and no TS purchase-helper consumer remains."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/scheduled-tasks.ts",
+            "capability": "project task-alert command_assertions guard cleanup",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Delete after the Operations task-alert escalation is native and no TS purchase-helper consumer remains."
+          }
+        ],
         "blocker": null,
-        "nextAction": "KPI 34->32->15->8->4. Native project create/edit live; TS saveProject deleted; residual 4 = Operations purchase-helper command_assertions guards, removable after migrate.operations native commands. Blocked by retire.operations.staff-transitions claim overlap on tests/integration/projects/**, not by missing native work.",
+        "nextAction": "Projects data writers closed. The four command_assertions guards remain bound to retire.operations.routines and clear when Operations saveTask/task-alert move native.",
         "handoff": {
-          "runId": "run-20261112-o",
+          "runId": "run-20261113-f",
           "agentId": "lead",
-          "at": "2026-11-12T11:24:35.752Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired after organization position-move retirement; WIP reviewed",
-          "nextAction": "KPI 34->32->15->8->4. Native project create/edit live; TS saveProject deleted; residual 4 = Operations purchase-helper command_assertions guards, removable after migrate.operations native commands. Blocked by retire.operations.staff-transitions claim overlap on tests/integration/projects/**, not by missing native work."
+          "at": "2026-11-13T01:37:37.008Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead integration closure."
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "retire.quality.writers-cross-owner",
@@ -31350,20 +31402,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 153,
-      "migratedPackets": 82,
+      "migratedPackets": 83,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 11,
         "integrating": 0,
-        "migrated": 82,
+        "migrated": 83,
         "blocked": 33,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:36:12.705Z",
+    "updatedAt": "2026-11-13T01:37:45.511Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
