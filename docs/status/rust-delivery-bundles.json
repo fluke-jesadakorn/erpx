@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1506,
+    "revision": 1509,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-g",
       "agentId": "lead",
       "startedAt": "2026-11-13T02:33:37.747Z",
-      "heartbeatAt": "2026-11-13T02:55:29.499Z",
-      "expiresAt": "2026-11-13T03:25:29.499Z",
+      "heartbeatAt": "2026-11-13T03:17:32.046Z",
+      "expiresAt": "2026-11-13T03:47:32.046Z",
       "generation": 51,
       "tokenHash": "b4636d5dac92c67424e4a78a1bf1883bb0ebe4a1220c27578bab9a4ba2ad62fd"
     },
@@ -14208,8 +14208,8 @@
           "runId": "run-20261113-g",
           "agentId": "lead",
           "claimedAt": "2026-11-13T02:59:42.355Z",
-          "heartbeatAt": "2026-11-13T02:59:42.355Z",
-          "expiresAt": "2026-11-13T03:29:42.355Z",
+          "heartbeatAt": "2026-11-13T03:17:32.046Z",
+          "expiresAt": "2026-11-13T03:47:32.046Z",
           "generation": 51
         },
         "baseSha": "0517689d6ee4b7217e1646de7789ecc0285acf54",
@@ -20206,8 +20206,8 @@
           "runId": "run-20261113-g",
           "agentId": "lead",
           "claimedAt": "2026-11-13T02:34:43.712Z",
-          "heartbeatAt": "2026-11-13T02:55:29.499Z",
-          "expiresAt": "2026-11-13T03:25:29.499Z",
+          "heartbeatAt": "2026-11-13T03:17:32.046Z",
+          "expiresAt": "2026-11-13T03:47:32.046Z",
           "generation": 51
         },
         "baseSha": null,
@@ -30162,8 +30162,8 @@
           "runId": "run-20261113-g",
           "agentId": "lead",
           "claimedAt": "2026-11-13T02:48:54.843Z",
-          "heartbeatAt": "2026-11-13T02:55:29.499Z",
-          "expiresAt": "2026-11-13T03:25:29.499Z",
+          "heartbeatAt": "2026-11-13T03:17:32.046Z",
+          "expiresAt": "2026-11-13T03:47:32.046Z",
           "generation": 51
         },
         "baseSha": null,
@@ -32300,23 +32300,23 @@
         "resources": [
           "owner:records"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "worker-records-retire",
-          "claimedAt": "2026-11-13T03:07:42.694Z",
-          "heartbeatAt": "2026-11-13T03:07:42.694Z",
-          "expiresAt": "2026-11-13T03:37:42.694Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Zero-caller/native-only analysis for Records adapters; delete the safe set and record the KPI pair.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead: extend native record module coverage + native mention/suggestion/employee-request/request-AI writers, then a follow-up packet that also owns the workplace write routes.",
+        "handoff": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-records-retire",
+          "at": "2026-11-13T03:30:11.849Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Lead: extend native record module coverage + native mention/suggestion/employee-request/request-AI writers, then a follow-up packet that also owns the workplace write routes."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -32367,8 +32367,8 @@
           "runId": "run-20261113-g",
           "agentId": "worker-ca-ack",
           "claimedAt": "2026-11-13T03:11:25.628Z",
-          "heartbeatAt": "2026-11-13T03:11:25.628Z",
-          "expiresAt": "2026-11-13T03:41:25.628Z",
+          "heartbeatAt": "2026-11-13T03:17:32.046Z",
+          "expiresAt": "2026-11-13T03:47:32.046Z",
           "generation": 51
         },
         "baseSha": null,
@@ -32394,17 +32394,17 @@
       "migratedPackets": 88,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 88,
-        "blocked": 35,
+        "blocked": 36,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:15:24.173Z",
+    "updatedAt": "2026-11-13T03:30:11.850Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
