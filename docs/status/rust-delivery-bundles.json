@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1602,
+    "revision": 1605,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T05:50:12.355Z",
-      "expiresAt": "2026-11-13T06:20:12.355Z",
+      "heartbeatAt": "2026-11-13T05:51:43.171Z",
+      "expiresAt": "2026-11-13T06:21:43.171Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -21766,23 +21766,73 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "41ee6ec4fe57926b98ef343d9cf36efa0e45313c",
+        "lastPushedSha": "41ee6ec4fe57926b98ef343d9cf36efa0e45313c",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "41ee6ec4fe57926b98ef343d9cf36efa0e45313c",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles; only the pre-existing account_sso warning."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo",
+            "result": "passed",
+            "sourceSha": "41ee6ec4fe57926b98ef343d9cf36efa0e45313c",
+            "sourceKind": "committed",
+            "note": "9/9 native GPO domain/application cases."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_postgres",
+            "result": "passed",
+            "sourceSha": "41ee6ec4fe57926b98ef343d9cf36efa0e45313c",
+            "sourceKind": "committed",
+            "note": "6/6 PostgreSQL cases: publish/replay/CAS, authority/MFA, unmap revision, retry guards, reconcile/drain ownership, unconfirmed-write block."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "41ee6ec4fe57926b98ef343d9cf36efa0e45313c",
+            "sourceKind": "committed",
+            "note": "Catalogue registration and repository layout pass."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-identity_access/src/adapters/position-gpo.ts",
+            "removalTaskId": "retire.identity_access.position-gpo",
+            "removalCondition": "Switch the feature-admin technology route, server-runtime jobs drain and the two organization oracles to the native port; supply a reviewed native PositionGpoDirectory provider; then delete this 33-write adapter."
+          },
+          {
+            "path": "packages/server-identity_access/src/application/position-gpo.ts",
+            "removalTaskId": "retire.identity_access.position-gpo",
+            "removalCondition": "Delete with the retained TS adapter after the native route/drain switch."
+          },
+          {
+            "path": "packages/server-identity_access/src/domain/position-gpo.ts",
+            "removalTaskId": "retire.identity_access.position-gpo",
+            "removalCondition": "Delete with the retained TS adapter after the native route/drain switch."
+          },
+          {
+            "path": "packages/server-identity_access/src/public/position-gpo.ts",
+            "removalTaskId": "retire.identity_access.position-gpo",
+            "removalCondition": "Remove the barrel and package exports after the adapter/application/domain files are deleted."
+          }
+        ],
+        "blocker": "released with work preserved",
+        "nextAction": "Native GPO domain/application/PostgreSQL producer is committed with 9/9 unit and 6/6 PG tests. Lead: (a) add a connector-provider task for the native PositionGpoDirectory (automation inventory + directory apply + secret profile); (b) mount the composition port and switch feature-admin technology route plus server-runtime jobs drain; (c) relocate the two organization oracles; then delete position-gpo.ts and record KPI 229 -> 196.",
+        "handoff": {
           "runId": "run-20261113-i",
           "agentId": "worker-iam-gpo",
-          "claimedAt": "2026-11-13T05:16:06.169Z",
-          "heartbeatAt": "2026-11-13T05:50:12.355Z",
-          "expiresAt": "2026-11-13T06:20:12.355Z",
-          "generation": 53
+          "at": "2026-11-13T05:51:32.030Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native GPO domain/application/PostgreSQL producer is committed with 9/9 unit and 6/6 PG tests. Lead: (a) add a connector-provider task for the native PositionGpoDirectory (automation inventory + directory apply + secret profile); (b) mount the composition port and switch feature-admin technology route plus server-runtime jobs drain; (c) relocate the two organization oracles; then delete position-gpo.ts and record KPI 229 -> 196."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the native GPO publish/update/apply writers for position_gpo_policies, position_gpo_jobs and position_gpo_revisions plus the directory GPO apply path; add Rust unit+PG tests, switch the live consumer, then delete the replaced TS writers and record the Identity Access KPI pair.",
-        "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -33269,8 +33319,8 @@
       "migratedPackets": 92,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 1,
-        "ready_for_integration": 11,
+        "in_progress": 0,
+        "ready_for_integration": 12,
         "integrating": 0,
         "migrated": 92,
         "blocked": 43,
@@ -33279,7 +33329,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:50:12.356Z",
+    "updatedAt": "2026-11-13T05:51:43.172Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
