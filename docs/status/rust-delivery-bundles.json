@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1800,
+    "revision": 1805,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-o",
       "agentId": "lead",
       "startedAt": "2026-11-13T13:44:10.839Z",
-      "heartbeatAt": "2026-11-13T13:45:13.033Z",
-      "expiresAt": "2026-11-13T14:15:13.033Z",
+      "heartbeatAt": "2026-11-13T13:47:26.733Z",
+      "expiresAt": "2026-11-13T14:17:26.733Z",
       "generation": 59,
       "tokenHash": "daa4b60cb42a9fd42493600266a0e43f2eb1a76aaed7a6fa7066768dfb929b07"
     },
@@ -35713,8 +35713,15 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-o",
+          "agentId": "worker-inventory-residual",
+          "claimedAt": "2026-11-13T13:46:57.685Z",
+          "heartbeatAt": "2026-11-13T13:47:26.733Z",
+          "expiresAt": "2026-11-13T14:17:26.733Z",
+          "generation": 59
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -36567,6 +36574,52 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.identity_access.directory-routers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Mount native directory sync/connection routers and retire the TS writers",
+        "scope": "Mount the already-native directory_account_router and directory_source_router in composition, switch the feature-admin technology/people directory consumers, add the native connection save/test/activate/disable producer where missing, then delete the directory-transaction, iam-directories, directory-synchronization and connection TS writers and record the Identity Access KPI pair (171 -> lower).",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-admin/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "resource:composition"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-o",
+          "agentId": "integrator-iam-directory",
+          "claimedAt": "2026-11-13T13:46:57.648Z",
+          "heartbeatAt": "2026-11-13T13:47:26.733Z",
+          "expiresAt": "2026-11-13T14:17:26.733Z",
+          "generation": 59
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Mount directory_account_router and directory_source_router in composition using the existing native PostgresDirectory/DirectorySynchronization/LdapDirectoryProvider, register the Holding targets, switch the feature-admin technology and people directory consumers, add the native connection save/test/activate/disable producer where missing, then delete directory-transaction.ts (17), iam-directories.ts (7), directory-synchronization.ts (2) and the connection writers. Record Identity Access 171 -> lower.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -36575,11 +36628,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 187,
+      "totalPackets": 188,
       "migratedPackets": 112,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 0,
+        "pending": 20,
+        "in_progress": 2,
         "ready_for_integration": 15,
         "integrating": 0,
         "migrated": 112,
@@ -36589,7 +36642,7 @@
       }
     },
     "lastCoordinatorGeneration": 59,
-    "updatedAt": "2026-11-13T13:45:13.033Z",
+    "updatedAt": "2026-11-13T13:47:26.734Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
