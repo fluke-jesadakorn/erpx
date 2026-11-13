@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1337,
+    "revision": 1347,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T00:27:45.080Z",
-      "expiresAt": "2026-11-13T00:57:45.080Z",
+      "heartbeatAt": "2026-11-13T00:38:27.050Z",
+      "expiresAt": "2026-11-13T01:08:27.050Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -24909,7 +24909,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Native generic attachment command engine",
-        "scope": "Support-ticket-first slice of the generic Files attachment command: implement native create/reserve/complete/scan for support_ticket evidence with the same-connection Support purchase boundary, switch the shared workplace attachment-sets/uploads routes for support_ticket, delete attachment-purchases.ts (Support 1 -> 0), and record the Support KPI. Then extend the same native command to the remaining non-field owners (brand, legal portal, messaging, finance) and classify the 55 service-repository residuals.",
+        "scope": "Support-ticket-first native Files producer WITHOUT editing src/composition: implement native create/reserve/complete/scan for support_ticket evidence with the Support purchase-boundary port, switch the workplace attachment-sets/uploads support_ticket branch to native-only (503 without config), delete attachment-purchases.ts and its call sites, and move the support upload/stage oracle to native seeding/PG/HTTP. The small composition mount is a separate lead-owned task (migrate.files.support-attachment-mount); the worker must prepare that patch but not apply it. Close Support 1 -> 0.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -24924,21 +24924,26 @@
           "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/attachments/**",
           "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/**",
           "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/**",
-          "src/composition/src/**",
           "packages/contracts/src/ownership.json",
           "Cargo.lock",
           "tests/unit/files/**",
           "tests/integration/files/**",
           "tests/unit/shared.attachments/**",
           "tests/integration/shared.attachments/**",
-          "tests/integration/support/**",
-          "tests/support/**"
+          "tests/integration/support/**"
         ],
         "resources": [
           "owner:files"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-files-support",
+          "claimedAt": "2026-11-13T00:37:50.660Z",
+          "heartbeatAt": "2026-11-13T00:38:27.050Z",
+          "expiresAt": "2026-11-13T01:08:27.050Z",
+          "generation": 50
+        },
         "baseSha": null,
         "implementedCommit": "62302440b57f8c50bd5279ff2a7a97c3f6aa340c",
         "lastPushedSha": "553e5754d3dd1011b6495c8d2dbc16e0a1da9160",
@@ -24989,8 +24994,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Implement native support_ticket create/reserve/complete/scan with the same-connection Support purchase boundary, switch the workplace attachment-sets/uploads support_ticket branch, delete attachment-purchases.ts (Support 1->0), and run native PG/HTTP + support/attachments oracles.",
+        "blocker": null,
+        "nextAction": "Implement native support_ticket create/reserve/complete/scan + purchase boundary in server-files/support/workplace/tests without touching src/composition; delete attachment-purchases.ts and record Support 1->0; prepare the exact composition mount patch for migrate.files.support-attachment-mount.",
         "handoff": {
           "runId": "run-20261112-s",
           "agentId": "worker-files-withdraw",
@@ -29735,8 +29740,8 @@
           "runId": "run-20261113-f",
           "agentId": "lead",
           "claimedAt": "2026-11-13T00:16:11.607Z",
-          "heartbeatAt": "2026-11-13T00:27:45.080Z",
-          "expiresAt": "2026-11-13T00:57:45.080Z",
+          "heartbeatAt": "2026-11-13T00:38:27.050Z",
+          "expiresAt": "2026-11-13T01:08:27.050Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30324,8 +30329,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-procurement-retire",
           "claimedAt": "2026-11-13T00:14:01.763Z",
-          "heartbeatAt": "2026-11-13T00:27:45.080Z",
-          "expiresAt": "2026-11-13T00:57:45.080Z",
+          "heartbeatAt": "2026-11-13T00:38:27.050Z",
+          "expiresAt": "2026-11-13T01:08:27.050Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30373,13 +30378,110 @@
         "resources": [
           "owner:sales"
         ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+        "lastPushedSha": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+        "checks": [
+          {
+            "command": "retirement:ts-writes packages/server-sales/src",
+            "result": "passed",
+            "before": 7,
+            "after": 0,
+            "sourceSha": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+            "sourceKind": "committed",
+            "note": "Sales owner KPI closed at 0: notification settings/queue/retry native; purchase-boundary files are read-only guards."
+          },
+          {
+            "command": "cargo check -p erpx-server-sales",
+            "result": "passed",
+            "sourceSha": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business",
+            "result": "passed",
+            "sourceSha": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo test -p erpx-server-sales --test sales_notification_commands",
+            "result": "passed",
+            "sourceSha": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+            "sourceKind": "committed",
+            "note": "3/3"
+          },
+          {
+            "command": "cargo test -p erpx-server-sales --test sales_notification_commands_postgres",
+            "result": "passed",
+            "sourceSha": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+            "sourceKind": "committed",
+            "note": "4/4"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+            "sourceKind": "committed",
+            "note": "1215 suites"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "760f928c0a3ee87c1a249a07418f64876199ba5d",
+            "sourceKind": "committed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Closed: Sales owner KPI 0. No residual writers.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "talent",
+        "workflowIds": [
+          "talent/requisitions"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "procedureRef": "executionPlan.sliceProcedure",
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "id": "retire.talent.requisition-create",
+        "title": "Retire the TypeScript Talent requisition-create writer",
+        "scope": "The feature-recruit talent route already prefers nativeTalentRequisitionCommand for requisition create/change and the native Rust requisition suite covers the command. Delete the TS createTalentRequisition adapter/application and public exports, fail the recruit route's requisition-create branch closed without native, and seed requisitions directly in the talent integration test. The finance browser fixture (fixtures/finance/builders/engineering-money-people-browser.ts) is edited as a reviewed cross-claim fixture change because fixtures/** is claimed by the sales notification-ingress worker. Talent KPI 23 -> 21.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "packages/server-talent/Cargo.toml",
+          "packages/server-talent/package.json",
+          "packages/feature-recruit/**",
+          "tests/unit/talent/**",
+          "tests/unit/shared.architecture/owner-command-applications.test.ts",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
         "status": "in_progress",
         "claim": {
           "runId": "run-20261113-f",
-          "agentId": "worker-sales-ingress",
-          "claimedAt": "2026-11-13T00:17:34.051Z",
-          "heartbeatAt": "2026-11-13T00:27:45.080Z",
-          "expiresAt": "2026-11-13T00:57:45.080Z",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T00:30:57.056Z",
+          "heartbeatAt": "2026-11-13T00:38:27.050Z",
+          "expiresAt": "2026-11-13T01:08:27.050Z",
           "generation": 50
         },
         "baseSha": null,
@@ -30388,11 +30490,40 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Port notification settings/queue/retry to the native sales owner HTTP ingress, switch the workplace commerce notification route native-only, audit whether the pricing/notification purchase-boundary guards are now dead after native pricing/notification commands, delete the 7 TS writes + barrels, migrate oracles, and record sales KPI 7->0.",
         "handoff": null,
-        "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "nextAction": "Record the native Talent requisition checks and mark migrated.",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.files.support-attachment-mount",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "files",
+        "workflowIds": [
+          "files/support-attachments"
+        ],
+        "workstream": "S05",
+        "kind": "integration",
+        "title": "Mount the native Support Files attachment producer",
+        "scope": "Apply the small composition mount for the support_ticket native Files create/reserve/complete/scan producer prepared by migrate.files.generic-attachment-command: backend construction, router merge and module declaration in src/composition. Then verify the workplace support_ticket upload/stage route uses native authority and close Support at 0.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**"
+        ],
+        "resources": [
+          "owner:files-mount"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Wait for the Files producer worker to report its composition patch and for src/composition to be claim-free, then apply the mount and verify the support_ticket route.",
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -30401,21 +30532,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 146,
-      "migratedPackets": 77,
+      "totalPackets": 147,
+      "migratedPackets": 78,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 6,
+        "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 77,
-        "blocked": 31,
+        "migrated": 78,
+        "blocked": 30,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T00:27:45.117Z",
+    "updatedAt": "2026-11-13T00:40:15.466Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
