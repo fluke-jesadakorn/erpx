@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1548,
+    "revision": 1557,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-g",
       "agentId": "lead",
       "startedAt": "2026-11-13T02:33:37.747Z",
-      "heartbeatAt": "2026-11-13T03:58:39.043Z",
-      "expiresAt": "2026-11-13T04:28:39.043Z",
+      "heartbeatAt": "2026-11-13T04:12:03.257Z",
+      "expiresAt": "2026-11-13T04:42:03.257Z",
       "generation": 51,
       "tokenHash": "b4636d5dac92c67424e4a78a1bf1883bb0ebe4a1220c27578bab9a4ba2ad62fd"
     },
@@ -25072,7 +25072,7 @@
         "workstream": "S05",
         "kind": "migration",
         "title": "Native messaging manage, people picker and upload/discard producers",
-        "scope": "Extend domain/messaging_teams.rs + application/messaging_teams.rs and the messaging HTTP router with rename/membership reconcile, messagingPeople and attachment upload/discard commands, then remove the remaining TS branches in adapters/messaging.ts and the feature-apps messaging route. Removal condition: the named TS writers are deleted and the owner KPI command returns 0 for that capability.",
+        "scope": "Native rename + membership reconcile for group rooms, private channels and teams (the messaging.manage command): extend domain/application/pg/wire/http with an owner-version CAS and Company-member validation, mount POST /messaging/rooms/{room_id} and /messaging/teams/{team_id}, switch the feature-apps route to the native transport, delete the TS manageMessaging branch and its guardOwnerVersion/rename/removeMembers/removeChannelMembers writers, and migrate the manage oracles to native seeding. People read and attachment upload are separate tasks (see migrate.collaboration.messaging-people and migrate.collaboration.messaging-attachment-upload).",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -25080,21 +25080,29 @@
           "packages/feature-collaboration/**",
           "packages/feature-apps/**",
           "tests/integration/collaboration/**",
+          "tests/unit/collaboration/**",
           "fixtures/**"
         ],
         "resources": [
           "owner:collaboration"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
-        "handoff": null,
+        "blocker": "released with work preserved",
+        "nextAction": "Implement the native messaging.manage command end to end; delete the TS manage writers and record the Collaboration KPI pair.",
+        "handoff": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-collab-messaging",
+          "at": "2026-11-13T04:15:25.172Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -31262,23 +31270,23 @@
         "resources": [
           "owner:files-mount"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T04:08:54.269Z",
-          "heartbeatAt": "2026-11-13T04:08:54.269Z",
-          "expiresAt": "2026-11-13T04:38:54.269Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Mount is ready: apply .scratch/dev/rust-migration/support_files.rs (corrected for the non-Clone NativeFilesScanWorker: Arc<tokio::sync::Mutex<Vec<..>>> shared with CheckedAssembly/DevelopmentApiRuntime, drained on close) plus the lib.rs, field_files write-map and private_development_api.rs hunks in files-support-mount.patch.md. Current serialized blocker: retire.quality.residual-writers / worker-quality-sweep holds src/composition/src/** (lease 02:21Z); worker-agent-gateway released its agent-gateway claim as blocked with WIP preserved (src/composition/src/agent_ai_gateway.rs + lib.rs/private_development_api.rs remain dirty) so the next composition owner must reconcile that WIP before committing. Resume: claim when no composition claim is active, apply, cargo check -p erpx-service --features private-development-api, cargo test -p erpx-server-files --test attachment_command_postgres -- --test-threads=1, commit/push non-force, verify remote SHA, record.",
-        "handoff": null
+        "blocker": "handoff",
+        "nextAction": "Lead serialization: composition released for the CRM lead-witness mount; Files support-attachment WIP preserved in the tree.",
+        "handoff": {
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "at": "2026-11-13T04:12:41.339Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead serialization: composition released for the CRM lead-witness mount; Files support-attachment WIP preserved in the tree."
+        }
       },
       {
         "id": "retire.customer_authority.portal-tail",
@@ -31503,8 +31511,15 @@
         "resources": [
           "owner:crm"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-g",
+          "agentId": "worker-crm-leads",
+          "claimedAt": "2026-11-13T04:12:41.373Z",
+          "heartbeatAt": "2026-11-13T04:12:41.373Z",
+          "expiresAt": "2026-11-13T04:42:41.373Z",
+          "generation": 51
+        },
         "baseSha": null,
         "implementedCommit": "0d9e97783c91459a31636678df40a3191379965b",
         "lastPushedSha": "0d9e97783c91459a31636678df40a3191379965b",
@@ -31577,7 +31592,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Lead: cut CRM lead actions to native and add native identity guest-link/sharing writers; retire the remaining 25.",
         "handoff": {
           "runId": "run-20261113-g",
@@ -32813,6 +32828,117 @@
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.collaboration.messaging-people",
+        "goalId": "G3",
+        "owner": "collaboration",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "kind": "migration",
+        "title": "Native Messaging people picker read",
+        "scope": "Add a native Messaging people read (current Company accounts, optional team filter and query) to messaging_http, switch the GET /messaging/people route to it, delete the TS messagingPeople application/repository read, and migrate the people oracles to native seeding. No writers change; the KPI pair is recorded against the retired read branch and the capability closes when the TS read is gone.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/feature-apps/**",
+          "tests/integration/collaboration/**",
+          "tests/unit/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add the native people read, switch the route and delete the TS people read.",
+        "handoff": null
+      },
+      {
+        "id": "migrate.collaboration.messaging-attachment-upload",
+        "goalId": "G3",
+        "owner": "collaboration",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "kind": "migration",
+        "title": "Native Messaging attachment upload and bind",
+        "scope": "Extend the Files-owned Messaging attachment port with create-set/reserve/complete/scan so the native Collaboration router can accept a room attachment upload, bind it to the message/room, and serve content, then switch PUT /messaging/rooms/{room_id}/files/{file_id} and the file-bearing POST /messages branch to native, delete the TS uploadMessagingFile application/repository writes and its route branch, and migrate the upload oracles. Discard is already native; only its TS validation wrapper remains.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "files.messaging-upload"
+        ],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/server-files/src/**",
+          "packages/feature-apps/**",
+          "src/composition/src/**",
+          "tests/integration/collaboration/**",
+          "tests/integration/assets/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:collaboration",
+          "owner:files"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Requires the Files owner to expose a native messaging upload port (create set/reserve/complete/scan); the current PgMessagingFiles port only binds and reads content, so the TS upload keeps the only write path until that port lands.",
+        "nextAction": "Add the Files-owned messaging upload port, mount the native upload route, switch the route, then delete the TS upload writers and record the KPI pair.",
+        "handoff": null
+      },
+      {
+        "id": "migrate.collaboration.messaging-discard-route",
+        "goalId": "G3",
+        "owner": "collaboration",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "kind": "migration",
+        "title": "Native Messaging discard route without the TS wrapper",
+        "scope": "The discard command already runs through nativeDiscardMessagingFile inside the TS validation wrapper. Call the native transport directly from the feature-apps route, delete discardMessagingFile and its remaining message-file barrel/export, and keep the reason/receipt checks in the native owner or the thin client. The KPI pair is recorded against the removed wrapper branch.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/feature-apps/**",
+          "tests/integration/collaboration/**",
+          "tests/unit/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Switch the discard route to the native transport, delete the TS wrapper/export, and record the KPI pair.",
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -32821,11 +32947,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 162,
+      "totalPackets": 165,
       "migratedPackets": 92,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 1,
+        "pending": 23,
+        "in_progress": 2,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 92,
@@ -32835,7 +32961,7 @@
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T04:10:40.889Z",
+    "updatedAt": "2026-11-13T04:16:02.102Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
