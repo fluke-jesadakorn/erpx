@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1805,
+    "revision": 1831,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-o",
+      "runId": "run-20261113-p",
       "agentId": "lead",
-      "startedAt": "2026-11-13T13:44:10.839Z",
-      "heartbeatAt": "2026-11-13T13:47:26.733Z",
-      "expiresAt": "2026-11-13T14:17:26.733Z",
-      "generation": 59,
-      "tokenHash": "daa4b60cb42a9fd42493600266a0e43f2eb1a76aaed7a6fa7066768dfb929b07"
+      "startedAt": "2026-11-13T14:52:09.221Z",
+      "heartbeatAt": "2026-11-13T15:01:04.937Z",
+      "expiresAt": "2026-11-13T15:31:04.937Z",
+      "generation": 60,
+      "tokenHash": "ae9e5c26494d13ca262682ced9df88bc8132818fa3fb7106039d0bf805963d98"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -35706,30 +35706,158 @@
           "packages/server-inventory/Cargo.toml",
           "packages/server-inventory/package.json",
           "packages/feature-inventory/**",
+          "packages/feature-supply/**",
+          "packages/server-commerce/src/**",
+          "packages/server-maintenance/src/**",
           "tests/unit/inventory/**",
           "tests/integration/inventory/**",
+          "tests/integration/assets/**",
+          "tests/integration/finance/**",
           "tests/support/**"
         ],
         "resources": [
           "owner:inventory"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-o",
-          "agentId": "worker-inventory-residual",
-          "claimedAt": "2026-11-13T13:46:57.685Z",
-          "heartbeatAt": "2026-11-13T13:47:26.733Z",
-          "expiresAt": "2026-11-13T14:17:26.733Z",
-          "generation": 59
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+        "lastPushedSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 98,
+            "after": 85,
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Removed 8 dead commerce-fact writes and the 5-write consumption path."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-server-commerce --offline",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Commerce crate compiles."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Catalogue valid (33 modules, 1226 suites)."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 98,
+            "after": 85,
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-inventory/src/adapters/commerce-stock-owner-effects.ts",
+                "writes": 21,
+                "removalTaskId": "retire.inventory.commerce-stock-owner-effects",
+                "removalCondition": "Native Commerce stock-owner effects land and their consumers switch."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/{inventory-transfers,inventory-landed-costs,inventory-reorder-policies}.ts",
+                "writes": 31,
+                "removalTaskId": "retire.inventory.residual",
+                "removalCondition": "Native transfer, landed-cost and reorder-policy command/read ports land with composition mounts."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/*.ts (manufacturing lots, transit prepare/reads, purchase boundaries, smaller files)",
+                "writes": 33,
+                "removalTaskId": "retire.inventory.residual",
+                "removalCondition": "Each remaining capability gets a native producer and its consumer switches."
+              }
+            ],
+            "note": "Removed 8 dead commerce-fact writes and the 5-write consumption path."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-server-commerce --offline",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Commerce crate compiles."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Catalogue valid."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Step-0 audit each remaining Inventory TS writer against packages/server-inventory/src/**/*.rs; implement the missing native producer, switch the live consumer, then delete the TS writer and record the Inventory KPI pair.",
-        "handoff": null,
+        "nextAction": "Complete: retired the dead commerce facts and consumption writers (Inventory 98 -> 85). Residual 85 classified to commerce-stock effects and the transfer/landed/reorder + remaining producer tasks.",
+        "handoff": {
+          "runId": "run-20261113-o",
+          "agentId": "worker-inventory-residual-2",
+          "at": "2026-11-13T14:23:26.549Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Inventory 98 -> 85: dead commerce facts and consumption writers retired. Remaining 85 need native producers: transfers 14, landed costs 9, reorder policies 8, manufacturing lots 6, transit prepare/reads 3, purchase boundaries 6, commerce stock effects 21 and smaller files. Schedule those producer slices next."
+        },
         "procedureRef": "executionPlan.sliceProcedure"
       },
       {
@@ -36601,22 +36729,354 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-o",
-          "agentId": "integrator-iam-directory",
-          "claimedAt": "2026-11-13T13:46:57.648Z",
-          "heartbeatAt": "2026-11-13T13:47:26.733Z",
-          "expiresAt": "2026-11-13T14:17:26.733Z",
-          "generation": 59
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+        "lastPushedSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the directory source router mount."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test directory_runtime",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "2/2 passed."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test directory_sign_in_http",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "5/5 passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "092194ea585fbf3dd1194dadaec37d03359860f6",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 171,
+            "after": 145,
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 145,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for directory operations, user management, migrations/recovery, IAM API branches and the product SSO/app routes."
+              }
+            ],
+            "note": "Deleted directory-transaction (17), iam-directories (7), directory-synchronization (2); native connection transport and runtime drain switch landed."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api,directory-ldaps --offline",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Directory-gated composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --features directory-ldaps --test directory_runtime --test directory_sign_in_http",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "2/2 + 5/5 passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Mount directory_account_router and directory_source_router in composition using the existing native PostgresDirectory/DirectorySynchronization/LdapDirectoryProvider, register the Holding targets, switch the feature-admin technology and people directory consumers, add the native connection save/test/activate/disable producer where missing, then delete directory-transaction.ts (17), iam-directories.ts (7), directory-synchronization.ts (2) and the connection writers. Record Identity Access 171 -> lower.",
+        "nextAction": "Complete: native directory routers, connection producer, transport and 26-writer retirement landed (IAM 171 -> 145).",
+        "handoff": {
+          "runId": "run-20261113-o",
+          "agentId": "integrator-iam-directory",
+          "at": "2026-11-13T14:23:38.720Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Directory source router is mounted (account router already was); no writers deleted yet. Follow-up: implement the native connection save/test/activate/disable producer and extend the review decision, switch the iam/connections transport, then delete directory-transaction.ts (17), iam-directories.ts (7), directory-synchronization.ts (2)."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
+      },
+      {
+        "id": "integrate.identity_access.directory-connection-producer",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Native directory connection save/test/activate/disable and TS retirement",
+        "scope": "Implement the native provider test and PgDirectoryConnection save/test/activate/disable with iam_receipts/iam_audit, extend the native review decision for connection.activate, mount the connection router, switch the iam/connections transport, then delete directory-transaction.ts (17), iam-directories.ts (7), directory-synchronization.ts (2) and record Identity Access 171 -> 145.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-admin/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "packages/server-runtime/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "resource:composition"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+        "lastPushedSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "2836d83a68292b84a0fede33c0c00aee1d26dd4d",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the connection mount."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api,directory-ldaps --offline",
+            "result": "passed",
+            "sourceSha": "2836d83a68292b84a0fede33c0c00aee1d26dd4d",
+            "sourceKind": "committed",
+            "note": "Directory-gated composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --features directory-ldaps --test directory_runtime --test directory_sign_in_http",
+            "result": "passed",
+            "sourceSha": "2836d83a68292b84a0fede33c0c00aee1d26dd4d",
+            "sourceKind": "committed",
+            "note": "2/2 + 5/5 passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "2836d83a68292b84a0fede33c0c00aee1d26dd4d",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "2836d83a68292b84a0fede33c0c00aee1d26dd4d",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "2836d83a68292b84a0fede33c0c00aee1d26dd4d",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 171,
+            "after": 145,
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 145,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for directory operations, user management, migrations/recovery, IAM API branches and the product SSO/app routes."
+              }
+            ],
+            "note": "Deleted directory-transaction (17), iam-directories (7), directory-synchronization (2); native connection transport and runtime drain switch landed."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api,directory-ldaps --offline",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Directory-gated composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --features directory-ldaps --test directory_runtime --test directory_sign_in_http",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "2/2 + 5/5 passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: native directory routers, connection producer, transport and 26-writer retirement landed (IAM 171 -> 145).",
+        "handoff": {
+          "runId": "run-20261113-p",
+          "agentId": "lead",
+          "at": "2026-11-13T14:52:09.345Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native directory connection producer and routes are mounted. Remaining: switch the native connection transport and drain, relocate the legacy oracles, then delete directory-transaction.ts (17), iam-directories.ts (7), directory-synchronization.ts (2): KPI 171 -> 145."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
+      },
+      {
+        "id": "retire.identity_access.directory-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Switch the native directory connection transport and retire the TS writers",
+        "scope": "Add the native connection transport, switch the iam/connections save/test/activate/disable and review-decide consumers plus the runtime drain, relocate the legacy oracles (including shared.evidence and workplace journeys), then delete directory-transaction.ts (17), iam-directories.ts (7) and directory-synchronization.ts (2) and record Identity Access 171 -> 145.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/server-identity_access/package.json",
+          "packages/feature-identity_access/**",
+          "packages/feature-admin/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "packages/server-runtime/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**",
+          "tests/integration/shared.evidence/**",
+          "tests/journeys/shared.workplace-journeys/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+        "lastPushedSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 171,
+            "after": 145,
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 145,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for directory operations, user management, migrations/recovery, IAM API branches and the product SSO/app routes."
+              }
+            ],
+            "note": "Deleted directory-transaction (17), iam-directories (7), directory-synchronization (2); native connection transport and runtime drain switch landed."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api,directory-ldaps --offline",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Directory-gated composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --features directory-ldaps --test directory_runtime --test directory_sign_in_http",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "2/2 + 5/5 passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "3e2ba9275b43b73d9e3af0ecd71eea293c61974c",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: retired the 26 TS directory writers (IAM 171 -> 145).",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -36628,21 +37088,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 188,
-      "migratedPackets": 112,
+      "totalPackets": 190,
+      "migratedPackets": 116,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 2,
+        "in_progress": 0,
         "ready_for_integration": 15,
         "integrating": 0,
-        "migrated": 112,
+        "migrated": 116,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 59,
-    "updatedAt": "2026-11-13T13:47:26.734Z",
+    "lastCoordinatorGeneration": 60,
+    "updatedAt": "2026-11-13T15:01:04.938Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -36685,10 +37145,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-n",
-      "runId": "run-20261113-o",
-      "at": "2026-11-13T13:44:10.840Z",
-      "reason": "Lease expired during GPO retirement closure; same lead resumes; WIP reviewed",
+      "previousRunId": "run-20261113-o",
+      "runId": "run-20261113-p",
+      "at": "2026-11-13T14:52:09.223Z",
+      "reason": "Lease expired during IAM connection integration batch; same lead resumes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
