@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1347,
+    "revision": 1353,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -23772,15 +23772,22 @@
         "resources": [
           "owner:agent"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-agent-residual",
+          "claimedAt": "2026-11-13T00:42:00.128Z",
+          "heartbeatAt": "2026-11-13T00:42:00.128Z",
+          "expiresAt": "2026-11-13T01:12:00.128Z",
+          "generation": 50
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Retire the remaining five Agent files batch by batch, starting with the smallest native-backed gateway/assistant path, then close the Agent owner KPI at 0.",
+        "nextAction": "Step-0 native counterpart audit of agent-governance/ai-gateway/workspace-assistant/guided-intake/ai-runtime; retire the highest-confidence native-backed batch with route/client parity, TS deletion, oracle migration and KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -30475,23 +30482,87 @@
         "resources": [
           "owner:talent"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T00:30:57.056Z",
-          "heartbeatAt": "2026-11-13T00:38:27.050Z",
-          "expiresAt": "2026-11-13T01:08:27.050Z",
-          "generation": 50
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "0b3469aae69ea866a3e87fcb2561e603c5db8cf0",
+        "implementedCommit": "34ecd5b5dfecf3dea43ced6325f8aeca0d4333bc",
+        "lastPushedSha": "34ecd5b5dfecf3dea43ced6325f8aeca0d4333bc",
+        "checks": [
+          {
+            "command": "npx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "34ecd5b5dfecf3dea43ced6325f8aeca0d4333bc",
+            "note": "Root typecheck passes after deleting the TS requisition writer and its exports."
+          },
+          {
+            "command": "npx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "34ecd5b5dfecf3dea43ced6325f8aeca0d4333bc",
+            "note": "Test typecheck passes with the direct requisition seed."
+          },
+          {
+            "command": "bun run test:unit -- --suite=talent.rust-talent-requisition.unit",
+            "result": "passed",
+            "sourceSha": "34ecd5b5dfecf3dea43ced6325f8aeca0d4333bc",
+            "note": "10/10 native requisition command cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=talent.rust-talent-requisition-http.unit",
+            "result": "passed",
+            "sourceSha": "34ecd5b5dfecf3dea43ced6325f8aeca0d4333bc",
+            "note": "3/3 native requisition HTTP cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=talent.rust-talent-requisition-postgres.integration",
+            "result": "passed",
+            "sourceSha": "34ecd5b5dfecf3dea43ced6325f8aeca0d4333bc",
+            "note": "6/6 native requisition PostgreSQL cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=talent.talent.integration",
+            "result": "passed",
+            "sourceSha": "34ecd5b5dfecf3dea43ced6325f8aeca0d4333bc",
+            "note": "30/30 Talent oracle cases pass with the direct requisition seed."
+          },
+          {
+            "command": "retirement:ts-writes: talent",
+            "result": "passed",
+            "sourceSha": "34ecd5b5dfecf3dea43ced6325f8aeca0d4333bc",
+            "before": 23,
+            "after": 21,
+            "note": "git grep over packages/server-talent/src/**/*.ts: 23 before, 21 after. The deleted files were adapters/requisition.ts and application/requisition.ts.",
+            "residual": [
+              {
+                "path": "packages/server-talent/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.talent.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-talent/src/adapters/people-hire-handoff-facts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.talent.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-talent/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.talent.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-talent/src/adapters/talent.ts",
+                "writes": 13,
+                "removalTaskId": "retire.talent.residual-writers",
+                "removalCondition": "Delete the writer only after its complete native owner port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null,
-        "nextAction": "Record the native Talent requisition checks and mark migrated.",
+        "nextAction": "Talent residual: candidate/application/proposal/offer and handoff writers remain TS; requisition create is native and the TS writer is gone.",
         "scopeRefinementRequired": false
       },
       {
@@ -30524,6 +30595,58 @@
         "blocker": null,
         "nextAction": "Wait for the Files producer worker to report its composition patch and for src/composition to be claim-free, then apply the mount and verify the support_ticket route.",
         "handoff": null
+      },
+      {
+        "id": "retire.customer_authority.portal-tail",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "customer_authority",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Retire the Customer Authority portal support/access tail",
+        "scope": "9 residual writes: portal-support.ts 6 (support ticket portal respond/acknowledge/close/threads) and portal-access.ts 3 (portal projection/read-audit/evidence bind). Producer-first: add native owner ports, switch routes, delete TS, move oracles.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "packages/server-customer_authority/Cargo.toml",
+          "packages/server-customer_authority/package.json",
+          "packages/feature-customer_authority/**",
+          "packages/feature-customer_360/**",
+          "packages/feature-portal/**",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-access/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-360/**",
+          "packages/server-support/src/**",
+          "src/composition/src/**",
+          "Cargo.lock",
+          "fixtures/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Audit portal-support.ts and portal-access.ts against native support/customer_360 ports; implement the missing native commands/read-audit, switch feature-customer_authority/customer_360/portal routes native-only, delete the TS writers/barrels, migrate oracles, record customer_authority KPI 12->3 (purchase-boundary 3 residual).",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -30532,21 +30655,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 147,
-      "migratedPackets": 78,
+      "totalPackets": 148,
+      "migratedPackets": 79,
       "statusCounts": {
         "pending": 22,
         "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
-        "migrated": 78,
+        "migrated": 79,
         "blocked": 30,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T00:40:15.466Z",
+    "updatedAt": "2026-11-13T00:42:25.954Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
