@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1845,
+    "revision": 1849,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-p",
       "agentId": "lead",
       "startedAt": "2026-11-13T14:52:09.221Z",
-      "heartbeatAt": "2026-11-13T15:19:01.662Z",
-      "expiresAt": "2026-11-13T15:49:01.662Z",
+      "heartbeatAt": "2026-11-13T15:21:34.631Z",
+      "expiresAt": "2026-11-13T15:51:34.631Z",
       "generation": 60,
       "tokenHash": "ae9e5c26494d13ca262682ced9df88bc8132818fa3fb7106039d0bf805963d98"
     },
@@ -37117,8 +37117,8 @@
           "runId": "run-20261113-p",
           "agentId": "worker-inventory-transfer",
           "claimedAt": "2026-11-13T15:03:20.172Z",
-          "heartbeatAt": "2026-11-13T15:19:01.662Z",
-          "expiresAt": "2026-11-13T15:49:01.662Z",
+          "heartbeatAt": "2026-11-13T15:21:34.631Z",
+          "expiresAt": "2026-11-13T15:51:34.631Z",
           "generation": 60
         },
         "baseSha": null,
@@ -37241,8 +37241,8 @@
           "runId": "run-20261113-p",
           "agentId": "worker-iam-user-management",
           "claimedAt": "2026-11-13T15:03:20.306Z",
-          "heartbeatAt": "2026-11-13T15:19:01.662Z",
-          "expiresAt": "2026-11-13T15:49:01.662Z",
+          "heartbeatAt": "2026-11-13T15:21:34.631Z",
+          "expiresAt": "2026-11-13T15:51:34.631Z",
           "generation": 60
         },
         "baseSha": null,
@@ -37285,25 +37285,109 @@
           "owner:files",
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-p",
-          "agentId": "worker-files-callers",
-          "claimedAt": "2026-11-13T15:03:20.372Z",
-          "heartbeatAt": "2026-11-13T15:19:01.662Z",
-          "expiresAt": "2026-11-13T15:49:01.662Z",
-          "generation": 60
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
+        "implementedCommit": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+        "lastPushedSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "before": 173,
+            "after": 169,
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "Removed the four TS social upload commands/cleanup seam."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "before": 117,
+            "after": 113,
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "Removed the four Files social draft cleanup writes."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx eslint packages/server-manage_erpx/src/adapters/beta-api.ts packages/server-collaboration/src/application/social-home.ts",
+            "result": "passed",
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "ESLint 0 errors."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "before": 173,
+            "after": 169,
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "Removed the four TS social upload commands/cleanup seam."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "before": 117,
+            "after": 113,
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "Removed the four Files social draft cleanup writes."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx eslint packages/server-manage_erpx/src/adapters/beta-api.ts packages/server-collaboration/src/application/social-home.ts",
+            "result": "passed",
+            "sourceSha": "adadab3fd982365dc18737f4e688fc1d8f3b635e",
+            "sourceKind": "committed",
+            "note": "ESLint 0 errors."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-collaboration/src/application/social-home.ts",
+            "removalTaskId": "retire.collaboration.social-home",
+            "removalCondition": "Native draft/source/revision/report producers land and the remaining social-home writers switch."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts",
+            "removalTaskId": "retire.collaboration.social-home",
+            "removalCondition": "Add the native handover branch (nativePublishHandover) to the pms front route and remove the TS fallback."
+          }
+        ],
         "blocker": null,
-        "nextAction": "Switch server-manage_erpx beta-api, server-operations handover and server-pms home-api to the native social upload routes; add native comment/revision reads for the remaining feature-apps GETs; delete collaboration-home-sources.ts (4 writes) and its barrel under retire.collaboration.social-home, then record the Collaboration KPI pair.",
+        "nextAction": "Complete: retired the four social upload commands and four Files cleanup writes (collab 173 -> 169, files 117 -> 113).",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.files.service-repository"
       },
       {
         "id": "migrate.manufacturing.order-material-lifecycle",
@@ -37353,20 +37437,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 195,
-      "migratedPackets": 116,
+      "migratedPackets": 117,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 3,
+        "in_progress": 2,
         "ready_for_integration": 16,
         "integrating": 0,
-        "migrated": 116,
+        "migrated": 117,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 60,
-    "updatedAt": "2026-11-13T15:19:01.663Z",
+    "updatedAt": "2026-11-13T15:21:34.632Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
