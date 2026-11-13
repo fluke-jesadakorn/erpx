@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1605,
+    "revision": 1609,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T05:51:43.171Z",
-      "expiresAt": "2026-11-13T06:21:43.171Z",
+      "heartbeatAt": "2026-11-13T05:53:22.499Z",
+      "expiresAt": "2026-11-13T06:23:22.499Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -15077,8 +15077,15 @@
         "resources": [
           "owner:workflow"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-workflow",
+          "claimedAt": "2026-11-13T05:52:20.328Z",
+          "heartbeatAt": "2026-11-13T05:53:22.499Z",
+          "expiresAt": "2026-11-13T06:23:22.499Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": "feb246394b941371df1cc5eb85d6ee52d0359125",
         "lastPushedSha": "feb246394b941371df1cc5eb85d6ee52d0359125",
@@ -15155,7 +15162,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
+        "blocker": null,
         "nextAction": "PMS social projection native and TS retired (feb246394); remaining projector side-effects and flow-routing.",
         "handoff": {
           "runId": "run-20261112-i",
@@ -21908,8 +21915,15 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-legal-service",
+          "claimedAt": "2026-11-13T05:52:20.296Z",
+          "heartbeatAt": "2026-11-13T05:53:22.499Z",
+          "expiresAt": "2026-11-13T06:23:22.499Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": "f464c04d93512773682deb09dfd4bc0a846417d9",
         "lastPushedSha": "f464c04d93512773682deb09dfd4bc0a846417d9",
@@ -21964,7 +21978,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Lead: extend the native legal command set + destruction worker; the SSO/queued-completion gate is green now.",
         "handoff": {
           "runId": "run-20261113-f",
@@ -24098,18 +24112,25 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "blocked",
+        "status": "in_progress",
         "nextAction": "STEP 1 IN PROGRESS: 13 of 31 finance journal consumers fully migrated to tests/support/helpers/finance-journal-seed.ts. Evidence: reporting 6/6, expansion-rehearsal 1/1, money-people attachments 46/46, project-cost 1/1, record-details 6/6, operations-attachments 8/8, planning 10/10, group-editions 14/14, thai-foundation 13/13, bank-automation 16/16, close-fixture 3/3. Remaining are the behavioural oracles needing native HTTP porting (opening-balances preview/import/replay/race/subledger/void; manual-drafts; books posting rules; pms opening; commerce/payroll forged sources) plus a few setup consumers and scripts/local/browser-simulation.ts. Then route switch + delete createJournal/postJournal/reverseJournal (finance 381 -> 376).",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-finance-journals",
+          "claimedAt": "2026-11-13T05:52:20.264Z",
+          "heartbeatAt": "2026-11-13T05:53:22.499Z",
+          "expiresAt": "2026-11-13T06:23:22.499Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Recover expired run-20261112-r after the agent AI-provider worker completed its slice and lease expired; WIP reviewed, previous run stopped.",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261112-r",
           "agentId": "worker-finance",
@@ -33319,17 +33340,17 @@
       "migratedPackets": 92,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 0,
-        "ready_for_integration": 12,
-        "integrating": 0,
+        "in_progress": 2,
+        "ready_for_integration": 11,
+        "integrating": 1,
         "migrated": 92,
-        "blocked": 43,
+        "blocked": 41,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:51:43.172Z",
+    "updatedAt": "2026-11-13T05:53:22.500Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
