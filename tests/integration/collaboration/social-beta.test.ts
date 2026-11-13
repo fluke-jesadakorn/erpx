@@ -1,6 +1,5 @@
 import { sealSecret } from "@erpx/server-identity_access/public/iam-mfa";
 import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
-import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
 import { decideIamReview, grantInput } from "@erpx/server-identity_access/public/iam-service";
 import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 import { iamActorFromWork } from "@erpx/server-identity_access/public/iam-context";
@@ -80,13 +79,22 @@ beforeAll(async () => {
     env.CONTROL_TEST_MIGRATIONS as TestMigration[],
   );
 });
+async function selectTestWorkRole(database:typeof db,input:{sessionId:string;userId:string;companyId:string;assignmentId:string;assignmentVersion:number;revision:number;expiresAt:number;rememberPreference?:boolean}){
+ const now=Date.now();
+ await database.batch([
+  database.prepare('INSERT INTO active_work_contexts(session_id,user_id,company_id,expires_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING').bind(input.sessionId,input.userId,input.companyId,input.expiresAt,now),
+  database.prepare('UPDATE active_work_contexts SET assignment_id=?,assignment_version=?,revision=revision+1,expires_at=?,updated_at=? WHERE session_id=? AND company_id=? AND user_id=?').bind(input.assignmentId,input.assignmentVersion,input.expiresAt,now,input.sessionId,input.companyId,input.userId),
+  ...(input.rememberPreference===false?[]:[database.prepare('INSERT INTO work_role_preferences(user_id,company_id,assignment_id,assignment_version,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id,company_id) DO UPDATE SET assignment_id=excluded.assignment_id,assignment_version=excluded.assignment_version,updated_at=excluded.updated_at').bind(input.userId,input.companyId,input.assignmentId,input.assignmentVersion,now)]),
+ ]);
+ return database.prepare('SELECT session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at FROM active_work_contexts WHERE session_id=? AND company_id=? AND user_id=?').bind(input.sessionId,input.companyId,input.userId).first();
+}
 async function freshIam(actor:WorkContext){
  const now=Date.now(),sessionId=key(),assignmentVersion=await db.prepare('SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=?').bind(actor.assignmentId,actor.userId,actor.companyId).first<number>('version');if(assignmentVersion===null)throw Error('Actual fixture assignment is required');
  await control.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?) ON CONFLICT DO NOTHING').bind(actor.userId,actor.name,actor.email,now,now).run();
  await control.prepare('INSERT INTO session(id,"expiresAt",token,"createdAt","updatedAt","userId") VALUES(?,?,?,?,?,?)').bind(sessionId,new Date(now+86400000).toISOString(),key(),new Date().toISOString(),new Date().toISOString(),actor.userId).run();
  await control.prepare('INSERT INTO iam_mfa(user_id,secret,enabled) VALUES(?,?,true) ON CONFLICT DO NOTHING').bind(actor.userId,await sealSecret('JBSWY3DPEHPK3PXP')).run();
  await control.prepare('INSERT INTO iam_mfa_sessions VALUES(?,?,?)').bind(sessionId,actor.userId,now).run();
- await selectWorkRole(db,{sessionId,userId:actor.userId,companyId:actor.companyId,assignmentId:actor.assignmentId,assignmentVersion,revision:0,expiresAt:now+86400000});
+ await selectTestWorkRole(db,{sessionId,userId:actor.userId,companyId:actor.companyId,assignmentId:actor.assignmentId,assignmentVersion,revision:0,expiresAt:now+86400000});
  actor.authority={sessionId,assignmentVersion,revision:1};actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);return actor;
 }
 async function approveInvitation(){
@@ -1668,12 +1676,12 @@ it('projectUploadCleanup waits for the actual normal Work selector before its fi
  const fault=`social_select_${key().replaceAll('-','')}`,command=key(),parent=await db.prepare('SELECT to_jsonb(p)::text image FROM social_posts p WHERE id=?').bind(f.published.id).first('image');
  let release=()=>{},ready=()=>{};const gateRelease=new Promise<void>(resolve=>{release=resolve;}),gateReady=new Promise<void>(resolve=>{ready=resolve;});
  await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fault}');PERFORM pg_advisory_xact_lock(hashtextextended('${fault}',0));RETURN NEW;END $$;CREATE TRIGGER ${fault} AFTER UPDATE ON active_work_contexts FOR EACH ROW WHEN(NEW.session_id='${authority.sessionId}' AND NEW.company_id='${company}') EXECUTE FUNCTION ${fault}()`);
- let gate:Promise<unknown>|undefined,writer:ReturnType<typeof selectWorkRole>|undefined,cleanup:Promise<{id:string}>|undefined;
+ let gate:Promise<unknown>|undefined,writer:ReturnType<typeof selectTestWorkRole>|undefined,cleanup:Promise<{id:string}>|undefined;
  try{
   const observed=await measureReads(async()=>{
    gate=db.transaction(async tx=>{await tx.prepare('SELECT pg_advisory_xact_lock(hashtextextended(?,0))').bind(fault).run();ready();await gateRelease;});
    await Promise.race([gateReady,gate.then(()=>{throw Error('Native selector barrier ended before ready');})]);
-   writer=selectWorkRole(db,{sessionId:authority.sessionId,userId:reviewer.userId,companyId:company,assignmentId:reviewer.assignmentId,assignmentVersion:authority.assignmentVersion,revision:original.revision,expiresAt:original.expires_at,rememberPreference:false});const writerResult=Promise.allSettled([writer]);
+   writer=selectTestWorkRole(db,{sessionId:authority.sessionId,userId:reviewer.userId,companyId:company,assignmentId:reviewer.assignmentId,assignmentVersion:authority.assignmentVersion,revision:original.revision,expiresAt:original.expires_at,rememberPreference:false});const writerResult=Promise.allSettled([writer]);
    let entered=false;for(let attempt=0;attempt<100;attempt++){entered=!!await db.prepare(`SELECT is_called FROM ${fault}`).first('is_called');if(entered)break;await new Promise(resolve=>setTimeout(resolve,10));}expect(entered).toBe(true);
    cleanup=cancelCommentUploadDraft(db,worker,f.comment.id,command);const cleanupResult=Promise.allSettled([cleanup]);let blocked:number|null=null;
    try{
