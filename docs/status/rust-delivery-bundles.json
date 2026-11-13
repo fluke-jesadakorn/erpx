@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1765,
+    "revision": 1800,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-m",
+      "runId": "run-20261113-o",
       "agentId": "lead",
-      "startedAt": "2026-11-13T11:17:19.844Z",
-      "heartbeatAt": "2026-11-13T12:34:23.417Z",
-      "expiresAt": "2026-11-13T13:04:23.417Z",
-      "generation": 57,
-      "tokenHash": "c5910c1521e976b448c7f793731ca689a6583e9888385019ac1912b7f6c666cd"
+      "startedAt": "2026-11-13T13:44:10.839Z",
+      "heartbeatAt": "2026-11-13T13:45:13.033Z",
+      "expiresAt": "2026-11-13T14:15:13.033Z",
+      "generation": 59,
+      "tokenHash": "daa4b60cb42a9fd42493600266a0e43f2eb1a76aaed7a6fa7066768dfb929b07"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -21822,11 +21822,11 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "41ee6ec4fe57926b98ef343d9cf36efa0e45313c",
-        "lastPushedSha": "41ee6ec4fe57926b98ef343d9cf36efa0e45313c",
+        "implementedCommit": "aac04698e57a41186773e591b2927e559bcea139",
+        "lastPushedSha": "aac04698e57a41186773e591b2927e559bcea139",
         "checks": [
           {
             "command": "cargo check -p erpx-server-identity-access --offline",
@@ -21855,32 +21855,84 @@
             "sourceSha": "41ee6ec4fe57926b98ef343d9cf36efa0e45313c",
             "sourceKind": "committed",
             "note": "Catalogue registration and repository layout pass."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 204,
+            "after": 171,
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 171,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for directory sync/connection, directory operations, user management, migrations/recovery, IAM API branches and the product SSO/app routes."
+              }
+            ],
+            "note": "Removed the 33 position-GPO writers and the TS adapter/application/domain/public; the native mount and drain are live."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_directory",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_http",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "4/4."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_postgres",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "7/7, including the native departure job proof."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Repository layout passed after removing the stale gpo-services suite entry."
           }
         ],
-        "retainedLegacy": [
-          {
-            "path": "packages/server-identity_access/src/adapters/position-gpo.ts",
-            "removalTaskId": "retire.identity_access.position-gpo",
-            "removalCondition": "Switch the feature-admin technology route, server-runtime jobs drain and the two organization oracles to the native port; supply a reviewed native PositionGpoDirectory provider; then delete this 33-write adapter."
-          },
-          {
-            "path": "packages/server-identity_access/src/application/position-gpo.ts",
-            "removalTaskId": "retire.identity_access.position-gpo",
-            "removalCondition": "Delete with the retained TS adapter after the native route/drain switch."
-          },
-          {
-            "path": "packages/server-identity_access/src/domain/position-gpo.ts",
-            "removalTaskId": "retire.identity_access.position-gpo",
-            "removalCondition": "Delete with the retained TS adapter after the native route/drain switch."
-          },
-          {
-            "path": "packages/server-identity_access/src/public/position-gpo.ts",
-            "removalTaskId": "retire.identity_access.position-gpo",
-            "removalCondition": "Remove the barrel and package exports after the adapter/application/domain files are deleted."
-          }
-        ],
-        "blocker": "released with work preserved",
-        "nextAction": "Native GPO domain/application/PostgreSQL producer is committed with 9/9 unit and 6/6 PG tests. Lead: (a) add a connector-provider task for the native PositionGpoDirectory (automation inventory + directory apply + secret profile); (b) mount the composition port and switch feature-admin technology route plus server-runtime jobs drain; (c) relocate the two organization oracles; then delete position-gpo.ts and record KPI 229 -> 196.",
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: position-GPO native producer, mount, drain and 33-writer retirement landed (IAM 204 -> 171).",
         "handoff": {
           "runId": "run-20261113-i",
           "agentId": "worker-iam-gpo",
@@ -35800,25 +35852,106 @@
           "owner:inventory",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-m",
-          "agentId": "worker-inventory-seeding",
-          "claimedAt": "2026-11-13T12:33:20.655Z",
-          "heartbeatAt": "2026-11-13T12:34:23.417Z",
-          "expiresAt": "2026-11-13T13:04:23.417Z",
-          "generation": 57
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "aac04698e57a41186773e591b2927e559bcea139",
+        "lastPushedSha": "aac04698e57a41186773e591b2927e559bcea139",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "c2e023e9a35bd4663affad02e34fa4eeb50d7629",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "c2e023e9a35bd4663affad02e34fa4eeb50d7629",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the seed envelope."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "c2e023e9a35bd4663affad02e34fa4eeb50d7629",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "c2e023e9a35bd4663affad02e34fa4eeb50d7629",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "vitest run tests/unit/inventory/native-inventory-stock-transport.test.ts tests/unit/inventory/initial-physical-stock-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "c2e023e9a35bd4663affad02e34fa4eeb50d7629",
+            "sourceKind": "committed",
+            "note": "23/24; the one failure is the pre-existing untouched flows-route case."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 101,
+            "after": 98,
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Removed the three unreachable initial-count INSERTs."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Composition compiles."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Add the native count create/seed command (selection/proof/CountSeedKind) and call insert_count_seed_source after the draft+receipt commit for initial/manufacturing/POS/service. Rebind the four seed adapters and fixtures/shared builders, run the inventory suites, and record the Inventory KPI pair.",
-        "handoff": null,
+        "nextAction": "Complete: native count seeding and route rebind landed (Inventory 101 -> 98).",
+        "handoff": {
+          "runId": "run-20261113-m",
+          "agentId": "worker-inventory-seeding",
+          "at": "2026-11-13T12:53:19.591Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Initial count seed is native. Remaining: extend paths to feature-pos/manufacturing/service initial-stock routes and scripts/seed, swap prepare*/transition* to nativeStockCountSave(..., seed), and remove the unreachable INSERT/saveCount lines (Inventory 101 -> 96)."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.inventory.commerce-stock-owner-effects"
       },
       {
         "id": "migrate.identity_access.position-gpo-directory",
@@ -35843,23 +35976,595 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-m",
-          "agentId": "worker-iam-gpo-directory",
-          "claimedAt": "2026-11-13T12:33:50.250Z",
-          "heartbeatAt": "2026-11-13T12:34:23.417Z",
-          "expiresAt": "2026-11-13T13:04:23.417Z",
-          "generation": 57
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "aac04698e57a41186773e591b2927e559bcea139",
+        "lastPushedSha": "aac04698e57a41186773e591b2927e559bcea139",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline --features position-gpo-connector",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Connector feature compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --features position-gpo-connector --test position_gpo_directory",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "9/9 connector cases."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_http",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "4/4 HTTP ingress cases."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_postgres",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "6/6 PostgreSQL proofs."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Repository layout passed after registering the two suites."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 204,
+            "after": 171,
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 171,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for directory sync/connection, directory operations, user management, migrations/recovery, IAM API branches and the product SSO/app routes."
+              }
+            ],
+            "note": "Removed the 33 position-GPO writers and the TS adapter/application/domain/public; the native mount and drain are live."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_directory",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_http",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "4/4."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_postgres",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "7/7, including the native departure job proof."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Repository layout passed after removing the stale gpo-services suite entry."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Owner-side: implement the production PositionGpoDirectory adapter (runner/UDM, secret profiles, approved URL/TLS/no-redirect), add position_gpo_http, and the native feature transport. Do NOT edit src/composition; report the exact mount contract. Then the lead mounts it, switches the feature-admin technology route and the runtime drain, and deletes position-gpo.ts (33 writes, KPI 204 -> 171).",
-        "handoff": null,
+        "nextAction": "Complete: position-GPO native producer, mount, drain and 33-writer retirement landed (IAM 204 -> 171).",
+        "handoff": {
+          "runId": "run-20261113-n",
+          "agentId": "worker-iam-gpo-directory",
+          "at": "2026-11-13T13:13:33.068Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Production PositionGpoDirectory, position_gpo_http and the native feature transport are committed. Lead: add the position-gpo-connector feature to composition, mount PositionGpoHttpBackend + targets, replace the TS drain with the pinned-session native drain, switch the feature-admin route, then delete position-gpo.ts (KPI 204 -> 171)."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
+      },
+      {
+        "id": "migrate.inventory.count-seeding-routes",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Rebind POS/manufacturing/service initial-stock routes and finish count retirement",
+        "scope": "Swap the POS, manufacturing and service initial-stock route handlers and the scripts/seed builders to nativeStockCountSave(..., seed), remove the unreachable initial-count INSERT/saveCount lines, and record the Inventory KPI pair (101 -> 96).",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "packages/feature-inventory/**",
+          "packages/feature-pos/**",
+          "packages/feature-manufacturing/**",
+          "packages/feature-service/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/**",
+          "scripts/seed/**",
+          "fixtures/inventory/**",
+          "fixtures/shared/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "aac04698e57a41186773e591b2927e559bcea139",
+        "lastPushedSha": "aac04698e57a41186773e591b2927e559bcea139",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 101,
+            "after": 98,
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Removed the three unreachable initial-count INSERTs; the fail-closed stubs remain."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --offline --test valuation --test service_initial_physical_count --test stock_register --test stock_issue",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "11/5/5/5 passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "860ed685d5c0621943f3fc3422dd6818e214aede",
+            "sourceKind": "committed",
+            "note": "Repository layout passed after registering the IAM suites."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 101,
+            "after": 98,
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Removed the three unreachable initial-count INSERTs."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Composition compiles."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: initial/manufacturing/POS seed flows native; Inventory 101 -> 98.",
+        "handoff": {
+          "runId": "run-20261113-n",
+          "agentId": "worker-inventory-seeding-routes",
+          "at": "2026-11-13T13:13:18.952Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "POS/manufacturing/service initial-stock routes now use the native seed command (Inventory 101 -> 98). Remaining: delete the retained fail-closed saveCount/transitionCount stubs and their fixture/test imports (98 -> 96)."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.inventory.commerce-stock-owner-effects"
+      },
+      {
+        "id": "integrate.identity_access.position-gpo",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Mount position-GPO backend and retire the TS writers",
+        "scope": "Enable the position-gpo-connector feature in composition, mount PositionGpoHttpBackend + per-Holding targets, replace the TS drain with the pinned-session native drain, switch the feature-admin technology route, then delete the 33-write TS position-gpo adapter and record the Identity Access KPI pair (204 -> 171).",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "src/composition/Cargo.toml",
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-admin/**",
+          "packages/server-runtime/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "resource:composition"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "aac04698e57a41186773e591b2927e559bcea139",
+        "lastPushedSha": "aac04698e57a41186773e591b2927e559bcea139",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "1cf47ac375f1bb90736ba51b768bdc1e0e5a540e",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the position-gpo-connector feature and mount."
+          },
+          {
+            "command": "cargo check -p erpx-service --features production-api --offline",
+            "result": "passed",
+            "sourceSha": "1cf47ac375f1bb90736ba51b768bdc1e0e5a540e",
+            "sourceKind": "committed",
+            "note": "Production composition compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --features position-gpo-connector --test position_gpo_directory",
+            "result": "passed",
+            "sourceSha": "1cf47ac375f1bb90736ba51b768bdc1e0e5a540e",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_http",
+            "result": "passed",
+            "sourceSha": "1cf47ac375f1bb90736ba51b768bdc1e0e5a540e",
+            "sourceKind": "committed",
+            "note": "4/4."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_postgres",
+            "result": "passed",
+            "sourceSha": "1cf47ac375f1bb90736ba51b768bdc1e0e5a540e",
+            "sourceKind": "committed",
+            "note": "6/6."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "1cf47ac375f1bb90736ba51b768bdc1e0e5a540e",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "1cf47ac375f1bb90736ba51b768bdc1e0e5a540e",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "1cf47ac375f1bb90736ba51b768bdc1e0e5a540e",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 204,
+            "after": 171,
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 171,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for directory sync/connection, directory operations, user management, migrations/recovery, IAM API branches and the product SSO/app routes."
+              }
+            ],
+            "note": "Removed the 33 position-GPO writers and the TS adapter/application/domain/public; the native mount and drain are live."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_directory",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_http",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "4/4."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_postgres",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "7/7, including the native departure job proof."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Repository layout passed after removing the stale gpo-services suite entry."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: position-GPO native producer, mount, drain and 33-writer retirement landed (IAM 204 -> 171).",
+        "handoff": {
+          "runId": "run-20261113-n",
+          "agentId": "integrator-iam-gpo",
+          "at": "2026-11-13T13:32:26.618Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Position-GPO routes, backend and native drain are mounted. Remaining: relocate tests/integration/organization/{position-gpo,department-authority}.test.ts to native seeding, delete position-gpo.ts/application/domain/public + package export + gpo-services unit test, and record Identity Access 204 -> 171."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
+      },
+      {
+        "id": "retire.identity_access.position-gpo-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Retire the TS position-GPO writers after the native mount",
+        "scope": "Relocate the two organization position-GPO/department-authority oracles to native seeding, then delete the TS position-gpo adapter/application/domain/public barrel, the package export and the gpo-services unit test. Record Identity Access 204 -> 171.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/server-identity_access/package.json",
+          "tests/integration/organization/**",
+          "tests/integration/identity_access/**",
+          "tests/unit/identity_access/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "aac04698e57a41186773e591b2927e559bcea139",
+        "lastPushedSha": "aac04698e57a41186773e591b2927e559bcea139",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 204,
+            "after": 171,
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-identity_access/src/adapters/*.ts (remaining IAM writers)",
+                "writes": 171,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Native producers land for directory sync/connection, directory operations, user management, migrations/recovery, IAM API branches and the product SSO/app routes."
+              }
+            ],
+            "note": "Removed the 33 position-GPO writers and the TS adapter/application/domain/public; the native mount and drain are live."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_directory",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "9/9."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_http",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "4/4."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --offline --test position_gpo_postgres",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "7/7, including the native departure job proof."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "aac04698e57a41186773e591b2927e559bcea139",
+            "sourceKind": "committed",
+            "note": "Repository layout passed after removing the stale gpo-services suite entry."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: retired the 33 TS position-GPO writers (IAM 204 -> 171).",
+        "handoff": {
+          "runId": "run-20261113-n",
+          "agentId": "worker-iam-gpo-writers",
+          "at": "2026-11-13T13:44:10.839Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during GPO retirement closure; same lead resumes; WIP reviewed",
+          "nextAction": "Move tests/integration/organization/position-gpo.test.ts and department-authority.test.ts (or their GPO portions) to native seeding, delete position-gpo.ts + application/position-gpo.ts + domain/position-gpo.ts + public/position-gpo.ts + the package export + tests/unit/identity_access/gpo-services.test.ts, run the owner gates and record Identity Access 204 -> 171."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -35870,21 +36575,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 184,
-      "migratedPackets": 106,
+      "totalPackets": 187,
+      "migratedPackets": 112,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 2,
-        "ready_for_integration": 16,
+        "in_progress": 0,
+        "ready_for_integration": 15,
         "integrating": 0,
-        "migrated": 106,
+        "migrated": 112,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 57,
-    "updatedAt": "2026-11-13T12:34:23.418Z",
+    "lastCoordinatorGeneration": 59,
+    "updatedAt": "2026-11-13T13:45:13.033Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -35927,10 +36632,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-l",
-      "runId": "run-20261113-m",
-      "at": "2026-11-13T11:17:19.844Z",
-      "reason": "Lease expired during inventory mount/report batch; same lead resumes; IAM worker WIP reviewed",
+      "previousRunId": "run-20261113-n",
+      "runId": "run-20261113-o",
+      "at": "2026-11-13T13:44:10.840Z",
+      "reason": "Lease expired during GPO retirement closure; same lead resumes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
