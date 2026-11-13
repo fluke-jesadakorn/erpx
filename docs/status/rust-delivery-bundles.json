@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1592,
+    "revision": 1595,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T05:26:54.675Z",
-      "expiresAt": "2026-11-13T05:56:54.675Z",
+      "heartbeatAt": "2026-11-13T05:41:46.631Z",
+      "expiresAt": "2026-11-13T06:11:46.631Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -15401,8 +15401,8 @@
           "runId": "run-20261113-i",
           "agentId": "lead",
           "claimedAt": "2026-11-13T05:20:13.484Z",
-          "heartbeatAt": "2026-11-13T05:26:54.675Z",
-          "expiresAt": "2026-11-13T05:56:54.675Z",
+          "heartbeatAt": "2026-11-13T05:41:46.631Z",
+          "expiresAt": "2026-11-13T06:11:46.631Z",
           "generation": 53
         },
         "baseSha": null,
@@ -21669,8 +21669,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-13T05:16:06.136Z",
-          "heartbeatAt": "2026-11-13T05:26:54.675Z",
-          "expiresAt": "2026-11-13T05:56:54.675Z",
+          "heartbeatAt": "2026-11-13T05:41:46.631Z",
+          "expiresAt": "2026-11-13T06:11:46.631Z",
           "generation": 53
         },
         "baseSha": null,
@@ -21726,8 +21726,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-iam-gpo",
           "claimedAt": "2026-11-13T05:16:06.169Z",
-          "heartbeatAt": "2026-11-13T05:26:54.675Z",
-          "expiresAt": "2026-11-13T05:56:54.675Z",
+          "heartbeatAt": "2026-11-13T05:41:46.631Z",
+          "expiresAt": "2026-11-13T06:11:46.631Z",
           "generation": 53
         },
         "baseSha": null,
@@ -25310,8 +25310,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-inventory-transit",
           "claimedAt": "2026-11-13T05:16:06.203Z",
-          "heartbeatAt": "2026-11-13T05:26:54.675Z",
-          "expiresAt": "2026-11-13T05:56:54.675Z",
+          "heartbeatAt": "2026-11-13T05:41:46.631Z",
+          "expiresAt": "2026-11-13T06:11:46.631Z",
           "generation": 53
         },
         "baseSha": null,
@@ -30712,23 +30712,59 @@
           "owner:files",
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "597e6ef8457352849503c493801a1c8d4972b11a",
+        "lastPushedSha": "597e6ef8457352849503c493801a1c8d4972b11a",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-files -p erpx-server-collaboration --offline",
+            "result": "passed",
+            "sourceSha": "597e6ef8457352849503c493801a1c8d4972b11a",
+            "sourceKind": "committed",
+            "note": "Both owner crates compile; composition mount compiles only after the concurrent inventory WIP is resolved."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test social_draft_uploads_postgres --offline",
+            "result": "passed",
+            "sourceSha": "597e6ef8457352849503c493801a1c8d4972b11a",
+            "sourceKind": "committed",
+            "note": "2/2: revokes and expires only the canceled draft; empty identity makes no change."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_http --offline",
+            "result": "passed",
+            "sourceSha": "597e6ef8457352849503c493801a1c8d4972b11a",
+            "sourceKind": "committed",
+            "note": "4/4: the four upload draft commands decode to the native changes."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_postgres --offline",
+            "result": "passed",
+            "sourceSha": "597e6ef8457352849503c493801a1c8d4972b11a",
+            "sourceKind": "committed",
+            "note": "11/11: upload draft create/cancel, replay, effects rollback and social ownership."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-files/src/adapters/collaboration-home-sources.ts",
+            "writes": 4,
+            "removalTaskId": "retire.collaboration.social-home",
+            "removalCondition": "All three live TS callers (server-manage_erpx beta-api, server-operations handover, server-pms home-api) switch to the native social routes; then delete the four TS effects, barrels and package exports and record the owner KPI pair."
+          }
+        ],
+        "blocker": "released with work preserved",
+        "handoff": {
           "runId": "run-20261113-i",
           "agentId": "worker-files-social",
-          "claimedAt": "2026-11-13T05:15:07.266Z",
-          "heartbeatAt": "2026-11-13T05:26:54.675Z",
-          "expiresAt": "2026-11-13T05:56:54.675Z",
-          "generation": 53
+          "at": "2026-11-13T05:41:37.496Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Composition mount applied in src/composition/src/collaboration.rs and catalogue suite files.rust-social-draft-uploads-postgres.integration registered. Remaining: switch the three live TS callers (manage_erpx beta-api, operations handover, pms home-api) to the native social routes, then retire collaboration-home-sources.ts via retire.collaboration.social-home."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
-        "nextAction": "Implement the native Files revoke/expire-draft-uploads port and the four native social upload commands in packages/server-files and packages/server-collaboration, with Rust unit+PG tests. Do not edit src/composition; report the exact mount contract to the lead for integration.",
+        "nextAction": "Composition mount applied in src/composition/src/collaboration.rs and catalogue suite files.rust-social-draft-uploads-postgres.integration registered. Remaining: switch the three live TS callers (manage_erpx beta-api, operations handover, pms home-api) to the native social routes, then retire collaboration-home-sources.ts via retire.collaboration.social-home.",
         "scopeRefinementRequired": false
       },
       {
@@ -33126,8 +33162,8 @@
       "migratedPackets": 92,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 4,
-        "ready_for_integration": 9,
+        "in_progress": 3,
+        "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 92,
         "blocked": 42,
@@ -33136,7 +33172,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:26:54.675Z",
+    "updatedAt": "2026-11-13T05:41:46.632Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
