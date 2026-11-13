@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1435,
+    "revision": 1441,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -22105,6 +22105,7 @@
           "packages/server-pos/Cargo.toml",
           "packages/server-pos/package.json",
           "packages/feature-pos/**",
+          "packages/contracts/src/ownership.json",
           "scripts/seed/seed-pos-local.ts",
           "scripts/seed/seed-hospitality-local.ts",
           "scripts/testing/workflows/verify-pos-development.ts",
@@ -22120,8 +22121,8 @@
         "status": "blocked",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "85226ab5b05924a2eb2bd4f29646a4d0eba92433",
-        "lastPushedSha": "85226ab5b05924a2eb2bd4f29646a4d0eba92433",
+        "implementedCommit": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
+        "lastPushedSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-pos/src/**/*.ts'",
@@ -22177,18 +22178,64 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "85226ab5b05924a2eb2bd4f29646a4d0eba92433"
+          },
+          {
+            "command": "retirement:ts-writes -- packages/server-pos/src/adapters/customer-authority-merge.ts",
+            "result": "passed",
+            "sourceSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
+            "before": 1,
+            "after": 0,
+            "note": "The orphaned UPDATE pos_sales party_id merge writer and its public barrel/package exports are deleted; the customer-authority Rust owner owns customer merge."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
+            "before": 88,
+            "after": 87,
+            "note": "POS 88 -> 87. Residual 87: pos-core.ts 53, pos-stripe.ts 27, pos-daily.ts 3, purchase-boundary.ts 2, pos-images.ts 1, attachment-migration-facts.ts 1; all bound to this retire.pos.pos-core task until their native command families and live callers are ported."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
+            "before": 2375,
+            "after": 2374,
+            "note": "Global KPI moved by exactly the deleted orphan."
+          },
+          {
+            "command": "bunx tsc -p packages/server-pos/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54"
+          },
+          {
+            "command": "bun scripts/testing/test.ts --check",
+            "result": "passed",
+            "sourceSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
+            "note": "Catalogue valid; the ownership.json path for the deleted adapter is removed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54"
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "1a64ea801b0b224ff217619b8a30f48b480a6f54",
+            "note": "Pre-existing peer CSS WIP: apps/account/src/app/globals.css references packages/server-assets/src/adapters/maintenance-transaction.ts and WORKSPACE_STYLE_SOURCE_UNRESOLVED aborts the workspace graph before ownership checks. Not this slice; structure:check and catalogue pass."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead: port the POS provider job helpers and remaining no-native command families, then retire each with its live caller.",
+        "blocker": "released with work preserved",
+        "nextAction": "Interim orphan retirement pushed at 1a64ea801: POS KPI 88 -> 87 (global 2375 -> 2374). Residual 87: pos-core.ts 53, pos-stripe.ts 27, pos-daily.ts 3, purchase-boundary.ts 2, pos-images.ts 1, attachment-migration-facts.ts 1; each needs its native command family/provider job port plus the live caller switch before deletion. Next: port the POS provider job helpers and the remaining no-native command families, then retire each with its live caller.",
         "handoff": {
-          "runId": "run-20261113-c",
-          "agentId": "worker-pos-retire",
-          "at": "2026-11-12T21:37:01.097Z",
+          "runId": "run-20261113-f",
+          "agentId": "lead",
+          "at": "2026-11-13T01:57:30.081Z",
           "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead: port the POS provider job helpers and remaining no-native command families, then retire each with its live caller."
+          "reason": "released with work preserved",
+          "nextAction": "Interim orphan retirement pushed at 1a64ea801: POS KPI 88 -> 87 (global 2375 -> 2374). Residual 87: pos-core.ts 53, pos-stripe.ts 27, pos-daily.ts 3, purchase-boundary.ts 2, pos-images.ts 1, attachment-migration-facts.ts 1; each needs its native command family/provider job port plus the live caller switch before deletion. Next: port the POS provider job helpers and the remaining no-native command families, then retire each with its live caller."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -31428,7 +31475,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:54:17.067Z",
+    "updatedAt": "2026-11-13T01:57:30.082Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
