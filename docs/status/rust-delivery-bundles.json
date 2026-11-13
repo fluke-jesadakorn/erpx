@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1317,
+    "revision": 1320,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -21841,14 +21841,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Lead: switch the People organization route native-only and add native draft/acceptance commands; then retire the remaining organization writers.",
+        "nextAction": "Lead decision: choose the job principal / native draft authority, implement it, then switch People changes native-only and delete the 15 writers.",
         "handoff": {
           "runId": "run-20261113-f",
-          "agentId": "worker-organization-retire",
-          "at": "2026-11-12T23:56:02.807Z",
-          "previousStatus": "in_progress",
+          "agentId": "lead",
+          "at": "2026-11-13T00:09:30.284Z",
+          "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "Lead: switch the People organization route native-only and add native draft/acceptance commands; then retire the remaining organization writers."
+          "nextAction": "Lead decision: choose the job principal / native draft authority, implement it, then switch People changes native-only and delete the 15 writers."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -30258,7 +30258,7 @@
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T00:07:48.167Z",
+    "updatedAt": "2026-11-13T00:09:30.285Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
