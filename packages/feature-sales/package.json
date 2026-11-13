@@ -14,6 +14,7 @@
     "./public/native-sales-pricing": "./src/public/native-sales-pricing.ts",
     "./public/native-sales-notification-reconciliation": "./src/public/native-sales-notification-reconciliation.ts",
     "./public/native-sales-followups": "./src/public/native-sales-followups.ts",
+    "./public/native-sales-notification-commands": "./src/public/native-sales-notification-commands.ts",
     "./adapters/server/next-native-sales-documents": "./src/adapters/server/next-native-sales-documents.ts",
     "./public/native-ecommerce-catalog": "./src/public/native-ecommerce-catalog.ts",
     "./public/native-ecommerce-catalog-page": "./src/public/native-ecommerce-catalog-page.ts",

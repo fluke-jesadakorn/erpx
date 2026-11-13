@@ -10,13 +10,12 @@ import {applyMigrations,env} from "../../support/runtime-env";
 import {qualityWork} from "@erpx/server-quality/public/quality";
 import {drainQualityAlerts,qualityAlertWork} from "@erpx/server-quality/public/quality-alerts";
 import {escalateInventoryReservations} from "@erpx/server-inventory/public/inventory-reservation-alerts";
-import {queueDeliveryNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {enrollEngineeringVerification} from "@erpx/server-platform_administration/public/engineering-verification";
 import {filterWork} from "@erpx/feature-work_projection/lib/work-item";
 import {mergeWorkItems} from "@erpx/server-work_projection/public/work-items";
 import {seedBusinessWorkerSources} from "../../../fixtures/shared/builders/business-worker-sources";
 
-const source='e'.repeat(64),version=`release-${source}`,run=randomBytes(6).toString('hex'),directory=resolve('.runtime/browser',run),databaseName=`erpx_browser_${run}_h001_db`,key=()=>crypto.randomUUID();
+const source='e'.repeat(64),version=`release-${source}`,run=randomBytes(6).toString('hex'),directory=resolve('.runtime/browser',run),databaseName=`erpx_browser_${run}_h001_db`;
 vi.mock("@erpx/catalogue/release-artifact.json",()=>({default:{softwareVersion:`release-${'e'.repeat(64)}`}}));
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:db,files}),runtimeEnv:async()=>({...env,H001_DB:db,H001_FILES:files})}));
 let db:PostgresDatabase,files:LocalFileStore,admin:Pool,manifestSha:string;
@@ -55,7 +54,8 @@ it('blocks nonattested production alert creation and mail claims without consumi
  vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN','');
  expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});
  expect(await counts(enabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
- await expect(updateCustomerNotificationSettings(enabled.reviewer,{expectedVersion:1,adapter:'resend'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+ // Customer notification settings/queue gates are native-owned; their
+ // production refusal is proved by the native Sales command Postgres suite.
 });
 it('delivers only the attested Company Quality and the remaining Commerce/Manufacturing reservation sources once while disabled sources and certification remain unchanged',async()=>{
  const stockBefore=await Promise.all([enabled,disabled].map(stockAndDeliveryJournal));
@@ -75,7 +75,6 @@ it('delivers only the attested Company Quality and the remaining Commerce/Manufa
  expect((await counts(enabled)).mail).toEqual({status:'pending',attempts:0,provider_message_id:null});
  expect(await counts(disabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
  const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});expect(await counts(enabled)).toEqual(before);
- await expect(queueDeliveryNotification(disabled.f.owner,disabled.fulfillmentId,{expectedVersion:1,note:'Disabled Company cannot replay delivery authority'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
  expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);
  expect(await Promise.all([enabled,disabled].map(stockAndDeliveryJournal))).toEqual(stockBefore);
 });

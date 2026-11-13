@@ -153,6 +153,8 @@ pub mod sales_cancellation;
 #[cfg(feature = "existing-business")]
 pub mod sales_followups;
 #[cfg(feature = "existing-business")]
+pub mod sales_notification_commands;
+#[cfg(feature = "existing-business")]
 pub mod sales_notification_reconciliation;
 #[cfg(feature = "existing-business")]
 pub mod customer_portal_invitation_worker;

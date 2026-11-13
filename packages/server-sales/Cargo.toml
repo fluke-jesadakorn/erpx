@@ -78,6 +78,18 @@ name = "customer_followups"
 path = "../../tests/unit/sales/rust-sales-followups.test.rs"
 
 [[test]]
+name = "sales_notification_commands"
+path = "../../tests/unit/sales/rust-sales-notification-commands.test.rs"
+
+[[test]]
+name = "sales_notification_commands_http"
+path = "../../tests/unit/sales/rust-sales-notification-commands-http.test.rs"
+
+[[test]]
+name = "sales_notification_commands_postgres"
+path = "../../tests/integration/sales/rust-sales-notification-commands-postgres.test.rs"
+
+[[test]]
 name = "customer_followups_http"
 path = "../../tests/unit/sales/rust-sales-followups-http.test.rs"
 

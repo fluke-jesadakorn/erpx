@@ -1,91 +1,15 @@
-import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
-import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
-import {applyMigrations,env} from "../../support/runtime-env";
-import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
-import {seedCommerceFulfillment} from '../../support/helpers/commerce-fulfillment-seed';
-import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import {queueDeliveryNotification,retryCustomerNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
-import {packageGrantStore,readCompanyPackageGrants} from '@erpx/server-commercial/public/package-grants';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
+import {beforeAll,it,expect,vi} from 'vitest';
+import {applyMigrations,env} from "../../support/runtime-env";
+import {expenseDb as db,key} from "../../support/helpers/expense-fixture";
 import {migrateDatabase} from '@erpx/server-runtime/public/runtime/migrations';
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
-let f:Awaited<ReturnType<typeof expenseFixture>>;
+/** Notification settings/queue/retry commands are native-only. Their command
+ * oracles live in the native Sales unit/Postgres/HTTP suites; this retained
+ * suite proves the populated history upgrades keep old rows and receipts. */
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
-beforeEach(async()=>{f=await expenseFixture();f.head.role='sales_manager';f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,'sales_manager');});
-afterEach(()=>vi.unstubAllEnvs());
-
-async function delivered(){
-  const warehouse=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Notification warehouse'},key())).id);
-  const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Notification product',price:'10'},key())).id);
-  const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Notification customer',notificationEmail:'receiving@example.invalid',notificationConsent:'granted'},key())).id);
-  await db.prepare('INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES(?,?,2000,1200,1)').bind(warehouse,product).run();
-  const order=await saveOrder(f.owner,null,orderSchema.parse({kind:'sales',partyId:customer,warehouseId:warehouse,orderDate:'2026-09-21',dueDate:'2026-09-22',lines:[{productId:product,quantity:'1',price:'10',taxBps:0}]}),key()),orderId=String(order.id);
-  await transitionOrder(f.owner,orderId,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,orderId,{action:'approve',expectedVersion:2},key());
-  const lineId=String((await getOrder(f.owner,orderId)).lines[0].id),proof=await deliveryEvidence(db,f.owner,orderId);
-  const delivery=await seedCommerceFulfillment(db,f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof}),key());
-  return {orderId,customer,fulfillmentId:String(delivery.fulfillmentId)};
-}
-
-it('queues a consent-aware immutable snapshot for the native delivery worker',async()=>{
-  const source=await delivered();
-  await expect(queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Carrier CR-101 confirmed the delivery window'},key())).rejects.toMatchObject({code:'CUSTOMER_NOTIFICATION_PROVIDER_REQUIRED'});
-  await updateCustomerNotificationSettings(f.head,{expectedVersion:0,adapter:'sandbox'},key());
-  const command=key(),queued=await queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Carrier CR-101 confirmed the delivery window'},command);
-  expect(await queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Carrier CR-101 confirmed the delivery window'},command)).toEqual(queued);
-  const before=await db.prepare('SELECT * FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first<Record<string,unknown>>();
-  expect(before).toMatchObject({recipient_email:'receiving@example.invalid',adapter:'sandbox',status:'pending',attempts:0});
-  // Delivery is owned by the native worker; its own Postgres suite proves the
-  // claim, sandbox identity, terminal state and replay.
-  expect(await db.prepare('SELECT status,attempts,provider_message_id FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first()).toEqual({status:'pending',attempts:0,provider_message_id:null});
-  await expect(queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Duplicate customer notice'},key())).rejects.toMatchObject({code:'CUSTOMER_ALREADY_NOTIFIED'});
-  await expect(db.prepare('DELETE FROM commerce_customer_notifications WHERE id=?').bind(queued.id).run()).rejects.toThrow('CUSTOMER_NOTIFICATION_HISTORY_IMMUTABLE');
-});
-
-it('retries only a failed immutable notice through its original queued authority',async()=>{
-  const source=await delivered();await updateCustomerNotificationSettings(f.head,{expectedVersion:0,adapter:'sandbox'},key());
-  const queued=await queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Retained failed customer notice'},key());
-  await expect(retryCustomerNotification(f.owner,String(queued.id),{expectedVersion:1},key())).rejects.toMatchObject({code:'CUSTOMER_NOTIFICATION_NOT_FAILED'});
-  await db.prepare("UPDATE commerce_customer_notifications SET status='failed',version=version+1,last_error='CUSTOMER_NOTIFICATION_AUTHORIZATION_REQUIRED' WHERE id=?").bind(queued.id).run();
-  await retryCustomerNotification(f.owner,String(queued.id),{expectedVersion:2},key());
-  expect(await db.prepare('SELECT status,attempts FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first()).toEqual({status:'pending',attempts:0});
-  // The retained disabled boundary writes no purchased authorization; it must
-  // never invent a queued worker authority for the native worker.
-  expect(await db.prepare('SELECT count(*) n FROM sales_notification_execution_authorizations WHERE notification_id=?').bind(queued.id).first('n')).toBe(0);
-});
-
-it('holds future customer delivery jobs without sending or consuming them in production',async()=>{
-  const source=await delivered();await updateCustomerNotificationSettings(f.head,{expectedVersion:0,adapter:'resend'},key());
-  const queued=await queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Deferred pilot notice'},key());
-  vi.stubEnv('NODE_ENV','production');
-  try {
-    await expect(queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Another notice'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
-    // The native worker's production release gate is proved in its own
-    // Postgres suite; no TypeScript writer consumes the held notice.
-    expect(await db.prepare('SELECT status,attempts FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first()).toEqual({status:'pending',attempts:0});
-  } finally {vi.unstubAllEnvs();}
-});
-
-async function noticeSales(state:'active'|'draining'='active',endsAt:number|null=null){const prior=(await readCompanyPackageGrants(db,f.company)).find(grant=>grant.packageId==='sales');return packageGrantStore(db,{authorize:async()=>({userId:'isolated-customer-notice-provider'}),obligations:async()=>{throw Error('NOTICE_FIXTURE_CANNOT_CERTIFY_BASE_SALES_WITHDRAWAL');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'sales',packageVersion:1,state,startsAt:0,endsAt,version:(prior?.version??0)+1,reason:'Actual isolated Sales notice purchase',evidence:'test:sales-notification-source-authority'}});}
-
-it('requires active purchased preparation and binds the original queued authority to the immutable notice',async()=>{
- const source=await delivered();vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await expect(updateCustomerNotificationSettings(f.head,{expectedVersion:0,adapter:'sandbox'},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await noticeSales();await updateCustomerNotificationSettings(f.head,{expectedVersion:0,adapter:'sandbox'},key());const command=key(),input={expectedVersion:1,note:'Original approved customer delivery message'},queued=await queueDeliveryNotification(f.owner,source.fulfillmentId,input,command);
- expect(await db.prepare('SELECT actor_id,assignment_id,kind,notification_version FROM sales_notification_execution_authorizations WHERE command_id=?').bind(command).first()).toEqual({actor_id:f.owner.userId,assignment_id:f.owner.assignmentId,kind:'queue',notification_version:1});
- await noticeSales('draining');await expect(queueDeliveryNotification(f.owner,source.fulfillmentId,input,key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});expect(await queueDeliveryNotification(f.owner,source.fulfillmentId,input,command)).toEqual(queued);
- expect(await db.prepare('SELECT status,attempts,provider_message_id FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first()).toEqual({status:'pending',attempts:0,provider_message_id:null});expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(['sales']);
- await updateCustomerNotificationSettings(f.head,{expectedVersion:1,adapter:'disabled'},key());await expect(updateCustomerNotificationSettings(f.head,{expectedVersion:2,adapter:'sandbox'},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
-});
-
-it('rolls back the original queued notice, authority, receipt and deferred effects when the caller is revoked late',async()=>{
- const source=await delivered();vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await noticeSales();await updateCustomerNotificationSettings(f.head,{expectedVersion:0,adapter:'sandbox'},key());const command=key(),name=`sales_notice_authority_${key().replaceAll('-','')}`,input={expectedVersion:1,note:'Original late-authority rollback must retain its exact retry'};await db.exec(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=floor(extract(epoch FROM clock_timestamp())*1000)::bigint,version=version+1 WHERE id='${f.owner.assignmentId}';RETURN NEW;END;$$;CREATE CONSTRAINT TRIGGER ${name} AFTER INSERT ON sales_notification_execution_authorizations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${name}();`);
- try{await expect(queueDeliveryNotification(f.owner,source.fulfillmentId,input,command)).rejects.toMatchObject({code:'QUEUED_AUTHORITY_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${name} ON sales_notification_execution_authorizations;DROP FUNCTION ${name}();`);}
- expect(await db.prepare('SELECT 1 FROM commerce_customer_notifications WHERE fulfillment_id=?').bind(source.fulfillmentId).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM sales_notification_execution_authorizations WHERE command_id=?').bind(command).first()).toBeNull();for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();expect(await db.prepare('SELECT revoked_at FROM assignments WHERE id=?').bind(f.owner.assignmentId).first('revoked_at')).toBeNull();expect(await queueDeliveryNotification(f.owner,source.fulfillmentId,input,command)).toMatchObject({status:'pending'});
-});
-
 it('upgrades populated 1049 notice history without rewriting prior rows or receipts and keeps disabled old writers compatible',async()=>{
  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','disabled');const database=env.H002_DB,oldRoot=await mkdtemp(resolve('.runtime/tests/sales-notice-before-')),currentRoot=await mkdtemp(resolve('.runtime/tests/sales-notice-current-')),source=resolve('migrations/postgres');
  try{

@@ -14,12 +14,32 @@ import {changeOrderReservation,orderSchema,saveMaster,saveOrder,transitionOrder}
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {seedNativeQualityHold} from "../../quality/hold";
 import {changeManufacturingOrder,createPlanningScenario,reviewPlanningRecommendation} from "@erpx/server-manufacturing/public/production";
-import {queueDeliveryNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans} from "@erpx/server-files/public/attachments/service";
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
 import {createAccount,createAccountSchema} from '@erpx/server-finance/public/finance';
 import {markFinanceJournalPosted} from '../../../tests/support/helpers/finance-journal-seed';
 const key=()=>crypto.randomUUID();
+/** Commands are native-only. Seed the exact owner rows the native
+ * settings/queue commands persist, including the delivery-worker source hash. */
+async function seedQueuedNotice(db:PostgresDatabase,owner:{userId:string;assignmentId:string;role:string;companyId:string;branchId:string|null;departmentId:string|null},reviewer:{userId:string},fulfillmentId:string,adapter:'sandbox'|'resend',note:string,now:number){
+ const facts=await db.prepare("SELECT f.number fulfillment_number,o.number order_number,f.fulfillment_date,o.id order_id,o.branch_id,o.department_id,o.party_id,p.name party_name,p.version party_version,p.notification_email,p.notification_consent FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id JOIN finance_parties p ON p.id=o.party_id AND p.company_id=o.company_id WHERE f.id=? AND o.company_id=?").bind(fulfillmentId,owner.companyId).first<{fulfillment_number:string;order_number:string;fulfillment_date:string;order_id:string;branch_id:string;department_id:string|null;party_id:string;party_name:string;party_version:number;notification_email:string|null;notification_consent:string|null}>();
+ if(!facts?.notification_email||facts.notification_consent!=='granted')throw new Error('WORKER_NOTICE_CONSENT_REQUIRED');
+ const lines=(await db.prepare('SELECT p.sku,fl.quantity_milli,p.unit FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id WHERE fl.fulfillment_id=? ORDER BY ol.ordinal').bind(fulfillmentId).all<{sku:string;quantity_milli:number;unit:string}>()).results;
+ const subject=`Delivery ${facts.fulfillment_number} for order ${facts.order_number}`,body=[`Hello ${facts.party_name},`,`Your delivery ${facts.fulfillment_number} for order ${facts.order_number} was recorded on ${facts.fulfillment_date}.`,...lines.map(line=>`${line.sku}: ${Number(line.quantity_milli)/1000} ${line.unit}`),`Update from our team: ${note}`].join('\n\n');
+ const id=`customer-notification-${key()}`;
+ await db.batch([
+  db.prepare("INSERT INTO commerce_customer_notification_settings(company_id,adapter,version,updated_by,updated_at) VALUES(?,?,1,?,?) ON CONFLICT(company_id) DO UPDATE SET adapter=excluded.adapter,version=commerce_customer_notification_settings.version+1,updated_by=excluded.updated_by,updated_at=excluded.updated_at").bind(owner.companyId,adapter,reviewer.userId,now),
+  db.prepare('INSERT INTO commerce_customer_notifications(id,company_id,branch_id,order_id,fulfillment_id,party_id,party_version,recipient_email,subject,body_text,adapter,next_attempt_at,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,owner.companyId,facts.branch_id,facts.order_id,fulfillmentId,facts.party_id,facts.party_version,facts.notification_email.toLowerCase(),subject,body,adapter,now,owner.userId,now,now),
+ ]);
+ const hash=await db.prepare(`SELECT encode(sha256(convert_to(jsonb_build_array(n.id,n.company_id,n.branch_id,n.order_id,n.fulfillment_id,n.party_id,n.party_version,n.recipient_email,n.subject,n.body_text,n.adapter,n.created_by,n.created_at,delivery.fulfillment_id,delivery.order_id,delivery.company_id,delivery.branch_id,delivery.department_id,delivery.party_id,delivery.order_kind,customer.id,customer.company_id,customer.kind)::text,'UTF8')),'hex') hash FROM commerce_customer_notifications n LEFT JOIN (SELECT f.id fulfillment_id,o.id order_id,o.company_id,o.branch_id,o.department_id,o.kind order_kind,o.state,o.party_id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id AND o.kind='sales') delivery ON delivery.fulfillment_id=n.fulfillment_id AND delivery.order_id=n.order_id AND delivery.company_id=n.company_id AND delivery.party_id=n.party_id LEFT JOIN (SELECT id,company_id,kind,status,notification_email,notification_consent FROM finance_parties WHERE kind='customer') customer ON customer.id=n.party_id AND customer.company_id=n.company_id WHERE n.id=?`).bind(id).first<string>('hash');
+ if(!hash)throw new Error('WORKER_NOTICE_HASH_REQUIRED');
+ const command=`queue-${id}`,authority=JSON.stringify({userId:owner.userId,assignmentId:owner.assignmentId,role:owner.role,companyId:owner.companyId,branchId:owner.branchId,departmentId:owner.departmentId,iam:{}});
+ await db.batch([
+  db.prepare("INSERT INTO sales_notification_execution_authorizations(command_id,notification_id,company_id,kind,actor_id,assignment_id,authority_json,source_hash,notification_version,created_at) VALUES(?,?,?,'queue',?,?,?,?,1,?)").bind(command,id,owner.companyId,owner.userId,owner.assignmentId,authority,hash,now),
+  db.prepare("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES(?,'commerce.customer-notification.queue',?,?,?,?,?,?)").bind(command,owner.userId,'0'.repeat(64),fulfillmentId,JSON.stringify({id}),now,authority),
+ ]);
+ return {id};
+}
 export async function seedBusinessWorkerSources(db:PostgresDatabase,files:FileStore,options:{now:number;label:string;proof:'declared-source-fixture'|'clamav';nativeOpening?:boolean;adapter?:'sandbox'|'resend'}){
  const {now}=options,adapter=options.adapter??'sandbox';
  const url=new URL(String(db.pool.options.connectionString));
@@ -82,7 +102,6 @@ export async function seedBusinessWorkerSources(db:PostgresDatabase,files:FileSt
   if(!journal)throw new Error('WORKER_NATIVE_DELIVERY_JOURNAL_REQUIRED');
   await markFinanceJournalPosted(db,journal.id,reviewer.userId);
  }
- await updateCustomerNotificationSettings(reviewer,{expectedVersion:0,adapter},key());
- const message=await queueDeliveryNotification(f.owner,String(delivery.fulfillmentId),{expectedVersion:1,note:'Declared native delivery notification; sandbox or injected no-network provider only'},key());
+ const message=await seedQueuedNotice(db,f.owner,reviewer,String(delivery.fulfillmentId),adapter,'Declared native delivery notification; sandbox or injected no-network provider only',now);
  return {f,reviewer,qualityReviewer,party,salesId,productionId,openingCounts,evidence,warehouse,heldProduct,holdIds:[String(due.id),String(overdue.id)],messageId:String(message.id),fulfillmentId:String(delivery.fulfillmentId)};
 }

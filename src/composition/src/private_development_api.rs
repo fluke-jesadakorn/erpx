@@ -3043,6 +3043,8 @@ async fn assemble_checked(
         let mut sales_notification_reconciliation_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut sales_followup_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut sales_notification_command_targets = Vec::new();
         let mut files_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut portal_attachment_targets = Vec::new();
@@ -4664,6 +4666,30 @@ async fn assemble_checked(
                     )),
                 ));
                 #[cfg(feature = "existing-business")]
+                sales_notification_command_targets.push(
+                    crate::sales_notification_commands::target(
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        Arc::new(
+                            crate::sales_notification_commands::SalesNotificationCommandBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(
+                                    crate::sales_notification_commands::SalesNotificationCommandService::from_runtime(
+                                        authorizer.clone(),
+                                        crate::sales_notification_commands::SalesNotificationCommandConfiguration::new(
+                                            holding.registration.holding_id.clone(),
+                                            company.clone(),
+                                        ),
+                                        Arc::new(SharedClock(clock.clone())),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                );
+                #[cfg(feature = "existing-business")]
                 sales_followup_targets.push(crate::sales_followups::target(
                     holding.host.clone(),
                     holding.registration.slug.clone(),
@@ -5971,6 +5997,13 @@ async fn assemble_checked(
                     sales_price_lists_targets,
                 )
                 .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !sales_notification_command_targets.is_empty() {
+            router = router.merge(
+                crate::sales_notification_commands::router(sales_notification_command_targets)
+                    .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
