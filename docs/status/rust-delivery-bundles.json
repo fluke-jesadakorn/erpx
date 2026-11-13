@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1487,
+    "revision": 1491,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-g",
       "agentId": "lead",
       "startedAt": "2026-11-13T02:33:37.747Z",
-      "heartbeatAt": "2026-11-13T02:41:50.790Z",
-      "expiresAt": "2026-11-13T03:11:50.790Z",
+      "heartbeatAt": "2026-11-13T02:55:29.499Z",
+      "expiresAt": "2026-11-13T03:25:29.499Z",
       "generation": 51,
       "tokenHash": "b4636d5dac92c67424e4a78a1bf1883bb0ebe4a1220c27578bab9a4ba2ad62fd"
     },
@@ -14192,6 +14192,8 @@
           "packages/server-pms/src/**",
           "packages/server-pms/Cargo.toml",
           "packages/feature-pms/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/**",
+          "packages/workplace/src/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/**",
           "tests/unit/pms/**",
           "tests/integration/pms/**",
           "tests/provider/pms/**",
@@ -14201,7 +14203,7 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "in_progress",
+        "status": "blocked",
         "claim": null,
         "baseSha": "0517689d6ee4b7217e1646de7789ecc0285acf54",
         "implementedCommit": null,
@@ -14454,15 +14456,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Guest account open/update/charge/adjustment/transfer + mount pushed 6a0995214 (unit 10/10, PG 5/5); Finance settlement/refund/invoice/minibar-stock fail closed on owner ports. Retirement-first: pms TS writers still present (KPI owner 114), so this task is NOT complete until those writers/tests/exports are removed and KPI recorded. Remaining pms: guest cashier/stock, night-audit guard+posting mount, public booking/payment/email, reports/settings residuals.",
+        "blocker": "handoff",
+        "nextAction": "Guest-account audit: native pms_guest_account_router is mounted, but packages/feature-pms/src/adapters/server/native-pms.ts exposes only roomBoard/frontDesk reads, and both packages/workplace pms routes still call the TS pmsCommand. Next slice needs a native guest-account command client + route branches for the holding pms route and the front route (refine allowedPaths to those exact routes), then delete the guest-account branches/writers/exports and migrate oracles. Handover purchase boundary remains blocked by retire.customer_authority.portal-support holding src/composition/src/**.",
         "handoff": {
-          "runId": "run-20261112-g",
-          "agentId": "worker-pms",
-          "at": "2026-11-12T05:53:11.222Z",
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "at": "2026-11-13T02:56:44.496Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous coordinator lease expired; PMS social retirement reviewed",
-          "nextAction": "Guest account open/update/charge/adjustment/transfer + mount pushed 6a0995214 (unit 10/10, PG 5/5); Finance settlement/refund/invoice/minibar-stock fail closed on owner ports. Retirement-first: pms TS writers still present (KPI owner 114), so this task is NOT complete until those writers/tests/exports are removed and KPI recorded. Remaining pms: guest cashier/stock, night-audit guard+posting mount, public booking/payment/email, reports/settings residuals."
+          "reason": "handoff",
+          "nextAction": "Guest-account audit: native pms_guest_account_router is mounted, but packages/feature-pms/src/adapters/server/native-pms.ts exposes only roomBoard/frontDesk reads, and both packages/workplace pms routes still call the TS pmsCommand. Next slice needs a native guest-account command client + route branches for the holding pms route and the front route (refine allowedPaths to those exact routes), then delete the guest-account branches/writers/exports and migrate oracles. Handover purchase boundary remains blocked by retire.customer_authority.portal-support holding src/composition/src/**."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pms",
@@ -20141,8 +20143,8 @@
           "runId": "run-20261113-g",
           "agentId": "lead",
           "claimedAt": "2026-11-13T02:34:43.712Z",
-          "heartbeatAt": "2026-11-13T02:41:50.790Z",
-          "expiresAt": "2026-11-13T03:11:50.790Z",
+          "heartbeatAt": "2026-11-13T02:55:29.499Z",
+          "expiresAt": "2026-11-13T03:25:29.499Z",
           "generation": 51
         },
         "baseSha": null,
@@ -30097,8 +30099,8 @@
           "runId": "run-20261113-g",
           "agentId": "lead",
           "claimedAt": "2026-11-13T02:48:54.843Z",
-          "heartbeatAt": "2026-11-13T02:48:54.843Z",
-          "expiresAt": "2026-11-13T03:18:54.843Z",
+          "heartbeatAt": "2026-11-13T02:55:29.499Z",
+          "expiresAt": "2026-11-13T03:25:29.499Z",
           "generation": 51
         },
         "baseSha": null,
@@ -32084,8 +32086,8 @@
           "runId": "run-20261113-g",
           "agentId": "worker-ca-portal-support",
           "claimedAt": "2026-11-13T02:53:05.203Z",
-          "heartbeatAt": "2026-11-13T02:53:05.203Z",
-          "expiresAt": "2026-11-13T03:23:05.203Z",
+          "heartbeatAt": "2026-11-13T02:55:29.499Z",
+          "expiresAt": "2026-11-13T03:25:29.499Z",
           "generation": 51
         },
         "baseSha": null,
@@ -32156,17 +32158,17 @@
       "migratedPackets": 87,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 87,
-        "blocked": 35,
+        "blocked": 36,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T02:55:20.519Z",
+    "updatedAt": "2026-11-13T02:58:37.772Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
