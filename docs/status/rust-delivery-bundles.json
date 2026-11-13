@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1359,
+    "revision": 1365,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -23772,23 +23772,46 @@
         "resources": [
           "owner:agent"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-f",
-          "agentId": "worker-agent-residual",
-          "claimedAt": "2026-11-13T00:42:00.128Z",
-          "heartbeatAt": "2026-11-13T00:49:39.320Z",
-          "expiresAt": "2026-11-13T01:19:39.320Z",
-          "generation": 50
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "bun scripts/testing/rust-migration-work.ts validate",
+            "result": "passed",
+            "sourceSha": "5f73271e6",
+            "sourceKind": "committed",
+            "note": "Read-only audit source; no code changed."
+          },
+          {
+            "command": "cargo check -p erpx-server-agent --quiet",
+            "result": "passed",
+            "sourceSha": "5f73271e6",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "retirement:ts-writes packages/server-agent/src",
+            "result": "passed",
+            "before": 22,
+            "after": 22,
+            "sourceSha": "5f73271e6",
+            "sourceKind": "committed",
+            "note": "No writer retired: audit found no complete native counterpart. Cannot be marked migrated under the retirement gate."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 native counterpart audit of agent-governance/ai-gateway/workspace-assistant/guided-intake/ai-runtime; retire the highest-confidence native-backed batch with route/client parity, TS deletion, oracle migration and KPI pair.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked on the gateway native-port authorization decision; audit recorded. Released.",
+        "handoff": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-agent-residual",
+          "at": "2026-11-13T00:56:41.712Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked on the gateway native-port authorization decision; audit recorded. Released."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -30668,14 +30691,20 @@
           "packages/feature-recruit/**",
           "tests/integration/talent/**",
           "tests/integration/finance/finance-payment-obligations.test.ts",
-          "tests/unit/talent/**",
-          "fixtures/finance/builders/engineering-money-people-browser.ts"
+          "tests/unit/talent/**"
         ],
         "resources": [
           "owner:talent"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T00:51:20.010Z",
+          "heartbeatAt": "2026-11-13T00:51:20.010Z",
+          "expiresAt": "2026-11-13T01:21:20.010Z",
+          "generation": 50
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -30684,6 +30713,55 @@
         "blocker": null,
         "nextAction": "Delete the TS candidate/application/proposal create writers, fail the route closed, add the lifecycle purchase preflight, migrate the talent/finance oracles to direct seeding, run the native and TS gates, and record the Talent KPI pair.",
         "handoff": null
+      },
+      {
+        "id": "retire.crm",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "crm",
+        "workflowIds": [
+          "quality/inspections",
+          "quality/results",
+          "quality/release-gates",
+          "quality/feature-cancellation"
+        ],
+        "workstream": "S05",
+        "kind": "migration",
+        "title": "Retire the residual CRM TypeScript writers",
+        "scope": "Classify the ~30 retained CRM owner write statements against packages/server-crm/src/**/*.rs and retire every writer whose native command owns the table and whose TS caller is native-only or dead. Delete members, interface declarations and barrels; move oracles to native seeding; record the owner KPI pair. Removal condition: the owner KPI command returns 0 or every residual carries a removalTaskId/removalCondition.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "packages/server-crm/Cargo.toml",
+          "packages/server-crm/package.json",
+          "packages/feature-crm/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-f",
+          "agentId": "worker-crm-retire",
+          "claimedAt": "2026-11-13T00:52:19.465Z",
+          "heartbeatAt": "2026-11-13T00:52:19.465Z",
+          "expiresAt": "2026-11-13T01:22:19.465Z",
+          "generation": 50
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Zero-caller/native-only writer analysis for CRM adapters, then delete the safe set and record the delta.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -30692,21 +30770,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 149,
+      "totalPackets": 150,
       "migratedPackets": 79,
       "statusCounts": {
-        "pending": 23,
-        "in_progress": 6,
+        "pending": 22,
+        "in_progress": 7,
         "ready_for_integration": 10,
         "integrating": 0,
         "migrated": 79,
-        "blocked": 31,
+        "blocked": 32,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T00:50:55.753Z",
+    "updatedAt": "2026-11-13T00:56:41.713Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
