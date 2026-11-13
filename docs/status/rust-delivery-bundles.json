@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1412,
+    "revision": 1417,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-f",
       "agentId": "lead",
       "startedAt": "2026-11-12T23:52:03.192Z",
-      "heartbeatAt": "2026-11-13T01:32:40.821Z",
-      "expiresAt": "2026-11-13T02:02:40.821Z",
+      "heartbeatAt": "2026-11-13T01:34:26.274Z",
+      "expiresAt": "2026-11-13T02:04:26.275Z",
       "generation": 50,
       "tokenHash": "e65c0526043089d221081bc1e8938889c559248c0e81250c7a9da61a8b7efad4"
     },
@@ -27683,16 +27683,23 @@
         "resources": [
           "owner:runtime"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Step-0 native counterpart table for the remaining 31 packages/server-runtime/src/**/*.ts write statements, then retire each native-backed file and record the owner KPI pair.",
-        "handoff": null,
+        "blocker": "released with work preserved",
+        "nextAction": "Step-0 counterpart table at 86e460228 (31 writes / 16 files): executive/reports.ts 11 and executive/generation.ts 5 have NO native executive_report*/executive_generation* producer yet (live feature-apps executive route + job-projector); requires native library/share/ownership and queue/drain producers first. executive/mcp.ts 2: token last_used_at + executive_mcp_audit are owned by packages/server-runtime/src/adapters/executive_connections_postgres.rs and composition executive_connections.rs; delete after the mounted service exposes an MCP usage/audit method (composition claim required). runtime/migrations.ts 1: erpx_migrations ledger INSERT is the development bootstrap runner; packages/server-runtime/src/adapters/postgres/migrations.rs is the native schema owner - classify as bootstrap, not business authority. runtime/jobs.ts 1: runtime_health billing heartbeat; native outbox_supervisor.rs writes runtime_health, delete after the native Billing worker emits the heartbeat. Nine executive evidence adapters (talent/pos/planning/marketing/main/learning/crm/brand/agent, 1 each): record_executive_evidence_access exists in adapters/executive_access.rs and is mounted at src/composition/src/field_executive_evidence.rs:214; the TS adapters still write executive_evidence_access_events for the main canvas, so switching application/executive/evidence.ts to the native access port (composition) is the removal step. beta-onboarding-effects.ts 1 and app-native-sources.ts 1: holding_bindings are owned natively by server-manage_erpx/adapters/onboarding_command.rs and server-platform_administration/adapters/platform_postgres.rs; delete after the manage_erpx onboarding and platform operations consumers switch (cross-owner paths). No file in this table is safe to delete within the runtime-only path set yet; the first feasible slice is mcp.ts once src/composition releases.",
+        "handoff": {
+          "runId": "run-20261113-f",
+          "agentId": "lead",
+          "at": "2026-11-13T01:36:12.704Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Step-0 counterpart table at 86e460228 (31 writes / 16 files): executive/reports.ts 11 and executive/generation.ts 5 have NO native executive_report*/executive_generation* producer yet (live feature-apps executive route + job-projector); requires native library/share/ownership and queue/drain producers first. executive/mcp.ts 2: token last_used_at + executive_mcp_audit are owned by packages/server-runtime/src/adapters/executive_connections_postgres.rs and composition executive_connections.rs; delete after the mounted service exposes an MCP usage/audit method (composition claim required). runtime/migrations.ts 1: erpx_migrations ledger INSERT is the development bootstrap runner; packages/server-runtime/src/adapters/postgres/migrations.rs is the native schema owner - classify as bootstrap, not business authority. runtime/jobs.ts 1: runtime_health billing heartbeat; native outbox_supervisor.rs writes runtime_health, delete after the native Billing worker emits the heartbeat. Nine executive evidence adapters (talent/pos/planning/marketing/main/learning/crm/brand/agent, 1 each): record_executive_evidence_access exists in adapters/executive_access.rs and is mounted at src/composition/src/field_executive_evidence.rs:214; the TS adapters still write executive_evidence_access_events for the main canvas, so switching application/executive/evidence.ts to the native access port (composition) is the removal step. beta-onboarding-effects.ts 1 and app-native-sources.ts 1: holding_bindings are owned natively by server-manage_erpx/adapters/onboarding_command.rs and server-platform_administration/adapters/platform_postgres.rs; delete after the manage_erpx onboarding and platform operations consumers switch (cross-owner paths). No file in this table is safe to delete within the runtime-only path set yet; the first feasible slice is mcp.ts once src/composition releases."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
@@ -29927,8 +29934,8 @@
           "runId": "run-20261113-f",
           "agentId": "lead",
           "claimedAt": "2026-11-13T01:24:34.686Z",
-          "heartbeatAt": "2026-11-13T01:32:40.821Z",
-          "expiresAt": "2026-11-13T02:02:40.821Z",
+          "heartbeatAt": "2026-11-13T01:34:26.274Z",
+          "expiresAt": "2026-11-13T02:04:26.275Z",
           "generation": 50
         },
         "baseSha": null,
@@ -31209,8 +31216,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-agent-gateway",
           "claimedAt": "2026-11-13T00:57:48.147Z",
-          "heartbeatAt": "2026-11-13T01:32:40.821Z",
-          "expiresAt": "2026-11-13T02:02:40.821Z",
+          "heartbeatAt": "2026-11-13T01:34:26.274Z",
+          "expiresAt": "2026-11-13T02:04:26.275Z",
           "generation": 50
         },
         "baseSha": null,
@@ -31260,8 +31267,8 @@
           "runId": "run-20261113-f",
           "agentId": "worker-talent-retire",
           "claimedAt": "2026-11-13T01:27:06.518Z",
-          "heartbeatAt": "2026-11-13T01:32:40.821Z",
-          "expiresAt": "2026-11-13T02:02:40.821Z",
+          "heartbeatAt": "2026-11-13T01:34:26.274Z",
+          "expiresAt": "2026-11-13T02:04:26.275Z",
           "generation": 50
         },
         "baseSha": null,
@@ -31345,18 +31352,18 @@
       "totalPackets": 153,
       "migratedPackets": 82,
       "statusCounts": {
-        "pending": 22,
+        "pending": 21,
         "in_progress": 6,
         "ready_for_integration": 11,
         "integrating": 0,
         "migrated": 82,
-        "blocked": 32,
+        "blocked": 33,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 50,
-    "updatedAt": "2026-11-13T01:33:25.624Z",
+    "updatedAt": "2026-11-13T01:36:12.705Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
