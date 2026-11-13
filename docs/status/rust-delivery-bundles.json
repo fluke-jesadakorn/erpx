@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1617,
+    "revision": 1620,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T06:12:44.483Z",
-      "expiresAt": "2026-11-13T06:42:44.483Z",
+      "heartbeatAt": "2026-11-13T06:13:27.626Z",
+      "expiresAt": "2026-11-13T06:43:27.626Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -21969,8 +21969,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-legal-service",
           "claimedAt": "2026-11-13T05:52:20.296Z",
-          "heartbeatAt": "2026-11-13T06:12:44.483Z",
-          "expiresAt": "2026-11-13T06:42:44.483Z",
+          "heartbeatAt": "2026-11-13T06:13:27.626Z",
+          "expiresAt": "2026-11-13T06:43:27.626Z",
           "generation": 53
         },
         "baseSha": null,
@@ -25294,21 +25294,27 @@
           "packages/feature-collaboration/**",
           "packages/feature-apps/**",
           "tests/integration/collaboration/**",
-          "tests/unit/collaboration/**",
-          "fixtures/**"
+          "tests/unit/collaboration/**"
         ],
         "resources": [
           "owner:collaboration"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "worker-collaboration-drafts",
+          "claimedAt": "2026-11-13T06:13:06.774Z",
+          "heartbeatAt": "2026-11-13T06:13:27.626Z",
+          "expiresAt": "2026-11-13T06:43:27.626Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the native producer, mount it, switch the real consumers, then retire the replaced TS writers and record the KPI pair.",
+        "nextAction": "Implement the native social draft producer in packages/server-collaboration, expose it through the public boundary, switch the feature-apps draft consumers, then delete the replaced TS writers/branches and record the Collaboration KPI pair. Report any composition mount contract to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -33480,8 +33486,8 @@
       "totalPackets": 166,
       "migratedPackets": 93,
       "statusCounts": {
-        "pending": 19,
-        "in_progress": 1,
+        "pending": 18,
+        "in_progress": 2,
         "ready_for_integration": 12,
         "integrating": 0,
         "migrated": 93,
@@ -33491,7 +33497,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T06:12:44.483Z",
+    "updatedAt": "2026-11-13T06:13:27.626Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
