@@ -17,7 +17,14 @@ import {
   revokeEmergency,
 } from "@erpx/server-identity_access/public/iam-recovery";
 import "server-only";
-import { peopleRelationshipsSnapshot, previewPeopleRelationships, applyPeopleRelationships, peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
+import { peopleRelationshipsSnapshot, peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
+import {
+  createNativePeopleRelationshipsClient,
+  nativePeopleRelationshipsAvailable,
+  nativePeopleRelationshipsConfiguration,
+  nativePeopleRelationshipsFailure,
+  type NativePeopleRelationshipsContext,
+} from "../public/native-people-relationships";
 import { z } from "zod";
 import { currentSession,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {bindIamReviewEvidence,bindIamMigrationEvidence} from "@erpx/server-platform_administration/public/system-evidence";
@@ -236,6 +243,71 @@ function csvCell(value: unknown) {
     '"' + (/^[=+@\-\t\r]/.test(s) ? "'" : "") + s.replaceAll('"', '""') + '"'
   );
 }
+function nativePeopleRelationshipsContext(
+  actor: {
+    userId: string;
+    holdingId: string | null;
+    companyId: string;
+    branchId: string | null;
+    departmentId: string | null;
+    assignmentId: string;
+    role: string;
+    scopeKind: string;
+    platform: boolean;
+    authority?: { revision: number; assignmentVersion: number };
+    iam?: { permissions: readonly string[] };
+  },
+  holdingSlug: string,
+): NativePeopleRelationshipsContext {
+  if (!actor.holdingId || !actor.authority || !actor.iam)
+    throw new ApiError(
+      409,
+      "WORK_CONTEXT_CHANGED",
+      "Your work role changed. Reload and review before retrying.",
+    );
+  return {
+    userId: actor.userId,
+    holdingId: actor.holdingId,
+    holdingSlug,
+    companyId: actor.companyId,
+    branchId: actor.branchId,
+    departmentId: actor.departmentId,
+    assignmentId: actor.assignmentId,
+    role: actor.role,
+    scopeKind: actor.scopeKind,
+    authority: actor.authority,
+    iam: { permissions: actor.iam.permissions },
+  };
+}
+async function nativePeopleRelationshipsCommand(
+  actor: Parameters<typeof nativePeopleRelationshipsContext>[0],
+  holdingSlug: string | null,
+  request: Request,
+  command: { kind: "preview"; change: unknown } | { kind: "apply"; token: string; key: string },
+) {
+  const raw = process.env.ERPX_NATIVE_IDENTITY_ACCESS_CONFIG;
+  if (!nativePeopleRelationshipsAvailable() || !raw || !holdingSlug)
+    throw new ApiError(
+      503,
+      "NATIVE_PEOPLE_RELATIONSHIPS_REQUIRED",
+      "This People relationship command requires the native owner service.",
+    );
+  if (actor.platform || !actor.authority || !actor.iam || !actor.holdingId)
+    throw new ApiError(403, "COMPANY_SCOPE_REQUIRED", "Select a Company workspace for People access.");
+  try {
+    const client = createNativePeopleRelationshipsClient(
+      nativePeopleRelationshipsConfiguration(raw),
+    );
+    const context = nativePeopleRelationshipsContext(actor, holdingSlug);
+    return command.kind === "preview"
+      ? await client.preview(request.headers, context, command.change)
+      : await client.apply(request.headers, context, command.token, command.key);
+  } catch (error) {
+    const failure = nativePeopleRelationshipsFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
 export async function iamApi(
   request: Request,
   holdingSlug: string | null,
@@ -350,8 +422,8 @@ export async function iamApi(
     sameOrigin(request);
     const input = await request.json();
     let result: unknown;
-    if (route === "people-relationships/preview") result = await previewPeopleRelationships(db, actor, input.change);
-    else if (route === "people-relationships/apply") result = await applyPeopleRelationships(db, actor, z.string().uuid().parse(input.previewToken), key);
+    if (route === "people-relationships/preview") result = await nativePeopleRelationshipsCommand(actor, holdingSlug, request, { kind: "preview", change: input.change });
+    else if (route === "people-relationships/apply") result = await nativePeopleRelationshipsCommand(actor, holdingSlug, request, { kind: "apply", token: z.string().uuid().parse(input.previewToken), key });
     else if (route === "people-access/preview") result = await previewPeopleAccess(db, actor, input.change);
     else if (route === "people-access/apply") result = await applyPeopleAccess(db, actor, z.string().uuid().parse(input.previewToken), key);
     else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='reviews')

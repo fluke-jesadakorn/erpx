@@ -2944,6 +2944,7 @@ async fn assemble_checked(
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
         let mut identity_access_targets = Vec::new();
+        let mut people_relationship_targets = Vec::new();
         let mut iam_roles_targets = Vec::new();
         let mut billing_targets = Vec::new();
         let mut billing_invoice_targets = Vec::new();
@@ -3925,6 +3926,14 @@ async fn assemble_checked(
                 );
                 identity_access_targets.push(
                     erpx_server_identity_access::public::assignment_http::IamAssignmentHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: identity_backend.clone(),
+                    },
+                );
+                people_relationship_targets.push(
+                    erpx_server_identity_access::public::people_access_http::PeopleRelationshipsHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -5491,6 +5500,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_identity_access::public::iam_roles_http::iam_roles_reviews_http_router(
                     iam_roles_targets,
+                )
+                .map_err(|_| "PRIVATE_API_IDENTITY_ACCESS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !people_relationship_targets.is_empty() {
+            router = router.merge(
+                erpx_server_identity_access::public::people_access_http::people_relationships_http_router(
+                    people_relationship_targets,
                 )
                 .map_err(|_| "PRIVATE_API_IDENTITY_ACCESS_CONFIGURATION_INVALID")?,
             );

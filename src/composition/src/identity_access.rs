@@ -30,6 +30,14 @@ use erpx_server_identity_access::public::iam_roles_http::{
     IamRolesReviewsHttpRequest, IamRolesReviewsHttpResponse, IamRolesReviewsHttpTarget,
 };
 use erpx_server_identity_access::public::permission_catalog::permission_catalog;
+use erpx_server_identity_access::public::people_access::{
+    PgPeopleRelationships, PeopleAccessActor, RELATIONSHIP_MANAGE_PERMISSION, apply_relationship,
+    preview_relationship,
+};
+use erpx_server_identity_access::public::people_access_http::{
+    PeopleRelationshipsHttpBackend, PeopleRelationshipsHttpCommand, PeopleRelationshipsHttpFuture,
+    PeopleRelationshipsHttpRequest, PeopleRelationshipsHttpResponse,
+};
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, UserId,
@@ -158,6 +166,28 @@ fn iam_role_actor(current: &AuthorizedWorkContext) -> Result<IamRoleActor, Busin
         emergency_until: iam.emergency_until,
         expires_at: current.expires_at(),
     })
+}
+
+fn people_actor(current: &AuthorizedWorkContext) -> PeopleAccessActor {
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    PeopleAccessActor {
+        user_id: current.user_id().clone(),
+        session_id: current.session_id().clone(),
+        holding_id: current.holding_id().clone(),
+        company_id: workspace.company_id.clone(),
+        assignment_id: assignment.id.clone(),
+        scope_kind: match assignment.scope_kind {
+            WorkScopeKind::Holding => "holding",
+            WorkScopeKind::Branch => "branch",
+            WorkScopeKind::Department => "department",
+        }
+        .to_owned(),
+        permissions: current.command_iam_metadata().permissions.clone(),
+        platform: false,
+        expires_at: current.expires_at(),
+    }
 }
 
 fn context(current: &AuthorizedWorkContext) -> Value {
@@ -351,6 +381,79 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
             .await
     }
 
+    pub async fn people_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: PeopleRelationshipsHttpCommand,
+    ) -> Result<PeopleRelationshipsHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: RELATIONSHIP_MANAGE_PERMISSION.into(),
+                    module: Some("iam".into()),
+                    destination: "iam".into(),
+                    api: true,
+                },
+                IdentityAccessSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission(RELATIONSHIP_MANAGE_PERMISSION)?;
+                        let actor = people_actor(current);
+                        let now = clock.now().get();
+                        let mut repository = PgPeopleRelationships::new(connection);
+                        let data = match command {
+                            PeopleRelationshipsHttpCommand::Preview { change } => {
+                                preview_relationship(&mut repository, &actor, change, now).await?
+                            }
+                            PeopleRelationshipsHttpCommand::Apply {
+                                token,
+                                idempotency_key,
+                            } => {
+                                let key = CommandKey::new(idempotency_key)
+                                    .map_err(PgTransactionError::Business)?;
+                                apply_relationship(&mut repository, &actor, &key, &token, now)
+                                    .await?
+                            }
+                        };
+                        Ok(PeopleRelationshipsHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn iam_command<Input>(
         &self,
         host: &str,
@@ -506,6 +609,26 @@ impl<C: Clock + Send + Sync + 'static> IamRolesReviewsHttpBackend for IdentityAc
             let (proof, selection) = self.context(request.headers)?;
             self.service
                 .iam_command(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PeopleRelationshipsHttpBackend for IdentityAccessBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: PeopleRelationshipsHttpRequest<'a>,
+    ) -> PeopleRelationshipsHttpFuture<'a, PeopleRelationshipsHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .people_command(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.command,
+                )
                 .await
                 .map_err(business)
         })
