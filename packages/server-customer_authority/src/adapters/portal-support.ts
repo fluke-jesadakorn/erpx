@@ -1,5 +1,4 @@
 import 'server-only';
-import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
 import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
@@ -7,7 +6,7 @@ import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
@@ -33,8 +32,8 @@ async function source(database:SqlDatabase,requestId:string){
 function currentBinding(row:Source){if(row.status!=='approved'||Number(row.expires_at)<=Date.now()||!['confirmed','converted','partially_fulfilled','fulfilled'].includes(row.state))throw new ApiError(403,'CUSTOMER_PORTAL_BINDING_UNAVAILABLE','The original customer binding or document is no longer available.');}
 async function staffAuthority(database:SqlDatabase,actor:WorkContext,review:boolean){for(const permission of ['commerce.read','commerce.sales',...(review?['commerce.approve']:[])]){requirePermission(actor,permission);await requireQueuedCommandAuthority(database,actor,permission);}}
 async function capability(database:SqlDatabase,companyId:string,purpose:'history'|'settle-existing'){
- const mode=await commercePackageEnforcementMode(),scope={companyId,capability:'sales.portal',purpose},key=`portal-support:${randomUUID()}`;
- const release=async()=>{if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('portal_response.company_id','customer_authority')} allowed FROM (SELECT ?::text company_id) portal_response`).bind(companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');};await release();await checkPurchasedCapability(database,mode,scope);const boundary=purchaseCommandBoundary(database,mode,key,scope);if(boundary)await database.batch(boundary.before);return async()=>{await release();if(boundary){const results=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(results);}};
+ const mode=await commercePackageEnforcementMode(),scope={companyId,capability:'sales.portal',purpose};
+ const release=async()=>{if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('portal_response.company_id','customer_authority')} allowed FROM (SELECT ?::text company_id) portal_response`).bind(companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');};await release();await checkPurchasedCapability(database,mode,scope);return async()=>{await release();};
 }
 const response=(database:SqlDatabase,id:string)=>database.prepare('SELECT id,response_version,message,created_at,actor_id FROM customer_portal_support_responses WHERE request_id=? ORDER BY response_version DESC LIMIT 1').bind(id).first<ResponseRow>();
 async function threads(database:SqlDatabase,bindingId:string,userId?:string):Promise<PortalSupportThread[]>{
