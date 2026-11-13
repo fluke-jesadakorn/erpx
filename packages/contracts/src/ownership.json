@@ -3452,7 +3452,6 @@
       ],
       "source": [
         "packages/server-learning/src/**",
-        "packages/server-learning/src/public/learning-eligibility.ts",
         "packages/server-learning/src/public/learning.ts"
       ],
       "migration": "clean",
@@ -3475,7 +3474,6 @@
           "migration": "clean",
           "source": [
             "packages/server-learning/src/adapters/course.ts",
-            "packages/server-learning/src/adapters/learning-eligibility.ts",
             "packages/server-learning/src/adapters/learning.ts",
             "packages/server-learning/src/application/course.ts",
             "packages/server-learning/src/application/eligibility.ts",
@@ -3768,7 +3766,6 @@
             "packages/server-collaboration/src/adapters/quality-notifications.ts",
             "packages/server-collaboration/src/adapters/records-ai-usage-projection.ts",
             "packages/server-collaboration/src/adapters/rfq-notifications.ts",
-            "packages/server-collaboration/src/adapters/sales-notifications.ts",
             "packages/server-collaboration/src/adapters/social-activity.ts",
             "packages/server-collaboration/src/adapters/social-agent.ts",
             "packages/server-collaboration/src/adapters/social-ai-budget-projections.ts",
