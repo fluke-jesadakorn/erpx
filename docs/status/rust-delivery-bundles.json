@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1583,
+    "revision": 1586,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-i",
       "agentId": "lead",
       "startedAt": "2026-11-13T05:09:02.764Z",
-      "heartbeatAt": "2026-11-13T05:17:11.748Z",
-      "expiresAt": "2026-11-13T05:47:11.748Z",
+      "heartbeatAt": "2026-11-13T05:20:25.503Z",
+      "expiresAt": "2026-11-13T05:50:25.503Z",
       "generation": 53,
       "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
@@ -15397,14 +15397,36 @@
           "owner:runtime"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261113-i",
+          "agentId": "lead",
+          "claimedAt": "2026-11-13T05:20:13.484Z",
+          "heartbeatAt": "2026-11-13T05:20:25.503Z",
+          "expiresAt": "2026-11-13T05:50:25.503Z",
+          "generation": 53
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "bun run test:unit -- --suite=shared.runtime.outbox-supervisor.unit",
+            "result": "passed",
+            "sourceSha": "6cce8f21a7c202413e4f730ea676cae6a14237df",
+            "sourceKind": "committed",
+            "note": "7/7 native supervisor unit cases pass at current source."
+          },
+          {
+            "command": "bun run test:integration -- --suite=shared.runtime.outbox-supervisor-postgres.integration",
+            "result": "passed",
+            "sourceSha": "6cce8f21a7c202413e4f730ea676cae6a14237df",
+            "sourceKind": "committed",
+            "note": "8/8 PostgreSQL supervisor cases pass: lease, skip-locked, retry/dead-letter, attestation, shutdown."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-i lease expired; operations exceptions retirement pushed b12a54e28; WIP reviewed",
-        "nextAction": "Supervisor + family-scoped handler (PMS social included).",
+        "blocker": null,
+        "nextAction": "Native supervisor and family-scoped handler are mounted in src/composition; unit 7/7 and PostgreSQL 8/8 pass. Remaining TS runOne families are tracked by audit.runtime; retirement requires their native owners.",
         "handoff": {
           "runId": "run-20261112-i",
           "agentId": "lead",
@@ -21647,8 +21669,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-finance",
           "claimedAt": "2026-11-13T05:16:06.136Z",
-          "heartbeatAt": "2026-11-13T05:17:11.748Z",
-          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "heartbeatAt": "2026-11-13T05:20:25.503Z",
+          "expiresAt": "2026-11-13T05:50:25.503Z",
           "generation": 53
         },
         "baseSha": null,
@@ -21704,8 +21726,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-iam-gpo",
           "claimedAt": "2026-11-13T05:16:06.169Z",
-          "heartbeatAt": "2026-11-13T05:17:11.748Z",
-          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "heartbeatAt": "2026-11-13T05:20:25.503Z",
+          "expiresAt": "2026-11-13T05:50:25.503Z",
           "generation": 53
         },
         "baseSha": null,
@@ -22951,8 +22973,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-wp-calendar",
           "claimedAt": "2026-11-13T05:15:07.346Z",
-          "heartbeatAt": "2026-11-13T05:17:11.748Z",
-          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "heartbeatAt": "2026-11-13T05:20:25.503Z",
+          "expiresAt": "2026-11-13T05:50:25.503Z",
           "generation": 53
         },
         "baseSha": null,
@@ -25255,8 +25277,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-inventory-transit",
           "claimedAt": "2026-11-13T05:16:06.203Z",
-          "heartbeatAt": "2026-11-13T05:17:11.748Z",
-          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "heartbeatAt": "2026-11-13T05:20:25.503Z",
+          "expiresAt": "2026-11-13T05:50:25.503Z",
           "generation": 53
         },
         "baseSha": null,
@@ -30662,8 +30684,8 @@
           "runId": "run-20261113-i",
           "agentId": "worker-files-social",
           "claimedAt": "2026-11-13T05:15:07.266Z",
-          "heartbeatAt": "2026-11-13T05:17:11.748Z",
-          "expiresAt": "2026-11-13T05:47:11.748Z",
+          "heartbeatAt": "2026-11-13T05:20:25.503Z",
+          "expiresAt": "2026-11-13T05:50:25.503Z",
           "generation": 53
         },
         "baseSha": null,
@@ -33081,7 +33103,7 @@
       }
     },
     "lastCoordinatorGeneration": 53,
-    "updatedAt": "2026-11-13T05:17:11.749Z",
+    "updatedAt": "2026-11-13T05:20:25.504Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
