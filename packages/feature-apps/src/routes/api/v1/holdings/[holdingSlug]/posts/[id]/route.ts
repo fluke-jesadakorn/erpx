@@ -36,7 +36,7 @@ async function workSocialPost(request: Request, context: Context) {
           },
           { headers },
         );
-      if (["edit", "retract", "appreciate", "follow"].includes(body.action))
+      if (["edit", "retract", "hide", "appreciate", "follow"].includes(body.action))
         return Response.json(
           { data: await nativePostAction(request, holdingSlug, id, body, key) },
           { headers },

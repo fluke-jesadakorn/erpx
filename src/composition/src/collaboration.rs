@@ -247,7 +247,8 @@ fn social_scope(
     .department(department.as_deref())?
     .assignment_version(assignment.version)
     .share_company(can_share_company)
-    .moderate(can_moderate);
+    .moderate(can_moderate)
+    .hide_posts(assignment.role == "holding_owner");
     Ok(scope)
 }
 
