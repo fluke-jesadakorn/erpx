@@ -37,6 +37,10 @@ use crate::{
     },
     inventory_reorder_commands::InventoryReorderCommand,
     inventory_transfer_commands::InventoryTransferCommand,
+    manufacturing_order_commands::ManufacturingOrderCommand,
+    manufacturing_order_http::{
+        ManufacturingOrderHttpTarget, manufacturing_order_http_router,
+    },
     inventory_transit_commands::InventoryTransitCommand,
     inventory_transit_http::{InventoryTransitHttpTarget, inventory_transit_http_router},
     support_evidence_command::SupportEvidenceCommand,
@@ -3222,6 +3226,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut specification_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut manufacturing_order_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut marketing_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut marketing_lead_targets = Vec::new();
@@ -3634,6 +3640,16 @@ async fn assemble_checked(
                         backend: manufacturing_backend.clone(),
                     },
                 );
+                manufacturing_order_targets.push(ManufacturingOrderHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    command: Arc::new(ManufacturingOrderCommand {
+                        authorizer: authorizer.clone(),
+                        holding: holding.registration.holding_id.clone(),
+                        company: company.clone(),
+                        clock: Arc::new(SharedClock(clock.clone())),
+                    }),
+                });
                 let pms_backend = Arc::new(crate::pms::PmsBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
@@ -6283,6 +6299,17 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_manufacturing::public::specification::specification_router(
                     specification_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !manufacturing_order_targets.is_empty() {
+            router = router.merge(
+                manufacturing_order_http_router(
+                    config.policy.clone(),
+                    Arc::new(FieldServiceReadScopeHeaders),
+                    manufacturing_order_targets,
                 )
                 .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
             );

@@ -105,6 +105,23 @@ export async function POST(r: Request, c: C) {
         throw new ApiError(503, "NATIVE_MANUFACTURING_UNAVAILABLE", "The native Manufacturing service is unavailable.");
       return Response.json(canonicalDestinationLinks({ data: result }), { headers });
     }
+    if (i.action === "issue" || i.action === "pass-qc") {
+      const result = await nativePlanningCommand(
+        r.headers,
+        (await import("@erpx/feature-manufacturing/public/native-planning-workspace-page")).nativePlanningPageContext(a),
+        a.holdingSlug,
+        `/manufacturing/orders/${encodeURIComponent(i.id)}/${encodeURIComponent(i.action)}`,
+        i,
+        key,
+      );
+      if (result === undefined)
+        throw new ApiError(
+          503,
+          "NATIVE_MANUFACTURING_UNAVAILABLE",
+          "The native Manufacturing order command is unavailable.",
+        );
+      return Response.json(canonicalDestinationLinks({ data: result }), { headers });
+    }
     if (i.entity === "accounting")
       data = typeof i.id === "string" ? await reviewManufacturingAccountingProfile(a, i.id, i, key) : await createManufacturingAccountingProfile(a, i, key);
     else if (i.entity === "resource")

@@ -165,6 +165,7 @@ pub mod sales_notification_reconciliation;
 pub mod customer_portal_invitation_worker;
 #[cfg(feature = "existing-business")]
 pub mod position_gpo_worker;
+pub mod user_management_worker;
 #[cfg(feature = "existing-business")]
 pub mod portal_enrollment;
 #[cfg(feature = "existing-business")]
@@ -415,6 +416,10 @@ pub mod inventory_landed_cost_commands;
 pub mod inventory_reorder_commands;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_owner_commands_http;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod manufacturing_order_commands;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod manufacturing_order_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_stock_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
