@@ -291,16 +291,17 @@ pub struct OpportunityChangeReceipt {
     pub stage: String,
 }
 
-/// Lead actions whose native owner effect is complete without a missing
-/// cross-owner witness. `qualify` has a separate owner preparation/effect
-/// path but needs current Finance customer status and Commerce currency
-/// composition, so it is not part of this mounted action slice.
-pub const NATIVE_LEAD_ACTIONS: [&str; 3] = ["reassign", "disqualify", "reopen"];
+/// Lead actions whose native owner effect is complete with the coordinator
+/// composed. `qualify` uses its own owner preparation/effect path and the
+/// composition supplies Finance customer status, the reviewed account link and
+/// the current Commerce currency.
+pub const NATIVE_LEAD_ACTIONS: [&str; 4] = ["reassign", "disqualify", "qualify", "reopen"];
 
-/// Opportunity actions with the current Commerce order witness composed in
-/// the caller. `win-pms` still needs the PMS reservation witness and is
-/// retained.
-pub const NATIVE_OPPORTUNITY_ACTIONS: [&str; 5] = ["link-quote", "negotiate", "lose", "reopen", "win"];
+/// Opportunity actions with the current Commerce order or PMS reservation
+/// witness composed in the caller. `win-pms` supplies the confirmed
+/// reservation amount from the PMS owner source.
+pub const NATIVE_OPPORTUNITY_ACTIONS: [&str; 6] =
+    ["link-quote", "negotiate", "lose", "reopen", "win", "win-pms"];
 
 pub fn native_lead_action(action: &str) -> bool {
     NATIVE_LEAD_ACTIONS.contains(&action)

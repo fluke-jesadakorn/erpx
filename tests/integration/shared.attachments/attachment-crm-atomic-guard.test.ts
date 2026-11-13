@@ -6,8 +6,9 @@ import type { PreparedAttachmentBinding } from "@erpx/server-files/public/attach
 import { applyMigrations, env } from "../../support/runtime-env";
 import {expenseFixture} from "../../support/helpers/expense-fixture";
 import {seedAttachmentSet,attachmentBindingState} from "../../support/helpers/attachment-v2";
+import {seedCrmQualifiedLead} from "../../support/helpers/crm-qualify-seed";
 import {bindRecordAttachmentSet,attachmentContent} from "@erpx/server-files/public/attachments/service";
-import {createCRMLead,getCRMLead,changeCRMLead} from "@erpx/server-crm/public/crm";
+import {createCRMLead,getCRMLead} from "@erpx/server-crm/public/crm";
 import {changeCRMIdentity} from "@erpx/server-crm/public/crm-identities";
 import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {createMarketingAsset} from "@erpx/server-marketing/public/marketing";
@@ -232,7 +233,7 @@ it("checks actual Sales-only CRM files without Marketing and retains draining he
 });
 
 it("rolls back CRM opportunity file binding on a final actual contact lineage change with unchanged original opportunity version",async()=>{
- const {fixture:f,lead,detail}=await nativeCRM(),foreign=await nativeCRM();f.tie.role="sales_manager";f.tie.branchId=null;f.tie.departmentId=null;f.tie.assignmentId=await f.grant(f.tie,"sales_manager");const customer=String((await saveMaster(f.owner,"parties",null,{kind:"customer",code:key(),name:"Reviewed native CRM customer"},key())).id);await changeCRMIdentity(f.tie,{action:"link-finance",accountId:detail.account_id,customerId:customer,expectedVersion:1,evidence:"Independent review of the real original customer"},key());await changeCRMLead(f.owner,String(lead.id),{action:"qualify",expectedVersion:1,customerId:customer,expectedValue:"25",closeDate:"2026-12-20",reason:"Original actual Company prospect qualified"},key());
+ const {fixture:f,lead,detail}=await nativeCRM(),foreign=await nativeCRM();f.tie.role="sales_manager";f.tie.branchId=null;f.tie.departmentId=null;f.tie.assignmentId=await f.grant(f.tie,"sales_manager");const customer=String((await saveMaster(f.owner,"parties",null,{kind:"customer",code:key(),name:"Reviewed native CRM customer"},key())).id);await changeCRMIdentity(f.tie,{action:"link-finance",accountId:detail.account_id,customerId:customer,expectedVersion:1,evidence:"Independent review of the real original customer"},key());await seedCrmQualifiedLead(db,{companyId:f.company,ownerId:f.owner.userId,leadId:String(lead.id),customerId:customer,expectedValue:"25",closeDate:"2026-12-20",reason:"Original actual Company prospect qualified"});
  const id=String(await db.prepare("SELECT id FROM crm_opportunities WHERE lead_id=?").bind(lead.id).first("id")),file=await seedAttachmentSet(db,f.owner,{targetType:"crm_opportunity",targetId:id,componentKind:"record",purposeKey:"brief",expectedTargetVersion:1}),command=key(),fault=`crm_file_source_${key().replaceAll("-","")}`;vi.stubEnv("ERPX_COMMERCE_PACKAGE_ENFORCEMENT","enforced");await packageGrant(f.company,"sales");
  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE crm_leads SET contact_id='${foreign.detail.contact_id}' WHERE id='${lead.id}';RETURN NEW;END;$$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}();`);
  try{await expect(bindRecordAttachmentSet(db,f.owner,file.setId,1,command)).rejects.toMatchObject({code:"CRM_ATTACHMENT_CHANGED"});}finally{await db.prepare(`DROP TRIGGER ${fault} ON command_receipts`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}

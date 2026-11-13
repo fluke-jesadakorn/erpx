@@ -252,22 +252,65 @@ async fn actual_router_forwards_typed_commands_and_rejects_bad_transport() {
             r#"{"action":"disqualify","expectedVersion":1,"reason":"No response","extra":true}"#,
             "CRM_COMMAND_REQUEST_INVALID",
         ),
-        (
-            "/api/v1/holdings/acme/crm/leads/lead-1/changes",
-            Some("command-key-5"),
-            None,
-            r#"{"action":"qualify","expectedVersion":1,"reason":"Qualified"}"#,
-            "CRM_COMMAND_NOT_NATIVE",
-        ),
     ] {
         let (status, body, _) = http(
             addr,
             post(path, "acme.example.test", key, origin, payload),
         )
         .await;
-        assert_eq!(status, if expected == "CRM_COMMAND_NOT_NATIVE" { 503 } else if expected == "ORIGIN_FORBIDDEN" { 403 } else { 422 });
+        assert_eq!(status, if expected == "ORIGIN_FORBIDDEN" { 403 } else { 422 });
         assert_eq!(body["error"]["code"], expected);
     }
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/crm/leads/lead-1/changes",
+            "acme.example.test",
+            Some("command-key-5"),
+            None,
+            r#"{"action":"qualify","expectedVersion":1,"customerId":"customer-1","expectedValue":"1000.00","closeDate":"2026-11-30","reason":"Qualified"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["id"], "lead-1");
+    assert_eq!(
+        seen.lock().unwrap().last().cloned(),
+        Some(Seen {
+            kind: "lead",
+            lead_id: "lead-1".into(),
+            key: "command-key-5".into(),
+            action: "qualify".into(),
+            host: "acme.example.test".into(),
+            holding: "acme".into(),
+        })
+    );
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/crm/leads/lead-1/opportunity/changes",
+            "acme.example.test",
+            Some("command-key-6"),
+            None,
+            r#"{"action":"win-pms","expectedVersion":1,"leadVersion":2,"reservationId":"reservation-1","propertyId":"property-1","reason":"Confirmed reservation"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["id"], "lead-1");
+    assert_eq!(
+        seen.lock().unwrap().last().cloned(),
+        Some(Seen {
+            kind: "opportunity",
+            lead_id: "lead-1".into(),
+            key: "command-key-6".into(),
+            action: "win-pms".into(),
+            host: "acme.example.test".into(),
+            holding: "acme".into(),
+        })
+    );
 
     let (status, body, _) = http(
         addr,

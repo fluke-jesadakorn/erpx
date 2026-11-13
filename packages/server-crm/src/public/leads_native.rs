@@ -1,10 +1,10 @@
 //! Native CRM lead / opportunity command ports and PostgreSQL adapter.
 pub use crate::adapters::leads_native::{
-    ChangedCrmLeadFacts, ChangedCrmOpportunityFacts, PgCrmLeadCommands,
-    PreparedCrmQualification, PreparedLeadChange, PreparedOpportunityChange, QualifiedCrmLeadFacts,
-    RetainedCrmLeadChange, RetainedCrmOpportunityChange, RetainedCrmQualification,
-    apply_crm_qualification, apply_crm_qualification_retained, canonical_lead_create_input,
-    deal_event_id, lead_event_id,
+    ChangedCrmLeadFacts, ChangedCrmOpportunityFacts, OwnedCrmQualificationRetention,
+    PgCrmLeadCommands, PreparedCrmQualification, PreparedLeadChange, PreparedOpportunityChange,
+    QualifiedCrmLeadFacts, RetainedCrmLeadChange, RetainedCrmOpportunityChange,
+    RetainedCrmQualification, apply_crm_qualification, apply_crm_qualification_retained,
+    canonical_lead_create_input, deal_event_id, lead_event_id,
 };
 pub use crate::application::leads_native::{
     LeadFacts, LeadRepository, LeadsFuture, OpportunityFacts, change_lead, change_opportunity,

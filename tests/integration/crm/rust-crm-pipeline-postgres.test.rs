@@ -55,7 +55,10 @@ async fn qualification_owner_effect_retains_exact_value_and_both_events() {
         assert_eq!(business(apply_crm_qualification(&mut tx, &wrong_actor, "page-01", "qualify-wrong", &input, "THB", &link, NOW.get()).await.unwrap_err()).code, "CRM_OWNER_REQUIRED");
         let retained = apply_crm_qualification_retained(&mut tx, &manager, "page-01", "qualify-date", &input, "THB", &link, NOW.get()).await.unwrap();
         retained.require_current(&mut tx).await.unwrap();
+        let owned = retained.retain_owned();
+        owned.require_current(&mut tx, &link).await.unwrap();
         let id = retained.facts().opportunity_id.clone();
+        assert_eq!((&*owned.facts().opportunity_id, owned.facts().version), ("opportunity-qualify-date", 2));
         assert_eq!(id, "opportunity-qualify-date");
         assert_eq!((&*retained.facts().company_id,&*retained.facts().lead_id,&*retained.facts().owner_id,retained.facts().branch_id.as_str(),retained.facts().department_id.as_deref(),retained.facts().version,retained.facts().updated_at), ("company","page-01","owner","branch",None,2,NOW.get()));
         let opportunity: (i64, String, String) = sqlx::query_as("SELECT expected_minor,currency,close_date FROM crm_opportunities WHERE id=$1").bind(&id).fetch_one(&mut *tx).await.unwrap();
@@ -73,8 +76,10 @@ async fn qualification_owner_effect_retains_exact_value_and_both_events() {
         sqlx::query("SAVEPOINT alter_qualification").execute(&mut *tx).await.unwrap();
         sqlx::query("UPDATE crm_opportunities SET close_date='0000-01-01' WHERE id=$1").bind(&id).execute(&mut *tx).await.unwrap();
         assert_eq!(business(retained.require_current(&mut tx).await.unwrap_err()).code,"CRM_QUALIFICATION_CHANGED");
+        assert_eq!(business(owned.require_current(&mut tx, &link).await.unwrap_err()).code,"CRM_QUALIFICATION_CHANGED");
         sqlx::query("ROLLBACK TO SAVEPOINT alter_qualification").execute(&mut *tx).await.unwrap();
         retained.require_current(&mut tx).await.unwrap();
+        owned.require_current(&mut tx, &link).await.unwrap();
         for (lead_id, key, value, expected) in [("page-02", "money-tenth", "1.1", 110_i64), ("page-03", "money-cent", "1.01", 101), ("page-04", "money-leading", "0001.01", 101)] {
             let link = inspect_crm_reviewed_account_link(&mut tx, CrmReviewedAccountLinkRequest { company_id: CompanyId::new("company").unwrap(), branch_id: Some("branch".into()), department_id: None, lead_id: lead_id.into(), finance_party_id: "customer".into() }).await.unwrap();
             let mut amount = input.clone(); amount.expected_value = Some(value.into());
@@ -2186,7 +2191,53 @@ async fn native_lead_and_opportunity_commands_write_cas_events_and_retention() {
             .await
             .err()
             .unwrap();
-        assert_eq!(business(error).code, "CRM_COMMAND_NOT_NATIVE");
+        assert_eq!(business(error).code, "CRM_QUALIFICATION_COMPOSITION_REQUIRED");
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn pms_win_effect_records_confirmed_reservation_amount_and_both_events() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO crm_accounts(id,company_id,kind,name,created_by,version,created_at,updated_at) VALUES ('win-account','company','individual','Hotel guest','owner',1,1,1);\
+             INSERT INTO crm_contacts(id,company_id,account_id,name,detail,created_by,version,created_at,updated_at) VALUES ('win-contact','company','win-account','Hotel guest','Synthetic channel','owner',1,1,1);\
+             UPDATE crm_leads SET contact_id='win-contact' WHERE id='lead-discovery';\
+             INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,version,created_by,updated_at) VALUES ('win-property','company','branch','Hotel','2026-12-01','open','{}',1,'owner',1);\
+             INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES \
+               ('win-guest','win-property','guest','{}',1,1),\
+               ('win-reservation','win-property','reservation','{\"guestId\":\"win-guest\",\"state\":\"confirmed\"}',1,1),\
+               ('win-stay','win-property','stay','{\"reservationId\":\"win-reservation\",\"prices\":[{\"net\":777}]}',1,1);\
+             INSERT INTO crm_guest_links(id,company_id,contact_id,guest_id,property_id,evidence,reviewed_by,created_at,sharing_state,sharing_evidence,sharing_by,sharing_at,version) VALUES ('win-link','company','win-contact','win-guest','win-property','Reviewed identity','reviewer',1,'granted','Hotel history consent','reviewer',1,2);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let actor = LeadActor { user_id: "owner".into(), company_id: "company".into(), can_read: true, can_sales: true, can_manage: false, can_pms: true, can_support: false, same_person_ids: vec![] };
+        let input: OpportunityChangeInput = serde_json::from_value(serde_json::json!({
+            "action": "win-pms",
+            "expectedVersion": 1,
+            "leadVersion": 2,
+            "reservationId": "win-reservation",
+            "propertyId": "win-property",
+            "reason": "Confirmed hotel reservation"
+        }))
+        .unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let mut prepared = PgCrmLeadCommands::new(&mut tx).prepare_opportunity_change(&actor, "lead-discovery", &input).await.unwrap();
+        prepared.reference_minor = Some(777);
+        let retained = PgCrmLeadCommands::new(&mut tx).apply_opportunity_change(&actor, "lead-discovery", "command-win-pms", prepared, NOW.get()).await.unwrap();
+        retained.require_current(&mut tx).await.unwrap();
+        assert_eq!((retained.facts().lead_version, retained.facts().opportunity_version, retained.facts().stage.as_str()), (3, 2, "won"));
+        let stored: (String, String, i64, String) = sqlx::query_as("SELECT stage,win_source,expected_minor,reservation_id FROM crm_opportunities WHERE id='opp-discovery'").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(stored, ("won".into(), "pms".into(), 777, "win-reservation".into()));
+        let events: Vec<(String, Option<String>, i64)> = sqlx::query_as("SELECT action,opportunity_id,version FROM crm_case_events WHERE lead_id='lead-discovery' AND action IN ('opportunity-win-pms','win-pms') ORDER BY action").fetch_all(&mut *tx).await.unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(events.contains(&("opportunity-win-pms".into(), None, 3)));
+        assert!(events.contains(&("win-pms".into(), Some("opp-discovery".into()), 2)));
         tx.rollback().await.unwrap();
     })
     .await;

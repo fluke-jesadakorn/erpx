@@ -2,9 +2,10 @@ import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import {createCRMLead,changeCRMLead,getCRMLead} from "@erpx/server-crm/public/crm";
+import {createCRMLead,getCRMLead} from "@erpx/server-crm/public/crm";
 import {changeCRMIdentity} from "@erpx/server-crm/public/crm-identities";
 import {seedCustomerNote,seedCustomerNoteChange} from "../../support/helpers/customer-note-seed";
+import {seedCrmQualifiedLead} from "../../support/helpers/crm-qualify-seed";
 import {customerDirectory,customerTimeline,customerTimelineEvents} from "@erpx/server-customer_360/public/customer-timeline";
 import {withNativeFieldFixture} from '../../support/files/field-files-native-parity';
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
@@ -17,7 +18,7 @@ beforeEach(async()=>{f=await expenseFixture();customer=String((await saveMaster(
 it('federates actual CRM, notes and follow-up source events without copying private payloads or mutating their owners',async()=>{
  const lead=String((await createCRMLead(f.owner,{branchId:f.branch,title:'Timeline inquiry',contactName:'Private simulated contact',contactDetail:'PRIVATE_CONTACT',source:'Phone',brief:'PRIVATE_BRIEF',dueDate:'2026-09-23'},key())).id);
  f.head.role='sales_manager';f.head.assignmentId=await f.grant(f.head,'sales_manager');const leadRow=await getCRMLead(f.owner,lead);await changeCRMIdentity(f.head,{action:'link-finance',accountId:leadRow.account_id,customerId:customer,expectedVersion:1,evidence:'Reviewed customer identity in Finance'},key());
- await changeCRMLead(f.owner,lead,{action:'qualify',expectedVersion:1,customerId:customer,expectedValue:'10',closeDate:'2026-09-25',reason:'PRIVATE_CRM_REASON'},key());
+ await seedCrmQualifiedLead(db,{companyId:f.company,ownerId:f.owner.userId,leadId:lead,customerId:customer,expectedValue:'10',closeDate:'2026-09-25',reason:'PRIVATE_CRM_REASON'});
  // Note commands are native-owned; seed the exact immutable owner rows they persist.
  const note=await seedCustomerNote(db,{companyId:f.company,customerId:customer,orderId:order,channel:'phone',occurredAt:Date.now(),body:'PRIVATE_NOTE_CONTENT',createdBy:f.owner.userId});
  await seedCustomerNoteChange(db,{noteId:note.id,action:'correct',expectedVersion:1,body:'CORRECTED_PRIVATE_NOTE',reason:'PRIVATE_CORRECTION',actorId:f.owner.userId});

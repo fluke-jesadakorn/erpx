@@ -8,6 +8,7 @@ import {
   nativeCrmCommand,
   nativeCrmCommandAvailable,
   nativeCrmCommandFailure,
+  nativeCrmCommandRequired,
   NativeCrmCommandError,
 } from '../../../packages/feature-sales/src/public/native-crm-command';
 vi.mock('server-only',()=>({}));
@@ -38,13 +39,14 @@ afterEach(()=>{delete process.env.ERPX_NATIVE_CRM_COMMAND_CONFIG;vi.restoreAllMo
 
 describe('native CRM command transport',()=>{
  it('keeps exactly the owner-complete action slice',()=>{
-  expect([...NATIVE_CRM_LEAD_ACTIONS]).toEqual(['reassign','disqualify','reopen']);
+  expect([...NATIVE_CRM_LEAD_ACTIONS]).toEqual(['reassign','disqualify','qualify','reopen']);
   expect([...NATIVE_CRM_OPPORTUNITY_ACTIONS]).toEqual([
     'link-quote',
     'negotiate',
     'lose',
     'reopen',
     'win',
+    'win-pms',
   ]);
   expect(nativeCrmCommandAvailable()).toBe(false);
   expect([...NATIVE_CRM_ACTIVITY_ACTIONS]).toEqual(['complete','cancel','reassign']);
@@ -218,17 +220,78 @@ describe('native CRM command transport',()=>{
   });
  });
 
- it('leaves create, qualify, PMS and identity commands on the retained path',async()=>{
+ it('leaves create and identity commands on the retained path',async()=>{
   process.env.ERPX_NATIVE_CRM_COMMAND_CONFIG=config();
   const transport=vi.fn();
   for (const input of [
     {branchId:'branch',title:'New lead'},
-    {id:'lead-1',action:'qualify',expectedVersion:1,reason:'Qualified'},
-    {id:'lead-1',domain:'opportunity',action:'win-pms',expectedVersion:1,leadVersion:2,reason:'Won'},
     {id:'lead-1',domain:'identity',action:'create-account',kind:'business',name:'Acme'},
   ]) {
     await expect(nativeCrmCommand(actor,'acme',input,'key',incoming(),transport)).resolves.toBeUndefined();
   }
+  expect(transport).not.toHaveBeenCalled();
+ });
+
+ it('forwards native qualification with the deterministic opportunity receipt',async()=>{
+  process.env.ERPX_NATIVE_CRM_COMMAND_CONFIG=config();
+  const input={id:'lead-1',action:'qualify',expectedVersion:1,customerId:'customer-1',
+    expectedValue:'1200.50',closeDate:'2026-11-30',reason:'Customer needs are confirmed'};
+  const transport=vi.fn().mockResolvedValue(ok({
+    id:'lead-1',version:2,opportunityId:'opportunity-key-7',
+  }));
+  const result=await nativeCrmCommand(actor,'acme',input,'key-7',incoming(),transport);
+  expect(result).toEqual({id:'lead-1',version:2,opportunityId:'opportunity-key-7'});
+  const [method,url,,body]=transport.mock.calls[0]!;
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe(
+    'http://127.0.0.1:44995/api/v1/holdings/acme/crm/leads/lead-1/changes',
+  );
+  expect(JSON.parse(body as string)).toEqual({
+    action:'qualify',expectedVersion:1,customerId:'customer-1',
+    expectedValue:'1200.50',closeDate:'2026-11-30',
+    reason:'Customer needs are confirmed',
+  });
+  const wrong=vi.fn().mockResolvedValue(ok({
+    id:'lead-1',version:2,opportunityId:'opportunity-other',
+  }));
+  await expect(nativeCrmCommand(actor,'acme',input,'key-7',incoming(),wrong))
+    .rejects.toMatchObject({code:'NATIVE_CRM_COMMAND_RESPONSE_INVALID'});
+ });
+
+ it('forwards native PMS win with exact reservation fields',async()=>{
+  process.env.ERPX_NATIVE_CRM_COMMAND_CONFIG=config();
+  const transport=vi.fn().mockResolvedValue(ok({
+    id:'lead-1',version:2,leadVersion:3,stage:'won',
+  }));
+  const result=await nativeCrmCommand(actor,'acme',{
+    id:'lead-1',domain:'opportunity',action:'win-pms',expectedVersion:1,leadVersion:2,
+    reservationId:'reservation-1',propertyId:'property-1',reason:'Confirmed reservation',
+  },'key-8',incoming(),transport);
+  expect(result).toEqual({id:'lead-1',version:2,leadVersion:3,stage:'won'});
+  const [,url,,body]=transport.mock.calls[0]!;
+  expect(url.toString()).toBe(
+    'http://127.0.0.1:44995/api/v1/holdings/acme/crm/leads/lead-1/opportunity/changes',
+  );
+  expect(JSON.parse(body as string)).toEqual({
+    action:'win-pms',expectedVersion:1,leadVersion:2,reservationId:'reservation-1',
+    propertyId:'property-1',reason:'Confirmed reservation',
+  });
+ });
+
+ it('marks the deleted writers as native-only so the route fails closed',async()=>{
+  const qualify={id:'lead-1',action:'qualify',expectedVersion:1,customerId:'customer-1',
+    expectedValue:'100',closeDate:'2026-11-30',reason:'Qualified'};
+  const winPms={id:'lead-1',domain:'opportunity',action:'win-pms',expectedVersion:1,
+    leadVersion:2,reservationId:'reservation-1',propertyId:'property-1',reason:'Won'};
+  expect(nativeCrmCommandRequired(qualify)).toBe(true);
+  expect(nativeCrmCommandRequired(winPms)).toBe(true);
+  expect(nativeCrmCommandRequired({id:'lead-1',action:'disqualify'})).toBe(false);
+  expect(nativeCrmCommandRequired({branchId:'branch',title:'New lead'})).toBe(false);
+  expect(nativeCrmCommandRequired({id:'lead-1',domain:'identity',action:'create-account'}))
+    .toBe(false);
+  const transport=vi.fn();
+  await expect(nativeCrmCommand(actor,'acme',qualify,'key-9',incoming(),transport))
+    .resolves.toBeUndefined();
   expect(transport).not.toHaveBeenCalled();
  });
 

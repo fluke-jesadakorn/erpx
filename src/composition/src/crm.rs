@@ -15,6 +15,9 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
 };
+use erpx_server_finance::public::field_service_customer::{
+    lock_field_service_customer_sources, read_current_field_service_customer,
+};
 use erpx_server_crm::public::activities_http::{
     CrmActivityCommandHttpBackend, CrmActivityCommandHttpRequest,
     CrmActivityCommandHttpTarget,
@@ -26,8 +29,9 @@ use erpx_server_crm::public::activities_native::{
     validate_create,
 };
 use erpx_server_crm::public::activity_source::{
-    CrmReviewedAccountLinkRequest, inspect_crm_reviewed_account_link,
-    lock_crm_activity_sources, lock_crm_reviewed_account_link_sources,
+    CrmReviewedAccountLinkRequest, CurrentCrmReviewedAccountLink,
+    inspect_crm_reviewed_account_link, lock_crm_activity_sources,
+    lock_crm_reviewed_account_link_sources,
 };
 use erpx_server_crm::public::commands_http::{CommandHttpFuture, CrmCommandHttpReply};
 use erpx_server_crm::public::leads_http::{
@@ -36,8 +40,10 @@ use erpx_server_crm::public::leads_http::{
 };
 use erpx_server_crm::public::leads_native::{
     ChangedCrmLeadFacts, ChangedCrmOpportunityFacts, LeadActor, LeadChangeInput, LeadChangeReceipt,
-    OpportunityChangeInput, OpportunityChangeReceipt, PgCrmLeadCommands, PreparedLeadChange,
-    PreparedOpportunityChange, RetainedCrmLeadChange, RetainedCrmOpportunityChange, lead_operation,
+    OpportunityChangeInput, OpportunityChangeReceipt, OwnedCrmQualificationRetention,
+    PgCrmLeadCommands, PreparedLeadChange,
+    PreparedOpportunityChange, QualifiedCrmLeadFacts, RetainedCrmLeadChange,
+    RetainedCrmOpportunityChange, apply_crm_qualification_retained, lead_operation,
     native_lead_action, native_opportunity_action, not_native, opportunity_operation,
 };
 use erpx_server_crm::public::pipeline::{
@@ -418,6 +424,22 @@ fn command_changed() -> BusinessError {
     )
 }
 
+fn customer_changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "CRM_SOURCE_CHANGED",
+        "The reviewed customer changed. Reload and review before submitting.",
+    )
+}
+
+fn currency_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "CRM_CURRENCY_REQUIRED",
+        "Configure Company currency before forecasting opportunities.",
+    )
+}
+
 fn recipient_required() -> BusinessError {
     BusinessError::new(
         FailureKind::Forbidden,
@@ -468,7 +490,7 @@ impl CrmLeadCommand {
     fn purpose(&self) -> CapabilityPurpose {
         match self {
             Self::Lead { input, .. } => match input.action.as_str() {
-                "reopen" => CapabilityPurpose::NewWork,
+                "qualify" | "reopen" => CapabilityPurpose::NewWork,
                 _ => CapabilityPurpose::SettleExisting,
             },
             Self::Opportunity { input, .. } => match input.action.as_str() {
@@ -483,6 +505,7 @@ impl CrmLeadCommand {
                 Some("commerce.approve")
             }
             Self::Opportunity { input, .. } if input.action == "reopen" => Some("commerce.approve"),
+            Self::Opportunity { input, .. } if input.action == "win-pms" => Some("pms.read"),
             _ => None,
         }
     }
@@ -610,6 +633,145 @@ fn require_commerce_order(
         ));
     }
     Ok(())
+}
+
+/// Current PMS reservation witness for `win-pms`. It reads the authoritative
+/// PMS reservation, property and reviewed guest-sharing rows in the caller's
+/// transaction. The request selects only identifiers; state, guest, branch and
+/// amount always come from owner data. It grants no permission or purchase.
+struct CrmPmsReservationWitness {
+    company_id: String,
+    branch_id: String,
+    contact_id: String,
+    reservation_id: String,
+    property_id: String,
+    expected_minor: i64,
+    image: String,
+}
+
+impl CrmPmsReservationWitness {
+    async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        let current = pms_reservation_source(
+            c,
+            &self.company_id,
+            &self.branch_id,
+            &self.contact_id,
+            &self.reservation_id,
+            &self.property_id,
+        )
+        .await?;
+        if current.map(|(image, _)| image) != Some(self.image.clone()) {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "CRM_SOURCE_CHANGED",
+                "The linked reservation changed. Reload and review before submitting.",
+            )
+            .into());
+        }
+        Ok(())
+    }
+}
+
+async fn lock_crm_pms_reservation_sources(c: &mut PgConnection) -> Result<(), Error> {
+    sqlx::query("LOCK TABLE public.pms_properties,public.pms_records IN SHARE MODE")
+        .execute(&mut *c)
+        .await?;
+    Ok(())
+}
+
+async fn pms_reservation_source(
+    c: &mut PgConnection,
+    company: &str,
+    branch: &str,
+    contact: &str,
+    reservation: &str,
+    property: &str,
+) -> Result<Option<(String, i64)>, Error> {
+    Ok(sqlx::query_as(
+        "SELECT encode(sha256(convert_to(jsonb_build_array(r.id,r.property_id,r.data_json::jsonb->>'guestId',r.data_json::jsonb->>'state',r.version,p.id,p.company_id,p.branch_id,g.id,g.company_id,g.contact_id,g.sharing_state,g.version,COALESCE((SELECT SUM((price->>'net')::bigint) FROM public.pms_records s CROSS JOIN LATERAL jsonb_array_elements(s.data_json::jsonb->'prices') price WHERE s.kind='stay' AND s.property_id=p.id AND s.data_json::jsonb->>'reservationId'=r.id),0)::bigint)::text,'UTF8')),'hex') image,COALESCE((SELECT SUM((price->>'net')::bigint) FROM public.pms_records s CROSS JOIN LATERAL jsonb_array_elements(s.data_json::jsonb->'prices') price WHERE s.kind='stay' AND s.property_id=p.id AND s.data_json::jsonb->>'reservationId'=r.id),0)::bigint expected_minor FROM public.pms_records r JOIN public.pms_properties p ON p.id=r.property_id JOIN public.crm_guest_links g ON g.guest_id=r.data_json::jsonb->>'guestId' AND g.property_id=p.id AND g.company_id=p.company_id WHERE r.id=$1 AND r.kind='reservation' AND r.property_id=$2 AND r.data_json::jsonb->>'state'='confirmed' AND p.company_id=$3 AND p.branch_id=$4 AND g.sharing_state='granted' AND g.contact_id=$5",
+    )
+    .bind(reservation)
+    .bind(property)
+    .bind(company)
+    .bind(branch)
+    .bind(contact)
+    .fetch_optional(&mut *c)
+    .await?)
+}
+
+async fn inspect_crm_pms_reservation(
+    c: &mut PgConnection,
+    company: &str,
+    branch: &str,
+    lead_id: &str,
+    reservation_id: &str,
+    property_id: &str,
+) -> Result<CrmPmsReservationWitness, Error> {
+    let contact: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT contact_id FROM public.crm_leads WHERE id=$1 AND company_id=$2",
+    )
+    .bind(lead_id)
+    .bind(company)
+    .fetch_optional(&mut *c)
+    .await?;
+    let contact_id = contact.flatten().ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::Conflict,
+            "CRM_SOURCE_CHANGED",
+            "The CRM contact source changed. Reload and review before submitting.",
+        )
+    })?;
+    let source: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM public.pms_records r JOIN public.pms_properties p ON p.id=r.property_id WHERE r.id=$1 AND r.kind='reservation' AND r.property_id=$2 AND p.company_id=$3 AND p.branch_id=$4)",
+    )
+    .bind(reservation_id)
+    .bind(property_id)
+    .bind(company)
+    .bind(branch)
+    .fetch_one(&mut *c)
+    .await?;
+    if !source {
+        return Err(BusinessError::new(
+            FailureKind::NotFound,
+            "CRM_SOURCE_NOT_FOUND",
+            "The linked PMS reservation is unavailable in this workspace.",
+        )
+        .into());
+    }
+    let (image, expected_minor) =
+        pms_reservation_source(c, company, branch, &contact_id, reservation_id, property_id)
+            .await?
+            .ok_or_else(|| {
+                BusinessError::new(
+                    FailureKind::Conflict,
+                    "CRM_SOURCE_CHANGED",
+                    "The linked reservation changed. Reload and review before submitting.",
+                )
+            })?;
+    Ok(CrmPmsReservationWitness {
+        company_id: company.to_owned(),
+        branch_id: branch.to_owned(),
+        contact_id,
+        reservation_id: reservation_id.to_owned(),
+        property_id: property_id.to_owned(),
+        expected_minor,
+        image,
+    })
+}
+
+/// Current Commerce company currency for a qualification opportunity. It reads
+/// the authoritative Commerce settings row in the caller's transaction and
+/// never accepts a currency from the request.
+async fn commerce_currency(
+    c: &mut PgConnection,
+    company: &str,
+) -> Result<Option<String>, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT currency FROM public.commerce_settings WHERE company_id=$1 FOR SHARE",
+    )
+    .bind(company)
+    .fetch_optional(&mut *c)
+    .await?)
 }
 
 struct Authority<'a, G> {
@@ -769,14 +931,37 @@ fn opportunity_notification_facts(facts: &ChangedCrmOpportunityFacts) -> CrmLead
     }
 }
 
+fn qualified_lead_notification_facts(
+    facts: &QualifiedCrmLeadFacts,
+) -> CrmLeadNotificationFacts {
+    CrmLeadNotificationFacts {
+        command_key: facts.command_key.clone(),
+        company_id: facts.company_id.clone(),
+        recipient: facts.owner_id.clone(),
+        lead_id: facts.lead_id.clone(),
+        version: facts.version,
+        updated_at: facts.updated_at,
+    }
+}
+
 enum Prepared {
     Lead(PreparedLeadChange),
+    Qualification {
+        input: LeadChangeInput,
+        currency: String,
+        link: CurrentCrmReviewedAccountLink,
+    },
     Opportunity(PreparedOpportunityChange),
 }
 
 enum Written {
     Lead {
         retained: RetainedCrmLeadChange,
+        notification: RetainedCrmLeadNotification,
+    },
+    Qualification {
+        retained: OwnedCrmQualificationRetention,
+        link: CurrentCrmReviewedAccountLink,
         notification: RetainedCrmLeadNotification,
     },
     Opportunity {
@@ -791,6 +976,7 @@ struct Effects<'a, W> {
     write_clock: &'a W,
     recipient_locks: Option<SalesRecipientSourceLocks>,
     recipient: Option<CurrentSalesRecipient>,
+    pms: Option<CrmPmsReservationWitness>,
     prepared: Option<Prepared>,
     written: Option<Written>,
 }
@@ -834,6 +1020,11 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
     ) -> Result<(), Error> {
         lock_commercial_authority_sources(c).await?;
         let mut preparation = prepare_sales_recipient_sources(c).await?;
+        lock_field_service_customer_sources(preparation.connection()).await?;
+        sqlx::query("LOCK TABLE public.commerce_settings IN SHARE MODE")
+            .execute(&mut *preparation.connection())
+            .await?;
+        lock_crm_pms_reservation_sources(preparation.connection()).await?;
         erpx_server_crm::public::activity_source::lock_crm_activity_sources(
             preparation.connection(),
         )
@@ -860,6 +1051,72 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
             } => {
                 if !native_lead_action(&input.action) {
                     return Err(not_native(&input.action).into());
+                }
+                if input.action == "qualify" {
+                    let mut commands = PgCrmLeadCommands::new(c);
+                    let prepared = commands
+                        .prepare_crm_qualification(&actor, lead_id, input)
+                        .await?;
+                    require_lead_scope(
+                        self.current,
+                        &prepared.record.branch_id,
+                        prepared.record.department_id.as_deref(),
+                    )?;
+                    self.inspect_recipient(
+                        c,
+                        &prepared.record.owner_id,
+                        &prepared.record.branch_id,
+                        prepared.record.department_id.as_deref(),
+                    )
+                    .await?;
+                    let party = prepared.plan.customer_id.as_deref().ok_or_else(|| {
+                        BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Use a customer.")
+                    })?;
+                    let workspace = self.current.selection().workspace();
+                    let link = inspect_crm_reviewed_account_link(
+                        c,
+                        CrmReviewedAccountLinkRequest {
+                            company_id: workspace.company_id.clone(),
+                            branch_id: Some(prepared.record.branch_id.clone()),
+                            department_id: prepared.record.department_id.clone(),
+                            lead_id: lead_id.clone(),
+                            finance_party_id: party.to_owned(),
+                        },
+                    )
+                    .await?;
+                    link.require_current(c).await?;
+                    let customer = read_current_field_service_customer(
+                        c,
+                        &workspace.company_id,
+                        &RecordId::new(party.to_owned())?,
+                    )
+                    .await?
+                    .ok_or_else(customer_changed)?;
+                    if customer.facts().status != "active" {
+                        return Err(customer_changed().into());
+                    }
+                    let currency = commerce_currency(c, workspace.company_id.as_str())
+                        .await?
+                        .ok_or_else(currency_required)?;
+                    let opportunity_id =
+                        format!("opportunity-{}", self.command.key().as_str());
+                    let receipt = LeadChangeReceipt {
+                        id: lead_id.clone(),
+                        version: input.expected_version + 1,
+                        opportunity_id: Some(opportunity_id),
+                    };
+                    let result = CommandJson::from_serializable(&receipt)?;
+                    let version = receipt.version;
+                    self.prepared = Some(Prepared::Qualification {
+                        input: input.clone(),
+                        currency,
+                        link,
+                    });
+                    return Ok(WorkflowOutput {
+                        version,
+                        result,
+                        event_scope: None,
+                    });
                 }
                 let mut commands = PgCrmLeadCommands::new(c);
                 let prepared = commands.prepare_lead_change(&actor, lead_id, input).await?;
@@ -917,7 +1174,10 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                     &prepared.lead.branch_id,
                     prepared.lead.department_id.as_deref(),
                 )?;
-                if matches!(input.action.as_str(), "link-quote" | "negotiate" | "win") {
+                if matches!(
+                    input.action.as_str(),
+                    "link-quote" | "negotiate" | "win" | "win-pms" | "lose"
+                ) {
                     self.inspect_recipient(
                         c,
                         &prepared.lead.owner_id,
@@ -925,6 +1185,8 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                         prepared.lead.department_id.as_deref(),
                     )
                     .await?;
+                }
+                if matches!(input.action.as_str(), "link-quote" | "negotiate" | "win") {
                     let workspace = self.current.selection().workspace();
                     let link = inspect_crm_reviewed_account_link(
                         c,
@@ -1034,14 +1296,33 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                         }
                         _ => {}
                     }
-                } else if input.action == "lose" {
-                    self.inspect_recipient(
+                }
+                if input.action == "win-pms" {
+                    let workspace = self.current.selection().workspace();
+                    let reservation_id =
+                        prepared.plan.reservation_id.as_deref().ok_or_else(|| {
+                            BusinessError::invalid(
+                                "CRM_OPPORTUNITY_INPUT_INVALID",
+                                "Use a reservation.",
+                            )
+                        })?;
+                    let property_id = prepared.plan.property_id.as_deref().ok_or_else(|| {
+                        BusinessError::invalid(
+                            "CRM_OPPORTUNITY_INPUT_INVALID",
+                            "Use a property.",
+                        )
+                    })?;
+                    let witness = inspect_crm_pms_reservation(
                         c,
-                        &prepared.lead.owner_id,
+                        workspace.company_id.as_str(),
                         &prepared.lead.branch_id,
-                        prepared.lead.department_id.as_deref(),
+                        lead_id,
+                        reservation_id,
+                        property_id,
                     )
                     .await?;
+                    prepared.reference_minor = Some(witness.expected_minor);
+                    self.pms = Some(witness);
                 }
                 let receipt = OpportunityChangeReceipt {
                     id: lead_id.clone(),
@@ -1086,7 +1367,41 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                     notification,
                 });
             }
+            Prepared::Qualification {
+                input,
+                currency,
+                link,
+            } => {
+                let command_key = self.command.key().as_str().to_owned();
+                let actor = actor_for(self.current)?;
+                let retained = apply_crm_qualification_retained(
+                    c,
+                    &actor,
+                    self.command.lead_id(),
+                    &command_key,
+                    &input,
+                    &currency,
+                    &link,
+                    now,
+                )
+                .await?;
+                let facts = qualified_lead_notification_facts(retained.facts());
+                let source = LeadNotificationSource { facts };
+                let notification = prepare_crm_lead_notification(c, &source)
+                    .await?
+                    .persist(c)
+                    .await?;
+                let retained = retained.retain_owned();
+                self.written = Some(Written::Qualification {
+                    retained,
+                    link,
+                    notification,
+                });
+            }
             Prepared::Opportunity(prepared) => {
+                if let Some(witness) = self.pms.as_ref() {
+                    witness.require_current(c).await?;
+                }
                 let command_key = self.command.key().as_str().to_owned();
                 let actor = actor_for(self.current)?;
                 let retained = PgCrmLeadCommands::new(c)
@@ -1133,6 +1448,17 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                 };
                 notification.require_current(c, &source).await?;
             }
+            Written::Qualification {
+                retained,
+                link,
+                notification,
+            } => {
+                retained.require_current(c, link).await?;
+                let source = LeadNotificationSource {
+                    facts: qualified_lead_notification_facts(retained.facts()),
+                };
+                notification.require_current(c, &source).await?;
+            }
             Written::Opportunity {
                 retained,
                 notification,
@@ -1173,6 +1499,7 @@ pub async fn execute_crm_command<W: Clock + Sync, G: Clock + Sync, I: Identifier
         write_clock,
         recipient_locks: None,
         recipient: None,
+        pms: None,
         prepared: None,
         written: None,
     };
@@ -1195,6 +1522,11 @@ impl HoldingWorkSourcePreparation for CrmCommandSources {
         Box::pin(async move {
             lock_commercial_authority_sources(c).await?;
             let mut preparation = prepare_sales_recipient_sources(c).await?;
+            lock_field_service_customer_sources(preparation.connection()).await?;
+            sqlx::query("LOCK TABLE public.commerce_settings IN SHARE MODE")
+                .execute(&mut *preparation.connection())
+                .await?;
+            lock_crm_pms_reservation_sources(preparation.connection()).await?;
             erpx_server_crm::public::activity_source::lock_crm_activity_sources(
                 preparation.connection(),
             )

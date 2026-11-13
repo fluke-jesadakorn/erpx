@@ -39,14 +39,31 @@ const integer = (value: unknown, min = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
 
 /** Exactly the owner-complete native slice. Everything else stays retained. */
-export const NATIVE_CRM_LEAD_ACTIONS = new Set(['reassign', 'disqualify', 'reopen']);
+export const NATIVE_CRM_LEAD_ACTIONS = new Set([
+  'reassign',
+  'disqualify',
+  'qualify',
+  'reopen',
+]);
 export const NATIVE_CRM_OPPORTUNITY_ACTIONS = new Set([
   'link-quote',
   'negotiate',
   'lose',
   'reopen',
   'win',
+  'win-pms',
 ]);
+
+/**
+ * Commands whose retained TypeScript writer was deleted. The route must fail
+ * closed when the native transport is absent instead of falling back.
+ */
+export function nativeCrmCommandRequired(input: unknown): boolean {
+  if (!record(input)) return false;
+  if (input.domain === 'opportunity') return input.action === 'win-pms';
+  if (input.domain !== undefined) return false;
+  return input.action === 'qualify';
+}
 
 export function nativeCrmCommandAvailable(): boolean {
   return process.env.ERPX_NATIVE_CRM_COMMAND_CONFIG !== undefined;
@@ -114,6 +131,13 @@ function nativeOperation(input: unknown): NativeOperation | undefined {
         return failure('NATIVE_CRM_COMMAND_REQUEST_INVALID', 422);
       body.lossReason = input.lossReason;
     }
+    if (action === 'win-pms') {
+      body.reservationId = requiredText(
+        input.reservationId,
+        'NATIVE_CRM_COMMAND_REQUEST_INVALID',
+      );
+      body.propertyId = requiredText(input.propertyId, 'NATIVE_CRM_COMMAND_REQUEST_INVALID');
+    }
     return { kind: 'opportunity', action, body };
   }
   if (!NATIVE_CRM_LEAD_ACTIONS.has(action)) return undefined;
@@ -128,6 +152,17 @@ function nativeOperation(input: unknown): NativeOperation | undefined {
     if (typeof dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))
       return failure('NATIVE_CRM_COMMAND_REQUEST_INVALID', 422);
     body.dueDate = dueDate;
+  }
+  if (action === 'qualify') {
+    body.customerId = requiredText(input.customerId, 'NATIVE_CRM_COMMAND_REQUEST_INVALID');
+    const expectedValue = input.expectedValue;
+    if (typeof expectedValue !== 'string' || !/^\d{1,12}(\.\d{1,2})?$/.test(expectedValue))
+      return failure('NATIVE_CRM_COMMAND_REQUEST_INVALID', 422);
+    body.expectedValue = expectedValue;
+    const closeDate = input.closeDate;
+    if (typeof closeDate !== 'string' || !isoDate(closeDate))
+      return failure('NATIVE_CRM_COMMAND_REQUEST_INVALID', 422);
+    body.closeDate = closeDate;
   }
   return { kind: 'lead', action, body };
 }
@@ -177,13 +212,14 @@ async function boundedJson(response: Response): Promise<unknown> {
   }
 }
 
-function receipt(value: unknown, id: string, operation: NativeOperation): Row {
+function receipt(value: unknown, id: string, operation: NativeOperation, key: string): Row {
   if (operation.kind === 'lead') {
+    const opportunityId = operation.action === 'qualify' ? `opportunity-${key}` : null;
     if (
       !exact(value, ['id', 'version', 'opportunityId']) ||
       value.id !== id ||
       !integer(value.version, 1) ||
-      value.opportunityId !== null
+      value.opportunityId !== opportunityId
     )
       return failure('NATIVE_CRM_COMMAND_RESPONSE_INVALID');
     return value;
@@ -195,7 +231,7 @@ function receipt(value: unknown, id: string, operation: NativeOperation): Row {
         ? 'negotiation'
         : operation.action === 'lose'
           ? 'lost'
-          : operation.action === 'win'
+          : operation.action === 'win' || operation.action === 'win-pms'
             ? 'won'
             : 'discovery';
   if (
@@ -213,7 +249,8 @@ function receipt(value: unknown, id: string, operation: NativeOperation): Row {
  * Send one owner-complete native CRM command. Returns `undefined` when the
  * command is not part of the native slice or configuration is absent, so the
  * caller keeps the retained TypeScript path. A configured native failure never
- * falls back.
+ * falls back. Commands whose retained writer was deleted are rejected by the
+ * route through `nativeCrmCommandRequired` instead of falling back.
  */
 export async function nativeCrmCommand(
   actor: WorkContext,
@@ -289,7 +326,7 @@ export async function nativeCrmCommand(
       return failure('NATIVE_CRM_COMMAND_UNAVAILABLE');
     });
     const value = await boundedJson(response);
-    return receipt(value, id, operation);
+    return receipt(value, id, operation, key);
   } finally {
     clearTimeout(timer);
   }

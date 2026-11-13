@@ -37,10 +37,34 @@ pub struct RetainedCrmQualification<'a> {
 }
 impl RetainedCrmQualification<'_> {
     pub fn facts(&self) -> &QualifiedCrmLeadFacts { &self.facts }
+    /// Coordinator-owned copy of the after-image. The reviewed account link is
+    /// retained separately because this owner witness does not grant access.
+    pub fn retain_owned(&self) -> OwnedCrmQualificationRetention {
+        OwnedCrmQualificationRetention { facts: self.facts.clone(), image: self.image.clone() }
+    }
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         self.link.require_current(c).await?;
         let current = qualification_image(c, &self.facts).await?;
         if current.as_deref() != Some(self.image.as_str()) {
+            return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_QUALIFICATION_CHANGED", "The original qualification changed.").into());
+        }
+        Ok(())
+    }
+}
+
+/// Retention form that owns its facts and after-image so a coordinator can
+/// revalidate after `apply_crm_qualification_retained` has returned. The
+/// caller must retain the reviewed account link and revalidate it with this
+/// witness; neither value grants access.
+pub struct OwnedCrmQualificationRetention {
+    facts: QualifiedCrmLeadFacts,
+    image: String,
+}
+impl OwnedCrmQualificationRetention {
+    pub fn facts(&self) -> &QualifiedCrmLeadFacts { &self.facts }
+    pub async fn require_current(&self, c: &mut PgConnection, link: &CurrentCrmReviewedAccountLink) -> Result<(), Error> {
+        link.require_current(c).await?;
+        if qualification_image(c, &self.facts).await?.as_deref() != Some(self.image.as_str()) {
             return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_QUALIFICATION_CHANGED", "The original qualification changed.").into());
         }
         Ok(())
@@ -782,6 +806,14 @@ impl<'a> PgCrmLeadCommands<'a> {
         if !native_lead_action(&input.action) {
             return Err(not_native(&input.action).into());
         }
+        if input.action == "qualify" {
+            return Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "CRM_QUALIFICATION_COMPOSITION_REQUIRED",
+                "Qualification requires its complete transactional composition.",
+            )
+            .into());
+        }
         let plan = crate::domain::leads_native::validate_lead_change(actor, input)?;
         let record = self
             .lead(&actor.company_id, lead_id)
@@ -1075,6 +1107,26 @@ impl<'a> PgCrmLeadCommands<'a> {
                     "UPDATE crm_opportunities SET sales_id=$1,win_source='sales',won_at=$2,expected_minor=$3,stage='won',version=version+1,updated_at=$2 WHERE id=$4 AND version=$5 AND stage IN ('discovery','proposal','negotiation') AND quote_id IS NOT NULL",
                 )
                 .bind(plan.sales_id.as_deref())
+                .bind(now)
+                .bind(amount)
+                .bind(&opportunity.id)
+                .bind(plan.expected_version)
+                .execute(&mut *self.connection)
+                .await?
+                .rows_affected()
+            }
+            "win-pms" => {
+                let amount = reference_minor.ok_or_else(|| {
+                    BusinessError::new(
+                        erpx_server_shared::public::FailureKind::Conflict,
+                        "CRM_SOURCE_CHANGED",
+                        "The confirmed reservation changed.",
+                    )
+                })?;
+                sqlx::query(
+                    "UPDATE crm_opportunities SET reservation_id=$1,win_source='pms',won_at=$2,expected_minor=$3,stage='won',version=version+1,updated_at=$2 WHERE id=$4 AND version=$5 AND stage IN ('discovery','proposal','negotiation')",
+                )
+                .bind(plan.reservation_id.as_deref())
                 .bind(now)
                 .bind(amount)
                 .bind(&opportunity.id)

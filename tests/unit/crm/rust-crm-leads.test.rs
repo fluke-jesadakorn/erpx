@@ -191,19 +191,24 @@ fn native_action_slice_fails_closed_for_cross_owner_work() {
         NATIVE_LEAD_ACTIONS, NATIVE_OPPORTUNITY_ACTIONS, native_lead_action,
         native_opportunity_action,
     };
-    assert_eq!(NATIVE_LEAD_ACTIONS, ["reassign", "disqualify", "reopen"]);
+    assert_eq!(
+        NATIVE_LEAD_ACTIONS,
+        ["reassign", "disqualify", "qualify", "reopen"]
+    );
     assert_eq!(
         NATIVE_OPPORTUNITY_ACTIONS,
-        ["link-quote", "negotiate", "lose", "reopen", "win"]
+        ["link-quote", "negotiate", "lose", "reopen", "win", "win-pms"]
     );
-    for action in ["create", "qualify", "win-pms"] {
+    for action in ["create", "unknown"] {
         assert!(!native_lead_action(action), "{action}");
         assert!(!native_opportunity_action(action), "{action}");
     }
     assert!(native_lead_action("reassign"));
+    assert!(native_lead_action("qualify"));
     assert!(native_opportunity_action("lose"));
     assert!(native_opportunity_action("link-quote"));
     assert!(native_opportunity_action("win"));
+    assert!(native_opportunity_action("win-pms"));
 }
 
 #[test]
