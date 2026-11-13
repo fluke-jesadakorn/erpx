@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1493,
+    "revision": 1494,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -14213,8 +14213,8 @@
           "generation": 51
         },
         "baseSha": "0517689d6ee4b7217e1646de7789ecc0285acf54",
-        "implementedCommit": "172e78ab461014a55f8a35305a25f8b7e47e6b52",
-        "lastPushedSha": "172e78ab461014a55f8a35305a25f8b7e47e6b52",
+        "implementedCommit": "599374bcb109d3c12d5b326ab56ef0e8537dc286",
+        "lastPushedSha": "599374bcb109d3c12d5b326ab56ef0e8537dc286",
         "checks": [
           {
             "command": "cargo check -p erpx-server-pms",
@@ -14486,11 +14486,17 @@
             "before": 114,
             "after": 114,
             "note": "No KPI delta yet: the guest-account operations run through the monolithic pmsCommand engine and its shared PMS repository writers, not an isolated guest-account writer. Deleting them requires splitting the engine (loadGuestCommand/loadCashierCommand plus the shared record/property writers) so other PMS commands keep their writers. The native route authority is in place; the engine split is the remaining removal condition."
+          },
+          {
+            "command": "route authority: PMS guest-account payload parity audit",
+            "result": "blocked",
+            "sourceSha": "599374bcb109d3c12d5b326ab56ef0e8537dc286",
+            "note": "The old PMS client sends {operation, propertyId, expectedVersion, input} and uses guest.save/charge.add/cashier operations. The native pms_guest_account_router expects flat operation-specific bodies and guest_account.create/update (guest.save is a guest contact, not a guest account). Wiring the routes directly would regress charge.add and mis-handle guest.save, so the route switch was reverted; the tested native client/helper remains as the building block. Need an explicit payload/operation adapter before switching routes."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Native guest-account command client + both workplace route branches are implemented (six operations fail closed without ERPX_NATIVE_PMS_CONFIG; transport 12/12). Remaining retirement: split the monolithic pmsCommand engine so the guest-account create/update/charge/adjustment/transfer branches and their loadGuestCommand/loadCashierCommand paths can be deleted without removing shared PMS writers; then record the PMS KPI pair. Do not mark migrated until that split lands.",
+        "nextAction": "Native guest-account client/helper is implemented and transport-tested (12/12), but route wiring was reverted: the old UI sends {operation,propertyId,expectedVersion,input} and guest.save/charge.add, while the native router expects flat guest_account.create/update/charge/adjustment/transfer bodies; guest.save is a guest contact, not a guest account. Next: write an explicit operation/payload adapter mapping the six native commands to the old cashier/stay inputs (or switch the UI client to the native shapes), then re-wire both routes, delete the TS engine branches/writers and record the PMS KPI pair.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "lead",
@@ -32201,7 +32207,7 @@
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:04:06.743Z",
+    "updatedAt": "2026-11-13T03:07:10.261Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
