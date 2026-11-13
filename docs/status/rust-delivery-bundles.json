@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1669,
+    "revision": 1676,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-j",
       "agentId": "lead",
       "startedAt": "2026-11-13T08:01:06.178Z",
-      "heartbeatAt": "2026-11-13T08:39:05.812Z",
-      "expiresAt": "2026-11-13T09:09:05.812Z",
+      "heartbeatAt": "2026-11-13T08:42:41.660Z",
+      "expiresAt": "2026-11-13T09:12:41.660Z",
       "generation": 54,
       "tokenHash": "ce5fa52d8a7699eb63bf471e2e0f5260b9740763f65f28788a2783dbb4bae986"
     },
@@ -34223,6 +34223,103 @@
           "nextAction": "Native supplier batch/instruction producer and native-first route are committed. Lead: mount the composition transaction (PurchaseCommandBoundary, source locks, SERIALIZABLE, Files evidence, Collaboration notifications) and extend the retirement claim to the procurement consumers, then delete the 17 finance writers + barrel and record Finance after < 370 (expected ~353)."
         },
         "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "retire.finance.supplier-batches",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Retire the TS supplier-payment writer and its procurement consumers",
+        "scope": "The native supplier-batch command and native-first finance route are mounted. Remove the TS fallback and the procurement supplier-payments application/adapter/public consumers, migrate the procurement oracle to native seeding, delete the 17 supplier-payment-repository writers and barrel, and record the Finance KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/server-finance/package.json",
+          "packages/feature-finance/**",
+          "packages/server-procurement/src/**",
+          "packages/feature-procurement/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/supplier-batches/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:finance",
+          "owner:procurement"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "nextAction": "Audit the server-procurement supplier-payments application/adapter/public and the feature-procurement batch commands; remove the TS fallback, switch any remaining consumers to the native supplier-batch route, migrate tests/integration/procurement/supplier-payments.test.ts to native seeding, then delete the 17 finance writers and the public barrel and record Finance 370 -> ~353.",
+        "handoff": {
+          "runId": "run-20261113-j",
+          "agentId": "lead",
+          "at": "2026-11-13T08:42:13.393Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Audit the server-procurement supplier-payments application/adapter/public and the feature-procurement batch commands; remove the TS fallback, switch any remaining consumers to the native supplier-batch route, migrate tests/integration/procurement/supplier-payments.test.ts to native seeding, then delete the 17 finance writers and the public barrel and record Finance 370 -> ~353."
+        },
+        "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "integrate.finance.supplier-batches",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Mount the native supplier-batch command in composition",
+        "scope": "Mount the native supplier batch/instruction command in the private development API: build the command actor from the authorized work context, run one SERIALIZABLE holding transaction with PurchaseCommandBoundary, lock the batch sources, call create/decide/export/record_result/confirm, supply the Files evidence and Collaboration notification ports, and register the batch/instruction routes. Then the finance retirement task can delete the TS writers.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-finance/src/**",
+          "packages/feature-finance/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "packages/server-procurement/src/**",
+          "packages/feature-procurement/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:finance",
+          "owner:procurement",
+          "resource:composition"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261113-j",
+          "agentId": "integrator-finance",
+          "claimedAt": "2026-11-13T08:42:13.430Z",
+          "heartbeatAt": "2026-11-13T08:42:41.660Z",
+          "expiresAt": "2026-11-13T09:12:41.660Z",
+          "generation": 54
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the composition mount per the worker contract in the finance supplier-batch task: actor from AuthorizedWorkContext, SERIALIZABLE holding transaction, PurchaseCommandBoundary begin/complete, lock_supplier_batch_sources, create/decide/export/record_result/confirm_supplier_instruction, source_only and can_approve facts, PgSupplierInstructionEvidence and PgSupplierBatchNotifications, and the POST/GET routes. Run cargo check -p erpx-service with private-development-api and the supplier-batch finance tests. Report the exact mount and evidence to the lead.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -34231,21 +34328,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 171,
+      "totalPackets": 173,
       "migratedPackets": 96,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 16,
         "integrating": 0,
         "migrated": 96,
-        "blocked": 39,
+        "blocked": 40,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 54,
-    "updatedAt": "2026-11-13T08:39:05.813Z",
+    "updatedAt": "2026-11-13T08:42:41.660Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
