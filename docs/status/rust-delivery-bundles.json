@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1568,
+    "revision": 1570,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-h",
+      "runId": "run-20261113-i",
       "agentId": "lead",
-      "startedAt": "2026-11-13T04:59:05.381Z",
-      "heartbeatAt": "2026-11-13T04:59:05.381Z",
-      "expiresAt": "2026-11-13T05:29:05.382Z",
-      "generation": 52,
-      "tokenHash": "5a22684da9795692e438b0692e77d18384cce7e665d1fdb1f49f17cd5db248ee"
+      "startedAt": "2026-11-13T05:09:02.764Z",
+      "heartbeatAt": "2026-11-13T05:09:15.854Z",
+      "expiresAt": "2026-11-13T05:39:15.854Z",
+      "generation": 53,
+      "tokenHash": "8f529dba81c87305400c5877871eb29cb5017ba0dbe4229faf8798e2157aeb91"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -33047,8 +33047,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 52,
-    "updatedAt": "2026-11-13T04:59:05.488Z",
+    "lastCoordinatorGeneration": 53,
+    "updatedAt": "2026-11-13T05:09:15.855Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -33091,10 +33091,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-g",
-      "runId": "run-20261113-h",
-      "at": "2026-11-13T04:59:05.382Z",
-      "reason": "Lease expired after the CRM qualify/win-pms push; WIP reviewed and claims re-established",
+      "previousRunId": "run-20261113-h",
+      "runId": "run-20261113-i",
+      "at": "2026-11-13T05:09:02.765Z",
+      "reason": "Previous run-20261113-h process stopped by operator; no active claims; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     }
