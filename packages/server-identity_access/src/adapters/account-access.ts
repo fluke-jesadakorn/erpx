@@ -1,5 +1,4 @@
 import {stageInvitationPersonLinks} from "@erpx/server-people_payroll/public/identity-person-link-effects";
-import { directInvitationEligible, activateDirectInvitation } from "@erpx/server-identity_access/public/people-access";
 import { iamThrottle } from "@erpx/server-identity_access/public/iam-throttle";
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
@@ -61,7 +60,7 @@ function service() {
             return await env.CONTROL_DB.prepare("SELECT * FROM account_invitations WHERE token_hash=? AND (status='pending' OR (status='accepted' AND accepted_at IS NULL)) AND expires_at>?")
                 .bind(tokenHash, now)
                 .first<Invitation>();
-        }, reviewed: async (row) => { write = (await holdingResources(row.holding_id)).write; if (JSON.parse(row.role).direct === true) return await write.prepare("SELECT id FROM iam_access_invitations WHERE id=? AND company_id=? AND state IN ('authorized','accepted')").bind(row.id,row.company_id).first(); return await write.prepare("SELECT id FROM iam_reviews WHERE company_id=? AND kind='invitation.authorize' AND status='approved' AND payload->>'invitationId'=?").bind(row.company_id, row.id).first(); }, prepareActivation: async (row) => { guard = await organizationGuard(write, row.company_id, `activate-${row.id}`); }, eligible: async (row, userId, now) => JSON.parse(row.role).direct === true ? directInvitationEligible(write, row, userId, now) : await write
+        }, reviewed: async (row) => { write = (await holdingResources(row.holding_id)).write; if (JSON.parse(row.role).direct === true) return await write.prepare("SELECT id FROM iam_access_invitations WHERE id=? AND company_id=? AND state IN ('authorized','accepted')").bind(row.id,row.company_id).first(); return await write.prepare("SELECT id FROM iam_reviews WHERE company_id=? AND kind='invitation.authorize' AND status='approved' AND payload->>'invitationId'=?").bind(row.company_id, row.id).first(); }, prepareActivation: async (row) => { guard = await organizationGuard(write, row.company_id, `activate-${row.id}`); }, eligible: async (row, userId, now) => JSON.parse(row.role).direct === true ? (() => { throw new ApiError(503, "NATIVE_ACCOUNT_INVITATION_ACCEPTANCE_REQUIRED", "Direct People access invitations are accepted by the native Account route."); })() : await write
             .prepare(`SELECT a.role ${peoplepayrollSources.account_access_hr_people_p_from} JOIN assignments a ON a.id=? AND a.company_id=p.company_id WHERE p.id=? AND p.company_id=? AND p.status='active' AND EXISTS(SELECT 1 ${peoplepayrollSources.account_access_hr_engagements_e_from} WHERE e.person_id=p.id AND e.company_id=p.company_id AND e.status='active' AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)) AND (p.user_id IS NULL OR p.user_id=?) AND a.user_id=? AND iam_role_allows(a.role,a.company_id,'iam.manage') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND ? IN ('branch','department') AND a.scope_node_id=?) OR (a.scope_kind='department' AND ?='department' AND a.scope_node_id=?)) AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>?`)
             .bind(row.assignment_id, row.person_id, row.company_id, row.branch_id, row.branch_id, row.department_id, row.department_id, userId, row.created_by, row.scope_kind, row.branch_id, row.scope_kind, row.department_id, now, now)
             .first<{
@@ -83,7 +82,7 @@ function service() {
                 env.CONTROL_DB.prepare("UPDATE account_invitations SET status='accepted',accepted_user_id=? WHERE id=? AND status='pending'").bind(userId, row.id),
             ]);
         }, activate: async (row, reviewId, userId, now, grant, role) => {
-            if (JSON.parse(row.role).direct === true) return activateDirectInvitation(write as PostgresDatabase, row, userId, now);
+            if (JSON.parse(row.role).direct === true) throw new ApiError(503, "NATIVE_ACCOUNT_INVITATION_ACCEPTANCE_REQUIRED", "Direct People access invitations are accepted by the native Account route.");
             const actor = { userId: row.created_by, assignmentId: row.assignment_id, role, companyId: row.company_id, branchId: row.branch_id, departmentId: row.department_id };
             await executeCommand(write, actor, `activate-${row.id}`, "identity.account.activate", { invitationId: row.id }, row.person_id, 1, { userId }, [guard,
                 assertion(write, `activate-${row.id}`, "reviewed-invitation", "EXISTS(SELECT 1 FROM iam_reviews review JOIN iam_roles r ON r.id=review.payload->>'roleId' AND r.company_id IN ('*',review.company_id) WHERE review.id=? AND review.company_id=? AND review.status='approved' AND r.published_revision=(review.payload->>'expectedRoleRevision')::integer)", [reviewId, row.company_id]),
@@ -106,4 +105,3 @@ export const invitePerson = (actor: WorkContext, personId: string, input: Person
 export const retryInvitationDelivery = (actor: WorkContext, personId: string, invitationId: string, key: string) => service().retryInvitationDelivery(actor, personId, invitationId, key);
 export const revokeInvitation = (actor: WorkContext, personId: string, invitationId: string, key: string) => service().revokeInvitation(actor, personId, invitationId, key);
 export const inspectInvitation = (token: string) => service().inspectInvitation(token);
-export const acceptInvitation = (input: InvitationAcceptance) => service().acceptInvitation(input);

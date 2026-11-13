@@ -137,3 +137,287 @@ async fn retained_control_proof_blocks_revocation_and_expiry_rolls_back_the_whol
         sqlx::query("SELECT pg_advisory_unlock(927341,23)").execute(&mut *blocker).await.unwrap();assert!(task.await.unwrap().is_err());writer.await.unwrap();assert!(observed&&pending,"retained Control source proof must survive inner Holding writes");assert_eq!(grant_effects(&holding).await,(0,0,0));assert_eq!(sqlx::query_scalar::<_,Option<String>>("SELECT user_id FROM hr_people WHERE id='person'").fetch_one(holding.raw()).await.unwrap(),None);assert_eq!(sqlx::query_scalar::<_,Option<i64>>("SELECT accepted_at FROM account_invitations WHERE id='invitation'").fetch_one(control.raw()).await.unwrap(),None);
     }).await}).await;
 }
+
+/// Replace the reviewed staff invitation with a directly authorized People
+/// access invitation for the same Control row and token. Returns the scenario
+/// and the shared bearer proof.
+async fn direct_setup(
+    control: &DatabasePool,
+    holding: &DatabasePool,
+    existing_user: Option<&str>,
+) -> (fixture::credentials::Scenario, OpaqueSecret) {
+    let (scenario, token) = fixture::setup(control, holding).await;
+    // The authorizing role must allow the reviewed People access command.
+    sqlx::raw_sql(
+        "INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,\
+         grantable_json,scopes_json,created_by,created_at) \
+         SELECT 'company','native_inviter',2,'[\"iam.manage\",\"iam.access.apply\"]'::jsonb,\
+         v.grantable_json,v.scopes_json,'fixture',0 FROM iam_role_revisions v \
+         WHERE v.company_id='company' AND v.role_id='native_inviter' AND v.revision=1;\
+         UPDATE iam_roles SET published_revision=2 \
+         WHERE company_id='company' AND id='native_inviter';",
+    )
+    .execute(holding.raw())
+    .await
+    .unwrap();
+    let now = fixture::credentials::account::NOW;
+    let user = existing_user
+        .map(str::to_owned)
+        .unwrap_or_else(|| "usr_invite_invitation".into());
+    sqlx::raw_sql(
+        "INSERT INTO iam_access_subjects(id,company_id,kind,name,email,user_id,sponsor_person_id,\
+         expires_at,status,version) \
+         VALUES('subject-direct','company','external','Direct Visitor','invited@example.test',\
+         'usr_invite_invitation','person',1800003600000,'invited',1);\
+         INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,\
+         valid_until,version,scope_kind,scope_node_id,parent_id,source) \
+         VALUES('assignment-direct','usr_invite_invitation','finance_preparer','[]','company',\
+         'branch',0,1800003600000,1,'department','department','parent','manual');",
+    )
+    .execute(holding.raw())
+    .await
+    .unwrap();
+    if let Some(existing) = existing_user {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "UPDATE iam_access_subjects SET user_id='{existing}' \
+             WHERE id='subject-direct'; UPDATE assignments SET user_id='{existing}' \
+             WHERE id='assignment-direct';"
+        )))
+        .execute(holding.raw())
+        .await
+        .unwrap();
+    }
+    let revision: i64 = sqlx::query_scalar(
+        "SELECT published_revision::bigint FROM iam_roles \
+         WHERE company_id='*' AND id='finance_preparer'",
+    )
+    .fetch_one(holding.raw())
+    .await
+    .unwrap();
+    let definition = serde_json::json!({
+        "userId": user,
+        "roleId": "finance_preparer",
+        "expectedRoleRevision": revision,
+        "scopeKind": "department",
+        "scopeNodeId": "department",
+        "validUntil": now + 3_600_000,
+        "reason": "Direct relationship access",
+        "assignmentId": "assignment-direct",
+        "existingUserId": existing_user,
+        "email": "invited@example.test",
+        "name": "Direct Visitor",
+    });
+    sqlx::query(
+        "INSERT INTO iam_access_invitations(id,company_id,subject_id,definition,author_id,\
+         parent_id,role_revision) \
+         VALUES('invitation','company','subject-direct',$1::jsonb,'fixture-a','parent',$2)",
+    )
+    .bind(definition.to_string())
+    .bind(revision)
+    .execute(holding.raw())
+    .await
+    .unwrap();
+    let payload = serde_json::json!({
+        "role": "finance_preparer",
+        "expires": now + 3_600_000,
+        "direct": true,
+        "existingUserId": existing_user,
+    });
+    sqlx::query(
+        "UPDATE account_invitations SET person_id='subject-direct',name='Direct Visitor',\
+         role=$1,status='pending',accepted_user_id=NULL,accepted_at=NULL \
+         WHERE id='invitation'",
+    )
+    .bind(payload.to_string())
+    .execute(control.raw())
+    .await
+    .unwrap();
+    (scenario, token)
+}
+
+async fn direct_effects(holding: &DatabasePool) -> (i64, i64, i64, i64) {
+    sqlx::query_as(
+        "SELECT (SELECT count(*) FROM assignments WHERE parent_id='parent'),\
+         (SELECT count(*) FROM iam_audit WHERE action='invitation.accept'),\
+         (SELECT count(*) FROM command_receipts WHERE operation='identity.account.activate'),\
+         (SELECT count(*) FROM hr_people WHERE user_id IS NOT NULL)",
+    )
+    .fetch_one(holding.raw())
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn direct_invitation_activates_the_relationship_without_a_person_link_or_assignment() {
+    database::with_database(1,|control|async move {database::with_database(1,|holding|async move {
+        let (scenario,token)=direct_setup(&control,&holding,None).await;
+        let invitations=invitations(&control,&holding,&scenario);
+        assert_eq!(direct_effects(&holding).await,(1,0,0,0));
+        invitations.accept(token.expose().into(),fixture::credentials::PASSWORD.into()).await.unwrap();
+        assert_eq!(direct_effects(&holding).await,(1,1,1,0));
+        let subject:(String,String)=sqlx::query_as("SELECT status,user_id FROM iam_access_subjects WHERE id='subject-direct'").fetch_one(holding.raw()).await.unwrap();
+        assert_eq!(subject,("active".into(),"usr_invite_invitation".into()));
+        let state:String=sqlx::query_scalar("SELECT state FROM iam_access_invitations WHERE id='invitation'").fetch_one(holding.raw()).await.unwrap();
+        assert_eq!(state,"accepted");
+        assert_eq!(sqlx::query_scalar::<_,Option<i64>>("SELECT accepted_at FROM account_invitations WHERE id='invitation'").fetch_one(control.raw()).await.unwrap().is_some(),true);
+        assert_eq!(sqlx::query_scalar::<_,Option<String>>("SELECT accepted_user_id FROM account_invitations WHERE id='invitation'").fetch_one(control.raw()).await.unwrap(),Some("usr_invite_invitation".into()));
+        // Replay is refused and never duplicates effects.
+        assert!(invitations.accept(token.expose().into(),fixture::credentials::PASSWORD.into()).await.is_err());
+        assert_eq!(direct_effects(&holding).await,(1,1,1,0));
+    }).await}).await;
+}
+
+#[tokio::test]
+async fn direct_invitation_reusing_an_existing_account_verifies_its_password_and_links_the_invitation() {
+    database::with_database(1,|control|async move {database::with_database(1,|holding|async move {
+        let (scenario,token)=direct_setup(&control,&holding,None).await;
+        let invitations=invitations(&control,&holding,&scenario);
+        invitations.accept(token.expose().into(),fixture::credentials::PASSWORD.into()).await.unwrap();
+        // A second direct invitation reuses the now-verified account instead of
+        // creating another one. It keeps its own invitation identity so the
+        // accepted receipt of the first one cannot replay.
+        let second = SystemAuthenticationSecrets.issue().unwrap();
+        let second_digest = SystemAuthenticationSecrets
+            .digest(SecretPurpose::Invitation, &second)
+            .as_str()
+            .to_owned();
+        sqlx::raw_sql(
+            "UPDATE iam_access_subjects SET status='invited',version=version+1 \
+             WHERE id='subject-direct';\
+             INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,\
+             valid_until,version,scope_kind,scope_node_id,parent_id,source) \
+             VALUES('assignment-existing','usr_invite_invitation','finance_preparer','[]',\
+             'company','branch',0,1800003600000,1,'department','department','parent','manual');",
+        )
+        .execute(holding.raw())
+        .await
+        .unwrap();
+        let now = fixture::credentials::account::NOW;
+        let revision: i64 = sqlx::query_scalar(
+            "SELECT published_revision::bigint FROM iam_roles \
+             WHERE company_id='*' AND id='finance_preparer'",
+        )
+        .fetch_one(holding.raw())
+        .await
+        .unwrap();
+        let definition = serde_json::json!({
+            "userId": "usr_invite_invitation",
+            "roleId": "finance_preparer",
+            "expectedRoleRevision": revision,
+            "scopeKind": "department",
+            "scopeNodeId": "department",
+            "validUntil": now + 3_600_000,
+            "reason": "Existing account direct access",
+            "assignmentId": "assignment-existing",
+            "existingUserId": "usr_invite_invitation",
+            "email": "invited@example.test",
+            "name": "Direct Visitor",
+        });
+        sqlx::query(
+            "INSERT INTO iam_access_invitations(id,company_id,subject_id,definition,author_id,\
+             parent_id,role_revision) \
+             VALUES('invitation-2','company','subject-direct',$1::jsonb,'fixture-a','parent',$2)",
+        )
+        .bind(definition.to_string())
+        .bind(revision)
+        .execute(holding.raw())
+        .await
+        .unwrap();
+        let direct = serde_json::json!({
+            "role": "finance_preparer",
+            "expires": now + 3_600_000,
+            "direct": true,
+            "existingUserId": "usr_invite_invitation",
+        });
+        sqlx::query(
+            "INSERT INTO account_invitations(id,token_hash,holding_id,company_id,person_id,email,\
+             name,role,scope_kind,branch_id,department_id,created_by,assignment_id,expires_at,\
+             created_at) VALUES('invitation-2',$1,'h001','company','subject-direct',\
+             'invited@example.test','Direct Visitor',$2,'department','branch','department',\
+             'fixture-a','parent',$3,$4)",
+        )
+        .bind(&second_digest)
+        .bind(direct.to_string())
+        .bind(now + 3_600_000)
+        .bind(now)
+        .execute(control.raw())
+        .await
+        .unwrap();
+        let token = second;
+        let users_before: i64 = sqlx::query_scalar("SELECT count(*) FROM \"user\"")
+            .fetch_one(control.raw())
+            .await
+            .unwrap();
+        // Wrong password never activates an existing verified account.
+        let wrong = invitations
+            .accept(token.expose().into(), "wrong-synthetic-password".into())
+            .await;
+        assert!(matches!(wrong, Err(error) if error.code == "ACTIVATION_RETRY_PASSWORD"));
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT status FROM iam_access_subjects \
+             WHERE id='subject-direct'")
+                .fetch_one(holding.raw())
+                .await
+                .unwrap(),
+            "invited"
+        );
+        invitations.accept(token.expose().into(), fixture::credentials::PASSWORD.into()).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM \"user\"")
+                .fetch_one(control.raw())
+                .await
+                .unwrap(),
+            users_before,
+            "an existing account is reused, never duplicated"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, Option<String>>(
+                "SELECT accepted_user_id FROM account_invitations WHERE id='invitation-2'"
+            )
+            .fetch_one(control.raw())
+            .await
+            .unwrap(),
+            Some("usr_invite_invitation".into())
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT state FROM iam_access_invitations \
+             WHERE id='invitation-2'")
+                .fetch_one(holding.raw())
+                .await
+                .unwrap(),
+            "accepted"
+        );
+        assert_eq!(direct_effects(&holding).await.1, 2, "one audit per activation");
+    }).await}).await;
+}
+
+#[tokio::test]
+async fn direct_invitation_rejects_a_revoked_or_out_of_scope_relationship() {
+    database::with_database(1,|control|async move {database::with_database(1,|holding|async move {
+        let (scenario,token)=direct_setup(&control,&holding,None).await;
+        let invitations=invitations(&control,&holding,&scenario);
+        sqlx::query("UPDATE assignments SET revoked_at=1,version=version+1 \
+         WHERE id='assignment-direct'")
+            .execute(holding.raw())
+            .await
+            .unwrap();
+        assert!(invitations.accept(token.expose().into(), fixture::credentials::PASSWORD.into()).await.is_err());
+        assert_eq!(direct_effects(&holding).await,(1,0,0,0));
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT status FROM iam_access_subjects \
+             WHERE id='subject-direct'")
+                .fetch_one(holding.raw())
+                .await
+                .unwrap(),
+            "invited"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT state FROM iam_access_invitations \
+             WHERE id='invitation'")
+                .fetch_one(holding.raw())
+                .await
+                .unwrap(),
+            "authorized"
+        );
+    }).await}).await;
+}

@@ -17,6 +17,8 @@ pub struct InvitationAccountState {
     pub name: String,
     pub email: String,
     pub credential: Option<CredentialSnapshot>,
+    /// A direct invitation may reuse one verified existing account.
+    pub existing_account: bool,
 }
 pub trait AccountInvitationRepository: Send + Sync {
     fn current(&self, digest: SecretDigest, now: i64) -> AccountFuture<'_, InvitationAccountState>;

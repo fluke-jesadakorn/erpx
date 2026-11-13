@@ -62,7 +62,7 @@ async fn inspect(State(state): State<InvitationHttpState>, request: Request) -> 
                 data: AccountInvitationInfo {
                     name: state.name,
                     email: state.email,
-                    existing_account: false,
+                    existing_account: state.existing_account,
                 },
             })
             .into_response(),

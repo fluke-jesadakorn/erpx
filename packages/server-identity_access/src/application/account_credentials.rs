@@ -106,6 +106,10 @@ pub struct InvitationCredentialQuery {
     pub branch_id: Option<String>,
     pub department_id: Option<String>,
     pub created_by: String,
+    /// Direct People access invitations activate an existing relationship
+    /// instead of linking a Person and creating an assignment.
+    pub direct: bool,
+    pub target_user_id: String,
     pub assignment_id: String,
     pub expires_at: i64,
     pub created_at: i64,

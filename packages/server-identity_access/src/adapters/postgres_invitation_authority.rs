@@ -21,7 +21,8 @@ use crate::{
         },
         effective_authority::IamAuthorityQuery,
         invitation_authority::{
-            ReviewedInvitationGrant, StaffInvitationGrant, invitation_scope_covers,
+            InvitationGrant, ReviewedInvitationGrant, StaffInvitationGrant,
+            invitation_scope_covers,
         },
     },
 };
@@ -78,6 +79,9 @@ pub(crate) async fn inspect_current(
         || request.expires_at <= now
     {
         return Err(reject().into());
+    }
+    if request.direct {
+        return inspect_direct_current(connection, request, now).await;
     }
     let grant = StaffInvitationGrant::parse(&request.role_payload)?;
     if !work_module_catalog()?
@@ -249,6 +253,124 @@ pub(crate) async fn inspect_current(
         ) && grant.expires <= parent.try_get::<i64, _>("valid_until")?,
         grant_expires_at: grant.expires,
         directory_only: target_identity,
+        existing_user: false,
+    };
+    validate_invitation_credential(&facts)?;
+    Ok(facts)
+}
+/// Direct People access invitations recheck the committed relationship and its
+/// authorizing assignment instead of a reviewed Person link. This single
+/// eligibility query is the decision: it proves the subject link, the
+/// authorizing assignment, the target assignment, the published role revision
+/// and the delegated permission ceiling at acceptance time.
+async fn inspect_direct_current(
+    connection: &mut PgConnection,
+    request: &InvitationCredentialQuery,
+    now: i64,
+) -> Result<InvitationCredentialFacts, PgTransactionError<BusinessError>> {
+    let reject = signup_unavailable;
+    if !request.authorizer_control_active
+        || !request.holding_binding_active
+        || request.created_at > now
+        || request.now > now
+        || request.expires_at <= now
+    {
+        return Err(reject().into());
+    }
+    let grant = InvitationGrant::parse(&request.role_payload)?;
+    let Some(direct) = grant.direct().cloned() else {
+        return Err(reject().into());
+    };
+    if direct.expires <= now {
+        return Err(reject().into());
+    }
+    let company = CompanyId::new(request.company_id.clone())?;
+    let holding = HoldingId::new(request.holding_id.clone())?;
+    let branch = request.branch_id.clone().map(RecordId::new).transpose()?;
+    let department = request
+        .department_id
+        .clone()
+        .map(RecordId::new)
+        .transpose()?;
+    let scope_node = match request.scope_kind.as_str() {
+        "holding" if branch.is_none() && department.is_none() => None,
+        "branch" if branch.is_some() && department.is_none() => request.branch_id.as_deref(),
+        "department" if department.is_some() => request.department_id.as_deref(),
+        _ => return Err(reject().into()),
+    };
+    PgOrganizationReader::new(holding, &mut *connection)
+        .scope_context(&company, branch.as_ref(), department.as_ref())
+        .await?;
+    let target = grant.target_user(&request.invitation_id);
+    if target != request.target_user_id {
+        return Err(reject().into());
+    }
+    let eligible: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM iam_access_invitations i \
+         JOIN iam_access_subjects s ON s.company_id=i.company_id AND s.id=i.subject_id \
+         JOIN assignments a ON a.id=i.parent_id AND a.company_id=i.company_id \
+         JOIN assignments target ON target.id=i.definition->>'assignmentId' \
+          AND target.company_id=i.company_id AND target.user_id=$3 \
+         JOIN iam_roles r ON r.id=i.definition->>'roleId' AND r.company_id IN ('*',i.company_id) \
+         JOIN iam_role_revisions target_policy ON target_policy.company_id=r.company_id \
+          AND target_policy.role_id=r.id AND target_policy.revision=r.published_revision \
+         JOIN iam_roles author_role ON author_role.id=a.role \
+          AND author_role.company_id IN ('*',i.company_id) \
+         JOIN iam_role_revisions author_policy ON author_policy.company_id=author_role.company_id \
+          AND author_policy.role_id=author_role.id \
+          AND author_policy.revision=author_role.published_revision \
+         WHERE i.id=$1 AND i.company_id=$2 AND i.state IN ('authorized','accepted') \
+          AND s.user_id=$3 AND s.status!='suspended' \
+          AND (s.expires_at IS NULL OR s.expires_at>$4) \
+          AND a.user_id=i.author_id AND iam_assignment_active(a.id,$4) \
+          AND iam_role_allows(a.role,a.company_id,'iam.access.apply') \
+          AND NOT iam_same_person(target.user_id,a.user_id,i.company_id) \
+          AND (target_policy.permissions_json||target_policy.grantable_json) \
+              <@author_policy.grantable_json \
+          AND target.revoked_at IS NULL AND target.valid_until>$5 \
+          AND r.published_revision=i.role_revision AND r.id=$6 \
+          AND target.scope_kind=$7 AND target.scope_node_id IS NOT DISTINCT FROM $8 \
+          AND (s.kind<>'internal' OR s.person_id IS NULL OR EXISTS(SELECT 1 FROM hr_people p \
+            WHERE p.company_id=i.company_id AND p.id=s.person_id AND p.merged_into_id IS NULL \
+             AND p.status='active' AND (p.user_id IS NULL OR p.user_id=$3))) \
+          AND (s.kind<>'external' OR EXISTS(SELECT 1 FROM hr_people p \
+            JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id \
+            WHERE p.company_id=i.company_id AND p.id=s.sponsor_person_id \
+             AND p.merged_into_id IS NULL AND p.status='active' \
+             AND e.worker_type='employee' AND e.status='active')))",
+    )
+    .bind(&request.invitation_id)
+    .bind(&request.company_id)
+    .bind(&target)
+    .bind(now)
+    .bind(now)
+    .bind(&direct.role)
+    .bind(&request.scope_kind)
+    .bind(scope_node)
+    .fetch_one(&mut *connection)
+    .await?;
+    if !eligible {
+        return Err(reject().into());
+    }
+    let facts = InvitationCredentialFacts {
+        invitation_id: request.invitation_id.clone(),
+        holding_id: request.holding_id.clone(),
+        company_id: request.company_id.clone(),
+        person_id: request.person_id.clone(),
+        email: request.email.clone(),
+        expected_email: request.email.clone(),
+        now,
+        expires_at: request.expires_at,
+        pending: true,
+        independently_reviewed: true,
+        published_role_current: true,
+        person_active: true,
+        person_unlinked: true,
+        authorizer_current: true,
+        authorizer_can_manage: true,
+        scope_within_parent: true,
+        grant_expires_at: direct.expires,
+        directory_only: false,
         existing_user: false,
     };
     validate_invitation_credential(&facts)?;

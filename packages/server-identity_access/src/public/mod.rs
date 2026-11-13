@@ -49,7 +49,9 @@ pub use crate::domain::account_credentials::{
     CREDENTIAL_PROOF_LIFETIME_MS, CredentialProofKind, InvitationCredentialFacts,
     account_return_path, validate_invitation_credential,
 };
-pub use crate::domain::invitation_authority::{StaffInvitationGrant, invitation_scope_covers};
+pub use crate::domain::invitation_authority::{
+    DirectInvitationGrant, InvitationGrant, StaffInvitationGrant, invitation_scope_covers,
+};
 
 pub mod permission_catalog;
 pub mod permission_catalog_lock;

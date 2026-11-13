@@ -13,7 +13,7 @@ use crate::{
     domain::{
         account_auth::{EmailAddress, PasswordHash, SecretDigest},
         account_credentials::signup_unavailable,
-        invitation_authority::StaffInvitationGrant,
+        invitation_authority::{DirectInvitationGrant, InvitationGrant, StaffInvitationGrant},
     },
 };
 use erpx_server_people_payroll::public::{
@@ -64,12 +64,22 @@ async fn query(
     let row = sqlx::query("SELECT * FROM account_invitations WHERE token_hash=$1 AND (status='pending' OR status='accepted' AND accepted_at IS NULL) AND created_at<=$2 AND expires_at>$2")
         .bind(digest.as_str()).bind(now).fetch_optional(&mut *connection).await?.ok_or_else(signup_unavailable)?;
     let email = EmailAddress::new(&row.try_get::<String, _>("email")?)?;
-    StaffInvitationGrant::parse(&row.try_get::<String, _>("role")?)?;
+    let role_payload: String = row.try_get("role")?;
+    let grant = InvitationGrant::parse(&role_payload)?;
     let invitation_id: String = row.try_get("id")?;
-    let target = format!("usr_invite_{invitation_id}");
+    let target = grant.target_user(&invitation_id);
+    // A direct invitation may reuse one verified existing account, so an
+    // existing credential is expected exactly when the payload names it.
+    let existing_account = grant
+        .direct()
+        .and_then(|direct| direct.existing_user_id.as_deref())
+        == Some(target.as_str());
     let current = credential(connection, &email).await?;
     let status: String = row.try_get("status")?;
-    if status == "pending" && current.is_some()
+    if status == "pending"
+        && current
+            .as_ref()
+            .is_some_and(|c| !(existing_account && c.user_id == target))
         || status == "accepted"
             && (row
                 .try_get::<Option<String>, _>("accepted_user_id")?
@@ -100,6 +110,7 @@ async fn query(
         }
     }
     let name: String = row.try_get("name")?;
+    let direct = grant.direct().is_some();
     Ok((
         InvitationCredentialQuery {
             invitation_id,
@@ -107,11 +118,13 @@ async fn query(
             company_id: row.try_get("company_id")?,
             person_id: row.try_get("person_id")?,
             name: name.clone(),
-            role_payload: row.try_get("role")?,
+            role_payload,
             scope_kind: row.try_get("scope_kind")?,
             branch_id: row.try_get("branch_id")?,
             department_id: row.try_get("department_id")?,
             created_by,
+            direct,
+            target_user_id: target,
             assignment_id: row.try_get("assignment_id")?,
             expires_at: row.try_get("expires_at")?,
             created_at: row.try_get("created_at")?,
@@ -124,6 +137,7 @@ async fn query(
             name,
             email: email.as_str().to_owned(),
             credential: current,
+            existing_account,
         },
     ))
 }
@@ -143,6 +157,9 @@ async fn activate_holding(
         .execute(&mut *connection)
         .await?;
     let now = clock.now().get();
+    if let Some(grant) = InvitationGrant::parse(&request.role_payload)?.direct().cloned() {
+        return activate_direct_holding(connection, request, &grant, clock).await;
+    }
     inspect_current(connection, request, now, true).await?;
     let grant = StaffInvitationGrant::parse(&request.role_payload)?;
     let user = format!("usr_invite_{}", request.invitation_id);
@@ -220,6 +237,136 @@ async fn activate_holding(
     inspect_current(connection, request, clock.now().get(), true).await?;
     Ok(())
 }
+/// Activate a directly authorized People access invitation. The relationship,
+/// its assignment and its review row were created by the reviewed people-access
+/// command, so acceptance only flips the subject and invitation state and
+/// records the same audit and receipt the staff path writes. No Person link and
+/// no assignment is created here.
+async fn activate_direct_holding(
+    connection: &mut PgConnection,
+    request: &InvitationCredentialQuery,
+    grant: &DirectInvitationGrant,
+    clock: &(dyn Clock + Send + Sync),
+) -> Tx<()> {
+    sqlx::query(
+        "LOCK TABLE iam_access_subjects,iam_access_invitations,iam_audit,command_receipts \
+         IN SHARE ROW EXCLUSIVE MODE",
+    )
+    .execute(&mut *connection)
+    .await?;
+    let now = clock.now().get();
+    let user = grant
+        .existing_user_id
+        .clone()
+        .unwrap_or_else(|| format!("usr_invite_{}", request.invitation_id));
+    if user != request.target_user_id {
+        return Err(signup_unavailable().into());
+    }
+    let payload = serde_json::json!({
+        "invitation": request.invitation_id,
+        "holding": request.holding_id,
+        "company": request.company_id,
+        "subject": request.person_id,
+        "user": user,
+        "role": grant.role,
+        "scope": request.scope_kind,
+        "branch": request.branch_id,
+        "department": request.department_id,
+        "parent": request.assignment_id,
+        "until": grant.expires,
+        "method": "direct-invitation",
+    });
+    let hash = hex::encode(Sha256::digest(payload.to_string().as_bytes()));
+    let command = format!("activate-{}", request.invitation_id);
+    if let Some(receipt) = sqlx::query(
+        "SELECT operation,actor_id,request_hash,record_id,result_json \
+         FROM command_receipts WHERE command_id=$1",
+    )
+    .bind(&command)
+    .fetch_optional(&mut *connection)
+    .await?
+    {
+        if receipt.try_get::<String, _>("operation")? != "identity.account.activate"
+            || receipt.try_get::<String, _>("actor_id")? != request.created_by
+            || receipt.try_get::<String, _>("request_hash")? != hash
+            || receipt.try_get::<String, _>("record_id")? != request.person_id
+            || receipt
+                .try_get::<Option<String>, _>("result_json")?
+                .is_none()
+        {
+            return Err(signup_unavailable().into());
+        }
+        let accepted: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM iam_access_invitations i \
+             JOIN iam_access_subjects s ON s.company_id=i.company_id AND s.id=i.subject_id \
+             WHERE i.id=$1 AND i.company_id=$2 AND i.state='accepted' \
+              AND s.user_id=$3 AND s.status='active')",
+        )
+        .bind(&request.invitation_id)
+        .bind(&request.company_id)
+        .bind(&user)
+        .fetch_one(&mut *connection)
+        .await?;
+        if !accepted {
+            return Err(signup_unavailable().into());
+        }
+        return Ok(());
+    }
+    inspect_current(connection, request, now, true).await?;
+    let activated = sqlx::query(
+        "UPDATE iam_access_subjects SET status='active',version=version+1 \
+         WHERE id=$1 AND company_id=$2 AND status!='active'",
+    )
+    .bind(&request.person_id)
+    .bind(&request.company_id)
+    .execute(&mut *connection)
+    .await?
+    .rows_affected();
+    let accepted = sqlx::query(
+        "UPDATE iam_access_invitations SET state='accepted' \
+         WHERE id=$1 AND company_id=$2 AND state='authorized'",
+    )
+    .bind(&request.invitation_id)
+    .bind(&request.company_id)
+    .execute(&mut *connection)
+    .await?
+    .rows_affected();
+    if activated > 1 || accepted > 1 {
+        return Err(signup_unavailable().into());
+    }
+    sqlx::query(
+        "INSERT INTO iam_audit(id,company_id,actor_id,assignment_id,action,target_id,evidence,\
+         created_at) VALUES(gen_random_uuid()::text,$1,$2,$3,'invitation.accept',$4,$5::jsonb,$6)",
+    )
+    .bind(&request.company_id)
+    .bind(&user)
+    .bind(&request.assignment_id)
+    .bind(&request.invitation_id)
+    .bind(
+        serde_json::json!({"subjectId": request.person_id, "method": "direct-invitation"})
+            .to_string(),
+    )
+    .bind(now)
+    .execute(&mut *connection)
+    .await?;
+    sqlx::query(
+        "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,\
+         result_json,created_at) \
+         VALUES($1,'identity.account.activate',$2,$3,$4,$5,$6)",
+    )
+    .bind(&command)
+    .bind(&request.created_by)
+    .bind(&hash)
+    .bind(&request.person_id)
+    .bind(serde_json::json!({"activated": true, "method": "direct-invitation"}).to_string())
+    .bind(now)
+    .execute(&mut *connection)
+    .await?;
+    // The final eligibility recheck shares the retained table locks.
+    inspect_current(connection, request, clock.now().get(), true).await?;
+    Ok(())
+}
+
 impl AccountInvitationRepository for PostgresAccountInvitations {
     fn current(&self, digest: SecretDigest, now: i64) -> AccountFuture<'_, InvitationAccountState> {
         Box::pin(async move {
@@ -290,10 +437,14 @@ impl AccountInvitationRepository for PostgresAccountInvitations {
             let clock = self.clock.clone();
             finish(PgUnitOfWork::new(self.control.clone()).run(TransactionOptions::default(),move |connection| {let id=invitation.clone();let digest=digest.clone();let hash=verified_hash.clone();let clock=clock.clone();Box::pin(async move {
                 sqlx::query("LOCK TABLE \"user\",account,principals,account_invitations,account_invitation_claims IN SHARE ROW EXCLUSIVE MODE").execute(&mut *connection).await?;
-                let row=sqlx::query("SELECT email,accepted_user_id FROM account_invitations WHERE id=$1 AND token_hash=$2 AND status='accepted'").bind(&id).bind(digest.as_str()).fetch_optional(&mut *connection).await?.ok_or_else(signup_unavailable)?;
+                let row=sqlx::query("SELECT email,accepted_user_id,role FROM account_invitations WHERE id=$1 AND token_hash=$2 AND status IN ('pending','accepted')").bind(&id).bind(digest.as_str()).fetch_optional(&mut *connection).await?.ok_or_else(signup_unavailable)?;
+                // A direct invitation may reuse one verified existing account, so the
+                // expected user comes from the payload rather than the invite id.
+                let target=InvitationGrant::parse(&row.try_get::<String,_>("role")?)?.target_user(&id);
                 let current=credential(connection,&EmailAddress::new(&row.try_get::<String,_>("email")?)?).await?.ok_or_else(signup_unavailable)?;
-                if current.user_id!=format!("usr_invite_{id}") || row.try_get::<Option<String>,_>("accepted_user_id")?.as_deref()!=Some(&current.user_id) || current.password_hash!=hash || !current.can_authenticate(false) { return Err(signup_unavailable().into()); }
-                sqlx::query("UPDATE account_invitations SET accepted_at=COALESCE(accepted_at,$2) WHERE id=$1 AND status='accepted'").bind(id).bind(clock.now().get()).execute(connection).await?;
+                if current.user_id!=target || row.try_get::<Option<String>,_>("accepted_user_id")?.as_deref().is_some_and(|accepted|accepted!=target) || current.password_hash!=hash || !current.can_authenticate(false) { return Err(signup_unavailable().into()); }
+                let finalized=sqlx::query("UPDATE account_invitations SET status='accepted',accepted_user_id=COALESCE(accepted_user_id,$2),accepted_at=COALESCE(accepted_at,$3) WHERE id=$1 AND status IN ('pending','accepted') AND (accepted_user_id IS NULL OR accepted_user_id=$2)").bind(&id).bind(&target).bind(clock.now().get()).execute(connection).await?.rows_affected();
+                if finalized!=1 { return Err(signup_unavailable().into()); }
                 Ok(())
             })}).await)
         })
