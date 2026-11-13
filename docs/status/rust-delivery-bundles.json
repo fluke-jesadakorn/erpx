@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1745,
+    "revision": 1759,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261113-m",
       "agentId": "lead",
       "startedAt": "2026-11-13T11:17:19.844Z",
-      "heartbeatAt": "2026-11-13T12:01:38.682Z",
-      "expiresAt": "2026-11-13T12:31:38.682Z",
+      "heartbeatAt": "2026-11-13T12:31:34.951Z",
+      "expiresAt": "2026-11-13T13:01:34.951Z",
       "generation": 57,
       "tokenHash": "c5910c1521e976b448c7f793731ca689a6583e9888385019ac1912b7f6c666cd"
     },
@@ -23565,22 +23565,15 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "integrating",
-        "nextAction": "Native people-access relationship preview/apply producer is committed with 12 lib tests and 3 PostgreSQL proofs. Lead: mount PeopleRelationshipsHttpBackend in src/composition, register the Holding route, add the TS transport client and switch the people-access snapshot/preview/apply consumers, then delete the 18 statements (KPI 229 -> 211). Optionally relocate the 3 ignored PG proofs to a registered test target.",
+        "status": "ready_for_integration",
+        "nextAction": "Classic invitation acceptance retired (IAM 211 -> 204). Residual 204 remains blocked on: production PositionGpoDirectory + GPO HTTP/mount (33), directory sync/connection routers (~26), directory-operations (15), user-management (12), iam-migrations/account-recovery (22), iam-api branches (10), the product SSO/app routes, and the native jobs runtime. Dispatch per-capability producer tasks.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": {
-          "runId": "run-20261113-m",
-          "agentId": "worker-iam-residual-2",
-          "claimedAt": "2026-11-13T12:01:07.366Z",
-          "heartbeatAt": "2026-11-13T12:01:38.682Z",
-          "expiresAt": "2026-11-13T12:31:38.682Z",
-          "generation": 57
-        },
+        "claim": null,
         "baseSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
-        "implementedCommit": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
-        "lastPushedSha": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
+        "implementedCommit": "72717fd9961028db1aaa9f895a299760a97af37a",
+        "lastPushedSha": "72717fd9961028db1aaa9f895a299760a97af37a",
         "checks": [
           {
             "command": "npx tsc --noEmit",
@@ -23652,6 +23645,64 @@
             "sourceSha": "0a122e87ab0dffcdfabb3b724b635b8b6942e9a5",
             "sourceKind": "committed",
             "note": "Repository layout passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "before": 211,
+            "after": 204,
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Removed the orphaned classic invitation acceptance branch (7 writes)."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --offline",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Owner crate compiles."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --lib --offline",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "21 passed, 0 failed, 7 ignored."
+          },
+          {
+            "command": "cd packages/server-identity_access && bun run typecheck",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Package typecheck passed."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bun run test:integration -- --suite=identity_access.account-invitation-delivery.integration --suite=identity_access.people-access.integration",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "10/10."
+          },
+          {
+            "command": "bun run test:integration -- --suite=identity_access.throttle.integration",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "2/2."
+          },
+          {
+            "command": "bun run test:unit -- --suite=identity_access.gpo-services.unit --suite=identity_access.people-access.unit",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "29/29."
           }
         ],
         "retainedLegacy": [
@@ -23662,14 +23713,14 @@
             "removalCondition": "Mount the native PeopleRelationshipsHttpBackend in composition, register the Holding route, add the TS transport client and switch peopleRelationshipsSnapshot/previewPeopleRelationships/applyPeopleRelationships, then delete the 18 TS statements and exports."
           }
         ],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-iam-residual",
-          "at": "2026-11-13T06:48:40.189Z",
+          "runId": "run-20261113-m",
+          "agentId": "worker-iam-residual-2",
+          "at": "2026-11-13T12:31:07.732Z",
           "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Native people-access relationship preview/apply producer is committed with 12 lib tests and 3 PostgreSQL proofs. Lead: mount PeopleRelationshipsHttpBackend in src/composition, register the Holding route, add the TS transport client and switch the people-access snapshot/preview/apply consumers, then delete the 18 statements (KPI 229 -> 211). Optionally relocate the 3 ignored PG proofs to a registered test target."
+          "nextAction": "Classic invitation acceptance retired (IAM 211 -> 204). Residual 204 remains blocked on: production PositionGpoDirectory + GPO HTTP/mount (33), directory sync/connection routers (~26), directory-operations (15), user-management (12), iam-migrations/account-recovery (22), iam-api branches (10), the product SSO/app routes, and the native jobs runtime. Dispatch per-capability producer tasks."
         }
       },
       {
@@ -35493,23 +35544,97 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-m",
-          "agentId": "worker-inventory-counts",
-          "claimedAt": "2026-11-13T12:01:07.334Z",
-          "heartbeatAt": "2026-11-13T12:01:38.682Z",
-          "expiresAt": "2026-11-13T12:31:38.682Z",
-          "generation": 57
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "72717fd9961028db1aaa9f895a299760a97af37a",
+        "lastPushedSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "f8fd14a152fe9443452090ad26c4fde94dc8bf13",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib domain::counts::tests --offline",
+            "result": "passed",
+            "sourceSha": "f8fd14a152fe9443452090ad26c4fde94dc8bf13",
+            "sourceKind": "committed",
+            "note": "7/7 count planner cases."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "f8fd14a152fe9443452090ad26c4fde94dc8bf13",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 116,
+            "after": 101,
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-inventory/src/adapters/*.ts (remaining Inventory writers)",
+                "writes": 101,
+                "removalTaskId": "retire.inventory.residual",
+                "removalCondition": "Each remaining Inventory capability gets a native producer and its consumer switches."
+              }
+            ],
+            "note": "Removed the 15 generic count writers; the read surface remains."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the transition mount."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the native count transition/seeding effects, rebind the initial/manufacturing/pos/service count adapters and the workplace generic transition route, delete inventory-counts.ts and its barrel, move the legacy count oracle to native seeding, and record Inventory 116 -> 101.",
-        "handoff": null,
+        "nextAction": "Complete: native count transition and 15-writer retirement (Inventory 116 -> 101). Follow-up: native create/seed commands for initial/manufacturing/POS.",
+        "handoff": {
+          "runId": "run-20261113-m",
+          "agentId": "worker-inventory-counts",
+          "at": "2026-11-13T12:17:14.075Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native count transition/seeding effects and the native-first route are committed. Lead: mount the transition/seed command in composition, rebind the four seeding adapters and fixtures/shared builders to it, then delete the 15 count writers (keeping reads) and record Inventory 116 -> 101."
+        },
         "procedureRef": "executionPlan.sliceProcedure"
       },
       {
@@ -35547,6 +35672,185 @@
         "nextAction": "Step-0 audit each remaining Inventory TS writer against packages/server-inventory/src/**/*.rs; implement the missing native producer, switch the live consumer, then delete the TS writer and record the Inventory KPI pair.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "integrate.inventory.counts",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Mount native count transition/seeding and retire the count writers",
+        "scope": "Mount the native stock-count transition and seeding command in composition per the worker contract, rebind the four initial-count seeding adapters and the fixtures/shared builders, then delete the 15 count write statements while keeping the read exports. Record Inventory 116 -> 101.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-inventory/src/**",
+          "packages/server-inventory/Cargo.toml",
+          "packages/server-inventory/package.json",
+          "packages/feature-inventory/**",
+          "packages/feature-supply/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/**",
+          "fixtures/inventory/**",
+          "fixtures/shared/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:inventory",
+          "resource:composition"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "72717fd9961028db1aaa9f895a299760a97af37a",
+        "lastPushedSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "before": 116,
+            "after": 101,
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "residual": [
+              {
+                "path": "packages/server-inventory/src/adapters/*.ts (remaining Inventory writers)",
+                "writes": 101,
+                "removalTaskId": "retire.inventory.residual",
+                "removalCondition": "Each remaining Inventory capability gets a native producer and its consumer switches."
+              }
+            ],
+            "note": "Removed the 15 generic count writers; the read surface remains."
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Composition compiles with the transition mount."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --all-targets --offline",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Owner crate and targets compile."
+          },
+          {
+            "command": "bunx tsc -p tests/config/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Test-project typecheck passed."
+          },
+          {
+            "command": "bunx tsc --noEmit -p tsconfig.json",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Root typecheck passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "72717fd9961028db1aaa9f895a299760a97af37a",
+            "sourceKind": "committed",
+            "note": "Repository layout passed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Complete: count transition/seed mount and 15-writer cutover landed (Inventory 116 -> 101).",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.inventory.commerce-stock-owner-effects"
+      },
+      {
+        "id": "migrate.inventory.count-seeding",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "inventory",
+        "workflowIds": [],
+        "workstream": "S04",
+        "kind": "migration",
+        "title": "Native initial/manufacturing/POS count create and seeding",
+        "scope": "Add the native count create/seed command for the initial, manufacturing, POS and service physical-stock flows, call insert_count_seed_source after the draft+receipt commit, rebind the four seed adapters and fixtures/shared builders, and close the fail-closed gap left by the count writer retirement.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-inventory/src/**",
+          "packages/server-inventory/Cargo.toml",
+          "packages/server-inventory/package.json",
+          "packages/feature-inventory/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/**",
+          "fixtures/inventory/**",
+          "fixtures/shared/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:inventory",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add the native count create/seed command (selection/proof/CountSeedKind) and call insert_count_seed_source after the draft+receipt commit for initial/manufacturing/POS/service. Rebind the four seed adapters and fixtures/shared builders, run the inventory suites, and record the Inventory KPI pair.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.identity_access.position-gpo-directory",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Production Directory provider and Position GPO mount",
+        "scope": "Implement the production PositionGpoDirectory adapter (runner/UDM/LDAP, secret profiles, URL/TLS rules), add position_gpo_http, mount it in composition, switch the feature-admin technology route and the runtime drain, then delete the 33-write TS position-gpo adapter and record the Identity Access KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-identity_access/src/**",
+          "packages/feature-identity_access/**",
+          "packages/feature-admin/**",
+          "packages/server-runtime/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement PositionGpoDirectory over the installed connector (runner/UDM, secret profiles, approved URL/TLS/no-redirect), add position_gpo_http (overview/preview/publish/unmap-preview/unmap/retry/retry-config), mount the backend + router in composition, add the native feature transport and switch the feature-admin technology route + runtime drain, then delete position-gpo.ts (33 writes) and record Identity Access 204 -> 171.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -35555,21 +35859,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 181,
-      "migratedPackets": 104,
+      "totalPackets": 184,
+      "migratedPackets": 106,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 1,
-        "ready_for_integration": 15,
-        "integrating": 1,
-        "migrated": 104,
+        "pending": 23,
+        "in_progress": 0,
+        "ready_for_integration": 16,
+        "integrating": 0,
+        "migrated": 106,
         "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 57,
-    "updatedAt": "2026-11-13T12:01:38.683Z",
+    "updatedAt": "2026-11-13T12:31:34.951Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
