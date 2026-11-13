@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1509,
+    "revision": 1512,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -14203,15 +14203,8 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T02:59:42.355Z",
-          "heartbeatAt": "2026-11-13T03:17:32.046Z",
-          "expiresAt": "2026-11-13T03:47:32.046Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "0517689d6ee4b7217e1646de7789ecc0285acf54",
         "implementedCommit": "a0f2f09e5fcaf771631e115c8f10855bec3f15cd",
         "lastPushedSha": "a0f2f09e5fcaf771631e115c8f10855bec3f15cd",
@@ -14519,15 +14512,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Source parity/body adapter is ready and tested (13/13), but the route switch is blocked on the shared environment: native private API 3198 health 200 yet POST /pms/guest-account returns 404 (binary started 2026-11-10, before the router landed at 6a0995214; its dev-config file is deleted), and the gateway lacks ERPX_NATIVE_PMS_CONFIG. Rebuild/restart the shared private API with the guest-account router and add the gateway config, then re-wire both routes, split the monolithic pmsCommand guest-account branches, delete the TS branches/writers and record the PMS KPI pair. Handover purchase boundary remains blocked by retire.customer_authority.portal-support on src/composition/src/**.",
+        "blocker": "handoff",
+        "nextAction": "Source-ready, environment-blocked: native PMS command client/body adapter tested 13/13, but routes remain TS because native private API 3198 health is 200 yet POST /pms/guest-account is 404 (binary predates router 6a0995214; config file deleted) and the gateway lacks ERPX_NATIVE_PMS_CONFIG. Rebuild/restart the shared native API with the PMS router and add the gateway config, then re-wire both workplace PMS routes, split the monolithic pmsCommand guest-account branches, delete the TS branches/writers and record the PMS KPI pair.",
         "handoff": {
           "runId": "run-20261113-g",
           "agentId": "lead",
-          "at": "2026-11-13T02:56:44.496Z",
+          "at": "2026-11-13T03:31:16.254Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Guest-account audit: native pms_guest_account_router is mounted, but packages/feature-pms/src/adapters/server/native-pms.ts exposes only roomBoard/frontDesk reads, and both packages/workplace pms routes still call the TS pmsCommand. Next slice needs a native guest-account command client + route branches for the holding pms route and the front route (refine allowedPaths to those exact routes), then delete the guest-account branches/writers/exports and migrate oracles. Handover purchase boundary remains blocked by retire.customer_authority.portal-support holding src/composition/src/**."
+          "nextAction": "Source-ready, environment-blocked: native PMS command client/body adapter tested 13/13, but routes remain TS because native private API 3198 health is 200 yet POST /pms/guest-account is 404 (binary predates router 6a0995214; config file deleted) and the gateway lacks ERPX_NATIVE_PMS_CONFIG. Rebuild/restart the shared native API with the PMS router and add the gateway config, then re-wire both workplace PMS routes, split the monolithic pmsCommand guest-account branches, delete the TS branches/writers and record the PMS KPI pair."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pms",
@@ -20201,15 +20194,8 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T02:34:43.712Z",
-          "heartbeatAt": "2026-11-13T03:17:32.046Z",
-          "expiresAt": "2026-11-13T03:47:32.046Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
         "lastPushedSha": "ea3253941ac3a3a83daaf343e7c687d7c544c4bf",
@@ -20268,15 +20254,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Cancellation writer retired at ea3253941: TS adapters/payroll-cancellation.ts (run UPDATE + cancellation INSERT), public exports and package export removed; native PG cancel test 3/3 and payroll-core/statutory pass; people_payroll KPI 329->327, global 2362->2360. Remaining in this task: createPayrollRun/calculatePayrollRun/postPayroll and payrollSummary/listPayrollRuns/getPayrollRun/workPayrollRows plus their wide identity/shared oracles. The catalogue suite entry was removed as a reviewed cross-claim change while retire.customer_authority.portal-tail holds tests/catalogue/suite-manifest.json and fixtures/**; the IAM suite has four unrelated pre-existing account-grant/reviewer failures.",
+        "blocker": "handoff",
+        "nextAction": "Cancellation writer is retired and verified (people_payroll KPI 329->327; native cancel PG 3/3; core/statutory integration green). Remaining: createPayrollRun/calculatePayrollRun/postPayroll and payrollSummary/listPayrollRuns/getPayrollRun/workPayrollRows. These need direct owner-table run seeding plus native HTTP purchase/authority oracle coverage (the three payroll-core create purchase-wrapper tests currently assert TS PACKAGE_*/PAYROLL_ACCESS_CHANGED behavior); do not delete them without that replacement.",
         "handoff": {
-          "runId": "run-20261112-m",
-          "agentId": "worker-payroll-readers",
-          "at": "2026-11-12T10:12:45.126Z",
+          "runId": "run-20261113-g",
+          "agentId": "lead",
+          "at": "2026-11-13T03:31:16.232Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261112-m lease expired during G4 task creation; no coordinator mutation since; WIP reviewed, no code changes pending in this step",
-          "nextAction": "Register the three payroll-run cargo suites, migrate the foreign payroll-run seeds, remove the route fallbacks and TS writers/readers, then run owner KPI and affected suites."
+          "reason": "handoff",
+          "nextAction": "Cancellation writer is retired and verified (people_payroll KPI 329->327; native cancel PG 3/3; core/statutory integration green). Remaining: createPayrollRun/calculatePayrollRun/postPayroll and payrollSummary/listPayrollRuns/getPayrollRun/workPayrollRows. These need direct owner-table run seeding plus native HTTP purchase/authority oracle coverage (the three payroll-core create purchase-wrapper tests currently assert TS PACKAGE_*/PAYROLL_ACCESS_CHANGED behavior); do not delete them without that replacement."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -30157,15 +30143,8 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-g",
-          "agentId": "lead",
-          "claimedAt": "2026-11-13T02:48:54.843Z",
-          "heartbeatAt": "2026-11-13T03:17:32.046Z",
-          "expiresAt": "2026-11-13T03:47:32.046Z",
-          "generation": 51
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "4e9456f8ab45a879baa3c4e837b0495dba6bf69e",
         "lastPushedSha": "4e9456f8ab45a879baa3c4e837b0495dba6bf69e",
@@ -30402,16 +30381,16 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261113-f",
+          "runId": "run-20261113-g",
           "agentId": "lead",
-          "at": "2026-11-13T02:33:37.746Z",
+          "at": "2026-11-13T03:31:16.202Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 02:31Z after the mount wait; all task-claim heartbeats were last renewed at 02:01Z. Reviewed WIP: Support mount inputs ready, quality alert-sweep Rust WIP preserved (TS typecheck red in quality alerts), no process conflict; previous run stopped",
-          "nextAction": "Story create/archive is native end-to-end and the TS story/workflow writers are deleted (collaboration 176->174, workflow 102->95, global 2371->2362; unit 117/117, social-beta 94/94, Rust unit/HTTP/PG 15/3/11, service composition compiles). Remaining before this task can close: the pms/operations handover route cutover, blocked on the same-transaction purchase boundary in migrate.operations.handover-publish; agent-replies/hide remain before social-home deletion. Do not mark migrated until the handover caller is resolved or explicitly split by the lead."
+          "reason": "handoff",
+          "nextAction": "Story create/archive and the native work.handover.publish receipt are complete/verified (social_postgres 11/11). Remaining for closure: native work.social purchase boundary in src/composition/src/collaboration.rs + pms /home/handover switch + TS publishHandover deletion. That composition path is held by retire.customer_authority.portal-support-acknowledge; do not overlap. Handover atomicity is the preserve-atomicity choice (no approval to change semantics)."
         },
-        "nextAction": "Native handover read-visibility receipt is now written in the same transaction (work.handover.publish with authority_json and ordered sourceBindings), verified by social_postgres 11/11. Remaining for the preserve-atomicity cutover: add the native work.social purchase boundary in src/composition/src/collaboration.rs, switch pms /home/handover to the native command, and delete the TS operations/social-home writers. That composition path is currently held by retire.customer_authority.portal-tail; do not overlap. KPI unchanged by this prerequisite (collaboration 174, global 2360).",
+        "nextAction": "Story create/archive and the native work.handover.publish receipt are complete/verified (social_postgres 11/11). Remaining for closure: native work.social purchase boundary in src/composition/src/collaboration.rs + pms /home/handover switch + TS publishHandover deletion. That composition path is held by retire.customer_authority.portal-support-acknowledge; do not overlap. Handover atomicity is the preserve-atomicity choice (no approval to change semantics).",
         "scopeRefinementRequired": false
       },
       {
@@ -32394,17 +32373,17 @@
       "migratedPackets": 88,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 5,
+        "in_progress": 2,
         "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 88,
-        "blocked": 36,
+        "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 51,
-    "updatedAt": "2026-11-13T03:30:11.850Z",
+    "updatedAt": "2026-11-13T03:31:16.254Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
