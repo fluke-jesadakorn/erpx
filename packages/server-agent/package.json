@@ -61,7 +61,8 @@
     "./domain/assistant": "./src/domain/assistant.ts",
     "./domain/transport": "./src/domain/transport.ts",
     "./domain/gateway": "./src/domain/gateway.ts",
-    "./public/native-agent-governance": "./src/public/native-agent-governance.ts"
+    "./public/native-agent-governance": "./src/public/native-agent-governance.ts",
+    "./public/native-ai-gateway": "./src/public/native-ai-gateway.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

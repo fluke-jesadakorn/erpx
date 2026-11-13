@@ -28,6 +28,10 @@ name = "agent_governance"
 path = "../../tests/unit/agent/rust-agent-governance.test.rs"
 
 [[test]]
+name = "agent_gateway"
+path = "../../tests/unit/agent/rust-agent-gateway.test.rs"
+
+[[test]]
 name = "agent_providers"
 path = "../../tests/unit/agent/rust-agent-providers.test.rs"
 
@@ -44,8 +48,16 @@ name = "ai_providers_http"
 path = "../../tests/integration/agent/rust-ai-providers-http.test.rs"
 
 [[test]]
+name = "agent_gateway_http"
+path = "../../tests/integration/agent/rust-agent-gateway-http.test.rs"
+
+[[test]]
 name = "agent_governance_postgres"
 path = "../../tests/integration/agent/rust-agent-governance-postgres.test.rs"
+
+[[test]]
+name = "agent_gateway_postgres"
+path = "../../tests/integration/agent/rust-agent-gateway-postgres.test.rs"
 
 [lints]
 workspace = true

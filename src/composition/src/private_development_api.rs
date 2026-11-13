@@ -2864,6 +2864,51 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_COMMERCIAL_PACKAGE_GRANTS_CONFIGURATION_INVALID")?,
         );
     }
+    // Native Platform AI-gateway policy/statement/cost commands. The ERPX
+    // internal Holding hosts the router and is never a customer target; the
+    // current Platform Commercial authority remains the decisive gate.
+    {
+        let holdings: BTreeMap<HoldingId, DatabasePool> = config
+            .holdings
+            .iter()
+            .enumerate()
+            .filter(|(_, holding)| {
+                !matches!(holding.registration.holding_id.as_str(), "h003" | "erpx")
+            })
+            .map(|(index, holding)| {
+                (
+                    holding.registration.holding_id.clone(),
+                    pools[index + 1].clone(),
+                )
+            })
+            .collect();
+        if let Some(platform) = config.holdings.iter().find(|holding| {
+            matches!(holding.registration.holding_id.as_str(), "h003" | "erpx")
+        }) {
+            if !holdings.is_empty() {
+                router = router.merge(
+                    erpx_server_agent::public::gateway::ai_gateway_http_router(vec![
+                        crate::agent_ai_gateway::ai_gateway_target(
+                            platform.host.clone(),
+                            format!("https://{}", platform.host),
+                            Arc::new(crate::agent_ai_gateway::AiGatewayBackend::new(
+                                crate::agent_ai_gateway::AiGatewayConfiguration::new(
+                                    platform.host.clone(),
+                                    platform.registration.holding_id.clone(),
+                                    pools[0].clone(),
+                                    config.policy.clone(),
+                                    config.holdings_registry.clone(),
+                                    holdings,
+                                    clock.clone(),
+                                ),
+                            )),
+                        ),
+                    ])
+                    .map_err(|_| "PRIVATE_API_AGENT_AI_GATEWAY_CONFIGURATION_INVALID")?,
+                );
+            }
+        }
+    }
     if !config.finance_journal_reads.is_empty()
         || !config.pos_companies.is_empty()
         || !config.crm_companies.is_empty()

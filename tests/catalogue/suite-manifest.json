@@ -91303,6 +91303,42 @@
       ]
     },
     {
+      "id": "agent.rust-agent-gateway.unit",
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/agent/rust-agent-gateway.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-agent",
+        "targets": [
+          "agent_gateway"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-agent/Cargo.toml"
+      ]
+    },
+    {
       "id": "agent.rust-agent-governance-http.integration",
       "lane": "integration",
       "owner": "agent",
@@ -91375,6 +91411,42 @@
       ]
     },
     {
+      "id": "agent.rust-agent-gateway-http.integration",
+      "lane": "integration",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/integration/agent/rust-agent-gateway-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-agent",
+        "targets": [
+          "agent_gateway_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-agent/Cargo.toml"
+      ]
+    },
+    {
       "id": "agent.rust-agent-governance-postgres.integration",
       "lane": "integration",
       "owner": "agent",
@@ -91401,6 +91473,53 @@
         "package": "erpx-server-agent",
         "targets": [
           "agent_governance_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-agent/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
+    },
+    {
+      "id": "agent.rust-agent-gateway-postgres.integration",
+      "lane": "integration",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/integration/agent/rust-agent-gateway-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-agent",
+        "targets": [
+          "agent_gateway_postgres"
         ]
       },
       "verificationInputs": [
