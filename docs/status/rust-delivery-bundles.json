@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1970,
+    "revision": 2018,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261114-a",
+      "runId": "run-20261114-c",
       "agentId": "lead",
-      "startedAt": "2026-11-14T02:52:52.406Z",
-      "heartbeatAt": "2026-11-14T02:52:52.406Z",
-      "expiresAt": "2026-11-14T03:22:52.407Z",
-      "generation": 64,
-      "tokenHash": "8f4604bb9873690dc189f208881a82b98861e8291bd1e5061875515fc0a5e9f7"
+      "startedAt": "2026-11-14T06:10:01.545Z",
+      "heartbeatAt": "2026-11-14T06:24:12.767Z",
+      "expiresAt": "2026-11-14T06:54:12.767Z",
+      "generation": 66,
+      "tokenHash": "c42e83db037aebcab3a677cb211496cd651b95d4cec6372b082c5db08ac26090"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10020,21 +10020,21 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous run run-20261110-g23 lease expired 2026-11-12T00:40Z; no live cargo/rust/next worker process and ledger idle for 45m; WIP reviewed: formatting-only dirty Rust/CSS diff plus already-pushed workflow projector commit f205ed3aa",
+        "blocker": "released with work preserved",
         "nextAction": "Holding IAM roles/reviews/access-reviews native+switched; Directory sign-in mounted opt-in (cd8eb75c7); platform IAM command ingress mounted and 5 POST paths switched (919bf93de): roles save, review decide, access-review create/item decide/cancel; Control receipts/audit, platform.iam.* permissions; all other platform IAM and every GET remain TS. Checks: platform IAM http 3/3, transport 4/4, PG 1/1, existing IAM 9/3/4, private-api 12/12, typecheck, catalogue 1135. Remaining: platform IAM read surface (overview/matrix/audit/assignments/users/connections/mappings/emergency), directory source-admin mount, principals/conflicts/emergency packet.",
         "handoff": {
-          "runId": "run-20261110-g23",
-          "agentId": "lead",
-          "at": "2026-11-12T00:56:37.365Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Previous run run-20261110-g23 lease expired 2026-11-12T00:40Z; no live cargo/rust/next worker process and ledger idle for 45m; WIP reviewed: formatting-only dirty Rust/CSS diff plus already-pushed workflow projector commit f205ed3aa",
+          "runId": "run-20261114-a",
+          "agentId": "worker-iam",
+          "at": "2026-11-14T03:35:58.832Z",
+          "previousStatus": "integrating",
+          "reason": "released with work preserved",
           "nextAction": "Holding IAM roles/reviews/access-reviews native+switched; Directory sign-in mounted opt-in (cd8eb75c7); platform IAM command ingress mounted and 5 POST paths switched (919bf93de): roles save, review decide, access-review create/item decide/cancel; Control receipts/audit, platform.iam.* permissions; all other platform IAM and every GET remain TS. Checks: platform IAM http 3/3, transport 4/4, PG 1/1, existing IAM 9/3/4, private-api 12/12, typecheck, catalogue 1135. Remaining: platform IAM read surface (overview/matrix/audit/assignments/users/connections/mappings/emergency), directory source-admin mount, principals/conflicts/emergency packet."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -10116,7 +10116,7 @@
         "resources": [
           "owner:organization"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
@@ -10205,14 +10205,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
+        "blocker": "released with work preserved",
         "nextAction": "Access/position-move native-only; TS position-move writer plus its cross-owner support shims (workflow position-move events, people_payroll position-move holds) are deleted (organization KPI 70->64 at c3f3f3298; cross-owner support slice 11->0 at 612bb399d). Remaining: organization drafts/presentation TS, acceptance/beta onboarding effects, profile media/staff defaults writers.",
         "handoff": {
-          "runId": "run-20261112-q",
-          "agentId": "lead",
-          "at": "2026-11-12T12:26:25.187Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: run-20261112-q lease expired during Support ticket writer retirement; support.ts/barrel WIP reviewed and intact",
+          "runId": "run-20261114-a",
+          "agentId": "worker-org",
+          "at": "2026-11-14T03:36:36.144Z",
+          "previousStatus": "integrating",
+          "reason": "released with work preserved",
           "nextAction": "Access/position-move native-only; TS position-move writer plus its cross-owner support shims (workflow position-move events, people_payroll position-move holds) are deleted (organization KPI 70->64 at c3f3f3298; cross-owner support slice 11->0 at 612bb399d). Remaining: organization drafts/presentation TS, acceptance/beta onboarding effects, profile media/staff defaults writers."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -10939,7 +10939,7 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": "38a6d4b3430f329e1a4f1a47f26a5802ea528bce",
         "implementedCommit": "09bf3b66e8186de33d6025c4d20f3c9d1acded58",
@@ -11010,14 +11010,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "Recovery: Previous run heartbeat expired (gen 65); WIP reconciled, no live conflicting process",
         "nextAction": "Lead: enable the native POS config in the target env, smoke GET /pos, retire the TS workspace read.",
         "handoff": {
-          "runId": "run-20261112-f",
-          "agentId": "lead",
-          "at": "2026-11-12T04:47:54.741Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
+          "runId": "run-20261114-b",
+          "agentId": "worker-pos",
+          "at": "2026-11-14T06:10:01.544Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Previous run heartbeat expired (gen 65); WIP reconciled, no live conflicting process",
           "nextAction": "Lead: enable the native POS config in the target env, smoke GET /pos, retire the TS workspace read."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -13680,7 +13680,7 @@
         "resources": [
           "owner:field_service"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": "17e74d6fe622e46ec30b590f7f155b2d969c665a",
         "implementedCommit": null,
@@ -13702,15 +13702,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead review: native Field executive report binding evidence recorded; next field_service slice is shared-projection-sources.",
+        "blocker": "released with work preserved",
+        "nextAction": "Blocker: next slice is shared-projection-sources (new task needed). Executive report binding evidence recorded; unit 3/3, cargo check passed. Create migrate.field_service.shared-projection-sources task to track this slice.",
         "handoff": {
-          "runId": "run-20261110-g24",
-          "agentId": "worker-field",
-          "at": "2026-11-12T01:16:51.134Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Lead review: native Field executive report binding evidence recorded; next field_service slice is shared-projection-sources."
+          "runId": "run-20261114-c",
+          "agentId": "lead",
+          "at": "2026-11-14T06:23:24.784Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "Blocker: next slice is shared-projection-sources (new task needed). Executive report binding evidence recorded; unit 3/3, cargo check passed. Create migrate.field_service.shared-projection-sources task to track this slice."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-field-service",
@@ -13955,7 +13955,7 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "553e5754d60f09d2c66cacbb5c08bdfef0cb7c1e",
@@ -14092,14 +14092,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "nextAction": "Lead reviews 8af0ff8a2 plus 553e5754d; then native upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain.",
         "handoff": {
-          "runId": "run-20261112-s",
-          "agentId": "worker-collaboration-inbox",
-          "at": "2026-11-12T16:56:15.260Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
+          "runId": "run-20261114-b",
+          "agentId": "worker-collab",
+          "at": "2026-11-14T03:46:48.863Z",
+          "previousStatus": "integrating",
+          "reason": "released with work preserved",
           "nextAction": "Lead reviews 8af0ff8a2 plus 553e5754d; then native upload/discard intake, inbox owner visibility ports (calendar first), feed subpaths/CSV/mention drain."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -15452,7 +15452,7 @@
         "resources": [
           "owner:runtime"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
@@ -15475,14 +15475,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Native supervisor and family-scoped handler are mounted in src/composition; unit 7/7 and PostgreSQL 8/8 pass. Remaining TS runOne families are tracked by audit.runtime; retirement requires their native owners.",
+        "nextAction": "Blocker: remaining TS runOne families tracked by audit.runtime (pending). Native supervisor unit 7/7, PostgreSQL 8/8 pass; mount complete. Retirement awaits audit.runtime inventory reconciliation.",
         "handoff": {
-          "runId": "run-20261113-i",
+          "runId": "run-20261114-c",
           "agentId": "lead",
-          "at": "2026-11-13T05:45:49.517Z",
-          "previousStatus": "ready_for_integration",
+          "at": "2026-11-14T06:24:12.731Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Native supervisor and family-scoped handler are mounted in src/composition; unit 7/7 and PostgreSQL 8/8 pass. Remaining TS runOne families are tracked by audit.runtime; retirement requires their native owners."
+          "nextAction": "Blocker: remaining TS runOne families tracked by audit.runtime (pending). Native supervisor unit 7/7, PostgreSQL 8/8 pass; mount complete. Retirement awaits audit.runtime inventory reconciliation."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-runtime",
@@ -21347,7 +21347,7 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
@@ -21397,15 +21397,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "Switch operations/manage_erpx/pms/agent/organization callers from social-home to native endpoints, then delete social-home.ts writers and the social-home public barrel.",
         "handoff": {
-          "runId": "run-20261113-s",
-          "agentId": "lead",
-          "at": "2026-11-13T18:23:51.102Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261114-a",
+          "agentId": "worker-collab",
+          "at": "2026-11-14T03:35:49.625Z",
+          "previousStatus": "integrating",
           "reason": "released with work preserved",
-          "nextAction": " mount the composition read overrides + feature-apps GET switches + dev native social config, then switch operations/manage_erpx/pms callers and delete the 31 social-home writers."
+          "nextAction": "Switch operations/manage_erpx/pms/agent/organization callers from social-home to native endpoints, then delete social-home.ts writers and the social-home public barrel."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -21764,14 +21764,7 @@
           "owner:finance"
         ],
         "status": "blocked",
-        "claim": {
-          "runId": "run-20261114-a",
-          "agentId": "worker-finance-retire",
-          "claimedAt": "2026-11-14T02:53:00.284Z",
-          "heartbeatAt": "2026-11-14T02:53:00.284Z",
-          "expiresAt": "2026-11-14T03:23:00.284Z",
-          "generation": 64
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
         "lastPushedSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
@@ -21880,15 +21873,15 @@
             "removalCondition": "Move the retained application-layer cases to native Rust seeding, then delete this test and its catalogue entry."
           }
         ],
-        "blocker": null,
+        "blocker": "Recovery: Previous run-20261114-a expired; WIP reviewed, no active processes",
         "nextAction": "Current finance KPI=336 (global 1962). Configuration operations (charts/accounts/periods/parties) have native counterparts in finance_setup.rs but external consumers (feature-finance, feature-assets, server-agent, server-identity_access) still use the TS public export. Next: switch feature-finance/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts to use native finance_setup port, then delete the TS configuration operations from finance.ts.",
         "handoff": {
-          "runId": "run-20261113-s",
-          "agentId": "lead",
-          "at": "2026-11-13T18:23:39.058Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "released with work preserved",
-          "nextAction": "Finance 353 -> 336 (17 duplicate assertion cleanups deduped). Next: grant the workplace finance route path to cut over setup/bank (~11 writers, fail-closed), then split VAT/consolidation/accruals/finance-ai into producer packets."
+          "runId": "run-20261114-a",
+          "agentId": "worker-finance-retire",
+          "at": "2026-11-14T03:43:30.808Z",
+          "previousStatus": "blocked",
+          "reason": "Recovery: Previous run-20261114-a expired; WIP reviewed, no active processes",
+          "nextAction": "Current finance KPI=336 (global 1962). Configuration operations (charts/accounts/periods/parties) have native counterparts in finance_setup.rs but external consumers (feature-finance, feature-assets, server-agent, server-identity_access) still use the TS public export. Next: switch feature-finance/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts to use native finance_setup port, then delete the TS configuration operations from finance.ts."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -23750,7 +23743,7 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "nextAction": "Native emergency access and dead writers retired (IAM 118 -> 110). Remaining 110 blocked on IAM migrations, GPO rules, account recovery, iam-api branches, product SSO, people lifecycle, technology/provisioning, preferences and cross-owner fact adapters; composition mounts still needed.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -23949,13 +23942,13 @@
             "removalCondition": "Mount the native PeopleRelationshipsHttpBackend in composition, register the Holding route, add the TS transport client and switch peopleRelationshipsSnapshot/previewPeopleRelationships/applyPeopleRelationships, then delete the 18 TS statements and exports."
           }
         ],
-        "blocker": "released with work preserved",
+        "blocker": "Recovery: Previous run-20261114-a expired; WIP reviewed, no active processes",
         "handoff": {
-          "runId": "run-20261113-s",
-          "agentId": "lead",
-          "at": "2026-11-13T18:23:50.962Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "released with work preserved",
+          "runId": "run-20261114-a",
+          "agentId": "worker-iam-retire",
+          "at": "2026-11-14T03:43:30.808Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Previous run-20261114-a expired; WIP reviewed, no active processes",
           "nextAction": "Native emergency access and dead writers retired (IAM 118 -> 110). Remaining 110 blocked on IAM migrations, GPO rules, account recovery, iam-api branches, product SSO, people lifecycle, technology/provisioning, preferences and cross-owner fact adapters; composition mounts still needed."
         }
       },
@@ -25944,7 +25937,7 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "f2545b800a1a41a32cf4df6ef7b2104fd17939d4",
@@ -26000,14 +25993,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "Native upload-draft consumption binding is committed. Remaining cutover: switch server-pms, server-operations, server-manage_erpx, server-agent and server-organization to public/native-social-page, add native comment/revision reads for the remaining feature-apps GETs, then delete social-home.ts and its barrel under retire.collaboration.social-home.",
+        "nextAction": "Blocker: social-home.ts (33 writes) and social-home public barrel still imported by server-agent, server-operations, feature-collaboration, feature-work_projection. Need native social-page consumers before deletion. Create migrate.collaboration.social-page-consumers task to track this.",
         "handoff": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-collaboration-drafts",
-          "at": "2026-11-13T06:34:51.912Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261114-c",
+          "agentId": "lead",
+          "at": "2026-11-14T06:22:24.819Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Native upload-draft consumption binding is committed. Remaining cutover: switch server-pms, server-operations, server-manage_erpx, server-agent and server-organization to public/native-social-page, add native comment/revision reads for the remaining feature-apps GETs, then delete social-home.ts and its barrel under retire.collaboration.social-home."
+          "nextAction": "Blocker: social-home.ts (33 writes) and social-home public barrel still imported by server-agent, server-operations, feature-collaboration, feature-work_projection. Need native social-page consumers before deletion. Create migrate.collaboration.social-page-consumers task to track this."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -35008,7 +35001,7 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "ffd5ecd3f7e6eebd8d47caa4edf7df824aa2ec5a",
@@ -35061,14 +35054,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Native people-relationship preview/apply routes are mounted and the TS organization/team/subject writers are retired (IAM 229 -> 226). Remaining: add a native GET snapshot route or keep the TS read; implement the native grants/invitation producer (peopleAccess/previewPeopleAccess/applyPeopleAccess/directInvitationEligible/activateDirectInvitation) to retire the remaining 15 shared writers (target 211).",
+        "nextAction": "Blocker: implement native GET snapshot + grants/invitation producer (peopleAccess/previewPeopleAccess/applyPeopleAccess/directInvitationEligible/activateDirectInvitation) to retire remaining 15 shared writers (target 211). Create task migrate.identity_access.grants-invitation-producer to track this.",
         "handoff": {
-          "runId": "run-20261113-l",
-          "agentId": "integrator-identity",
-          "at": "2026-11-13T10:31:24.645Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261114-c",
+          "agentId": "lead",
+          "at": "2026-11-14T06:16:36.129Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Native people-relationship preview/apply routes are mounted and the TS organization/team/subject writers are retired (IAM 229 -> 226). Remaining: add a native GET snapshot route or keep the TS read; implement the native grants/invitation producer (peopleAccess/previewPeopleAccess/applyPeopleAccess/directInvitationEligible/activateDirectInvitation) to retire the remaining 15 shared writers (target 211)."
+          "nextAction": "Blocker: implement native GET snapshot + grants/invitation producer (peopleAccess/previewPeopleAccess/applyPeopleAccess/directInvitationEligible/activateDirectInvitation) to retire remaining 15 shared writers (target 211). Create task migrate.identity_access.grants-invitation-producer to track this."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -37454,7 +37447,7 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
@@ -37498,14 +37491,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Native lot posting producer is committed (13 parity cases, 51/51 manufacturing tests). Deletion is blocked until the native order command consumes public::lots; bind to migrate.manufacturing.order-material-lifecycle, then delete manufacturing-lot-sources.ts (6 inventory writes) + 3 manufacturing lots.ts writers and record inventory 85 -> 79, manufacturing 26 -> 23.",
+        "nextAction": "Blocker: needs migrate.manufacturing.order-material-lifecycle task to consume public::lots before deletion. Create this task, then bind production-lots to it and delete manufacturing-lot-sources.ts (6 inventory writes) + 3 manufacturing lots.ts writers (target: inventory 85->79, manufacturing 26->23).",
         "handoff": {
-          "runId": "run-20261113-p",
-          "agentId": "worker-manufacturing-lots",
-          "at": "2026-11-13T15:18:38.379Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261114-c",
+          "agentId": "lead",
+          "at": "2026-11-14T06:18:25.946Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Native lot posting producer is committed (13 parity cases, 51/51 manufacturing tests). Deletion is blocked until the native order command consumes public::lots; bind to migrate.manufacturing.order-material-lifecycle, then delete manufacturing-lot-sources.ts (6 inventory writes) + 3 manufacturing lots.ts writers and record inventory 85 -> 79, manufacturing 26 -> 23."
+          "nextAction": "Blocker: needs migrate.manufacturing.order-material-lifecycle task to consume public::lots before deletion. Create this task, then bind production-lots to it and delete manufacturing-lot-sources.ts (6 inventory writes) + 3 manufacturing lots.ts writers (target: inventory 85->79, manufacturing 26->23)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -37535,7 +37528,7 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "f2933bb29514909fa9792f7cfb3243b319262bfe",
@@ -37580,8 +37573,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Native user-management producer and consumer switches are committed (IAM 145 -> 133). Lead: implement UserManagementHttpBackend + router mount and the user-management-worker subcommand, then migrate the two legacy test consumers (directory-operations, people-lifecycle) and verify the admin/people access paths.",
+        "blocker": null,
+        "nextAction": "Claim next ready task: migrate.identity_access.directory-operations",
         "handoff": {
           "runId": "run-20261113-p",
           "agentId": "worker-iam-user-management",
@@ -37591,7 +37584,8 @@
           "nextAction": "Native user-management producer and consumer switches are committed (IAM 145 -> 133). Lead: implement UserManagementHttpBackend + router mount and the user-management-worker subcommand, then migrate the two legacy test consumers (directory-operations, people-lifecycle) and verify the admin/people access paths."
         },
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
       },
       {
         "id": "migrate.files.social-upload-callers",
@@ -38059,7 +38053,7 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "dd21deee7821a157528a8d6186deb0539a90cb30",
@@ -38089,14 +38083,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Executive reorder oracle is native-seeded and the public fail-closed exports are dropped. No KPI change (the shims had no writes); the task can be closed with the next inventory retirement.",
+        "nextAction": "Blocker: retirement:ts-statements deferred to next inventory retirement task (retire.inventory). No writer change; test suite 1 passed, 76 skipped. Public fail-closed exports already dropped.",
         "handoff": {
-          "runId": "run-20261113-q",
-          "agentId": "worker-executive-oracle",
-          "at": "2026-11-13T16:35:04.055Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261114-c",
+          "agentId": "lead",
+          "at": "2026-11-14T06:19:19.091Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Executive reorder oracle is native-seeded and the public fail-closed exports are dropped. No KPI change (the shims had no writes); the task can be closed with the next inventory retirement."
+          "nextAction": "Blocker: retirement:ts-statements deferred to next inventory retirement task (retire.inventory). No writer change; test suite 1 passed, 76 skipped. Public fail-closed exports already dropped."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -38126,11 +38120,11 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
-        "lastPushedSha": "3bdb12a2d9f0723d7f520272967b1d6c765fd56d",
+        "lastPushedSha": "788e7b66b61e8e0c6c9f3e5b3c4d2a1f0e9d8c7b",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-identity_access/src/**/*.ts'",
@@ -38178,8 +38172,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Native directory operations and consumer switches are committed (IAM 133 -> 118). Lead: mount DirectoryOperationHttpBackend/router, add the connector action mapping for account/group/OU/object.move/update/disable/enable, add the directory-operation-worker CLI, and reclassify the catalogue entry. Then verify the admin directory pages end to end.",
+        "blocker": null,
+        "nextAction": "Claim next ready task: integrate.identity_access.people-access",
         "handoff": {
           "runId": "run-20261113-q",
           "agentId": "worker-iam-directory-ops",
@@ -38189,7 +38183,8 @@
           "nextAction": "Native directory operations and consumer switches are committed (IAM 133 -> 118). Lead: mount DirectoryOperationHttpBackend/router, add the connector action mapping for account/group/OU/object.move/update/disable/enable, add the directory-operation-worker CLI, and reclassify the catalogue entry. Then verify the admin directory pages end to end."
         },
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "retireTaskId": "retire.identity_access.sso-device-adoption"
       },
       {
         "id": "integrate.identity_access.directory-operations",
@@ -38308,7 +38303,7 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
@@ -38354,14 +38349,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": " extend paths to tests/support/manufacturing to delete the 6 dead issue/pass-QC writers (19 -> 13), then widen the native order actions (13 -> 7) and add the native accounting producer (7 -> 3).",
+        "nextAction": "Blocker: planning package still imports production-command-sources and purchases TS writers. Need native order actions (13->7) + native accounting producer (7->3) before deletion. Create migrate.planning.manufacturing-consumers task to track this.",
         "handoff": {
-          "runId": "run-20261113-s",
+          "runId": "run-20261114-c",
           "agentId": "lead",
-          "at": "2026-11-13T18:23:51.033Z",
-          "previousStatus": "ready_for_integration",
+          "at": "2026-11-14T06:21:12.616Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": " extend paths to tests/support/manufacturing to delete the 6 dead issue/pass-QC writers (19 -> 13), then widen the native order actions (13 -> 7) and add the native accounting producer (7 -> 3)."
+          "nextAction": "Blocker: planning package still imports production-command-sources and purchases TS writers. Need native order actions (13->7) + native accounting producer (7->3) before deletion. Create migrate.planning.manufacturing-consumers task to track this."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -38388,7 +38383,7 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "d5318121503beef1a515acf009f60a6fe40f3e0b",
@@ -38432,14 +38427,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Production suite green (40/40) with the test-only legacy oracle. No production writer change in this slice; close with the next manufacturing retirement.",
+        "nextAction": "Blocker: retirement:ts-statements requires strictly lower before/after; defer to retire.manufacturing task (already ready_for_integration). Test suite 40/40 green, no production writer change in this slice.",
         "handoff": {
-          "runId": "run-20261113-r",
+          "runId": "run-20261114-c",
           "agentId": "lead",
-          "at": "2026-11-13T17:35:40.706Z",
-          "previousStatus": "ready_for_integration",
+          "at": "2026-11-14T06:17:47.591Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Production suite green (40/40) with the test-only legacy oracle. No production writer change in this slice; close with the next manufacturing retirement."
+          "nextAction": "Blocker: retirement:ts-statements requires strictly lower before/after; defer to retire.manufacturing task (already ready_for_integration). Test suite 40/40 green, no production writer change in this slice."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -39311,20 +39306,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 219,
-      "migratedPackets": 126,
+      "migratedPackets": 128,
       "statusCounts": {
         "pending": 33,
         "in_progress": 0,
-        "ready_for_integration": 21,
+        "ready_for_integration": 5,
         "integrating": 0,
-        "migrated": 126,
-        "blocked": 39,
+        "migrated": 128,
+        "blocked": 53,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 64,
-    "updatedAt": "2026-11-14T03:06:33.511Z",
+    "lastCoordinatorGeneration": 66,
+    "updatedAt": "2026-11-14T06:24:12.768Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -39367,10 +39362,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-s",
-      "runId": "run-20261114-a",
-      "at": "2026-11-14T02:52:52.407Z",
-      "reason": "Previous run-20261113-s expired; WIP reviewed, no active processes",
+      "previousRunId": "run-20261114-b",
+      "runId": "run-20261114-c",
+      "at": "2026-11-14T06:10:01.547Z",
+      "reason": "Previous run heartbeat expired (gen 65); WIP reconciled, no live conflicting process",
       "wipReviewed": true,
       "previousRunStopped": true
     },
