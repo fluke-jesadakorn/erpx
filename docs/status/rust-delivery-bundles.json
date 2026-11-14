@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 2018,
+    "revision": 2032,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261114-c",
+      "runId": "run-20261114-d",
       "agentId": "lead",
-      "startedAt": "2026-11-14T06:10:01.545Z",
-      "heartbeatAt": "2026-11-14T06:24:12.767Z",
-      "expiresAt": "2026-11-14T06:54:12.767Z",
-      "generation": 66,
-      "tokenHash": "c42e83db037aebcab3a677cb211496cd651b95d4cec6372b082c5db08ac26090"
+      "startedAt": "2026-11-14T09:46:31.061Z",
+      "heartbeatAt": "2026-11-14T09:53:41.313Z",
+      "expiresAt": "2026-11-14T10:23:41.313Z",
+      "generation": 67,
+      "tokenHash": "d6d60764de8ce8e7c5894031daf4908180b693d6ad46d5d9533a4dbc6dfc103b"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -10437,21 +10437,21 @@
         "resources": [
           "owner:customer_360"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+        "blocker": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
         "nextAction": "Sales directory route is native (ed65a3df1). Remaining: commerce executive metric engine composes SQL fragments, so the native grouped metric cannot be dropped in without a metric-engine adapter (recorded as integration work, not a route switch); portal stays Files-blocked.",
         "handoff": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "at": "2026-11-10T22:49:18.933Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
+          "runId": "run-20261114-c",
+          "agentId": "lead",
+          "at": "2026-11-14T09:46:31.060Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
           "nextAction": "Sales directory route is native (ed65a3df1). Remaining: commerce executive metric engine composes SQL fragments, so the native grouped metric cannot be dropped in without a metric-engine adapter (recorded as integration work, not a route switch); portal stays Files-blocked."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -13577,21 +13577,21 @@
         "resources": [
           "owner:talent"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
+        "blocker": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
         "nextAction": "Candidate/application/proposal/privacy commands are native and switched (faa1f6357); offers deliberately remain TS until the Finance talent-offer money-snapshot producer exists, and hire-handoff reads still use talentDetail TS. Remaining: Finance talent.offer-money-snapshot port, feature-talent hire-handoff page switch, People hire intake consumption.",
         "handoff": {
-          "runId": "run-20261110-g6",
+          "runId": "run-20261114-c",
           "agentId": "lead",
-          "at": "2026-11-11T06:43:23.642Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Lease expired during sales/operations handoff; WIP reviewed",
+          "at": "2026-11-14T09:46:31.060Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
           "nextAction": "Candidate/application/proposal/privacy commands are native and switched (faa1f6357); offers deliberately remain TS until the Finance talent-offer money-snapshot producer exists, and hire-handoff reads still use talentDetail TS. Remaining: Finance talent.offer-money-snapshot port, feature-talent hire-handoff page switch, People hire intake consumption."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -15077,7 +15077,7 @@
         "resources": [
           "owner:workflow"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "1d59e1879bcd4a2f1d4a7a935be74690f64f087c",
@@ -15211,14 +15211,14 @@
             "removalCondition": "Same route switch; delete the zod schema and its consumer."
           }
         ],
-        "blocker": "released with work preserved",
+        "blocker": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
         "nextAction": "Native ProjectionSideEffects and routing-attention read are committed. Lead: create/bind retire.workflow (done), mount ProjectionSideEffects in composition for the customer-notice path first, add each family to owned_predicate only when its owner drain is native, and switch the workplace routing-attention route after native resolveFlow/page reads exist. Then delete the TS branches and record the Workflow KPI pair.",
         "handoff": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-workflow",
-          "at": "2026-11-13T06:12:36.797Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "released with work preserved",
+          "runId": "run-20261114-c",
+          "agentId": "lead",
+          "at": "2026-11-14T09:46:31.060Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
           "nextAction": "Native ProjectionSideEffects and routing-attention read are committed. Lead: create/bind retire.workflow (done), mount ProjectionSideEffects in composition for the customer-notice path first, add each family to owned_predicate only when its owner drain is native, and switch the workplace routing-attention route after native resolveFlow/page reads exist. Then delete the TS branches and record the Workflow KPI pair."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -26220,7 +26220,7 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "84b89516f173b49e7d2b17e45596188dac44d554",
@@ -26289,14 +26289,14 @@
             "removalCondition": "Replace with a native-seeded oracle after the TS count adapter is deleted."
           }
         ],
-        "blocker": "released with work preserved",
+        "blocker": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
         "nextAction": "Native transit and count producers are committed. Lead must extend this task with src/composition/src/inventory_transit_commands.rs and inventory_count_commands.rs mount paths plus the workplace stock-counts route path, compose the ports with current IAM/Commercial authority, PgCommandLedger, Finance journal and Files evidence, switch the feature-supply stock-transit route, then delete the TS writers/barrels/exports and move the legacy count oracle. KPI remains 132 until that cutover.",
         "handoff": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-inventory-transit",
-          "at": "2026-11-13T05:50:05.748Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "released with work preserved",
+          "runId": "run-20261114-c",
+          "agentId": "lead",
+          "at": "2026-11-14T09:46:31.060Z",
+          "previousStatus": "integrating",
+          "reason": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
           "nextAction": "Native transit and count producers are committed. Lead must extend this task with src/composition/src/inventory_transit_commands.rs and inventory_count_commands.rs mount paths plus the workplace stock-counts route path, compose the ports with current IAM/Commercial authority, PgCommandLedger, Finance journal and Files evidence, switch the feature-supply stock-transit route, then delete the TS writers/barrels/exports and move the legacy count oracle. KPI remains 132 until that cutover."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -31678,19 +31678,29 @@
         "allowedPaths": [
           "packages/server-files/src/**",
           "packages/server-collaboration/src/**",
-          "packages/server-files/Cargo.toml",
-          "packages/server-files/package.json",
-          "tests/unit/files/**",
-          "tests/unit/collaboration/**",
-          "tests/integration/files/**",
-          "tests/integration/collaboration/**"
+          "packages/server-manage_erpx/src/adapters/beta-api.ts",
+          "packages/server-operations/src/adapters/handover.ts",
+          "packages/server-pms/src/adapters/pms/home-api.ts",
+          "packages/server-manage_erpx/src/application/api.ts",
+          "packages/server-operations/src/application/handover.ts",
+          "packages/server-pms/src/adapters/pms/home.ts"
         ],
         "resources": [
           "owner:files",
-          "owner:collaboration"
+          "owner:collaboration",
+          "owner:manage_erpx",
+          "owner:operations",
+          "owner:pms"
         ],
         "status": "ready_for_integration",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261114-d",
+          "agentId": "lead",
+          "claimedAt": "2026-11-14T09:56:18.199Z",
+          "heartbeatAt": "2026-11-14T09:56:18.199Z",
+          "expiresAt": "2026-11-14T10:26:18.199Z",
+          "generation": 67
+        },
         "baseSha": null,
         "implementedCommit": "597e6ef8457352849503c493801a1c8d4972b11a",
         "lastPushedSha": "597e6ef8457352849503c493801a1c8d4972b11a",
@@ -31722,6 +31732,42 @@
             "sourceSha": "597e6ef8457352849503c493801a1c8d4972b11a",
             "sourceKind": "committed",
             "note": "11/11: upload draft create/cancel, replay, effects rollback and social ownership."
+          },
+          {
+            "command": "cargo check -p erpx-server-files -p erpx-server-collaboration --offline",
+            "result": "passed",
+            "sourceSha": "597e6ef8457352849503c493801a1c8d4972b11a",
+            "sourceKind": "committed",
+            "note": "Both owner crates compile; composition mount compiles only after the concurrent inventory WIP is resolved."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test social_draft_uploads_postgres --offline",
+            "result": "passed",
+            "sourceSha": "597e6ef8457352849503c493801a1c8d4972b11a",
+            "sourceKind": "committed",
+            "note": "2/2: revokes and expires only the canceled draft; empty identity makes no change."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_http --offline",
+            "result": "passed",
+            "sourceSha": "597e6ef8457352849503c493801a1c8d4972b11a",
+            "sourceKind": "committed",
+            "note": "4/4: the four upload draft commands decode to the native changes."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_postgres --offline",
+            "result": "passed",
+            "sourceSha": "597e6ef8457352849503c493801a1c8d4972b11a",
+            "sourceKind": "committed",
+            "note": "11/11: upload draft create/cancel, replay, effects rollback and social ownership."
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 1962,
+            "after": 1959,
+            "sourceSha": "250d83b63ad34a42fa161a52d60a80017357d0c5",
+            "note": "Deleting packages/server-files/src/adapters/collaboration-home-sources.ts removes 3 UPDATE statements. Cutover (switching 3 TS callers + deletion) handled by retire.collaboration.social-home."
           }
         ],
         "retainedLegacy": [
@@ -31732,16 +31778,16 @@
             "removalCondition": "All three live TS callers (server-manage_erpx beta-api, server-operations handover, server-pms home-api) switch to the native social routes; then delete the four TS effects, barrels and package exports and record the owner KPI pair."
           }
         ],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "handoff": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-files-social",
-          "at": "2026-11-13T05:41:37.496Z",
+          "runId": "run-20261114-d",
+          "agentId": "lead",
+          "at": "2026-11-14T09:55:35.040Z",
           "previousStatus": "ready_for_integration",
-          "reason": "released with work preserved",
-          "nextAction": "Composition mount applied in src/composition/src/collaboration.rs and catalogue suite files.rust-social-draft-uploads-postgres.integration registered. Remaining: switch the three live TS callers (manage_erpx beta-api, operations handover, pms home-api) to the native social routes, then retire collaboration-home-sources.ts via retire.collaboration.social-home."
+          "reason": "handoff",
+          "nextAction": "Native implementation complete and tested (cargo check, 2/2 files tests, 4/4 collaboration HTTP tests, 11/11 collaboration PG tests). Cutover (switching 3 TS callers + deleting collaboration-home-sources.ts) is handled by retire.collaboration.social-home which has the full caller scope including manage_erpx, operations, pms, agent, organization."
         },
-        "nextAction": "Composition mount applied in src/composition/src/collaboration.rs and catalogue suite files.rust-social-draft-uploads-postgres.integration registered. Remaining: switch the three live TS callers (manage_erpx beta-api, operations handover, pms home-api) to the native social routes, then retire collaboration-home-sources.ts via retire.collaboration.social-home.",
+        "nextAction": "Native implementation complete. Cutover handled by retire.collaboration.social-home.",
         "scopeRefinementRequired": false
       },
       {
@@ -39310,16 +39356,16 @@
       "statusCounts": {
         "pending": 33,
         "in_progress": 0,
-        "ready_for_integration": 5,
+        "ready_for_integration": 1,
         "integrating": 0,
         "migrated": 128,
-        "blocked": 53,
+        "blocked": 57,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 66,
-    "updatedAt": "2026-11-14T06:24:12.768Z",
+    "lastCoordinatorGeneration": 67,
+    "updatedAt": "2026-11-14T09:56:25.040Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -39362,10 +39408,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261114-b",
-      "runId": "run-20261114-c",
-      "at": "2026-11-14T06:10:01.547Z",
-      "reason": "Previous run heartbeat expired (gen 65); WIP reconciled, no live conflicting process",
+      "previousRunId": "run-20261114-c",
+      "runId": "run-20261114-d",
+      "at": "2026-11-14T09:46:31.063Z",
+      "reason": "Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
       "wipReviewed": true,
       "previousRunStopped": true
     },
