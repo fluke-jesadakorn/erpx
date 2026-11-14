@@ -18,6 +18,7 @@ import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentRe
 import {attachmentDeniedReadAudits} from '@erpx/server-files/public/attachment-denied-read-audits';
 import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 async function taskImage(database:SqlDatabase,actor:WorkContext,id:string){
  return database.prepare(`SELECT jsonb_build_object('task',to_jsonb(t),'project',project.image,
@@ -32,7 +33,7 @@ async function taskImage(database:SqlDatabase,actor:WorkContext,id:string){
 function changed(){return new ApiError(409,'WORK_TASK_FILE_READ_CHANGED','The private task evidence, source or current authority changed while the file was being read.');}
 async function current(database:SqlDatabase,actor:WorkContext){
  const key=`work-task-byte-read:${randomUUID()}`;
- try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);}
+ try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);}
  catch(error){let cause=error;for(let depth=0;depth<5&&cause&&typeof cause==='object';depth++){const item=cause as {code?:string;cause?:unknown};if(item.code==='23514')throw changed();cause=item.cause;}throw error;}
 }
 const legalParents=new WeakMap<SqlDatabase,{actor:WorkContext;identity:string}>();

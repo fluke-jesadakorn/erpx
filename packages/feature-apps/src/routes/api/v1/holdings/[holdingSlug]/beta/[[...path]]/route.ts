@@ -43,6 +43,10 @@ export async function workSocialRequest(request:Request,context:Context){
   const handled=await nativeSocialBeta(request,holdingSlug,path);
   if(handled)return handled;
  }
+ // Comment and post-edit upload drafts are native-only: Files owns the
+ // attachment revocation/upload expiry and the TS commands are retired.
+ if(path[0]==='comment-uploads'||path[0]==='post-edit-uploads')
+  return Response.json({error:{code:'NATIVE_SOCIAL_UNAVAILABLE',message:'The native Social upload service is unavailable.'}},{status:503,headers});
  // HEAD has GET semantics; the framework removes its response body. The native
  // command dispatcher must never interpret it as a mutation.
  return native(request.method==='HEAD'?new Request(request,{method:'GET'}):request,context);

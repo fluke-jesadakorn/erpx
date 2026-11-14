@@ -18,7 +18,8 @@ import {guidedIntakeInputSchema} from "@erpx/feature-shared/lib/ai/guided-intake
 import {refreshRecentUsageProjections} from "@erpx/server-commercial/public/usage-projection";
 import {createMarketingAsset,createMarketingCandidate,changeMarketing} from "@erpx/server-marketing/public/marketing";
 import {createAuth} from "@erpx/server-identity_access/public/auth";
-import {beginMfa,totp,verifyMfa} from "@erpx/server-identity_access/public/iam-mfa";
+import {totp} from "@erpx/server-identity_access/public/iam-mfa";
+import {iamMfaEnrollment} from "../../identity_access/mfa-enrollment";
 import type {IamActor} from "@erpx/server-identity_access/public/iam-context";
 import {connectionInput} from "@erpx/server-identity_access/domain/directories";
 import {saveConnection} from "../../../tests/support/legacy-directory";
@@ -145,7 +146,7 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
  if(!nativeGrant)throw new Error('NORMAL_IAM_SEED_ASSIGNMENT_REQUIRED');
  const selection=await selectWorkRole(input.h001,{sessionId:nativeSession.id,userId:author.userId,companyId:workplace.company,assignmentId:author.assignmentId,assignmentVersion:nativeGrant.version,revision:0,expiresAt:Date.parse(nativeSession.expiresAt)});
  const iamActor:IamActor={...author,sessionId:nativeSession.id,authority:{sessionId:nativeSession.id,revision:selection.revision,assignmentVersion:nativeGrant.version},iam:await loadIamAuthority(input.h001,workplace.company,author.userId,author.role,nativeSession.id),scopeKind:'holding',scopeNodeId:null,platform:false};
- const enrollment=await beginMfa(iamActor),counter=Math.floor(Date.now()/30000);await verifyMfa(iamActor,totp(enrollment.secret,counter));
+ const mfa=iamMfaEnrollment(input.control),enrollment=await mfa.begin(iamActor),counter=Math.floor(Date.now()/30000);await mfa.verify(iamActor,totp(enrollment.secret,counter));
  for(const project of ['desktop','mobile'])await privateJson(join(input.directory,`workplace-platform-mfa-${project}.json`),{[author.userId]:{secret:enrollment.secret,counter}});
  const directoryInput=connectionInput.parse({expectedVersion:0,name:'Declared fictional directory · provider unavailable',provider:'active_directory',config:{mode:'ldaps',secretProfile:'engineering_no_provider_account',authority:'Declared engineering fixture; no live provider account',ldapUrl:'ldaps://directory.engineering.invalid:636',baseDn:'DC=engineering,DC=invalid'}});
  const directoryConnection=await saveConnection(input.h001,iamActor,directoryInput,key());

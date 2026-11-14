@@ -80,18 +80,28 @@ pub struct CurrentMaintenanceCreationAsset {
 }
 
 impl CurrentMaintenanceCreationAsset {
-    pub fn facts(&self) -> &MaintenanceAssetFacts { self.source.facts() }
-    pub fn lifecycle(&self) -> &str { &self.lifecycle }
+    pub fn facts(&self) -> &MaintenanceAssetFacts {
+        self.source.facts()
+    }
+    pub fn lifecycle(&self) -> &str {
+        &self.lifecycle
+    }
 
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         if transaction(c).await? != self.source.transaction || !creation_lock_held(c).await? {
             return Err(changed().into());
         }
         self.source.require_current(c).await?;
-        let current: Option<String> = sqlx::query_scalar("SELECT lifecycle_status FROM operational_assets WHERE id=$1 AND company_id=$2")
-            .bind(self.source.facts.asset_id.as_str()).bind(self.source.facts.company_id.as_str())
-            .fetch_optional(c).await?;
-        if current.as_deref() != Some(self.lifecycle.as_str()) { return Err(changed().into()); }
+        let current: Option<String> = sqlx::query_scalar(
+            "SELECT lifecycle_status FROM operational_assets WHERE id=$1 AND company_id=$2",
+        )
+        .bind(self.source.facts.asset_id.as_str())
+        .bind(self.source.facts.company_id.as_str())
+        .fetch_optional(c)
+        .await?;
+        if current.as_deref() != Some(self.lifecycle.as_str()) {
+            return Err(changed().into());
+        }
         Ok(())
     }
 }
@@ -99,21 +109,41 @@ impl CurrentMaintenanceCreationAsset {
 /// Retains the legacy create admission fields without materializing unrelated
 /// Asset metadata. Lock timing before the snapshot is a coordinator obligation.
 pub async fn inspect_maintenance_creation_asset(
-    c: &mut PgConnection, holding: &HoldingId, company: &CompanyId,
-    branch: Option<&RecordId>, department: Option<&RecordId>, asset: &RecordId,
+    c: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    department: Option<&RecordId>,
+    asset: &RecordId,
     expected_version: i64,
 ) -> Result<Option<CurrentMaintenanceCreationAsset>, Error> {
     transaction(c).await?;
-    if !creation_lock_held(c).await? { return Err(changed().into()); }
-    let Some(source) = read_current_maintenance_asset(c, holding, company, asset).await? else { return Ok(None) };
+    if !creation_lock_held(c).await? {
+        return Err(changed().into());
+    }
+    let Some(source) = read_current_maintenance_asset(c, holding, company, asset).await? else {
+        return Ok(None);
+    };
     let facts = source.facts();
-    if facts.version != expected_version || branch.is_some_and(|b| b != &facts.branch_id)
-        || department.is_some_and(|d| Some(d) != facts.department_id.as_ref()) {
+    if facts.version != expected_version
+        || branch.is_some_and(|b| b != &facts.branch_id)
+        || department.is_some_and(|d| Some(d) != facts.department_id.as_ref())
+    {
         return Ok(None);
     }
-    let lifecycle: String = sqlx::query_scalar("SELECT lifecycle_status FROM operational_assets WHERE id=$1 AND company_id=$2")
-        .bind(asset.as_str()).bind(company.as_str()).fetch_one(c).await?;
-    if !matches!(lifecycle.as_str(), "registered" | "in_service" | "maintenance") { return Ok(None); }
+    let lifecycle: String = sqlx::query_scalar(
+        "SELECT lifecycle_status FROM operational_assets WHERE id=$1 AND company_id=$2",
+    )
+    .bind(asset.as_str())
+    .bind(company.as_str())
+    .fetch_one(c)
+    .await?;
+    if !matches!(
+        lifecycle.as_str(),
+        "registered" | "in_service" | "maintenance"
+    ) {
+        return Ok(None);
+    }
     Ok(Some(CurrentMaintenanceCreationAsset { source, lifecycle }))
 }
 

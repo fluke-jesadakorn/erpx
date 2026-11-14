@@ -104,16 +104,16 @@ describe("CRM owner application",()=>{
   expect(await f.app.create({branchId:"branch",title:"Customer inquiry",contactName:"Customer",contactDetail:"Contact details",source:"Staff inquiry",contactId:"contact",brief:"Discuss services",dueDate:"2026-10-06"},"key")).toEqual(saved);
   expect(f.mutations).toEqual([]);expect(f.calls).toEqual(["commerce.sales","commerce.read"]);
  });
- test("qualifies an owned lead with Company currency through the semantic repository",async()=>{
+ test("fails closed for qualification because the native CRM command owns it",async()=>{
+  // Qualification moved to the native CRM lead command; its owner, Finance,
+  // Commerce and Workflow coverage is in the Rust CRM suites.
   const f=crmFixture();
-  await f.app.changeLead("lead",{action:"qualify",expectedVersion:1,customerId:"customer",expectedValue:"1200.50",closeDate:"2026-10-31",reason:"Customer needs are confirmed"},"key");
-  expect(f.mutations[0]).toMatchObject({action:"lead",opportunityId:"opportunity-key",currency:"THB",now:42});
+  await expect(f.app.changeLead("lead",{action:"qualify",expectedVersion:1,customerId:"customer",expectedValue:"1200.50",closeDate:"2026-10-31",reason:"Customer needs are confirmed"},"key")).rejects.toMatchObject({code:"CRM_COMMAND_NOT_NATIVE"});
+  expect(f.mutations).toEqual([]);
  });
- test("requires a sales manager to reopen and forbids another salesperson from qualifying",async()=>{
+ test("requires a sales manager to reopen a closed lead",async()=>{
   const reopen=crmFixture();
   await expect(reopen.app.changeLead("lead",{action:"reopen",expectedVersion:1,reason:"Reconsider customer needs"},"key")).rejects.toMatchObject({code:"CRM_MANAGER_REQUIRED"});
-  const other=crmFixture({actorId:"other"});
-  await expect(other.app.changeLead("lead",{action:"qualify",expectedVersion:1,customerId:"customer",expectedValue:"100",closeDate:"2026-10-31",reason:"Qualify customer needs"},"key")).rejects.toMatchObject({code:"CRM_OWNER_REQUIRED"});
  });
  test("requires an approved quotation before negotiating and does not commit a rejected command",async()=>{
   const f=crmFixture({}, {async records(){return [{id:"lead",owner_id:"salesperson",status:"qualified",opportunity_id:"opportunity",stage:"discovery"}];}});

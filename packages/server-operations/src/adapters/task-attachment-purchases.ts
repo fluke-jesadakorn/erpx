@@ -21,6 +21,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {staffGuard} from '@erpx/server-operations/adapters/staff-policy';
 import {projectTaskRecordPolicy} from '@erpx/server-operations/adapters/project-task-record-policy';
 import {workTaskOwnsAttachmentAction} from '@erpx/server-operations/adapters/work-task-purchases';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 export type WorkTaskAttachmentPurchase={companyId:string;targetId:string;actor:WorkContext;purpose:CapabilityPurpose;capabilities:string[];witness:string;ownedAction:boolean;writer:'creator'|'assignee'|'delegate'};
 function source(ownedAction:boolean){return `SELECT t.id,t.company_id,t.branch_id,t.department_id,t.project_id,t.state,t.creator_user_id,t.assignee_user_id,t.template_id,social.work_social,
@@ -65,8 +66,8 @@ export async function workTaskAttachmentCommandBoundary(database:SqlDatabase,sco
   return [...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),staffGuard(database,key,actor.companyId,actor.userId,'work-task-file-staff'),assertion(database,key,'work-task-file-source',`EXISTS(WITH ${viewer} AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms)
  SELECT 1 FROM (${source(scope.ownedAction)}) work_task_file_source CROSS JOIN ${viewer} WHERE work_task_file_source.project_id IS NULL AND witness=? AND ${writer}
  AND ${projectTaskRecordPolicy('work_task_file_source.id','work_task_file_source.company_id',viewer)}
- AND EXISTS(SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${current.where}))`,[actor.userId,actor.assignmentId,scope.targetId,scope.companyId,scope.witness,actor.companyId,actor.branchId,actor.departmentId,...current.args]),assertion(database,key,'work-task-file-social-source',social[index].where,social[index].args),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)];
+ AND EXISTS(SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${current.where}))`,[actor.userId,actor.assignmentId,scope.targetId,scope.companyId,scope.witness,actor.companyId,actor.branchId,actor.departmentId,...current.args]),assertion(database,key,'work-task-file-social-source',social[index].where,social[index].args),clearWorkflowCommandAssertions(database, key)];
  });
- return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards('before')],after:[...financeDeferredEffectStatements(database),...guards('after'),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key))],observe:mode==='shadow'?observePurchaseResults:undefined};
+ return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards('before')],after:[...financeDeferredEffectStatements(database),...guards('after'),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>clearWorkflowCommandAssertions(database, item.key))],observe:mode==='shadow'?observePurchaseResults:undefined};
 }
 export function workTaskAttachmentFailure(error:unknown){let cause=error;for(let depth=0;depth<5&&cause&&typeof cause==='object';depth++){const item=cause as {code?:string;detail?:string;cause?:unknown};if(item.code==='23514'&&(item.detail?.includes('work-task-file-before:')||item.detail?.includes('work-task-file-after:')))return new ApiError(409,'WORK_TASK_ATTACHMENT_CHANGED','The original task evidence, current assignment or purchased source changed.');cause=item.cause;}return null;}

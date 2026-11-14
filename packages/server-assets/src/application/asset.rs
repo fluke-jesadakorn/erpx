@@ -6,7 +6,9 @@
 //! current source, action policy, then the late expected-version guard. It
 //! never mints Commercial purchase, IAM, Money or Workflow authority.
 use crate::domain::asset::{
-    AssetAction, AssetChange, AssetChangeInput, AssetCostInput, AssetState, AssetTransition, NewAsset, AssetPurchaseDisposition, AssetPurchaseRequirements, asset_create_purchase_from_validated, asset_action_purchase_from_validated, asset_after,
+    AssetAction, AssetChange, AssetChangeInput, AssetCostInput, AssetPurchaseDisposition,
+    AssetPurchaseRequirements, AssetState, AssetTransition, NewAsset,
+    asset_action_purchase_from_validated, asset_after, asset_create_purchase_from_validated,
     parse_asset_cost, require_independent_retirement_review, validate_currency, validate_reason,
 };
 use crate::domain::maintenance::{MaintenanceAssetCondition, MaintenanceAssetLifecycle};
@@ -354,7 +356,11 @@ pub trait AssetCurrencyCatalogue: Send + Sync {
     fn contains(&self, currency: &str) -> Result<bool, BusinessError>;
     /// Fixed ISO scale takes precedence; a nullable ISO scale uses the
     /// Company override. None means no usable scale is configured.
-    fn scale(&self, currency: &str, company_scale: Option<u32>) -> Result<Option<u32>, BusinessError>;
+    fn scale(
+        &self,
+        currency: &str,
+        company_scale: Option<u32>,
+    ) -> Result<Option<u32>, BusinessError>;
 }
 
 fn require_catalogued_currency(
@@ -362,7 +368,10 @@ fn require_catalogued_currency(
     currency: &str,
 ) -> Result<(), BusinessError> {
     if !catalogue.contains(currency)? {
-        return Err(BusinessError::invalid("VALIDATION_FAILED", "Use a current ISO currency."));
+        return Err(BusinessError::invalid(
+            "VALIDATION_FAILED",
+            "Use a current ISO currency.",
+        ));
     }
     Ok(())
 }
@@ -393,11 +402,22 @@ pub fn asset_create_purchase_requirements(
 
 /// Validate the full lifecycle schema, including reason, before purchase
 /// routing; unknown actions or malformed inputs cannot reach that gate.
-pub fn asset_action_purchase_requirements(raw:&Value,disposition:AssetPurchaseDisposition)->Result<AssetPurchaseRequirements,BusinessError> {
-    let input=AssetChangeInput::parse(raw)?;
-    let reason=raw.get("reason").and_then(Value::as_str).ok_or_else(||BusinessError::invalid("VALIDATION_FAILED","Enter a reason between 3 and 2000 characters."))?;
+pub fn asset_action_purchase_requirements(
+    raw: &Value,
+    disposition: AssetPurchaseDisposition,
+) -> Result<AssetPurchaseRequirements, BusinessError> {
+    let input = AssetChangeInput::parse(raw)?;
+    let reason = raw.get("reason").and_then(Value::as_str).ok_or_else(|| {
+        BusinessError::invalid(
+            "VALIDATION_FAILED",
+            "Enter a reason between 3 and 2000 characters.",
+        )
+    })?;
     validate_reason(reason)?;
-    Ok(asset_action_purchase_from_validated(&input.action,disposition))
+    Ok(asset_action_purchase_from_validated(
+        &input.action,
+        disposition,
+    ))
 }
 
 pub async fn asset_workspace<R: AssetRepository>(
@@ -476,18 +496,28 @@ async fn registration_cost<R: AssetRepository>(
                 u8::try_from(scale).map_err(|_| {
                     BusinessError::invalid("VALIDATION_FAILED", "Use the current currency scale.")
                 })?,
-            ).map_err(|error| {
+            )
+            .map_err(|error| {
                 if error.code == "MONEY_OUT_OF_RANGE" {
-                    BusinessError::new(FailureKind::InvalidInput,"MONEY_OVERFLOW","Acquisition cost exceeds supported ledger precision.")
-                } else { error }
+                    BusinessError::new(
+                        FailureKind::InvalidInput,
+                        "MONEY_OVERFLOW",
+                        "Acquisition cost exceeds supported ledger precision.",
+                    )
+                } else {
+                    error
+                }
             })?;
-            i64::try_from(amount.units()).ok().filter(|value| *value <= crate::domain::asset::MAX_SAFE_INTEGER).ok_or_else(|| {
-                BusinessError::new(
-                    FailureKind::InvalidInput,
-                    "MONEY_OVERFLOW",
-                    "Acquisition cost exceeds supported ledger precision.",
-                )
-            })?
+            i64::try_from(amount.units())
+                .ok()
+                .filter(|value| *value <= crate::domain::asset::MAX_SAFE_INTEGER)
+                .ok_or_else(|| {
+                    BusinessError::new(
+                        FailureKind::InvalidInput,
+                        "MONEY_OVERFLOW",
+                        "Acquisition cost exceeds supported ledger precision.",
+                    )
+                })?
         }
     };
     Ok(cost_minor)
@@ -527,7 +557,8 @@ pub async fn create_asset<
             receipt: None,
         });
     }
-    asset.cost_minor = registration_cost(repository, catalogue, &asset.currency, &cost_input).await?;
+    asset.cost_minor =
+        registration_cost(repository, catalogue, &asset.currency, &cost_input).await?;
     if asset.finance_asset_id.is_some() {
         actor.require("finance.write")?;
     }

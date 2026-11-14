@@ -1,6 +1,7 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { handoverView, publishHandover,publishRecoverableHandover } from "@erpx/server-operations/public/handover";
+import { nativePublishHandover, nativeSocialAvailable } from "@erpx/server-collaboration/public/native-social-page";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { holdingResources } from "../../../../../../../../../packages/server-runtime/src/public/runtime";
@@ -29,6 +30,8 @@ export async function POST(request: Request, context: Context) {
       throw new ApiError(422, "COMMAND_KEY_REQUIRED", "Provide a valid publish key.");
     const actor = await requireWorkContext((await context.params).holdingSlug);
     const input = await request.json();
+    if (nativeSocialAvailable())
+      return Response.json(canonicalDestinationLinks({ data: await nativePublishHandover(request, (await context.params).holdingSlug, input, key) }), { headers });
     const [{ write }, snapshot] = await Promise.all([
       holdingResources(actor.holdingId), workSnapshot(actor),
     ]);

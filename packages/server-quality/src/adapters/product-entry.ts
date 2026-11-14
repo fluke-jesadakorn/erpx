@@ -15,6 +15,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {ApiError} from "@erpx/server-runtime/public/http";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 /** Read-only role candidate discovery. Entry never creates a WorkContext,
  * chooses an assignment or returns a private source/purchase snapshot. */
 export async function qualityProductSourceEntry(database:SqlDatabase,scope:QualityProductEntryScope,target:QualitySourceEntry){
@@ -40,7 +41,7 @@ async function strictSourceScope(database:SqlDatabase,actor:WorkContext,target:Q
   AND ${scheduledFeaturePredicate("quality_product_scope.company_id",target.kind==="hold"?"quality":"inventory")}`)
   .bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId,actor.assignmentId,scope.assignmentVersion).first<{allowed:boolean}>();
  if(!current?.allowed||actor.departmentId)throw new ApiError(403,"QUALITY_SOURCE_ACCESS_CHANGED","Choose a current authorized source assignment.");
- const key=`quality-product-presentation:${crypto.randomUUID()}`;try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);}catch(error){throw financialConstraintError(error)??error;}
+ const key=`quality-product-presentation:${crypto.randomUUID()}`;try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);}catch(error){throw financialConstraintError(error)??error;}
  return scope;
 }
 /** The canonical detail drawer repeats its original owner authorization. Its

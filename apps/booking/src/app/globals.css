@@ -664,14 +664,10 @@
 @source "../../../../packages/server-identity_access/src/adapters/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-identity_access/src/adapters/device-account-store.ts";
 @source "../../../../packages/server-identity_access/src/adapters/directory-lookup.ts";
-@source "../../../../packages/server-identity_access/src/adapters/directory-synchronization.ts";
-@source "../../../../packages/server-identity_access/src/adapters/directory-transaction.ts";
 @source "../../../../packages/server-identity_access/src/adapters/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-identity_access/src/adapters/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-identity_access/src/adapters/iam-auth.ts";
 @source "../../../../packages/server-identity_access/src/adapters/iam-db.ts";
-@source "../../../../packages/server-identity_access/src/adapters/iam-grant-transaction.ts";
-@source "../../../../packages/server-identity_access/src/adapters/iam-grants.ts";
 @source "../../../../packages/server-identity_access/src/adapters/iam-jobs.ts";
 @source "../../../../packages/server-identity_access/src/adapters/iam-permissions.ts";
 @source "../../../../packages/server-identity_access/src/adapters/iam-person.ts";
@@ -691,7 +687,6 @@
 @source "../../../../packages/server-identity_access/src/adapters/pms-source-authorization.ts";
 @source "../../../../packages/server-identity_access/src/adapters/pms-source-recipients.ts";
 @source "../../../../packages/server-identity_access/src/adapters/private-file-denial-authority.ts";
-@source "../../../../packages/server-identity_access/src/adapters/product-session-revocation.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso-store.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso.ts";
@@ -720,8 +715,6 @@
 @source "../../../../packages/server-identity_access/src/application/authorization.ts";
 @source "../../../../packages/server-identity_access/src/application/directory-auth.ts";
 @source "../../../../packages/server-identity_access/src/application/directory-lookup.ts";
-@source "../../../../packages/server-identity_access/src/application/directory-synchronization.ts";
-@source "../../../../packages/server-identity_access/src/application/iam-grants.ts";
 @source "../../../../packages/server-identity_access/src/application/jobs.ts";
 @source "../../../../packages/server-identity_access/src/application/permissions.ts";
 @source "../../../../packages/server-identity_access/src/application/providers.ts";
@@ -734,7 +727,6 @@
 @source "../../../../packages/server-identity_access/src/domain/admin-workspace.ts";
 @source "../../../../packages/server-identity_access/src/domain/auth.ts";
 @source "../../../../packages/server-identity_access/src/domain/authorization.ts";
-@source "../../../../packages/server-identity_access/src/domain/iam-service.ts";
 @source "../../../../packages/server-identity_access/src/domain/product-sso.ts";
 @source "../../../../packages/server-identity_access/src/domain/providers.ts";
 @source "../../../../packages/server-identity_access/src/domain/public-surface-entry.ts";
@@ -758,12 +750,10 @@
 @source "../../../../packages/server-identity_access/src/public/collaboration-text-sources.ts";
 @source "../../../../packages/server-identity_access/src/public/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-identity_access/src/public/directory-lookup.ts";
-@source "../../../../packages/server-identity_access/src/public/directory-synchronization.ts";
 @source "../../../../packages/server-identity_access/src/public/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-identity_access/src/public/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-identity_access/src/public/iam-auth.ts";
 @source "../../../../packages/server-identity_access/src/public/iam-db.ts";
-@source "../../../../packages/server-identity_access/src/public/iam-grants.ts";
 @source "../../../../packages/server-identity_access/src/public/iam-jobs.ts";
 @source "../../../../packages/server-identity_access/src/public/iam-permissions.ts";
 @source "../../../../packages/server-identity_access/src/public/iam-person.ts";
@@ -1591,6 +1581,7 @@
 @source "../../../../packages/server-workflow/src/adapters/command-policies.ts";
 @source "../../../../packages/server-workflow/src/adapters/commands.ts";
 @source "../../../../packages/server-workflow/src/adapters/document-sources.ts";
+@source "../../../../packages/server-workflow/src/adapters/expense-native-effects.ts";
 @source "../../../../packages/server-workflow/src/adapters/flow-command-planning.ts";
 @source "../../../../packages/server-workflow/src/adapters/flow-planning-ports.ts";
 @source "../../../../packages/server-workflow/src/adapters/flow-reader.ts";
@@ -1609,6 +1600,7 @@
 @source "../../../../packages/server-workflow/src/public/approval-participant-projection.ts";
 @source "../../../../packages/server-workflow/src/public/approval-planning.ts";
 @source "../../../../packages/server-workflow/src/public/collaboration-notification-snapshot-sources.ts";
+@source "../../../../packages/server-workflow/src/public/command-assertion-effects.ts";
 @source "../../../../packages/server-workflow/src/public/command-assertions.ts";
 @source "../../../../packages/server-workflow/src/public/command-guards.ts";
 @source "../../../../packages/server-workflow/src/public/command-policies.ts";

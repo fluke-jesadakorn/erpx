@@ -256,8 +256,8 @@ async fn real_browser_identity_and_attestation_admit_only_current_enabled_engine
 
 #[tokio::test]
 async fn scheduled_inventory_rollout_source_matches_actual_ts_predicate() {
- use erpx_server_pms::public::scheduled_inventory_rollouts::*;
- fixture::with_database(2,|p|async move {
+    use erpx_server_pms::public::scheduled_inventory_rollouts::*;
+    fixture::with_database(2,|p|async move {
   setup(&p).await;
   let mut unlocked=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_scheduled_inventory_rollouts(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
   let mut tx=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_scheduled_inventory_rollouts(&mut tx).await.unwrap();let source=inspect_scheduled_inventory_rollouts(&mut tx).await.unwrap();

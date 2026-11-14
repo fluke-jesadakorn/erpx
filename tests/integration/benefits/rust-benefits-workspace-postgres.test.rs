@@ -7,9 +7,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
+use erpx_server_benefits::public::payroll_source::{
+    BenefitsPayrollQuery, BenefitsPayrollScope, BenefitsPayrollSourceRepository,
+    PgBenefitsPayrollSource, payroll_benefit_inputs,
+};
 use erpx_server_benefits::public::workspace::{
     BenefitsActor, BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture,
-    BenefitsPeoplePort, BenefitsWorker, PgBenefitsWorkspaceRead, benefits_workspace,
+    BenefitsPeoplePort, BenefitsWorker, PgBenefitsWorkspaceRead, benefits_election_detail,
+    benefits_workspace,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -542,4 +547,170 @@ impl BenefitsEntitlementPort for DeniedPackage {
             })
         })
     }
+}
+
+#[tokio::test]
+async fn election_detail_reads_company_scoped_history_and_released_payroll_input() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let owner = actor("company", &["records.read", "benefits.review"]);
+        PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let current = owner.clone();
+                Box::pin(async move {
+                    sqlx::raw_sql(
+                        "INSERT INTO benefit_elections(id,company_id,person_id,engagement_id,plan_id,plan_version,window_id,window_version,coverage_type,dependent_ids_json,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,submitted_by,provider_reference,acknowledged_by,released_by,version,created_at,updated_at) VALUES \
+                         ('election-released','company','person-owner','engagement-owner','plan-b',2,'window-closed',1,'family','[\"dependent-owner\"]','THB',12550,30000,'2027-01-01','2027-12-31','released','owner','owner','SIM-ACK-1','reviewer','releaser',2,10,600);\
+                         INSERT INTO benefit_election_events(id,election_id,version,action,actor_id,reason,status,created_at) VALUES \
+                         ('event-released-1','election-released',1,'elect','owner','Employee elected reviewed coverage','elected',10),\
+                         ('event-released-2','election-released',2,'release','releaser','Payroll amount and provider receipt reconciled','released',600);\
+                         INSERT INTO benefit_payroll_inputs(id,election_id,company_id,person_id,engagement_id,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,source_election_version,status,released_by,created_at) VALUES \
+                         ('payroll-released-1','election-released','company','person-owner','engagement-owner','THB',12550,30000,'2027-01-01','2027-12-31',2,'released','releaser',600);",
+                    )
+                    .execute(&mut *connection)
+                    .await?;
+                    let mut reader = PgBenefitsWorkspaceRead::new(connection);
+                    let mut people = People {
+                        worker: Some(owner_worker()),
+                        names: vec![("person-owner".into(), "Owner Worker".into())],
+                    };
+                    let mut packages = Packages;
+                    let detail = benefits_election_detail(
+                        &current,
+                        "election-released",
+                        &mut reader,
+                        &mut people,
+                        &mut packages,
+                        NOW,
+                    )
+                    .await?;
+                    assert_eq!(detail.election.id, "election-released");
+                    assert_eq!(detail.election.plan_name, "Plan B");
+                    assert_eq!(detail.election.employee_name, "Owner Worker");
+                    assert_eq!(detail.election.plan_current_version, 2);
+                    assert_eq!(detail.election.plan_status, "draft");
+                    assert_eq!(detail.election.dependent_ids, vec!["dependent-owner"]);
+                    assert_eq!(detail.election.provider_reference.as_deref(), Some("SIM-ACK-1"));
+                    assert_eq!(detail.election.released_by.as_deref(), Some("releaser"));
+                    assert_eq!(
+                        detail.history.iter().map(|row| row.action.as_str()).collect::<Vec<_>>(),
+                        vec!["elect", "release"]
+                    );
+                    assert_eq!(detail.history[1].version, 2);
+                    let payroll = detail.payroll.as_ref().unwrap();
+                    assert_eq!(payroll.source_election_version, 2);
+                    assert_eq!(payroll.employee_deduction_minor, 12_550);
+                    assert_eq!(payroll.employer_cost_minor, 30_000);
+                    assert!(detail.is_owner);
+                    assert!(detail.can_review);
+
+                    let error = benefits_election_detail(
+                        &current,
+                        "election-foreign",
+                        &mut reader,
+                        &mut people,
+                        &mut packages,
+                        NOW,
+                    )
+                    .await
+                    .unwrap_err();
+                    assert_eq!(business(error).code, "BENEFIT_ELECTION_NOT_FOUND");
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn payroll_source_reads_released_inputs_for_the_exact_engagement_and_period() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+                Box::pin(async move {
+                    sqlx::raw_sql(
+                        "INSERT INTO benefit_elections(id,company_id,person_id,engagement_id,plan_id,plan_version,window_id,window_version,coverage_type,dependent_ids_json,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,released_by,version,created_at,updated_at) VALUES \
+                         ('election-payroll-a','company','person-owner','engagement-owner','plan-b',2,'window-closed',1,'employee','[]','THB',12550,30000,'2027-01-01','2027-12-31','released','owner','releaser',2,10,700);\
+                         INSERT INTO benefit_payroll_inputs(id,election_id,company_id,person_id,engagement_id,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,source_election_version,status,released_by,created_at) VALUES \
+                         ('payroll-a','election-payroll-a','company','person-owner','engagement-owner','THB',12550,30000,'2027-01-01','2027-12-31',2,'released','releaser',700);",
+                    )
+                    .execute(&mut *connection)
+                    .await?;
+                    let scope = BenefitsPayrollScope::new(CompanyId::new("company").unwrap());
+                    let query = BenefitsPayrollQuery {
+                        engagement_id: "engagement-owner".into(),
+                        currency: "THB".into(),
+                        period_start: "2027-01-01".into(),
+                        period_end: "2027-01-31".into(),
+                    };
+                    let mut reader = PgBenefitsPayrollSource::new(connection);
+                    let rows = payroll_benefit_inputs(&mut reader, &scope, &query).await?;
+                    assert_eq!(rows.len(), 1);
+                    assert_eq!(rows[0].id, "payroll-a");
+                    assert_eq!(rows[0].plan_name, "Plan B");
+                    assert_eq!(rows[0].employee_deduction_minor, 12_550);
+                    assert_eq!(rows[0].employer_cost_minor, 30_000);
+                    assert_eq!(rows[0].source_election_version, 2);
+                    assert_eq!(rows[0].status, "released");
+
+                    let foreign = BenefitsPayrollScope::new(CompanyId::new("foreign").unwrap());
+                    let mut reader = PgBenefitsPayrollSource::new(connection);
+                    let rows = payroll_benefit_inputs(&mut reader, &foreign, &query).await?;
+                    assert!(rows.is_empty());
+
+                    let narrow = BenefitsPayrollQuery {
+                        period_start: "2028-01-01".into(),
+                        period_end: "2028-01-31".into(),
+                        ..query
+                    };
+                    let mut reader = PgBenefitsPayrollSource::new(connection);
+                    let rows = payroll_benefit_inputs(&mut reader, &scope, &narrow).await?;
+                    assert!(rows.is_empty());
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn payroll_source_requires_the_serializable_owner_unit() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut outside = pool.raw().acquire().await.unwrap();
+        let scope = BenefitsPayrollScope::new(CompanyId::new("company").unwrap());
+        let query = BenefitsPayrollQuery {
+            engagement_id: "engagement-owner".into(),
+            currency: "THB".into(),
+            period_start: "2027-01-01".into(),
+            period_end: "2027-01-31".into(),
+        };
+        let error = PgBenefitsPayrollSource::new(&mut outside)
+            .released_inputs(&scope, &query, 10)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            PgTransactionError::Persistence(ref value)
+                if value.code == "BENEFITS_PAYROLL_SOURCE_TRANSACTION_REQUIRED"
+        ));
+        drop(outside);
+        let mut default_isolation = pool.raw().begin().await.unwrap();
+        let error = PgBenefitsPayrollSource::new(&mut default_isolation)
+            .released_inputs(&scope, &query, 10)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            PgTransactionError::Persistence(ref value)
+                if value.code == "BENEFITS_PAYROLL_SOURCE_SERIALIZABLE_REQUIRED"
+        ));
+        default_isolation.rollback().await.unwrap();
+    })
+    .await;
 }

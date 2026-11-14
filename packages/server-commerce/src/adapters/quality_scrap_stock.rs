@@ -36,14 +36,9 @@ impl CurrentQualityScrapStock {
 
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         if unit(c).await? != self.unit
-            || read(
-                c,
-                &self.company,
-                &self.warehouse_id,
-                &self.product_id,
-            )
-            .await?
-            .as_ref()
+            || read(c, &self.company, &self.warehouse_id, &self.product_id)
+                .await?
+                .as_ref()
                 != Some(&self.facts)
         {
             return Err(changed());
@@ -73,17 +68,15 @@ pub async fn inspect_quality_scrap_stock(
     product_id: &str,
 ) -> Result<Option<CurrentQualityScrapStock>, Error> {
     let unit = unit(c).await?;
-    Ok(
-        read(c, company, warehouse_id, product_id)
-            .await?
-            .map(|facts| CurrentQualityScrapStock {
-                company: company.clone(),
-                warehouse_id: warehouse_id.to_owned(),
-                product_id: product_id.to_owned(),
-                facts,
-                unit,
-            }),
-    )
+    Ok(read(c, company, warehouse_id, product_id)
+        .await?
+        .map(|facts| CurrentQualityScrapStock {
+            company: company.clone(),
+            warehouse_id: warehouse_id.to_owned(),
+            product_id: product_id.to_owned(),
+            facts,
+            unit,
+        }))
 }
 
 async fn read(

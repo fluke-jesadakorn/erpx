@@ -91,7 +91,9 @@ pub async fn read_pos_catalog_product(
         modifiers_json: row.try_get("modifiers_json")?,
         catalog_version: row.try_get("catalog_version")?,
     };
-    if product.catalog_version < 0 || product.price_minor < 0 || !(0..=10_000).contains(&product.tax_bps)
+    if product.catalog_version < 0
+        || product.price_minor < 0
+        || !(0..=10_000).contains(&product.tax_bps)
     {
         return Err(changed().into());
     }

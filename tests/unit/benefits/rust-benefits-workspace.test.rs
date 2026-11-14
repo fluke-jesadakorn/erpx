@@ -1,10 +1,17 @@
 //! Native Benefits enrollment workspace policy, row, bound and ordering tests.
 //! These are owner unit facts, not HTTP, PostgreSQL, command or browser proof.
+use erpx_server_benefits::public::payroll_source::{
+    BenefitPayrollInputRow, BenefitsPayrollQuery, BenefitsPayrollScope,
+    BenefitsPayrollSourceRepository, PAYROLL_SOURCE_LIMIT, payroll_benefit_inputs,
+    released_payroll_count, released_payroll_inputs, released_payroll_matches,
+};
 use erpx_server_benefits::public::workspace::{
-    BenefitDependentRow, BenefitElectionRow, BenefitPlanRow, BenefitWindowRow, BenefitsActor,
-    BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture, BenefitsPeoplePort,
-    BenefitsWorker, BenefitsWorkspaceRepository, DEPENDENT_LIMIT, ELECTION_LIMIT, PLAN_LIMIT,
-    WINDOW_LIMIT, benefits_workspace,
+    BenefitDependentRow, BenefitElectionDetailSource, BenefitElectionEventRow, BenefitElectionRow,
+    BenefitPayrollInputRow as DetailPayrollInputRow, BenefitPlanRow, BenefitWindowRow,
+    BenefitsActor, BenefitsDetailRepository, BenefitsEntitlement, BenefitsEntitlementPort,
+    BenefitsFuture, BenefitsPeoplePort, BenefitsWorker, BenefitsWorkspaceRepository,
+    DEPENDENT_LIMIT, DETAIL_HISTORY_LIMIT, ELECTION_LIMIT, PLAN_LIMIT, WINDOW_LIMIT,
+    benefits_election_detail, benefits_workspace,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
 
@@ -1185,4 +1192,443 @@ fn exact_row_defaults_are_well_formed() {
     let mut row = election("election-owner", "person-owner", 50);
     row.employee_name = "Synthetic Owner".into();
     assert!(row.validate(&actor, Some(&worker()), false).is_ok());
+}
+
+#[derive(Clone)]
+struct DetailRepo {
+    source: Option<BenefitElectionDetailSource>,
+    history: Vec<BenefitElectionEventRow>,
+    payroll: Option<DetailPayrollInputRow>,
+    error: Option<BusinessError>,
+    last_person: Option<String>,
+    last_reviewer: bool,
+    last_history_limit: usize,
+}
+
+impl DetailRepo {
+    fn valid() -> Self {
+        let mut election = election("election-other", "person-other", 50);
+        election.employee_name = String::new();
+        election.engagement_id = "engagement-other".into();
+        election.status = "released".into();
+        election.version = 2;
+        Self {
+            source: Some(BenefitElectionDetailSource {
+                election,
+                plan_current_version: 2,
+                plan_status: "published".into(),
+                created_by: "owner".into(),
+                submitted_by: Some("person-other".into()),
+                provider_reference: Some("SIM-ACK-1".into()),
+                acknowledged_by: Some("reviewer".into()),
+                released_by: Some("releaser".into()),
+                dependent_ids: vec!["dependent-one".into()],
+            }),
+            history: vec![
+                BenefitElectionEventRow {
+                    id: "event-1".into(),
+                    election_id: "election-other".into(),
+                    version: 1,
+                    action: "elect".into(),
+                    actor_id: "person-other".into(),
+                    reason: "Employee elected reviewed coverage".into(),
+                    status: "elected".into(),
+                    created_at: 10,
+                },
+                BenefitElectionEventRow {
+                    id: "event-2".into(),
+                    election_id: "election-other".into(),
+                    version: 2,
+                    action: "submit".into(),
+                    actor_id: "person-other".into(),
+                    reason: "Employee confirms own coverage".into(),
+                    status: "submitted".into(),
+                    created_at: 20,
+                },
+            ],
+            payroll: Some(payroll_input()),
+            error: None,
+            last_person: None,
+            last_reviewer: false,
+            last_history_limit: 0,
+        }
+    }
+}
+
+impl BenefitsDetailRepository for DetailRepo {
+    type Error = BusinessError;
+
+    fn election_detail<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+        person_id: Option<&'a str>,
+        reviewer: bool,
+    ) -> BenefitsFuture<'a, Option<BenefitElectionDetailSource>, Self::Error> {
+        self.last_person = person_id.map(str::to_owned);
+        self.last_reviewer = reviewer;
+        Box::pin(async move {
+            if let Some(error) = self.error.clone() {
+                return Err(error);
+            }
+            Ok(self.source.clone().filter(|source| {
+                reviewer || person_id.is_some_and(|value| value == source.election.person_id)
+            }))
+        })
+    }
+
+    fn election_history<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+        limit: usize,
+    ) -> BenefitsFuture<'a, Vec<BenefitElectionEventRow>, Self::Error> {
+        self.last_history_limit = limit;
+        Box::pin(async move {
+            if let Some(error) = self.error.clone() {
+                return Err(error);
+            }
+            Ok(self.history.clone())
+        })
+    }
+
+    fn payroll_input<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+    ) -> BenefitsFuture<'a, Option<DetailPayrollInputRow>, Self::Error> {
+        Box::pin(async move {
+            if let Some(error) = self.error.clone() {
+                return Err(error);
+            }
+            Ok(self.payroll.clone())
+        })
+    }
+}
+
+fn payroll_input() -> DetailPayrollInputRow {
+    DetailPayrollInputRow {
+        id: "payroll-input-1".into(),
+        election_id: "election-other".into(),
+        company_id: "company".into(),
+        person_id: "person-other".into(),
+        engagement_id: "engagement-other".into(),
+        currency: "THB".into(),
+        employee_deduction_minor: 12_550,
+        employer_cost_minor: 30_000,
+        effective_from: "2027-01-01".into(),
+        effective_to: Some("2027-12-31".into()),
+        source_election_version: 2,
+        status: "released".into(),
+        released_by: "releaser".into(),
+        created_at: 100,
+    }
+}
+
+fn detail_actor(review: bool) -> BenefitsActor {
+    let mut value = actor();
+    if !review {
+        value.permissions = vec!["records.read".into(), "records.write".into()];
+    }
+    value
+}
+
+async fn run_detail(
+    actor: &BenefitsActor,
+    repo: &mut DetailRepo,
+    people: &mut People,
+    packages: &mut Packages,
+) -> Result<erpx_server_benefits::public::workspace::BenefitElectionDetail, BusinessError> {
+    benefits_election_detail(actor, "election-other", repo, people, packages, NOW).await
+}
+
+#[tokio::test]
+async fn election_detail_reads_reviewer_scope_history_and_released_payroll_input() {
+    let mut repo = DetailRepo::valid();
+    let mut people = People::new(
+        Some(worker()),
+        vec![("person-other".into(), "Synthetic Other".into())],
+    );
+    let mut packages = allowed(true);
+    let detail = run_detail(&detail_actor(true), &mut repo, &mut people, &mut packages)
+        .await
+        .unwrap();
+    assert!(repo.last_reviewer);
+    assert_eq!(repo.last_person.as_deref(), Some("person-owner"));
+    assert_eq!(repo.last_history_limit, DETAIL_HISTORY_LIMIT + 1);
+    assert_eq!(detail.election.id, "election-other");
+    assert_eq!(detail.election.employee_name, "Synthetic Other");
+    assert_eq!(detail.election.plan_name, "Family medical plan");
+    assert_eq!(detail.election.plan_version, 1);
+    assert_eq!(detail.election.plan_current_version, 2);
+    assert_eq!(detail.election.plan_status, "published");
+    assert_eq!(detail.election.dependent_ids, vec!["dependent-one"]);
+    assert_eq!(
+        detail.election.submitted_by.as_deref(),
+        Some("person-other")
+    );
+    assert_eq!(
+        detail.election.provider_reference.as_deref(),
+        Some("SIM-ACK-1")
+    );
+    assert_eq!(detail.election.released_by.as_deref(), Some("releaser"));
+    assert_eq!(detail.history.len(), 2);
+    assert_eq!(detail.history[1].version, 2);
+    assert_eq!(detail.payroll.as_ref().unwrap().source_election_version, 2);
+    assert!(detail.can_review);
+    assert!(detail.can_manage_documents);
+    assert!(!detail.is_owner);
+    assert_eq!(detail.actor_id, "owner");
+    let wire = serde_json::to_value(&detail).unwrap();
+    assert_eq!(wire["election"]["plan_current_version"], 2);
+    assert_eq!(wire["history"][0]["action"], "elect");
+    assert_eq!(wire["payroll"]["status"], "released");
+    assert_eq!(wire["canReview"], true);
+    assert_eq!(wire["isOwner"], false);
+}
+
+#[tokio::test]
+async fn election_detail_employee_reads_only_own_record_and_requires_complete_people_name() {
+    let mut repo = DetailRepo::valid();
+    let mut people = People::new(
+        Some(worker()),
+        vec![("person-other".into(), "Synthetic Other".into())],
+    );
+    let mut packages = allowed(false);
+    let error = run_detail(&detail_actor(false), &mut repo, &mut people, &mut packages)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "BENEFIT_ELECTION_NOT_FOUND");
+
+    repo.source.as_mut().unwrap().election.person_id = "person-owner".into();
+    repo.payroll = None;
+    repo.source.as_mut().unwrap().election.status = "submitted".into();
+    repo.history.pop();
+    let mut people = People::new(
+        Some(worker()),
+        vec![("person-other".into(), "Synthetic Other".into())],
+    );
+    let mut packages = allowed(false);
+    let error = run_detail(&detail_actor(false), &mut repo, &mut people, &mut packages)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "BENEFITS_SOURCE_INVALID");
+
+    let mut people = People::new(
+        Some(worker()),
+        vec![("person-owner".into(), "Synthetic Owner".into())],
+    );
+    let mut packages = allowed(false);
+    let detail = run_detail(&detail_actor(false), &mut repo, &mut people, &mut packages)
+        .await
+        .unwrap();
+    assert!(detail.is_owner);
+    assert!(!detail.can_review);
+    assert!(detail.payroll.is_none());
+}
+
+#[tokio::test]
+async fn election_detail_rejects_missing_or_mismatched_released_payroll_and_history_order() {
+    let mut repo = DetailRepo::valid();
+    repo.source.as_mut().unwrap().election.status = "released".into();
+    repo.source.as_mut().unwrap().election.version = 2;
+    repo.payroll = None;
+    let mut people = People::new(
+        Some(worker()),
+        vec![("person-other".into(), "Synthetic Other".into())],
+    );
+    let mut packages = allowed(false);
+    assert_eq!(
+        run_detail(&detail_actor(true), &mut repo, &mut people, &mut packages)
+            .await
+            .unwrap_err()
+            .code,
+        "BENEFITS_SOURCE_INVALID"
+    );
+
+    let mut repo = DetailRepo::valid();
+    repo.payroll.as_mut().unwrap().company_id = "foreign".into();
+    let mut people = People::new(
+        Some(worker()),
+        vec![("person-other".into(), "Synthetic Other".into())],
+    );
+    let mut packages = allowed(false);
+    assert_eq!(
+        run_detail(&detail_actor(true), &mut repo, &mut people, &mut packages)
+            .await
+            .unwrap_err()
+            .code,
+        "BENEFITS_SOURCE_INVALID"
+    );
+
+    let mut repo = DetailRepo::valid();
+    repo.source.as_mut().unwrap().election.status = "released".into();
+    repo.source.as_mut().unwrap().election.version = 2;
+    repo.history.swap(0, 1);
+    let mut people = People::new(
+        Some(worker()),
+        vec![("person-other".into(), "Synthetic Other".into())],
+    );
+    let mut packages = allowed(false);
+    assert_eq!(
+        run_detail(&detail_actor(true), &mut repo, &mut people, &mut packages)
+            .await
+            .unwrap_err()
+            .code,
+        "BENEFITS_SOURCE_INVALID"
+    );
+}
+
+struct PayrollRepo {
+    rows: Vec<BenefitPayrollInputRow>,
+    last_limit: usize,
+}
+
+impl BenefitsPayrollSourceRepository for PayrollRepo {
+    type Error = BusinessError;
+
+    fn released_inputs<'a>(
+        &'a mut self,
+        _: &'a BenefitsPayrollScope,
+        _: &'a BenefitsPayrollQuery,
+        limit: usize,
+    ) -> BenefitsFuture<'a, Vec<BenefitPayrollInputRow>, Self::Error> {
+        self.last_limit = limit;
+        Box::pin(async move { Ok(self.rows.clone()) })
+    }
+}
+
+fn payroll_row(id: &str) -> BenefitPayrollInputRow {
+    BenefitPayrollInputRow {
+        id: id.into(),
+        election_id: "election-owner".into(),
+        company_id: "company".into(),
+        person_id: "person-owner".into(),
+        engagement_id: "engagement-owner".into(),
+        currency: "THB".into(),
+        employee_deduction_minor: 12_550,
+        employer_cost_minor: 30_000,
+        effective_from: "2027-01-01".into(),
+        effective_to: Some("2027-12-31".into()),
+        source_election_version: 2,
+        status: "released".into(),
+        released_by: "releaser".into(),
+        created_at: 100,
+        plan_name: "Family medical plan".into(),
+    }
+}
+
+fn payroll_scope() -> BenefitsPayrollScope {
+    BenefitsPayrollScope::new(CompanyId::new("company").unwrap())
+}
+
+fn payroll_query() -> BenefitsPayrollQuery {
+    BenefitsPayrollQuery {
+        engagement_id: "engagement-owner".into(),
+        currency: "THB".into(),
+        period_start: "2027-01-01".into(),
+        period_end: "2027-01-31".into(),
+    }
+}
+
+#[tokio::test]
+async fn payroll_source_reads_exact_released_rows_and_guards() {
+    let mut repo = PayrollRepo {
+        rows: vec![
+            payroll_row("benefit-payroll-a"),
+            payroll_row("benefit-payroll-b"),
+        ],
+        last_limit: 0,
+    };
+    let rows = payroll_benefit_inputs(&mut repo, &payroll_scope(), &payroll_query())
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(repo.last_limit, PAYROLL_SOURCE_LIMIT + 1);
+    assert_eq!(released_payroll_count(&rows), 2);
+    assert!(released_payroll_matches(
+        &rows,
+        "benefit-payroll-a",
+        "engagement-owner",
+        12_550,
+        30_000
+    ));
+    assert!(!released_payroll_matches(
+        &rows,
+        "benefit-payroll-a",
+        "engagement-owner",
+        1,
+        30_000
+    ));
+}
+
+#[tokio::test]
+async fn payroll_source_rejects_foreign_scope_invalid_selection_and_unbounded_or_unordered_rows() {
+    let scope = payroll_scope();
+    let query = payroll_query();
+    for (label, row) in [
+        ("foreign company", {
+            let mut row = payroll_row("benefit-payroll-a");
+            row.company_id = "foreign".into();
+            row
+        }),
+        ("another engagement", {
+            let mut row = payroll_row("benefit-payroll-a");
+            row.engagement_id = "engagement-other".into();
+            row
+        }),
+        ("another currency", {
+            let mut row = payroll_row("benefit-payroll-a");
+            row.currency = "USD".into();
+            row
+        }),
+        ("not released", {
+            let mut row = payroll_row("benefit-payroll-a");
+            row.status = "draft".into();
+            row
+        }),
+        ("outside period", {
+            let mut row = payroll_row("benefit-payroll-a");
+            row.effective_from = "2027-02-01".into();
+            row
+        }),
+        ("negative money", {
+            let mut row = payroll_row("benefit-payroll-a");
+            row.employee_deduction_minor = -1;
+            row
+        }),
+        ("invalid plan name", {
+            let mut row = payroll_row("benefit-payroll-a");
+            row.plan_name = " ".into();
+            row
+        }),
+    ] {
+        let error = released_payroll_inputs(&scope, &query, vec![row]).unwrap_err();
+        assert_eq!(error.code, "BENEFITS_SOURCE_INVALID", "case: {label}");
+    }
+    let error = released_payroll_inputs(
+        &scope,
+        &query,
+        vec![
+            payroll_row("benefit-payroll-b"),
+            payroll_row("benefit-payroll-a"),
+        ],
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "BENEFITS_SOURCE_INVALID");
+    let rows = (0..=PAYROLL_SOURCE_LIMIT)
+        .map(|index| payroll_row(&format!("benefit-payroll-{index:05}")))
+        .collect::<Vec<_>>();
+    let error = released_payroll_inputs(&scope, &query, rows).unwrap_err();
+    assert_eq!(error.code, "BENEFITS_PAYROLL_SOURCE_TOO_LARGE");
+    let error = released_payroll_inputs(
+        &scope,
+        &BenefitsPayrollQuery {
+            period_start: "2027-02-01".into(),
+            ..query
+        },
+        vec![],
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "BENEFITS_PAYROLL_SOURCE_INVALID");
 }

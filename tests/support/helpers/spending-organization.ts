@@ -1,5 +1,6 @@
 import type { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import {savePosition,positionSchema} from '@erpx/server-organization/public/organization';
+import {positionSchema} from '@erpx/server-organization/public/organization';
+import {savePosition} from './organization-positions';
 import {installStaffLevels} from './organization-levels';
 
 /** Explicit test fixture mapping; this never remaps application staff from roles. */

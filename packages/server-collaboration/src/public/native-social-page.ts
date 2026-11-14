@@ -49,8 +49,10 @@ export function nativeSocialAvailable(): boolean {
 
 function headersFor(request: Request, key?: string): Headers {
   const headers = new Headers({ accept: 'application/json' });
+  const host = request.headers.get('host');
   const cookie = request.headers.get('cookie');
   const origin = request.headers.get('origin');
+  if (host) headers.set('host', host);
   if (cookie) headers.set('cookie', cookie);
   if (origin) headers.set('origin', origin);
   for (const name of [

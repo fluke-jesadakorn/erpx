@@ -53,6 +53,7 @@
 @source "../../../../packages/feature-finance/src/adapters/server/native-service-invoice.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-service-payment-command.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-service-payment.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-supplier-batch.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-supplier-bill.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/next-native-journal-detail.ts";
 @source "../../../../packages/feature-finance/src/components/money/currency-provider.tsx";
@@ -82,7 +83,6 @@
 @source "../../../../packages/feature-identity_access/src/lib/directory-operations.ts";
 @source "../../../../packages/feature-identity_access/src/lib/guest-account-compat.ts";
 @source "../../../../packages/feature-identity_access/src/lib/iam.ts";
-@source "../../../../packages/feature-identity_access/src/lib/people-access.ts";
 @source "../../../../packages/feature-identity_access/src/lib/permissions.ts";
 @source "../../../../packages/feature-identity_access/src/lib/provider-context.ts";
 @source "../../../../packages/feature-identity_access/src/lib/technology-navigation.ts";
@@ -438,8 +438,6 @@
 @source "../../../../packages/server-collaboration/src/adapters/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-collaboration/src/adapters/identity-notification-effects.ts";
 @source "../../../../packages/server-collaboration/src/adapters/inbox.ts";
-@source "../../../../packages/server-collaboration/src/adapters/inventory-counts-sources.ts";
-@source "../../../../packages/server-collaboration/src/adapters/inventory-landed-costs-sources.ts";
 @source "../../../../packages/server-collaboration/src/adapters/inventory-transit-sources.ts";
 @source "../../../../packages/server-collaboration/src/adapters/learning-notification-effects.ts";
 @source "../../../../packages/server-collaboration/src/adapters/messaging-attachment-purchases.ts";
@@ -479,7 +477,6 @@
 @source "../../../../packages/server-collaboration/src/adapters/social-task.ts";
 @source "../../../../packages/server-collaboration/src/adapters/social-text.ts";
 @source "../../../../packages/server-collaboration/src/adapters/staff-notifications.ts";
-@source "../../../../packages/server-collaboration/src/adapters/supplier-batch-notifications.ts";
 @source "../../../../packages/server-collaboration/src/adapters/supplier-bill-notifications.ts";
 @source "../../../../packages/server-collaboration/src/adapters/supplier-promise-notifications.ts";
 @source "../../../../packages/server-collaboration/src/adapters/web-push.ts";
@@ -530,8 +527,6 @@
 @source "../../../../packages/server-collaboration/src/public/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-collaboration/src/public/identity-notification-effects.ts";
 @source "../../../../packages/server-collaboration/src/public/inbox.ts";
-@source "../../../../packages/server-collaboration/src/public/inventory-counts-sources.ts";
-@source "../../../../packages/server-collaboration/src/public/inventory-landed-costs-sources.ts";
 @source "../../../../packages/server-collaboration/src/public/inventory-transit-sources.ts";
 @source "../../../../packages/server-collaboration/src/public/learning-notification-effects.ts";
 @source "../../../../packages/server-collaboration/src/public/messaging-attachment-purchases.ts";
@@ -569,7 +564,6 @@
 @source "../../../../packages/server-collaboration/src/public/social-task.ts";
 @source "../../../../packages/server-collaboration/src/public/social-text.ts";
 @source "../../../../packages/server-collaboration/src/public/staff-notifications.ts";
-@source "../../../../packages/server-collaboration/src/public/supplier-batch-notifications.ts";
 @source "../../../../packages/server-collaboration/src/public/supplier-bill-notifications.ts";
 @source "../../../../packages/server-collaboration/src/public/supplier-promise-notifications.ts";
 @source "../../../../packages/server-collaboration/src/public/web-push.ts";
@@ -616,7 +610,6 @@
 @source "../../../../packages/server-commerce/src/adapters/inventory-executive-owner-projections.ts";
 @source "../../../../packages/server-commerce/src/adapters/inventory-landed-costs-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/inventory-read-projections.ts";
-@source "../../../../packages/server-commerce/src/adapters/inventory-reorder-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/inventory-transfers-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/inventory-transit-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/invoice-command-policy.ts";
@@ -714,7 +707,6 @@
 @source "../../../../packages/server-commerce/src/public/inventory-executive-owner-projections.ts";
 @source "../../../../packages/server-commerce/src/public/inventory-landed-costs-sources.ts";
 @source "../../../../packages/server-commerce/src/public/inventory-read-projections.ts";
-@source "../../../../packages/server-commerce/src/public/inventory-reorder-sources.ts";
 @source "../../../../packages/server-commerce/src/public/inventory-transfers-sources.ts";
 @source "../../../../packages/server-commerce/src/public/inventory-transit-sources.ts";
 @source "../../../../packages/server-commerce/src/public/invoice-command-policy.ts";
@@ -845,7 +837,6 @@
 @source "../../../../packages/server-customer_authority/src/application/identity.ts";
 @source "../../../../packages/server-customer_authority/src/domain/access.ts";
 @source "../../../../packages/server-customer_authority/src/domain/portal-invitation.ts";
-@source "../../../../packages/server-customer_authority/src/domain/portal-support.ts";
 @source "../../../../packages/server-customer_authority/src/public/attachment-purchases.ts";
 @source "../../../../packages/server-customer_authority/src/public/attachment-read.ts";
 @source "../../../../packages/server-customer_authority/src/public/attachments-portal-facts.ts";
@@ -923,7 +914,6 @@
 @source "../../../../packages/server-files/src/adapters/front-logo-facts.ts";
 @source "../../../../packages/server-files/src/adapters/hospitality-attachment-read.ts";
 @source "../../../../packages/server-files/src/adapters/hospitality-owner-projection-sources.ts";
-@source "../../../../packages/server-files/src/adapters/inventory-transfers-sources.ts";
 @source "../../../../packages/server-files/src/adapters/inventory-transit-sources.ts";
 @source "../../../../packages/server-files/src/adapters/leave-evidence-sources.ts";
 @source "../../../../packages/server-files/src/adapters/leave-review-evidence-facts.ts";
@@ -997,7 +987,6 @@
 @source "../../../../packages/server-files/src/public/finance-tax-signatures.ts";
 @source "../../../../packages/server-files/src/public/front-logo-facts.ts";
 @source "../../../../packages/server-files/src/public/hospitality-owner-projection-sources.ts";
-@source "../../../../packages/server-files/src/public/inventory-transfers-sources.ts";
 @source "../../../../packages/server-files/src/public/inventory-transit-sources.ts";
 @source "../../../../packages/server-files/src/public/leave-evidence-sources.ts";
 @source "../../../../packages/server-files/src/public/leave-review-evidence-facts.ts";
@@ -1111,12 +1100,10 @@
 @source "../../../../packages/server-finance/src/adapters/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/initial-physical-stock-count-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/inventory-attachment-sources.ts";
-@source "../../../../packages/server-finance/src/adapters/inventory-consumption-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/inventory-counts-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/inventory-executive-owner-projections.ts";
 @source "../../../../packages/server-finance/src/adapters/inventory-landed-costs-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/inventory-read-projections.ts";
-@source "../../../../packages/server-finance/src/adapters/inventory-transfers-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/inventory-transit-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/invoice-line-read.ts";
 @source "../../../../packages/server-finance/src/adapters/invoice-payment-evidence.ts";
@@ -1395,12 +1382,10 @@
 @source "../../../../packages/server-finance/src/public/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-finance/src/public/initial-physical-stock-count-sources.ts";
 @source "../../../../packages/server-finance/src/public/inventory-attachment-sources.ts";
-@source "../../../../packages/server-finance/src/public/inventory-consumption-sources.ts";
 @source "../../../../packages/server-finance/src/public/inventory-counts-sources.ts";
 @source "../../../../packages/server-finance/src/public/inventory-executive-owner-projections.ts";
 @source "../../../../packages/server-finance/src/public/inventory-landed-costs-sources.ts";
 @source "../../../../packages/server-finance/src/public/inventory-read-projections.ts";
-@source "../../../../packages/server-finance/src/public/inventory-transfers-sources.ts";
 @source "../../../../packages/server-finance/src/public/inventory-transit-sources.ts";
 @source "../../../../packages/server-finance/src/public/invoice-line-read.ts";
 @source "../../../../packages/server-finance/src/public/invoice-payment-evidence.ts";
@@ -1459,7 +1444,6 @@
 @source "../../../../packages/server-finance/src/public/supplier-bill-attachment-read.ts";
 @source "../../../../packages/server-finance/src/public/supplier-bill-draft-void.ts";
 @source "../../../../packages/server-finance/src/public/supplier-payment-correction-sources.ts";
-@source "../../../../packages/server-finance/src/public/supplier-payment-money.ts";
 @source "../../../../packages/server-finance/src/public/supplier-payment-purchases.ts";
 @source "../../../../packages/server-finance/src/public/supplier-payment-repository.ts";
 @source "../../../../packages/server-finance/src/public/tax-signature-attachment-read.ts";
@@ -1507,11 +1491,8 @@
 @source "../../../../packages/server-identity_access/src/adapters/directory-field-mapping.ts";
 @source "../../../../packages/server-identity_access/src/adapters/directory-lookup.ts";
 @source "../../../../packages/server-identity_access/src/adapters/directory-operations-api.ts";
-@source "../../../../packages/server-identity_access/src/adapters/directory-operations.ts";
 @source "../../../../packages/server-identity_access/src/adapters/directory-projection-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/directory-provider.ts";
-@source "../../../../packages/server-identity_access/src/adapters/directory-synchronization.ts";
-@source "../../../../packages/server-identity_access/src/adapters/directory-transaction.ts";
 @source "../../../../packages/server-identity_access/src/adapters/executive-authority-source.ts";
 @source "../../../../packages/server-identity_access/src/adapters/executive-metric-projections.ts";
 @source "../../../../packages/server-identity_access/src/adapters/final-root-owner-projection-sources.ts";
@@ -1539,7 +1520,9 @@
 @source "../../../../packages/server-identity_access/src/adapters/native-account-companies.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-account-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-account-http.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-directory-operations.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-session.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-user-management.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-work-role-transport.ts";
 @source "../../../../packages/server-identity_access/src/adapters/notification-recipient-projections.ts";
 @source "../../../../packages/server-identity_access/src/adapters/operations-operations-exceptions-facts.ts";
@@ -1552,7 +1535,6 @@
 @source "../../../../packages/server-identity_access/src/adapters/payroll-owner-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/payroll-payslip-grant.ts";
 @source "../../../../packages/server-identity_access/src/adapters/payroll-recovery-grant.ts";
-@source "../../../../packages/server-identity_access/src/adapters/people-access.ts";
 @source "../../../../packages/server-identity_access/src/adapters/people-directory-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/people-lifecycle-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/people-payroll-final-owner-projections.ts";
@@ -1564,7 +1546,6 @@
 @source "../../../../packages/server-identity_access/src/adapters/pms-source-recipients.ts";
 @source "../../../../packages/server-identity_access/src/adapters/private-file-denial-authority.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-front-launch.ts";
-@source "../../../../packages/server-identity_access/src/adapters/product-session-revocation.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso-store.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso.ts";
@@ -1587,7 +1568,6 @@
 @source "../../../../packages/server-identity_access/src/adapters/requested-holding-scope.ts";
 @source "../../../../packages/server-identity_access/src/adapters/retirement-clearance-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/throttle.ts";
-@source "../../../../packages/server-identity_access/src/adapters/user-management.ts";
 @source "../../../../packages/server-identity_access/src/adapters/work-cache-deadlines.ts";
 @source "../../../../packages/server-identity_access/src/adapters/work-cache-management-deadlines.ts";
 @source "../../../../packages/server-identity_access/src/adapters/work-module-access.ts";
@@ -1612,8 +1592,6 @@
 @source "../../../../packages/server-identity_access/src/application/directory-auth.ts";
 @source "../../../../packages/server-identity_access/src/application/directory-field-mapping.ts";
 @source "../../../../packages/server-identity_access/src/application/directory-lookup.ts";
-@source "../../../../packages/server-identity_access/src/application/directory-operations.ts";
-@source "../../../../packages/server-identity_access/src/application/directory-synchronization.ts";
 @source "../../../../packages/server-identity_access/src/application/gpo-rules.ts";
 @source "../../../../packages/server-identity_access/src/application/iam-command.ts";
 @source "../../../../packages/server-identity_access/src/application/iam-context.ts";
@@ -1625,7 +1603,6 @@
 @source "../../../../packages/server-identity_access/src/application/product-workspace.ts";
 @source "../../../../packages/server-identity_access/src/application/providers.ts";
 @source "../../../../packages/server-identity_access/src/application/throttle.ts";
-@source "../../../../packages/server-identity_access/src/application/user-management.ts";
 @source "../../../../packages/server-identity_access/src/domain/access-problem.ts";
 @source "../../../../packages/server-identity_access/src/domain/account-access.ts";
 @source "../../../../packages/server-identity_access/src/domain/account-preferences.ts";
@@ -1646,13 +1623,11 @@
 @source "../../../../packages/server-identity_access/src/domain/legacy-module-compatibility.ts";
 @source "../../../../packages/server-identity_access/src/domain/mfa.ts";
 @source "../../../../packages/server-identity_access/src/domain/page-entry-return.ts";
-@source "../../../../packages/server-identity_access/src/domain/people-access.ts";
 @source "../../../../packages/server-identity_access/src/domain/product-sso.ts";
 @source "../../../../packages/server-identity_access/src/domain/product-workspace.ts";
 @source "../../../../packages/server-identity_access/src/domain/providers.ts";
 @source "../../../../packages/server-identity_access/src/domain/public-surface-entry.ts";
 @source "../../../../packages/server-identity_access/src/domain/throttle.ts";
-@source "../../../../packages/server-identity_access/src/domain/user-management.ts";
 @source "../../../../packages/server-identity_access/src/domain/work-modules.ts";
 @source "../../../../packages/server-identity_access/src/domain/workspace-access.ts";
 @source "../../../../packages/server-identity_access/src/public/account-access.ts";
@@ -1691,10 +1666,8 @@
 @source "../../../../packages/server-identity_access/src/public/directory-field-mapping.ts";
 @source "../../../../packages/server-identity_access/src/public/directory-lookup.ts";
 @source "../../../../packages/server-identity_access/src/public/directory-operations-api.ts";
-@source "../../../../packages/server-identity_access/src/public/directory-operations.ts";
 @source "../../../../packages/server-identity_access/src/public/directory-projection-facts.ts";
 @source "../../../../packages/server-identity_access/src/public/directory-provider.ts";
-@source "../../../../packages/server-identity_access/src/public/directory-synchronization.ts";
 @source "../../../../packages/server-identity_access/src/public/executive-authority-source.ts";
 @source "../../../../packages/server-identity_access/src/public/executive-metric-projections.ts";
 @source "../../../../packages/server-identity_access/src/public/final-root-owner-projection-sources.ts";
@@ -1731,7 +1704,6 @@
 @source "../../../../packages/server-identity_access/src/public/payroll-owner-facts.ts";
 @source "../../../../packages/server-identity_access/src/public/payroll-payslip-grant.ts";
 @source "../../../../packages/server-identity_access/src/public/payroll-recovery-grant.ts";
-@source "../../../../packages/server-identity_access/src/public/people-access.ts";
 @source "../../../../packages/server-identity_access/src/public/people-directory-facts.ts";
 @source "../../../../packages/server-identity_access/src/public/people-lifecycle-facts.ts";
 @source "../../../../packages/server-identity_access/src/public/people-payroll-final-owner-projections.ts";
@@ -1815,7 +1787,6 @@
 @source "../../../../packages/server-inventory/src/adapters/manufacturing-initial-physical-stock-count-source-sql.ts";
 @source "../../../../packages/server-inventory/src/adapters/manufacturing-initial-physical-stock-count-source.ts";
 @source "../../../../packages/server-inventory/src/adapters/manufacturing-initial-physical-stock-count.ts";
-@source "../../../../packages/server-inventory/src/adapters/manufacturing-lot-sources.ts";
 @source "../../../../packages/server-inventory/src/adapters/manufacturing-posting-setup-sources.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-facts.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source-sql.ts";
@@ -1836,10 +1807,6 @@
 @source "../../../../packages/server-inventory/src/adapters/transfer-record-purchases.ts";
 @source "../../../../packages/server-inventory/src/adapters/workflow-document-sources.ts";
 @source "../../../../packages/server-inventory/src/application/consumption.ts";
-@source "../../../../packages/server-inventory/src/application/counts.ts";
-@source "../../../../packages/server-inventory/src/application/landed-costs.ts";
-@source "../../../../packages/server-inventory/src/application/reorder-policies.ts";
-@source "../../../../packages/server-inventory/src/application/transfers.ts";
 @source "../../../../packages/server-inventory/src/application/transit.ts";
 @source "../../../../packages/server-inventory/src/domain/consumption.ts";
 @source "../../../../packages/server-inventory/src/domain/counts.ts";
@@ -1852,7 +1819,6 @@
 @source "../../../../packages/server-inventory/src/domain/pos-initial-physical-stock-count-entry.ts";
 @source "../../../../packages/server-inventory/src/domain/pos-initial-physical-stock-count.ts";
 @source "../../../../packages/server-inventory/src/domain/reorder-policies.ts";
-@source "../../../../packages/server-inventory/src/domain/reorder-quantity.ts";
 @source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count-entry.ts";
 @source "../../../../packages/server-inventory/src/domain/transfers.ts";
 @source "../../../../packages/server-inventory/src/domain/transit.ts";
@@ -1881,13 +1847,12 @@
 @source "../../../../packages/server-inventory/src/public/inventory-landed-costs.ts";
 @source "../../../../packages/server-inventory/src/public/inventory-read-projections.ts";
 @source "../../../../packages/server-inventory/src/public/inventory-reorder-policies.ts";
-@source "../../../../packages/server-inventory/src/public/inventory-transfers.ts";
+@source "../../../../packages/server-inventory/src/public/inventory-transfer-read.ts";
 @source "../../../../packages/server-inventory/src/public/inventory-transit.ts";
 @source "../../../../packages/server-inventory/src/public/landed-cost-attachment-purchases.ts";
 @source "../../../../packages/server-inventory/src/public/landed-cost-record-purchases.ts";
 @source "../../../../packages/server-inventory/src/public/lot-attachment-purchases.ts";
 @source "../../../../packages/server-inventory/src/public/manufacturing-initial-physical-stock-count.ts";
-@source "../../../../packages/server-inventory/src/public/manufacturing-lot-sources.ts";
 @source "../../../../packages/server-inventory/src/public/manufacturing-posting-setup-sources.ts";
 @source "../../../../packages/server-inventory/src/public/pos-facts.ts";
 @source "../../../../packages/server-inventory/src/public/pos-initial-physical-stock-count.ts";
@@ -2033,7 +1998,6 @@
 @source "../../../../packages/server-manufacturing/src/adapters/finance-close-sources.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/finance-record-sources.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/initial-physical-stock-sources.ts";
-@source "../../../../packages/server-manufacturing/src/adapters/lots.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/metric-purchases.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/posting-profiles.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/posting-setup-entry.ts";
@@ -2044,10 +2008,8 @@
 @source "../../../../packages/server-manufacturing/src/adapters/purchases.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/record-purchases.ts";
 @source "../../../../packages/server-manufacturing/src/application/accounting.ts";
-@source "../../../../packages/server-manufacturing/src/application/lots.ts";
 @source "../../../../packages/server-manufacturing/src/application/production.ts";
 @source "../../../../packages/server-manufacturing/src/domain/accounting.ts";
-@source "../../../../packages/server-manufacturing/src/domain/lot-policy.ts";
 @source "../../../../packages/server-manufacturing/src/domain/posting-profiles.ts";
 @source "../../../../packages/server-manufacturing/src/domain/posting-setup-entry.ts";
 @source "../../../../packages/server-manufacturing/src/domain/production.ts";
@@ -2066,7 +2028,6 @@
 @source "../../../../packages/server-manufacturing/src/public/posting-setup.ts";
 @source "../../../../packages/server-manufacturing/src/public/production-accounting.ts";
 @source "../../../../packages/server-manufacturing/src/public/production-command-sources.ts";
-@source "../../../../packages/server-manufacturing/src/public/production-lots.ts";
 @source "../../../../packages/server-manufacturing/src/public/production-read-projections.ts";
 @source "../../../../packages/server-manufacturing/src/public/production.ts";
 @source "../../../../packages/server-manufacturing/src/public/purchases.ts";
@@ -2142,7 +2103,6 @@
 @source "../../../../packages/server-operations/src/adapters/project-structure-sources.ts";
 @source "../../../../packages/server-operations/src/adapters/project-task-record-policy.ts";
 @source "../../../../packages/server-operations/src/adapters/record-purchases.ts";
-@source "../../../../packages/server-operations/src/adapters/responsibilities.ts";
 @source "../../../../packages/server-operations/src/adapters/routine-source-read.ts";
 @source "../../../../packages/server-operations/src/adapters/routines.ts";
 @source "../../../../packages/server-operations/src/adapters/staff-facts.ts";
@@ -2170,7 +2130,6 @@
 @source "../../../../packages/server-operations/src/domain/field-ownership.ts";
 @source "../../../../packages/server-operations/src/domain/guided-intake.ts";
 @source "../../../../packages/server-operations/src/domain/intake-contracts.ts";
-@source "../../../../packages/server-operations/src/domain/responsibilities.ts";
 @source "../../../../packages/server-operations/src/domain/routines.ts";
 @source "../../../../packages/server-operations/src/domain/staff-policy.ts";
 @source "../../../../packages/server-operations/src/domain/staff-settings.ts";
@@ -2202,7 +2161,6 @@
 @source "../../../../packages/server-operations/src/public/project-structure-sources.ts";
 @source "../../../../packages/server-operations/src/public/project-task-record-policy.ts";
 @source "../../../../packages/server-operations/src/public/record-purchases.ts";
-@source "../../../../packages/server-operations/src/public/responsibilities.ts";
 @source "../../../../packages/server-operations/src/public/routines.ts";
 @source "../../../../packages/server-operations/src/public/rules/editor-command-inputs.ts";
 @source "../../../../packages/server-operations/src/public/rules/guided-intake.ts";
@@ -2243,7 +2201,6 @@
 @source "../../../../packages/server-organization/src/adapters/department-authority-reads.ts";
 @source "../../../../packages/server-organization/src/adapters/department-authority.ts";
 @source "../../../../packages/server-organization/src/adapters/department-decisions.ts";
-@source "../../../../packages/server-organization/src/adapters/directory-operation-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/directory-projection-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/engineering-company-source.ts";
 @source "../../../../packages/server-organization/src/adapters/executive-metric-projections.ts";
@@ -2257,7 +2214,6 @@
 @source "../../../../packages/server-organization/src/adapters/gpo-sources.ts";
 @source "../../../../packages/server-organization/src/adapters/holding-people-directory.ts";
 @source "../../../../packages/server-organization/src/adapters/hospitality-owner-projection-sources.ts";
-@source "../../../../packages/server-organization/src/adapters/iam-unit-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/identity-access-verified-context-projections.ts";
 @source "../../../../packages/server-organization/src/adapters/identity-snapshot-sources.ts";
 @source "../../../../packages/server-organization/src/adapters/inventory-executive-owner-projections.ts";
@@ -2356,7 +2312,6 @@
 @source "../../../../packages/server-organization/src/public/department-authority-reads.ts";
 @source "../../../../packages/server-organization/src/public/department-authority.ts";
 @source "../../../../packages/server-organization/src/public/department-decisions.ts";
-@source "../../../../packages/server-organization/src/public/directory-operation-facts.ts";
 @source "../../../../packages/server-organization/src/public/directory-projection-facts.ts";
 @source "../../../../packages/server-organization/src/public/engineering-company-source.ts";
 @source "../../../../packages/server-organization/src/public/executive-metric-projections.ts";
@@ -2370,7 +2325,6 @@
 @source "../../../../packages/server-organization/src/public/gpo-sources.ts";
 @source "../../../../packages/server-organization/src/public/holding-people-directory.ts";
 @source "../../../../packages/server-organization/src/public/hospitality-owner-projection-sources.ts";
-@source "../../../../packages/server-organization/src/public/iam-unit-facts.ts";
 @source "../../../../packages/server-organization/src/public/identity-access-verified-context-projections.ts";
 @source "../../../../packages/server-organization/src/public/identity-snapshot-sources.ts";
 @source "../../../../packages/server-organization/src/public/inventory-executive-owner-projections.ts";
@@ -2451,7 +2405,6 @@
 @source "../../../../packages/server-people_payroll/src/adapters/company-acceptance-facts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/department-override-facts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/directory-mapping-person.ts";
-@source "../../../../packages/server-people_payroll/src/adapters/directory-operation-facts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/document-page-payment-source.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/executive-engagement-source.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/executive-metric-projections.ts";
@@ -2480,7 +2433,6 @@
 @source "../../../../packages/server-people_payroll/src/adapters/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/finance-ai-quota-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/finance-ai-receipt-candidates.ts";
-@source "../../../../packages/server-people_payroll/src/adapters/finance-contractor-payment-claim-facts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/finance-group-person-facts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/finance-journal-people-facts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/finance-owned-snapshot-sources.ts";
@@ -2492,8 +2444,6 @@
 @source "../../../../packages/server-people_payroll/src/adapters/gpo-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/hire-handoff-pay-group.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/hire-purchase-sources.ts";
-@source "../../../../packages/server-people_payroll/src/adapters/iam-subject-facts.ts";
-@source "../../../../packages/server-people_payroll/src/adapters/identity-person-link-effects.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/identity-snapshot-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/inventory-executive-owner-projections.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/inventory-read-projections.ts";
@@ -2686,7 +2636,6 @@
 @source "../../../../packages/server-people_payroll/src/public/company-acceptance-facts.ts";
 @source "../../../../packages/server-people_payroll/src/public/department-override-facts.ts";
 @source "../../../../packages/server-people_payroll/src/public/directory-mapping-person.ts";
-@source "../../../../packages/server-people_payroll/src/public/directory-operation-facts.ts";
 @source "../../../../packages/server-people_payroll/src/public/document-page-payment-source.ts";
 @source "../../../../packages/server-people_payroll/src/public/executive-engagement-source.ts";
 @source "../../../../packages/server-people_payroll/src/public/executive-metric-projections.ts";
@@ -2704,7 +2653,6 @@
 @source "../../../../packages/server-people_payroll/src/public/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-people_payroll/src/public/finance-ai-quota-sources.ts";
 @source "../../../../packages/server-people_payroll/src/public/finance-ai-receipt-candidates.ts";
-@source "../../../../packages/server-people_payroll/src/public/finance-contractor-payment-claim-facts.ts";
 @source "../../../../packages/server-people_payroll/src/public/finance-group-person-facts.ts";
 @source "../../../../packages/server-people_payroll/src/public/finance-journal-people-facts.ts";
 @source "../../../../packages/server-people_payroll/src/public/finance-other-remittance-sources.ts";
@@ -2717,8 +2665,6 @@
 @source "../../../../packages/server-people_payroll/src/public/gpo-sources.ts";
 @source "../../../../packages/server-people_payroll/src/public/hire-purchase-sources.ts";
 @source "../../../../packages/server-people_payroll/src/public/iam-purchases.ts";
-@source "../../../../packages/server-people_payroll/src/public/iam-subject-facts.ts";
-@source "../../../../packages/server-people_payroll/src/public/identity-person-link-effects.ts";
 @source "../../../../packages/server-people_payroll/src/public/identity-snapshot-sources.ts";
 @source "../../../../packages/server-people_payroll/src/public/inventory-executive-owner-projections.ts";
 @source "../../../../packages/server-people_payroll/src/public/inventory-read-projections.ts";
@@ -3127,7 +3073,6 @@
 @source "../../../../packages/server-quality/src/adapters/collaboration-notification-snapshot-sources.ts";
 @source "../../../../packages/server-quality/src/adapters/commerce-owner-sources.ts";
 @source "../../../../packages/server-quality/src/adapters/executive-metric-projections.ts";
-@source "../../../../packages/server-quality/src/adapters/inventory-count-effects.ts";
 @source "../../../../packages/server-quality/src/adapters/inventory-executive-owner-projections.ts";
 @source "../../../../packages/server-quality/src/adapters/inventory-hold-read-source.ts";
 @source "../../../../packages/server-quality/src/adapters/inventory-quality-snapshot-sources.ts";
@@ -3150,7 +3095,6 @@
 @source "../../../../packages/server-quality/src/public/collaboration-notification-snapshot-sources.ts";
 @source "../../../../packages/server-quality/src/public/commerce-owner-sources.ts";
 @source "../../../../packages/server-quality/src/public/executive-metric-projections.ts";
-@source "../../../../packages/server-quality/src/public/inventory-count-effects.ts";
 @source "../../../../packages/server-quality/src/public/inventory-executive-owner-projections.ts";
 @source "../../../../packages/server-quality/src/public/inventory-hold-read-source.ts";
 @source "../../../../packages/server-quality/src/public/inventory-quality-snapshot-sources.ts";
@@ -3615,7 +3559,6 @@
 @source "../../../../packages/server-workflow/src/adapters/flow-routing.ts";
 @source "../../../../packages/server-workflow/src/adapters/flow-work.ts";
 @source "../../../../packages/server-workflow/src/adapters/hospitality-owner-projection-sources.ts";
-@source "../../../../packages/server-workflow/src/adapters/identity-command-effects.ts";
 @source "../../../../packages/server-workflow/src/adapters/inventory-counts-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/inventory-transfers-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/leave-evidence-decisions.ts";
@@ -3679,7 +3622,6 @@
 @source "../../../../packages/server-workflow/src/public/flow-routing.ts";
 @source "../../../../packages/server-workflow/src/public/flow-work.ts";
 @source "../../../../packages/server-workflow/src/public/hospitality-owner-projection-sources.ts";
-@source "../../../../packages/server-workflow/src/public/identity-command-effects.ts";
 @source "../../../../packages/server-workflow/src/public/inventory-counts-sources.ts";
 @source "../../../../packages/server-workflow/src/public/inventory-transfers-sources.ts";
 @source "../../../../packages/server-workflow/src/public/leave-evidence-decisions.ts";

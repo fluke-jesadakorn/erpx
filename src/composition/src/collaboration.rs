@@ -30,9 +30,9 @@ use erpx_server_collaboration::public::messaging_teams::{
     lock_messaging_team_sources, execute as execute_team,
 };
 use erpx_server_collaboration::public::social_http::{
-    SocialFeedData, SocialHttpBackend, SocialHttpCommandRequest, SocialHttpFuture,
-    SocialHttpReadReply, SocialHttpReadRequest, SocialHttpTarget, SocialReadKind,
-    SocialThreadData,
+    SocialCommentsData, SocialFeedData, SocialHttpBackend, SocialHttpCommentsRequest,
+    SocialHttpCommandRequest, SocialHttpFuture, SocialHttpReadReply, SocialHttpReadRequest,
+    SocialHttpRevisionsRequest, SocialHttpTarget, SocialReadKind, SocialThreadData,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -387,6 +387,124 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
             .await
     }
 
+    pub async fn comments_page(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        post_id: String,
+        cursor: Option<erpx_server_collaboration::public::social::FeedCursor>,
+        limit: usize,
+    ) -> Result<SocialCommentsData, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected {
+                        return Err(scope_error());
+                    }
+                    request.mutation = false;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("collaboration".into()),
+                    destination: "feed".into(),
+                    api: true,
+                },
+                CollaborationSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let post_id = post_id.clone();
+                    let cursor = cursor.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_error().into());
+                        }
+                        let now = clock.now().get();
+                        let name = display_name(connection, &company, current.user_id().as_str())
+                            .await;
+                        let actor = crate::records::records_actor(current)?;
+                        let scope = social_scope(current, &company, name, now, false)?;
+                        let mut records = SocialRecordsPort { actor, now };
+                        let mut unit =
+                            PgSocialUnit::read_only(connection, scope, &mut records);
+                        let (items, next) = unit
+                            .comments_page(&post_id, cursor.as_ref(), limit, 20)
+                            .await?;
+                        Ok(SocialCommentsData::new(items, next))
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn revisions(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        post_id: String,
+    ) -> Result<Vec<erpx_server_collaboration::public::social::RevisionRow>, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected {
+                        return Err(scope_error());
+                    }
+                    request.mutation = false;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("collaboration".into()),
+                    destination: "feed".into(),
+                    api: true,
+                },
+                CollaborationSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let post_id = post_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_error().into());
+                        }
+                        let now = clock.now().get();
+                        let name = display_name(connection, &company, current.user_id().as_str())
+                            .await;
+                        let actor = crate::records::records_actor(current)?;
+                        let scope = social_scope(current, &company, name, now, false)?;
+                        let mut records = SocialRecordsPort { actor, now };
+                        let mut unit =
+                            PgSocialUnit::read_only(connection, scope, &mut records);
+                        Ok(unit.revisions(&post_id).await?)
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn command(
         &self,
         host: &str,
@@ -520,6 +638,44 @@ impl<C: Clock + Send + Sync + 'static> SocialHttpBackend for SocialBackend<C> {
                     request.change,
                     request.key,
                     request.input,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn comments_page<'a>(
+        &'a self,
+        request: SocialHttpCommentsRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialCommentsData> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .comments_page(
+                    request.host,
+                    proof,
+                    selection,
+                    request.post_id.to_owned(),
+                    request.cursor,
+                    request.limit,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn revisions<'a>(
+        &'a self,
+        request: SocialHttpRevisionsRequest<'a>,
+    ) -> SocialHttpFuture<'a, Vec<erpx_server_collaboration::public::social::RevisionRow>> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .revisions(
+                    request.host,
+                    proof,
+                    selection,
+                    request.post_id.to_owned(),
                 )
                 .await
                 .map_err(business)

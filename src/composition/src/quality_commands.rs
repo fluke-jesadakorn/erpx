@@ -46,23 +46,24 @@ use erpx_server_inventory::public::quality_scrap_lots::{
     CurrentQualityScrapLots, inspect_quality_scrap_lots, lock_quality_scrap_lot_sources,
 };
 use erpx_server_quality::public::quality_commands::{
-    HoldStatus, PreparedQualityCancellation, PreparedQualityInspection, PreparedQualityRelease,
-    PreparedQualitySpecSave, PreparedQualitySpecTransition, QualityCancellationCommand,
-    QualityDispositionCommand, QualityDispositionReceipt, QualityInspectionCommand,
-    QualityHoldCommand, QualityReleaseCommand, QualityScrapLot, QualityScrapStock,
-    QualitySpecAction, QualitySpecActionCommand, QualitySpecCommand,
-    PreparedQualityHold, RetainedQualityCancellation, lock_quality_command_sources,
-    lock_quality_scrap_writes, plan_quality_scrap, prepare_quality_cancellation,
-    prepare_quality_hold, prepare_quality_inspection, prepare_quality_release,
-    prepare_quality_spec_save, prepare_quality_spec_transition, read_quality_hold_for_command,
+    HoldStatus, PreparedQualityAlertAcknowledge, PreparedQualityCancellation, PreparedQualityHold,
+    PreparedQualityInspection, PreparedQualityRelease, PreparedQualitySpecSave,
+    PreparedQualitySpecTransition, QualityAlertAcknowledgeCommand, QualityCancellationCommand,
+    QualityDispositionCommand, QualityDispositionReceipt, QualityHoldCommand,
+    QualityInspectionCommand, QualityReleaseCommand, QualityScrapLot, QualityScrapStock,
+    QualitySpecAction, QualitySpecActionCommand, QualitySpecCommand, RetainedQualityCancellation,
+    lock_quality_command_sources, lock_quality_scrap_writes, plan_quality_scrap,
+    prepare_quality_alert_acknowledge, prepare_quality_cancellation, prepare_quality_hold,
+    prepare_quality_inspection, prepare_quality_release, prepare_quality_spec_save,
+    prepare_quality_spec_transition, read_quality_hold_for_command,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, IdentifierSource, RecordId,
 };
 use erpx_server_workflow::public::commands::{
-    CommandActor, CommandDisposition, CommandJson, CommandOutcome, PgCommandAuthority,
-    PgCommandLedger, PgOwnerCommandEffects, WorkflowOutput, WorkflowRequest,
+    CommandActor, CommandDisposition, CommandEventScope, CommandField, CommandJson, CommandOutcome,
+    PgCommandAuthority, PgCommandLedger, PgOwnerCommandEffects, WorkflowOutput, WorkflowRequest,
 };
 use sqlx::PgConnection;
 
@@ -219,6 +220,7 @@ pub enum QualityOwnerCommand {
     TransitionSpec(QualitySpecActionCommand),
     Inspect(QualityInspectionCommand),
     Cancel(QualityCancellationCommand),
+    Acknowledge(QualityAlertAcknowledgeCommand),
     Release(QualityReleaseCommand),
     Scrap(QualityDispositionCommand),
 }
@@ -231,6 +233,7 @@ impl QualityOwnerCommand {
             Self::TransitionSpec(command) => &command.key,
             Self::Inspect(command) => &command.key,
             Self::Cancel(command) => &command.command_key,
+            Self::Acknowledge(command) => &command.key,
             Self::Release(command) => &command.key,
             Self::Scrap(command) => &command.key,
         }
@@ -243,6 +246,7 @@ impl QualityOwnerCommand {
             Self::TransitionSpec(command) => command.operation(),
             Self::Inspect(command) => command.operation().to_owned(),
             Self::Cancel(command) => command.operation(),
+            Self::Acknowledge(command) => command.operation().to_owned(),
             Self::Release(command) => command.operation().to_owned(),
             Self::Scrap(command) => command.operation().to_owned(),
         }
@@ -255,6 +259,7 @@ impl QualityOwnerCommand {
             Self::TransitionSpec(command) => Ok(command.id.clone()),
             Self::Inspect(command) => Ok(command.hold_id.clone()),
             Self::Cancel(command) => Ok(command.hold_id.clone()),
+            Self::Acknowledge(command) => Ok(command.alert_id.clone()),
             Self::Release(command) => Ok(command.hold_id.clone()),
             Self::Scrap(command) => Ok(command.hold_id.clone()),
         }
@@ -266,6 +271,9 @@ impl QualityOwnerCommand {
             Self::SaveSpec(_) | Self::TransitionSpec(_) => "quality.release",
             Self::Inspect(_) => "quality.inspect",
             Self::Cancel(command) => command.action.permission(),
+            // The acknowledgement accepts either current Quality inspector or
+            // manager authority; bind() evaluates the retained fallback below.
+            Self::Acknowledge(_) => "quality.inspect",
             Self::Release(_) | Self::Scrap(_) => "quality.release",
         }
     }
@@ -284,6 +292,7 @@ impl QualityOwnerCommand {
             },
             Self::Inspect(_) => CapabilityPurpose::SettleExisting,
             Self::Cancel(_) => CapabilityPurpose::SettleExisting,
+            Self::Acknowledge(_) => CapabilityPurpose::SettleExisting,
             Self::Release(_) | Self::Scrap(_) => CapabilityPurpose::SettleExisting,
         }
     }
@@ -331,6 +340,10 @@ impl QualityOwnerCommand {
             Self::Cancel(command) => CommandJson::from_serializable(&CancellationJson {
                 expected_version: command.expected_version,
                 action: command.action.as_str(),
+                reason: &command.reason,
+            }),
+            Self::Acknowledge(command) => CommandJson::from_serializable(&AlertAcknowledgeJson {
+                expected_version: command.expected_version,
                 reason: &command.reason,
             }),
             Self::Inspect(command) => CommandJson::from_serializable(&InspectionJson {
@@ -412,6 +425,12 @@ struct CancellationJson<'a> {
 }
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+struct AlertAcknowledgeJson<'a> {
+    expected_version: i64,
+    reason: &'a str,
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct InspectionJson<'a> {
     expected_version: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -461,8 +480,26 @@ struct Authority<'a, G> {
 }
 
 impl<G: Clock + Sync> Authority<'_, G> {
+    /// Acknowledge intentionally accepts `quality.release` or the retained
+    /// `quality.inspect` fallback, matching the TypeScript purchase command.
+    fn require_permission(&self) -> Result<(), BusinessError> {
+        if matches!(self.command, QualityOwnerCommand::Acknowledge(_)) {
+            if self.current.has_permission("quality.release")
+                || self.current.has_permission("quality.inspect")
+            {
+                return Ok(());
+            }
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "QUALITY_ALERT_PERMISSION_REQUIRED",
+                "A quality inspector or manager must acknowledge this escalation.",
+            ));
+        }
+        self.current.require_permission(self.command.permission())
+    }
+
     fn bind(&self, request: &WorkflowRequest) -> Result<CommandActor, BusinessError> {
-        self.current.require_permission(self.command.permission())?;
+        self.require_permission()?;
         let expected = self.command.request()?;
         let workspace = self.current.selection().workspace();
         if !self
@@ -561,6 +598,7 @@ enum Prepared {
     Transition(PreparedQualitySpecTransition),
     Inspection(PreparedQualityInspection),
     Cancel(PreparedQualityCancellation),
+    Acknowledge(PreparedQualityAlertAcknowledge),
     Release(PreparedQualityRelease),
     Scrap(Box<PreparedScrap>),
 }
@@ -582,6 +620,7 @@ enum Written<'a> {
         recipients: SelectedQualityRecipients<'a>,
         retained: RetainedQualityNotifications,
     },
+    Acknowledge(PreparedQualityAlertAcknowledge),
     Release {
         prepared: PreparedQualityRelease,
         recipients: SelectedQualityRecipients<'a>,
@@ -1202,6 +1241,13 @@ struct CancellationResult<'a> {
     version: i64,
 }
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AlertAcknowledgeResult<'a> {
+    id: &'a str,
+    version: i64,
+    acknowledged_by: &'a str,
+}
+#[derive(serde::Serialize)]
 struct InspectionResultJson<'a> {
     id: &'a str,
     status: &'a str,
@@ -1338,6 +1384,36 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                     event_scope: None,
                 })
             }
+            QualityOwnerCommand::Acknowledge(command) => {
+                let branch = self.current.selection().workspace().branch_id.clone();
+                let prepared = prepare_quality_alert_acknowledge(
+                    c,
+                    command,
+                    &company,
+                    branch.as_ref(),
+                    &actor,
+                    now,
+                )
+                .await?;
+                let receipt = prepared.receipt();
+                let result = CommandJson::from_serializable(&AlertAcknowledgeResult {
+                    id: &receipt.id,
+                    version: receipt.version,
+                    acknowledged_by: &receipt.acknowledged_by,
+                })?;
+                let version = receipt.version;
+                let scope = CommandEventScope {
+                    company_id: company.clone(),
+                    branch_id: CommandField::Value(prepared.branch_id().as_str().to_owned()),
+                    department_id: CommandField::Null,
+                };
+                self.prepared = Some(Prepared::Acknowledge(prepared));
+                Ok(WorkflowOutput {
+                    version,
+                    result,
+                    event_scope: Some(scope),
+                })
+            }
             QualityOwnerCommand::Inspect(command) => {
                 let branch = self.current.selection().workspace().branch_id.clone();
                 let prepared =
@@ -1450,6 +1526,10 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                     retained,
                 });
             }
+            Prepared::Acknowledge(prepared) => {
+                prepared.apply(c).await?;
+                self.written = Some(Written::Acknowledge(prepared));
+            }
             Prepared::Inspection(prepared) => {
                 prepared.apply(c).await?;
                 let QualityOwnerCommand::Inspect(command) = self.command else {
@@ -1539,6 +1619,7 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                 master.require_current(c).await?;
             }
             Written::Transition(prepared) => prepared.require_after(c).await?,
+            Written::Acknowledge(prepared) => prepared.require_after(c).await?,
             Written::Inspection {
                 prepared,
                 recipients,

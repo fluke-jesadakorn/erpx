@@ -598,7 +598,7 @@ fn decode_specification<T: serde::de::DeserializeOwned>(body: Value) -> Result<T
 /// `ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT` mirrors the retained development
 /// rollout switch. Invalid values fail closed; non-local environments may not
 /// enable enforcement.
-fn manufacturing_purchase_mode() -> Result<PackageEnforcementMode, BusinessError> {
+pub(crate) fn manufacturing_purchase_mode() -> Result<PackageEnforcementMode, BusinessError> {
     let raw = std::env::var("ERPX_MANUFACTURING_PACKAGE_ENFORCEMENT")
         .unwrap_or_else(|_| "disabled".to_owned());
     let mode = match raw.as_str() {

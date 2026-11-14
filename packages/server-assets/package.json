@@ -10,7 +10,6 @@
     "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/attachment-purchases": "./src/adapters/attachment-purchases.ts",
-    "./adapters/assets": "./src/adapters/assets.ts",
     "./adapters/attachment-read": "./src/adapters/attachment-read.ts",
     "./adapters/record-purchases": "./src/adapters/record-purchases.ts",
     "./adapters/purchases": "./src/adapters/purchases.ts",
@@ -35,7 +34,6 @@
     "./public/attachments-operational-facts": "./src/public/attachments-operational-facts.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./index": "./src/index.ts",
-    "./application/assets": "./src/application/assets.ts",
     "./domain/assets": "./src/domain/assets.ts"
   },
   "scripts": {
