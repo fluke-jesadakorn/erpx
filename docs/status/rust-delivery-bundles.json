@@ -23,8 +23,8 @@
     "workflowsVerified": 80,
     "workflowsMerged": 80,
     "ownersComplete": 8,
-    "bundleChecklistComplete": 18,
-    "bundleChecklistTotal": 18
+    "bundleChecklistComplete": 184,
+    "bundleChecklistTotal": 280
   },
   "evidencePolicy": {
     "statusMeaning": "partial, verified and merged are independent booleans; verified requires the entire original catalogue scope to meet the Rust, frontend, legacy-retirement and gate requirements; merged requires that fully verified workflow to be integrated and pushed to the target branch.",
@@ -139,7 +139,7 @@
         "evidenceFlows": [
           "field-service-initial-count-native"
         ],
-        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12\u201315/18."
+        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12–15/18."
       },
       {
         "number": 10,
@@ -342,7 +342,7 @@
           "src/composition/src/service_initial_physical_stock_read.rs",
           "src/composition/src/service_initial_physical_stock_flow.rs"
         ],
-        "current": "PR5 native Service Count create/lifecycle/Flow and generic GET/SSR; required writer/fallback retirement and native projection partition qualified. PR12 normal-auth setup\u2192postedCount evidence supplements it.",
+        "current": "PR5 native Service Count create/lifecycle/Flow and generic GET/SSR; required writer/fallback retirement and native projection partition qualified. PR12 normal-auth setup→postedCount evidence supplements it.",
         "withdrawal": "Retain only named generic non-Service count and shared ProductEntry/source-policy readers, with persisted Service family exclusion."
       },
       {
@@ -698,7 +698,7 @@
           "writeFootprint": "Field Order/event, start timestamp, Support projection, notice and Workflow effects",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
           "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
-          "withdrawalFence": "Retain dispatched\u2192in_visit rules and current actor; fence legacy start with exact retry.",
+          "withdrawalFence": "Retain dispatched→in_visit rules and current actor; fence legacy start with exact retry.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.start"
         },
@@ -756,7 +756,7 @@
           "writeFootprint": "Field Order/event, Support projection, notice and Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
           "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
-          "withdrawalFence": "Retain exception\u2192in_visit semantics and current actor; fence legacy resume.",
+          "withdrawalFence": "Retain exception→in_visit semantics and current actor; fence legacy resume.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.resume"
         },
@@ -2270,7 +2270,7 @@
         },
         "legacyRemoved": [
           "Field-only attachment-purchases/attachment-read/attachments-policy-facts/attachments-service-facts adapter/public pairs and exports",
-          "Files\u2194Field unused TypeScript workspace dependencies",
+          "Files↔Field unused TypeScript workspace dependencies",
           "Optional native transport selector wrappers, presenter/client ID-selector props and selector APIs"
         ],
         "legacyRemovalStatus": "Removed from the TS build/runtime graph; actual persisted markers fence direct and alternate legacy reads inside owned units. Non-Field shared consumers remain.",
@@ -2388,7 +2388,7 @@
           "frontend": "Native-only Service reads; pure shared presentation validator; full typecheck and292 focused cases pass. Bounded normal-auth functional browser journeys qualify; coldField16/releaseSSR remain open.",
           "retestReason": "Real same-database ports exposed deferred/final cleanup bugs; affected cases rerun after each composition correction. Unchanged unrelated evidence reused.",
           "postRemoval": "Seven registered same-lease native live/historical cases plus historicalhelper1 pass;94-case oracle/UI suite, app/test typecheck, targetedESLint, compositionClippy andarchitecture/structure pass. Functional browser receipt/source reconciliation qualifies; no wholecleanjourney claim.",
-          "browser": "Normal SSO multi-actor preparation\u2192postedCount with600/600 journal and6projectionreceipts; separateconfirm-existing unchangedmapping+Supplyinactive. Functional qualification only; colddevHMRhydration remainsField16."
+          "browser": "Normal SSO multi-actor preparation→postedCount with600/600 journal and6projectionreceipts; separateconfirm-existing unchangedmapping+Supplyinactive. Functional qualification only; colddevHMRhydration remainsField16."
         },
         "legacyRemoved": [
           "Commerce Service mapping/Stock workspace/master implementations and unused transaction bridge",
@@ -2531,7 +2531,7 @@
       "id": "holding-product-entry-native-session",
       "kind": "entry-evidence",
       "status": "flow-complete",
-      "scope": "Normal native session rootchooser and genuine Company/role\u2192existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
+      "scope": "Normal native session rootchooser and genuine Company/role→existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
       "sourceIdentity": "71adc86a55674997a6aba6ebf682a3ecfae594eb",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry holding-product-entry-native-session)",
       "durableContractRefs": []
@@ -2585,7 +2585,7 @@
       "id": "field-service-visit-start",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualSchedule\u2192Dispatch\u2192Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
+      "scope": "ActualSchedule→Dispatch→Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
       "sourceIdentity": "ca05ec43dedfc456989916a261e5bb1a8672dcc1",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-start)",
       "durableContractRefs": []
@@ -2594,7 +2594,7 @@
       "id": "field-service-visit-complete",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "Actual Complete visit drawer\u2192native owner transaction\u2192typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
+      "scope": "Actual Complete visit drawer→native owner transaction→typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
       "sourceIdentity": "dcecbe8105cde770431ca328743075b9d6f00e69",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-complete)",
       "durableContractRefs": []
@@ -2603,7 +2603,7 @@
       "id": "field-service-visit-exception-resume",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualException\u2192Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
+      "scope": "ActualException→Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
       "sourceIdentity": "57a5e6ae8a52e4310d2eb2e88a45c6a2ccde6e4d",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-exception-resume)",
       "durableContractRefs": []
@@ -2612,7 +2612,7 @@
       "id": "field-service-order-cancel",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualCancel drawer\u2192Rustatomiccancellation/reservationrelease\u2192receipt-boundnativeconfirmation",
+      "scope": "ActualCancel drawer→Rustatomiccancellation/reservationrelease→receipt-boundnativeconfirmation",
       "sourceIdentity": "0caa110c35f1eeec8294a145b5970a81aec85244",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-order-cancel)",
       "durableContractRefs": []
@@ -2639,7 +2639,7 @@
       "id": "field-service-raw-physical-scope-interop",
       "kind": "interop-evidence",
       "status": "interop-complete",
-      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate\u2192genuineReview\u2192Request+existingticketOrder/replays/readbacks\u2192nativeSchedule/Reserve/Dispatch/Start\u2192Issue/nativeproof\u2192genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
+      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate→genuineReview→Request+existingticketOrder/replays/readbacks→nativeSchedule/Reserve/Dispatch/Start→Issue/nativeproof→genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
       "sourceIdentity": "e3953e3e731a62cc83ed6ed88075c5f58b8e0359",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-raw-physical-scope-interop)",
       "durableContractRefs": []
@@ -2806,7 +2806,7 @@
       "effects": "One posted Countv4/source/line/stock/ledger; 2000milli/600minor; one nonopening posted journal with debit Inventory1200=600 and credit variance5400=600; distinct canonical maker/reviewer. Each of22 command receipts has one command-owned audit and outbox effect; total audit rows25 include other activity.",
       "retry": "Two native201 observations with identical body/key/context hashes; first committed reply dropped, second delivered; one Count create effect.",
       "durationMs": 57568,
-      "durationBoundary": "Bounded fresh setup\u2192Count browser journey, not full Field bundle or labor/finish estimate.",
+      "durationBoundary": "Bounded fresh setup→Count browser journey, not full Field bundle or labor/finish estimate.",
       "limitations": [
         "Integrated run retains intentional response-loss503 and10ERR_ABORTED navigation events; not clean Company-entry acceptance. Fresh final posted readback has zero page/console/request errors.",
         "Default native selection, legacy HTTP/internal/jobs fences, Files/Records, full six Field workflows and exact candidate gates remain open.",
@@ -3956,7 +3956,7 @@
         "platform-native-holdings"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group \u00b7 Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Customer Holding migration commands are covered by platform_administration/feature-migration-runs; other mutation workflows remain tracked separately."
+      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group · Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Customer Holding migration commands are covered by platform_administration/feature-migration-runs; other mutation workflows remain tracked separately."
     },
     {
       "id": "platform_administration/feature-connectors",
@@ -3982,7 +3982,7 @@
         "platform-native-operations"
       ],
       "sourceRef": "ops/macos/erpxctl.py",
-      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group \u00b7 Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Infrastructure mutation commands remain retained and are outside the registered read/inspection workflow."
+      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group · Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Infrastructure mutation commands remain retained and are outside the registered read/inspection workflow."
     },
     {
       "id": "platform_administration/feature-backup-recovery",
@@ -4023,7 +4023,7 @@
         "platform-native-migration-run"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Closed. Native platform migration run is browser verified from erpx-management: 412\u2192412 with pending 0; platform_migration_runs receipt succeeded for h001, replay returns the same run id with one row; holding migration rows retained. h003 remains excluded from managed Holding databases by existing design."
+      "gap": "Closed. Native platform migration run is browser verified from erpx-management: 412→412 with pending 0; platform_migration_runs receipt succeeded for h001, replay returns the same run id with one row; holding migration rows retained. h003 remains excluded from managed Holding databases by existing design."
     },
     {
       "id": "platform_administration/feature-temporary-access",
@@ -4845,7 +4845,7 @@
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Closed. Work and preventive-plan detail/history reads run on the native Maintenance owner and are browser verified in the keyed workspace: the maintenance list rendered AST-ACCEPT \u00b7 Forklift inspection, the work detail drawer showed the immutable history \u201cVersion 1 \u00b7 open \u00b7 Opened for acceptance\u201d, and the plan detail drawer showed the \u201cactivate\u201d history on plan-acceptance. The native router is mounted through maintenanceCompanies and the existing-business feature; create/downtime/completion/blocked-work remain separate partial workflows."
+      "gap": "Closed. Work and preventive-plan detail/history reads run on the native Maintenance owner and are browser verified in the keyed workspace: the maintenance list rendered AST-ACCEPT · Forklift inspection, the work detail drawer showed the immutable history “Version 1 · open · Opened for acceptance”, and the plan detail drawer showed the “activate” history on plan-acceptance. The native router is mounted through maintenanceCompanies and the existing-business feature; create/downtime/completion/blocked-work remain separate partial workflows."
     },
     {
       "id": "operations/feature-exception-queue",
@@ -4943,7 +4943,7 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Closed. The Operations summary is rendered from the native queue read and browser verified: the page showed `1 active \u00b7 0 awaiting review \u00b7 0 escalated \u00b7 0 past target` while the exception was open and `0 active` after it was cancelled, with the source-area count `pos-ops \u00b7 1` during the open state. No separate summary write operation exists in this scope."
+      "gap": "Closed. The Operations summary is rendered from the native queue read and browser verified: the page showed `1 active · 0 awaiting review · 0 escalated · 0 past target` while the exception was open and `0 active` after it was cancelled, with the source-area count `pos-ops · 1` during the open state. No separate summary write operation exists in this scope."
     },
     {
       "id": "procurement/requisitions",
@@ -5037,7 +5037,7 @@
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Historical native slice. Native Quality workspace/detail is mounted and browser verified: the hold detail at /supply/inventory-quality/quality/quality-hold-acceptance/overview shows Inspection history 1 record \u00b7 pass \u00b7 Recorded by usr_nisa \u00b7 Visual inspection passed \u00b7 Reviewed hold version 2. Specification/measurement setup belongs to the separate inspections/setup workflows and remains retained there. Spec save/activate and measurement writes are now native too; attachment-bearing inspections and notification handoff remain retained in the inspections workflow. Correction at e208578b4: Quality workspace/detail still reads TypeScript and overlays native results or returns the legacy result. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Historical native slice. Native Quality workspace/detail is mounted and browser verified: the hold detail at /supply/inventory-quality/quality/quality-hold-acceptance/overview shows Inspection history 1 record · pass · Recorded by usr_nisa · Visual inspection passed · Reviewed hold version 2. Specification/measurement setup belongs to the separate inspections/setup workflows and remains retained there. Spec save/activate and measurement writes are now native too; attachment-bearing inspections and notification handoff remain retained in the inspections workflow. Correction at e208578b4: Quality workspace/detail still reads TypeScript and overlays native results or returns the legacy result. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "quality/release-gates",
@@ -5175,7 +5175,7 @@
         "people-payroll-native-summary"
       ],
       "sourceRef": "packages/server-people_payroll/src/public/people-payroll.ts",
-      "gap": "Closed. Native posted payroll summary is mounted and browser verified: /people/people/payroll/dashboard shows Posted payroll by pay month with 2026-11 \u00b7 USD \u00b7 1 run \u00b7 1 person \u00b7 gross 1000.00 \u00b7 deductions 100.00 \u00b7 employer 200.00 \u00b7 net 900.00 from the posted payroll run/item."
+      "gap": "Closed. Native posted payroll summary is mounted and browser verified: /people/people/payroll/dashboard shows Posted payroll by pay month with 2026-11 · USD · 1 run · 1 person · gross 1000.00 · deductions 100.00 · employer 200.00 · net 900.00 from the posted payroll run/item."
     },
     {
       "id": "people_payroll/feature-leave-requests",
@@ -5264,7 +5264,7 @@
         "crm-native-pipeline-http"
       ],
       "sourceRef": "packages/server-crm/src/public/crm.ts",
-      "gap": "Native CRM command transport is mounted and browser verified for lead reassign/disqualify/reopen and opportunity link-quote/negotiate/win/lose/reopen, with CAS events, receipts, audit/outbox and Collaboration lead notification. Lead create/qualify, opportunity win-pms and the Marketing\u2192Sales handoff remain retained/fail-closed; read directory/entitlement ports still present Owner unavailable."
+      "gap": "Native CRM command transport is mounted and browser verified for lead reassign/disqualify/reopen and opportunity link-quote/negotiate/win/lose/reopen, with CAS events, receipts, audit/outbox and Collaboration lead notification. Lead create/qualify, opportunity win-pms and the Marketing→Sales handoff remain retained/fail-closed; read directory/entitlement ports still present Owner unavailable."
     },
     {
       "id": "crm/feature-sales-handoff",
@@ -5402,7 +5402,7 @@
         "manufacturing-native-bom-http"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Closed for the registered native BOM/formula register slice. The BOM target now mounts for the configured operations Company, the owner/router accepts the registered development Holding port, the private API boundary admits the GET specifications path, and the client accepts the same port-bearing Holding origin. Browser verified desktop and mobile at /manufacturing?company=acme-co: the native \"BOM and routing register\" renders Acme desk assembly \u00b7 approved \u00b7 bom \u00b7 version 1 from the native owner. The production console draft/approve controls remain retained and are tracked by the production workflows; this closure covers the registered specification register slice."
+      "gap": "Closed for the registered native BOM/formula register slice. The BOM target now mounts for the configured operations Company, the owner/router accepts the registered development Holding port, the private API boundary admits the GET specifications path, and the client accepts the same port-bearing Holding origin. Browser verified desktop and mobile at /manufacturing?company=acme-co: the native \"BOM and routing register\" renders Acme desk assembly · approved · bom · version 1 from the native owner. The production console draft/approve controls remain retained and are tracked by the production workflows; this closure covers the registered specification register slice."
     },
     {
       "id": "manufacturing/feature-labor-output",
@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 1964,
+    "revision": 1970,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261113-s",
+      "runId": "run-20261114-a",
       "agentId": "lead",
-      "startedAt": "2026-11-13T18:23:29.035Z",
-      "heartbeatAt": "2026-11-13T18:38:31.693Z",
-      "expiresAt": "2026-11-13T19:08:31.693Z",
-      "generation": 63,
-      "tokenHash": "3479e142b09480adda880d5209347ff6c3b50cc562def46caa019fa2555ebe47"
+      "startedAt": "2026-11-14T02:52:52.406Z",
+      "heartbeatAt": "2026-11-14T02:52:52.406Z",
+      "expiresAt": "2026-11-14T03:22:52.407Z",
+      "generation": 64,
+      "tokenHash": "8f4604bb9873690dc189f208881a82b98861e8291bd1e5061875515fc0a5e9f7"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -21335,6 +21335,12 @@
           "packages/server-collaboration/Cargo.toml",
           "packages/server-collaboration/package.json",
           "packages/feature-collaboration/**",
+          "packages/feature-apps/**",
+          "packages/server-operations/src/**",
+          "packages/server-manage_erpx/src/**",
+          "packages/server-pms/src/**",
+          "packages/server-agent/src/**",
+          "packages/server-organization/src/**",
           "tests/unit/collaboration/**",
           "tests/integration/collaboration/**"
         ],
@@ -21391,8 +21397,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": " mount the composition read overrides + feature-apps GET switches + dev native social config, then switch operations/manage_erpx/pms callers and delete the 31 social-home writers.",
+        "blocker": null,
+        "nextAction": "Switch operations/manage_erpx/pms/agent/organization callers from social-home to native endpoints, then delete social-home.ts writers and the social-home public barrel.",
         "handoff": {
           "runId": "run-20261113-s",
           "agentId": "lead",
@@ -21403,7 +21409,8 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
-        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
+        "removalTaskId": "retire.collaboration.social-home"
       },
       {
         "id": "retire.commerce.commerce",
@@ -21756,8 +21763,15 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "blocked",
+        "claim": {
+          "runId": "run-20261114-a",
+          "agentId": "worker-finance-retire",
+          "claimedAt": "2026-11-14T02:53:00.284Z",
+          "heartbeatAt": "2026-11-14T02:53:00.284Z",
+          "expiresAt": "2026-11-14T03:23:00.284Z",
+          "generation": 64
+        },
         "baseSha": null,
         "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
         "lastPushedSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
@@ -21866,8 +21880,8 @@
             "removalCondition": "Move the retained application-layer cases to native Rust seeding, then delete this test and its catalogue entry."
           }
         ],
-        "blocker": "released with work preserved",
-        "nextAction": "Finance 353 -> 336 (17 duplicate assertion cleanups deduped). Next: grant the workplace finance route path to cut over setup/bank (~11 writers, fail-closed), then split VAT/consolidation/accruals/finance-ai into producer packets.",
+        "blocker": null,
+        "nextAction": "Current finance KPI=336 (global 1962). Configuration operations (charts/accounts/periods/parties) have native counterparts in finance_setup.rs but external consumers (feature-finance, feature-assets, server-agent, server-identity_access) still use the TS public export. Next: switch feature-finance/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts to use native finance_setup port, then delete the TS configuration operations from finance.ts.",
         "handoff": {
           "runId": "run-20261113-s",
           "agentId": "lead",
@@ -22648,7 +22662,7 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "e2b6f09c1f5ea648e623af7aef9111ede2aed3df",
@@ -22752,10 +22766,10 @@
         "blocker": "released with work preserved",
         "nextAction": "Native booking-refund producer committed (PMS 109 unchanged). Lead: mount the refund route + native Finance effect port (journal postings/refund documents), switch the finance/booking/pos/jobs consumers, then delete pms-booking-refunds.ts (16) and the mail producer writers (9): PMS 109 -> 84.",
         "handoff": {
-          "runId": "run-20261113-s",
-          "agentId": "worker-pms-residual",
-          "at": "2026-11-13T18:26:08.896Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261114-a",
+          "agentId": "worker-pms-retire",
+          "at": "2026-11-14T03:06:33.511Z",
+          "previousStatus": "integrating",
           "reason": "released with work preserved",
           "nextAction": "Native booking-refund producer committed (PMS 109 unchanged). Lead: mount the refund route + native Finance effect port (journal postings/refund documents), switch the finance/booking/pos/jobs consumers, then delete pms-booking-refunds.ts (16) and the mail producer writers (9): PMS 109 -> 84."
         },
@@ -38459,22 +38473,15 @@
           "owner:collaboration",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-s",
-          "agentId": "worker-collab-mount",
-          "claimedAt": "2026-11-13T18:27:32.338Z",
-          "heartbeatAt": "2026-11-13T18:38:31.693Z",
-          "expiresAt": "2026-11-13T19:08:31.693Z",
-          "generation": 63
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "788e7b66b0749895c24fdbdcb254c194e64d9b7b",
+        "lastPushedSha": "788e7b66b0749895c24fdbdcb254c194e64d9b7b",
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Override comments_page/revisions in the composition SocialHttpBackend, switch the feature-apps comments/revisions GETs, add ERPX_NATIVE_COLLABORATION_CONFIG to the dev container start, switch server-operations/manage_erpx/pms to the native social routes, then delete savePostDraft/publishPost/postAction + the social-home repository writers/barrels and record Collaboration 169 -> 138.",
+        "nextAction": "Verify social-home native mounts in workplace routes; proceed to retire.collaboration.social-home next.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -38503,22 +38510,15 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261113-s",
-          "agentId": "worker-finance-cutover",
-          "claimedAt": "2026-11-13T18:27:11.377Z",
-          "heartbeatAt": "2026-11-13T18:38:31.693Z",
-          "expiresAt": "2026-11-13T19:08:31.693Z",
-          "generation": 63
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "788e7b66b0749895c24fdbdcb254c194e64d9b7b",
+        "lastPushedSha": "788e7b66b0749895c24fdbdcb254c194e64d9b7b",
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Make the workplace finance setup and bank import/reconcile branches native-only (503 when unconfigured), delete commitCreateChart/Account/Status/Import/Period and the bank writers from finance.ts, move the finance-book/payroll-history oracle helpers to native seeding, and record Finance 336 -> ~325.",
+        "nextAction": "Verify finance setup fail-closed in workplace; proceed to retire.finance.finance next.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -39311,20 +39311,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 219,
-      "migratedPackets": 124,
+      "migratedPackets": 126,
       "statusCounts": {
         "pending": 33,
-        "in_progress": 2,
-        "ready_for_integration": 23,
+        "in_progress": 0,
+        "ready_for_integration": 21,
         "integrating": 0,
-        "migrated": 124,
-        "blocked": 37,
+        "migrated": 126,
+        "blocked": 39,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 63,
-    "updatedAt": "2026-11-13T18:38:31.808Z",
+    "lastCoordinatorGeneration": 64,
+    "updatedAt": "2026-11-14T03:06:33.511Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
@@ -39367,12 +39367,22 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261113-r",
-      "runId": "run-20261113-s",
-      "at": "2026-11-13T18:23:29.037Z",
-      "reason": "Lease expired during five-worker closure batch; same lead resumes; WIP reviewed",
+      "previousRunId": "run-20261113-s",
+      "runId": "run-20261114-a",
+      "at": "2026-11-14T02:52:52.407Z",
+      "reason": "Previous run-20261113-s expired; WIP reviewed, no active processes",
       "wipReviewed": true,
       "previousRunStopped": true
+    },
+    "lastPushedSha": "788e7b66b",
+    "lastKpi": 1962,
+    "statusCounts": {
+      "done": 51,
+      "migrated": 133,
+      "blocked": 37,
+      "ready_for_integration": 23,
+      "pending": 35,
+      "deferred": 1
     }
   }
 }
